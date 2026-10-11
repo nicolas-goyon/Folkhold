@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.registry;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
@@ -21,6 +22,12 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .build("guard"));
 
+    public static final DeferredHolder<EntityType<?>, EntityType<ArcherEntity>> ARCHER = ENTITY_TYPES.register("archer",
+            () -> EntityType.Builder.of(ArcherEntity::new, MobCategory.MISC)
+                    .sized(0.6F, 1.95F)
+                    .clientTrackingRange(10)
+                    .build("archer"));
+
     private ModEntities() {
     }
 
@@ -31,5 +38,6 @@ public final class ModEntities {
 
     private static void onAttributeCreation(EntityAttributeCreationEvent event) {
         event.put(GUARD.get(), GuardEntity.createAttributes().build());
+        event.put(ARCHER.get(), ArcherEntity.createAttributes().build());
     }
 }

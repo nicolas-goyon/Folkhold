@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -33,6 +34,14 @@ public final class GarrisonGameTests {
         return helper.getBlockEntity(HEART);
     }
 
+    private static int fullGarrisonSize() {
+        int size = 0;
+        for (GarrisonRole role : GarrisonRole.values()) {
+            size += role.configuredCount();
+        }
+        return size;
+    }
+
     private static void removeUnits(VillageHeartBlockEntity heart) {
         heart.getUnits().forEach(Entity::discard);
     }
@@ -41,7 +50,7 @@ public final class GarrisonGameTests {
     @GameTest(template = "arena", batch = "garrison_full")
     public static void heartCreatesFullGarrisonOnce(GameTestHelper helper) {
         VillageHeartBlockEntity heart = placeHeart(helper);
-        int expected = WorldConfig.GARRISON_GUARDS.get();
+        int expected = fullGarrisonSize();
         long now = helper.getLevel().getGameTime();
 
         heart.ensureGarrison(now);
@@ -59,7 +68,7 @@ public final class GarrisonGameTests {
     @GameTest(template = "arena", batch = "garrison_refill")
     public static void deadUnitIsReplacedAfterDelay(GameTestHelper helper) {
         VillageHeartBlockEntity heart = placeHeart(helper);
-        int expected = WorldConfig.GARRISON_GUARDS.get();
+        int expected = fullGarrisonSize();
         long now = helper.getLevel().getGameTime();
         heart.ensureGarrison(now);
 
@@ -86,7 +95,7 @@ public final class GarrisonGameTests {
     @GameTest(template = "arena", batch = "garrison_unload")
     public static void unloadedUnitIsNotDuplicated(GameTestHelper helper) {
         VillageHeartBlockEntity heart = placeHeart(helper);
-        int expected = WorldConfig.GARRISON_GUARDS.get();
+        int expected = fullGarrisonSize();
         long now = helper.getLevel().getGameTime();
         heart.ensureGarrison(now);
 

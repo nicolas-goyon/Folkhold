@@ -1,7 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
-import io.github.nicolasgoyon.folkhold.world.client.renderer.GuardRenderer;
+import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionUnitRenderer;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -24,6 +24,7 @@ public final class FolkholdWorldClient {
     }
 
     private static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
-        event.registerEntityRenderer(ModEntities.GUARD.get(), GuardRenderer::new);
+        event.registerEntityRenderer(ModEntities.GUARD.get(), FactionUnitRenderer::new);
+        event.registerEntityRenderer(ModEntities.ARCHER.get(), FactionUnitRenderer::new);
     }
 }

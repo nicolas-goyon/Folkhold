@@ -26,10 +26,12 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue CALM_DELAY_SECONDS;
 
     public static final ModConfigSpec.IntValue GARRISON_GUARDS;
+    public static final ModConfigSpec.IntValue GARRISON_ARCHERS;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
 
     public static final UnitStats GUARD;
+    public static final UnitStats ARCHER;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -96,6 +98,10 @@ public final class WorldConfig {
                 .comment("Number of guards in a full garrison.")
                 .translation(KEY_PREFIX + "garrisonGuards")
                 .defineInRange("guards", 4, 0, 32);
+        GARRISON_ARCHERS = builder
+                .comment("Number of archers in a full garrison.")
+                .translation(KEY_PREFIX + "garrisonArchers")
+                .defineInRange("archers", 2, 0, 32);
         GARRISON_REFILL_DELAY_SECONDS = builder
                 .comment("Time in seconds before the village replaces a dead unit. The village must be calm.")
                 .translation(KEY_PREFIX + "garrisonRefillDelaySeconds")
@@ -110,6 +116,8 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "unit")
                 .push("unit");
         GUARD = new UnitStats(builder, "guard", new UnitStats.Defaults(30.0, 3.0, 4.0, 0.3, 24.0));
+        // For the archer, attackDamage is the base damage of its arrows.
+        ARCHER = new UnitStats(builder, "archer", new UnitStats.Defaults(20.0, 2.0, 2.0, 0.3, 32.0));
         builder.pop();
 
         SPEC = builder.build();

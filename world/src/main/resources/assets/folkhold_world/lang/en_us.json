@@ -30,5 +30,14 @@
   "folkhold_world.configuration.garrison": "Garrison",
   "folkhold_world.configuration.garrisonGuards": "Guards",
   "folkhold_world.configuration.garrisonRefillDelaySeconds": "Refill delay (seconds)",
-  "folkhold_world.configuration.garrisonActivationRadius": "Activation radius"
+  "folkhold_world.configuration.garrisonActivationRadius": "Activation radius",
+  "entity.folkhold_world.archer": "Archer",
+  "item.folkhold_world.archer_spawn_egg": "Archer Spawn Egg",
+  "folkhold_world.configuration.garrisonArchers": "Archers",
+  "folkhold_world.configuration.unit.archer": "Archer",
+  "folkhold_world.configuration.unit.archer.health": "Health",
+  "folkhold_world.configuration.unit.archer.attackDamage": "Arrow damage",
+  "folkhold_world.configuration.unit.archer.armor": "Armor",
+  "folkhold_world.configuration.unit.archer.movementSpeed": "Movement speed",
+  "folkhold_world.configuration.unit.archer.followRange": "Follow range"
 }

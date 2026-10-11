@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Optional;
 import javax.annotation.Nullable;
@@ -35,7 +36,9 @@ import net.minecraft.world.level.ServerLevelAccessor;
  * <ul>
  *   <li>a <b>home position</b>: center of the patrol and of the chase limit;</li>
  *   <li>a <b>village</b>: the position of its village heart, or none. The unit reports threats to the heart,
- *       and the heart alerts all units of the village.</li>
+ *       and the heart alerts all units of the village;</li>
+ *   <li>a <b>post</b> (optional): a tower or wall position. While the village is not calm, the unit stays
+ *       at its post.</li>
  * </ul>
  *
  * <p>The attributes come from the config of the unit type when the unit spawns.
@@ -48,11 +51,16 @@ public abstract class FactionUnit extends PathfinderMob {
     private static final int NIGHT_RADIUS = 4;
     private static final String HOME_TAG = "HomePos";
     private static final String VILLAGE_TAG = "VillagePos";
+    private static final String POST_TAG = "PostPos";
+    /** Radius around the post while the village is not calm, in blocks. */
+    private static final int POST_RADIUS = 1;
 
     @Nullable
     private BlockPos homePos;
     @Nullable
     private BlockPos villagePos;
+    @Nullable
+    private BlockPos postPos;
 
     protected FactionUnit(EntityType<? extends FactionUnit> type, Level level) {
         super(type, level);
@@ -84,6 +92,21 @@ public abstract class FactionUnit extends PathfinderMob {
         villagePos = pos == null ? null : pos.immutable();
     }
 
+    /** The post of the unit (a tower or a wall position), or null. The unit goes there during an alert. */
+    @Nullable
+    public BlockPos getPostPos() {
+        return postPos;
+    }
+
+    public void setPostPos(@Nullable BlockPos pos) {
+        postPos = pos == null ? null : pos.immutable();
+    }
+
+    /** True if the unit has a village and the village is not calm. */
+    public boolean isVillageAlerted() {
+        return getVillageHeart().map(heart -> heart.getAlertState() != AlertState.CALM).orElse(false);
+    }
+
     /** The heart of the village of this unit, if the unit has a village and the heart is loaded. */
     public Optional<VillageHeartBlockEntity> getVillageHeart() {
         if (villagePos == null || !level().isLoaded(villagePos)) {
@@ -108,8 +131,12 @@ public abstract class FactionUnit extends PathfinderMob {
     @Override
     protected void customServerAiStep() {
         super.customServerAiStep();
-        int radius = level().isNight() ? NIGHT_RADIUS : WorldConfig.PATROL_RADIUS.get();
-        restrictTo(getHomePos(), radius);
+        if (postPos != null && isVillageAlerted()) {
+            restrictTo(postPos, POST_RADIUS);
+        } else {
+            int radius = level().isNight() ? NIGHT_RADIUS : WorldConfig.PATROL_RADIUS.get();
+            restrictTo(getHomePos(), radius);
+        }
 
         LivingEntity target = getTarget();
         if (target != null && (!target.isAlive() || !canTargetFromHome(target))) {
@@ -206,6 +233,9 @@ public abstract class FactionUnit extends PathfinderMob {
         if (villagePos != null) {
             tag.put(VILLAGE_TAG, NbtUtils.writeBlockPos(villagePos));
         }
+        if (postPos != null) {
+            tag.put(POST_TAG, NbtUtils.writeBlockPos(postPos));
+        }
     }
 
     @Override
@@ -213,5 +243,6 @@ public abstract class FactionUnit extends PathfinderMob {
         super.readAdditionalSaveData(tag);
         NbtUtils.readBlockPos(tag, HOME_TAG).ifPresent(this::setHomePos);
         NbtUtils.readBlockPos(tag, VILLAGE_TAG).ifPresent(this::setVillagePos);
+        NbtUtils.readBlockPos(tag, POST_TAG).ifPresent(this::setPostPos);
     }
 }
