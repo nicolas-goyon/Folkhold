@@ -26,5 +26,9 @@
   "folkhold_world.configuration.village": "Villages",
   "folkhold_world.configuration.villageRadius": "Rayon du village",
   "folkhold_world.configuration.spawnProtectionRadius": "Rayon sans apparition de monstres",
-  "folkhold_world.configuration.calmDelaySeconds": "Délai avant le retour au calme (secondes)"
+  "folkhold_world.configuration.calmDelaySeconds": "Délai avant le retour au calme (secondes)",
+  "folkhold_world.configuration.garrison": "Garnison",
+  "folkhold_world.configuration.garrisonGuards": "Gardes",
+  "folkhold_world.configuration.garrisonRefillDelaySeconds": "Délai de remplacement (secondes)",
+  "folkhold_world.configuration.garrisonActivationRadius": "Rayon d'activation"
 }

@@ -26,5 +26,9 @@
   "folkhold_world.configuration.village": "Villages",
   "folkhold_world.configuration.villageRadius": "Village radius",
   "folkhold_world.configuration.spawnProtectionRadius": "Monster spawn protection radius",
-  "folkhold_world.configuration.calmDelaySeconds": "Delay before the village is calm (seconds)"
+  "folkhold_world.configuration.calmDelaySeconds": "Delay before the village is calm (seconds)",
+  "folkhold_world.configuration.garrison": "Garrison",
+  "folkhold_world.configuration.garrisonGuards": "Guards",
+  "folkhold_world.configuration.garrisonRefillDelaySeconds": "Refill delay (seconds)",
+  "folkhold_world.configuration.garrisonActivationRadius": "Activation radius"
 }
