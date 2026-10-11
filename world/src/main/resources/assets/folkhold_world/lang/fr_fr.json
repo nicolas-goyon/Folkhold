@@ -10,6 +10,7 @@
   "folkhold_world.configuration.patrolRadius": "Rayon de patrouille",
   "folkhold_world.configuration.chaseRadius": "Rayon de poursuite",
   "folkhold_world.configuration.alertRadius": "Rayon d'alerte",
+  "folkhold_world.configuration.monstersAttackGuards": "Les monstres attaquent les gardes",
   "folkhold_world.configuration.unit": "Unités",
   "folkhold_world.configuration.unit.guard": "Garde",
   "folkhold_world.configuration.unit.guard.health": "Points de vie",

@@ -32,3 +32,6 @@ type = "required"
 versionRange = "[${mod_version},)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[accessTransformers]]
+file = "META-INF/accesstransformer.cfg"

@@ -2,12 +2,14 @@ package io.github.nicolasgoyon.folkhold.world;
 
 import com.mojang.logging.LogUtils;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModItems;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
 
 /**
@@ -22,6 +24,7 @@ public final class FolkholdWorld {
         modContainer.registerConfig(ModConfig.Type.SERVER, WorldConfig.SPEC);
         ModEntities.register(modEventBus);
         ModItems.register(modEventBus);
+        NeoForge.EVENT_BUS.addListener(MonsterTargeting::onEntityJoin);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
 }

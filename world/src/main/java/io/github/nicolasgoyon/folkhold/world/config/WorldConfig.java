@@ -19,6 +19,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue PATROL_RADIUS;
     public static final ModConfigSpec.IntValue CHASE_RADIUS;
     public static final ModConfigSpec.IntValue ALERT_RADIUS;
+    public static final ModConfigSpec.BooleanValue MONSTERS_ATTACK_GUARDS;
 
     public static final UnitStats GUARD;
 
@@ -53,6 +54,12 @@ public final class WorldConfig {
                 .comment("Radius in blocks in which an attack on one unit alerts the other units.")
                 .translation(KEY_PREFIX + "alertRadius")
                 .defineInRange("alertRadius", 24, 4, 128);
+        MONSTERS_ATTACK_GUARDS = builder
+                .comment("Hostile monsters attack guards first, as they attack iron golems.",
+                        "The entity types in the tag folkhold_world:ignores_guards never do.",
+                        "Applies to monsters that spawn or load after the change.")
+                .translation(KEY_PREFIX + "monstersAttackGuards")
+                .define("monstersAttackGuards", true);
         builder.pop();
 
         builder.comment("Base values of each unit type.")
