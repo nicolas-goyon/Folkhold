@@ -1,6 +1,5 @@
 # Folkhold — Design document
 
-> Open decisions: issue #7. Roadmap review: issue #6.
 
 ## Vision and principles
 
@@ -80,7 +79,7 @@ flowchart TB
     concrete -- "write back changes" --> abstract
 ```
 
-The balance mod has a small link to `core` and stays usable alone (see issue #7).
+The balance mod has no dependency on `core` and stays usable alone. When the world mod is present, the balance mod uses it through an optional interface (for example to read village stocks).
 
 ## World mod: factions, diplomacy, territories
 
@@ -90,7 +89,17 @@ When a new world starts, the mod creates 5 to 7 factions:
 - 1 neutral faction.
 - The other factions are hostile.
 
-Each faction has 3 to 8 villages, spread across regions.
+Each faction has 3 to 8 villages, spread across the territory cells.
+
+### Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Territory cell | Square of 16×16 chunks. Unit of territory ownership (world mod). |
+| Spawn cell | Square of 4×4 chunks. Unit of the spawn budget (balance mod). |
+| Abstract tick | One step of the abstract simulation: every 2,400 game ticks (2 minutes). |
+| Cycle | One game day (24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle. |
+| Development | Continuous value (0 to 100) that measures the growth of a settlement. |
 
 ### Data model
 
@@ -98,24 +107,24 @@ Each faction has 3 to 8 villages, spread across regions.
 | --- | --- |
 | `Faction` | id, name, culture (village style, units), color and banner, treasury, military power, base attitude to the player, traits (expansionist, merchant, isolationist) |
 | `Relation` | pair of factions, value from -100 to +100, state (alliance, peace, tension, war), date of the last change |
-| `Territory` | region (grid of 16×16 chunks), owner faction, linked village, current contest |
-| `Settlement` | id, faction, position, size (hamlet, village, city, fortress), population, garrison, stocks, buildings |
+| `Territory` | territory cell, owner faction, linked village, current contest |
+| `Settlement` | id, faction, position, development (0 to 100), tier (from the development), population, garrison, stocks, buildings, construction queue |
 
 The mod stores all of this in a `SavedData` of the Overworld level. `Codec` objects serialize it to NBT.
 
 ### Simulation rules (abstract tick every 2,400 ticks = 2 minutes)
 
-**Phase 1: living territories, no wars between NPCs.** Territories change mostly because of the player and because of the slow growth of the factions.
+**Phase 1: living territories, no wars between NPCs.** Territories change mostly because of the player and because of the slow growth of the factions. The only military content is the defense of the villages. There are no patrols, no bandits and no armies.
 
-- **Claim**: each village claims the regions around it, as a function of its tier (1 region for a hamlet, up to 9 for a city).
-- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its regions become **unclaimed**.
-- **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in an unclaimed region.
+- **Claim**: each village claims the territory cells around it. The number depends on its tier: 1 cell for a hamlet, up to 9 for a city.
+- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory cells become **unclaimed**.
+- **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in an unclaimed territory cell.
 - **Rally a village**: with sufficient reputation and a quest, a village can change its banner and join a different faction.
-- **Natural growth**: a prosperous faction slowly founds a hamlet in an adjacent unclaimed region (maximum one each game week).
+- **Natural growth**: a prosperous faction slowly founds a hamlet in an adjacent unclaimed territory cell (maximum one each game week).
 - **Diplomacy**: relations change with trade and incidents. Relations decide which factions trade together.
 - **Decline**: a faction with no village disappears. Its ruins stay in the world.
 
-**Phase 2 (later)**: wars between factions, sieges, armies and NPC-against-NPC conquests, on the same simulation.
+**Phase 2 (later)**: wars between factions, sieges, patrols, bandits, armies and NPC-against-NPC conquests, on the same simulation.
 
 ### Datapack parameters
 
@@ -129,11 +138,14 @@ Each faction village has fortifications and guards. A player in iron armor with 
 
 - Generated as *jigsaw* structures, one set for each culture (building pools: center, houses, workshops, wall, towers, gates).
 - The size follows the abstract state: a hamlet has a palisade, a city has a stone wall and archer towers.
+- Settlement positions: the mod must know the position of each village before its chunks exist. A prototype at the start of J1 selects the method.
 - Materialization: when the player comes near, the mod creates the garrison and the inhabitants from the `Settlement` state. When the player goes away, the mod removes them and writes their state back (health, deaths, equipment).
 
 ### Village growth
 
-A prosperous village goes up one tier. Its defenses change visibly:
+Growth is gradual. Each settlement has a **development** value (0 to 100) that changes slowly with prosperity. Each building, wall section and defense has its own development threshold. When the development reaches a threshold, this element is added. The village changes step by step, not in one jump.
+
+The tiers are names for ranges of development. They set the trades, the claimed territory and the quests. The tier list is configurable, so more tiers can exist later.
 
 | Tier | Defenses | Trades | Condition to go up |
 | --- | --- | --- | --- |
@@ -142,11 +154,20 @@ A prosperous village goes up one tier. Its defenses change visibly:
 | Town | Stone wall, gates, riders | Specialized craftsmen | Same, plus one active trade route |
 | City | Large wall, keep, golems | Rare offers, inn, advanced quests | Same, plus 2 linked villages of the same faction |
 
-A village that loses its prosperity (raided, isolated) can go down one tier. Construction work occurs out of the view of the player. The mod replaces a building with its upgraded version when the player cannot see it. It does not touch blocks that the player placed.
+A village that loses its prosperity (raided, isolated) loses development and can go down one tier.
+
+### Construction
+
+New elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
+
+- **Chunks not loaded**: the construction progresses in the abstract simulation. The mod cannot change blocks in a chunk that is not loaded. It applies the finished elements when the chunk loads, before the player can see them.
+- **Chunks loaded** (planned for a later milestone): builder villagers do the construction block by block. The player sees the village grow. This is useful when the player often comes back to the same village.
 
 ### Reputation and welcome
 
-- The mod tracks reputation **for each village** and **for each faction**. The behavior of a village depends mostly on its own reputation. The faction reputation pulls the village reputation.
+- The mod tracks reputation **for each player**, **for each village** and **for each faction**. The key is the UUID of the player, so multiplayer stays possible.
+- Village reputation and faction reputation use the same range: -1000 to +1000.
+- The behavior of a village uses the **effective reputation**: 70 % village reputation + 30 % faction reputation. The two weights are configurable.
 - When the player enters a village:
   - Hostile: the guards attack.
   - Neutral: the guards watch and give a warning.
@@ -178,7 +199,9 @@ A village that loses its prosperity (raided, isolated) can go down one tier. Con
 
 ### Balancing
 
-Use configurable values (health, damage, armor for each type) and a GameTest scenario. Target: a player in iron armor against the garrison of an average village loses in more than 80 % of tries.
+Difficulty target: a player in iron armor with no enchantments loses a frontal attack against the garrison of an average village in most cases. This is a design target, not an automatic test.
+
+All values are configurable (health, damage, armor, garrison size for each type), with a global difficulty multiplier. This lets us adjust the difficulty without a new build.
 
 ## World mod: simulated economy
 
@@ -186,7 +209,7 @@ Each village has real stocks. It produces and consumes according to its jobs. It
 
 ### Producers and recipes
 
-Each job has one recipe for each cycle (1 game day = 24,000 ticks). The recipes are datapack files.
+Each job has one recipe for each cycle (1 game day = 24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle, not on each abstract tick. The recipes are data files.
 
 | Job | Consumes | Produces |
 | --- | --- | --- |
@@ -214,7 +237,7 @@ A surplus lowers the price down to ×0.5. A shortage raises the price up to ×3.
 
 - On each abstract tick, each village makes a list of its surpluses (`S > 1.5 × S_target`) and its needs (`S < 0.5 × S_target`).
 - A greedy match links one seller and one buyer from factions that are not hostile. Distance is a weight.
-- The trade creates a **caravan** (next section). The goods arrive after a delay that is proportional to the distance. If bandits raid the caravan, the goods are lost.
+- The trade creates a **caravan** (next section). The goods arrive after a delay that is proportional to the distance. If the caravan is raided (by the player in phase 1, also by bandits in phase 2), the goods are lost.
 - Expected result: prices converge between connected villages. A war that cuts a route makes prices go up on one side.
 
 ### Trade with the player
@@ -237,13 +260,13 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 
 ### Mobile groups
 
-| Group | Origin | Content | Player interaction |
-| --- | --- | --- | --- |
-| Merchant caravan | Trade between villages | Merchant, loaded mules, 2 to 4 guards | Trade on the road, escort (quest), raid (reputation) |
-| Patrol | Faction, around its territory | 3 to 6 soldiers, sometimes one rider | Hostile, neutral or ally, as a function of reputation |
-| Army | Faction at war | 10 to 30 units | The player can join (ally) or harass it |
-| Traveling merchant | Neutral faction | 1 merchant + pack animal | Rare stock, moves from village to village |
-| Bandits | Fallen faction or event | 3 to 8 outlaws | Hostile, raid caravans |
+| Group | Phase | Origin | Content | Player interaction |
+| --- | --- | --- | --- | --- |
+| Merchant caravan | 1 | Trade between villages | Merchant, loaded mules, 2 to 4 guards | Trade on the road, escort (quest), raid (reputation) |
+| Traveling merchant | 1 | Neutral faction | 1 merchant + pack animal | Rare stock, moves from village to village |
+| Patrol | 2 | Faction, around its territory | 3 to 6 soldiers, sometimes one rider | Hostile, neutral or ally, as a function of reputation |
+| Army | 2 | Faction at war | 10 to 30 units | The player can join (ally) or harass it |
+| Bandits | 2 | Fallen faction or event | 3 to 8 outlaws | Hostile, raid caravans |
 
 ### Abstract movement
 
@@ -251,7 +274,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - The group moves N blocks on each abstract tick. The mod interpolates its position on the route.
 - When the position enters the simulation distance of a player, the mod materializes the group at the nearest point. The group then uses the vanilla pathfinding over short distances.
 - When the group leaves the area, it becomes abstract again and keeps its state (losses, cargo).
-- Encounters: two hostile groups on near segments fight. A comparison of power with a random factor gives the result. If the player is present, the fight is real.
+- Encounters (phase 2): two hostile groups on near segments fight. A comparison of power with a random factor gives the result. If the player is present, the fight is real.
 
 ### Synergy with the pack mods
 
@@ -276,16 +299,16 @@ Spread: an action toward faction A changes the reputation with the allies of A (
 ### Quests from the state of the world
 
 - **Delivery**: a village with a shortage asks for an item. Linked to the economy. The reward follows the local price.
-- **Escort**: a real caravan leaves. The player protects it to its destination.
-- **Defense**: an army on the road threatens an allied village.
-- **Hunt**: bandits or monsters attack a trade route.
+- **Escort**: a real caravan leaves. The player protects it to its destination (against monsters in phase 1).
+- **Defense** (phase 2): an army on the road threatens an allied village.
+- **Hunt**: monsters attack a trade route. In phase 2, also bandits.
 - **Diplomacy**: carry a message to improve the relation between two factions.
 
 A quest has a giver, a success condition that the mod checks on the state of the world, a deadline and a reward (emeralds, items, reputation). Each village has a quest board. Captains also give quests.
 
 ### Lore
 
-Each culture has a short history. Players find it in books in villages and ruins. The text exists in each supported language. Past wars leave real ruins in the world, so each game gets its own lore.
+Each culture has a short history. Players find it in books in villages and ruins. The text is in the language files (`en_us.json`, `fr_fr.json`), like all other text that the player sees. Past wars leave real ruins in the world, so each game gets its own lore.
 
 ## Balance mod: farms, villagers, chunk loading
 
@@ -293,7 +316,7 @@ This mod does not need the world mod. It limits infinite farms with regional bud
 
 ### Regional spawn saturation
 
-- The mod divides the world into regions of 4×4 chunks. Each region counts the recent deaths of hostile mobs.
+- The mod divides the world into spawn cells of 4×4 chunks. Each spawn cell counts the recent deaths of hostile mobs.
 - The natural spawn rate is multiplied by `max(0.1, 1 - deaths / threshold)`. The counter decreases by 5 % each game minute.
 - Result: a small farm stays useful, an industrial farm reaches its limit quickly, and no design is "forbidden".
 - Option: deaths in flowing water or from falls count double (simple detection from the damage source).
@@ -330,7 +353,7 @@ Weather2 keeps the tornadoes and storms. This mod adds ground events and rare di
 | Earthquake | Random, more frequent near mountains | Camera shake, unstable blocks fall (sand, gravel, cracked stone), cracks in the surface | Medium |
 | Collapse | Cavity below the surface + earthquake or rain | An area of 5 to 15 blocks collapses into falling blocks | Medium |
 | Landslide | Steep slope + long rain | Dirt and gravel slide down | Medium |
-| Wildfire | Summer (Serene Seasons) + lightning | Faster spread, ash, regrowth with Dynamic Trees | Low |
+| Wildfire | Summer (Serene Seasons, optional dependency) + lightning | Faster spread, ash, regrowth with Dynamic Trees | Low |
 | Flood | Heavy rain near rivers | Temporary rise of the water on the banks | Difficult |
 
 ### Rules
@@ -394,7 +417,7 @@ Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the 
 
 ```
 Folkhold/
-  core/          shared library: abstract simulation, regions, scheduler
+  core/          shared library: abstract simulation, cells, scheduler
   world/         factions, villages, economy, caravans, quests
   balance/       farms, villagers, chunk loading
   events/        earthquakes, collapses
@@ -454,6 +477,7 @@ Notes:
 
 - [ ] Are hostile factions only human, or also non-human cultures (illagers, piglins)?
 - [ ] Can the player found a faction, or join an existing faction?
-- [ ] Is a multiplayer mode necessary, or is single-player sufficient?
+- [ ] Is a multiplayer mode necessary, or is single-player sufficient? (The data already uses the player UUID.)
 - [ ] Publish the mods on Modrinth later, or personal use only? (This changes the asset licenses.)
+- [ ] Select a license for the code and the assets, before the first public release.
 - [x] Does Lithium have a reliable NeoForge 1.21.1 version? Yes: `mc1.21.1-0.15.4-neoforge` (June 2026).
