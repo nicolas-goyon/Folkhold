@@ -1,0 +1,13 @@
+name = "Dirigo"
+filename = "dirigo-neoforge-1.21.1-1.3.0.jar"
+side = "both"
+
+[download]
+url = "https://cdn.modrinth.com/data/zSARzLjX/versions/YTyhdLCj/dirigo-neoforge-1.21.1-1.3.0.jar"
+hash-format = "sha512"
+hash = "edd50ef79ede25fe071e70cceb1a2d24f2664d1d56ea5f29907ef84a01688a8f0778baf31f92ab551904ca9a3f6cef3e5b4b59dc3a221fee01cc9b5fbfb8c763"
+
+[update]
+[update.modrinth]
+mod-id = "zSARzLjX"
+version = "YTyhdLCj"

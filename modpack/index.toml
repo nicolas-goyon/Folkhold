@@ -6,6 +6,11 @@ hash = "d901f874a1e09747b8d0d072c38c426eceead1f29c8ba36680f8f0082996b152"
 metafile = true
 
 [[files]]
+file = "mods/dirigo.pw.toml"
+hash = "7f0bf5166eb7a912e7b9db58a59b48a5837eaf0ec03ea48e28cab0d21d282363"
+metafile = true
+
+[[files]]
 file = "mods/dynamictrees.pw.toml"
 hash = "276da3b2d9f2566484467c3654df5e963b64a56f96a130fd5af88b1413dca65c"
 metafile = true
