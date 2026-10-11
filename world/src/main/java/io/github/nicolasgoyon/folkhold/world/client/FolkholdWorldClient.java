@@ -26,5 +26,6 @@ public final class FolkholdWorldClient {
     private static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.GUARD.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.ARCHER.get(), FactionUnitRenderer::new);
+        event.registerEntityRenderer(ModEntities.CAPTAIN.get(), FactionUnitRenderer::new);
     }
 }

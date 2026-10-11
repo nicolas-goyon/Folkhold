@@ -39,5 +39,18 @@
   "folkhold_world.configuration.unit.archer.attackDamage": "Arrow damage",
   "folkhold_world.configuration.unit.archer.armor": "Armor",
   "folkhold_world.configuration.unit.archer.movementSpeed": "Movement speed",
-  "folkhold_world.configuration.unit.archer.followRange": "Follow range"
+  "folkhold_world.configuration.unit.archer.followRange": "Follow range",
+  "entity.folkhold_world.captain": "Captain",
+  "item.folkhold_world.captain_spawn_egg": "Captain Spawn Egg",
+  "folkhold_world.configuration.garrisonCaptains": "Captains",
+  "folkhold_world.configuration.captain": "Captain",
+  "folkhold_world.configuration.captainAuraRadius": "Morale aura radius",
+  "folkhold_world.configuration.captainRoutShare": "Share of units that run away",
+  "folkhold_world.configuration.captainRoutSeconds": "Rout duration (seconds)",
+  "folkhold_world.configuration.unit.captain": "Captain",
+  "folkhold_world.configuration.unit.captain.health": "Health",
+  "folkhold_world.configuration.unit.captain.attackDamage": "Attack damage",
+  "folkhold_world.configuration.unit.captain.armor": "Armor",
+  "folkhold_world.configuration.unit.captain.movementSpeed": "Movement speed",
+  "folkhold_world.configuration.unit.captain.followRange": "Follow range"
 }

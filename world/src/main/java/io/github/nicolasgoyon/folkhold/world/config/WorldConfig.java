@@ -27,11 +27,17 @@ public final class WorldConfig {
 
     public static final ModConfigSpec.IntValue GARRISON_GUARDS;
     public static final ModConfigSpec.IntValue GARRISON_ARCHERS;
+    public static final ModConfigSpec.IntValue GARRISON_CAPTAINS;
+
+    public static final ModConfigSpec.IntValue CAPTAIN_AURA_RADIUS;
+    public static final ModConfigSpec.DoubleValue CAPTAIN_ROUT_SHARE;
+    public static final ModConfigSpec.IntValue CAPTAIN_ROUT_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
+    public static final UnitStats CAPTAIN;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -102,6 +108,10 @@ public final class WorldConfig {
                 .comment("Number of archers in a full garrison.")
                 .translation(KEY_PREFIX + "garrisonArchers")
                 .defineInRange("archers", 2, 0, 32);
+        GARRISON_CAPTAINS = builder
+                .comment("Number of captains in a full garrison.")
+                .translation(KEY_PREFIX + "garrisonCaptains")
+                .defineInRange("captains", 1, 0, 4);
         GARRISON_REFILL_DELAY_SECONDS = builder
                 .comment("Time in seconds before the village replaces a dead unit. The village must be calm.")
                 .translation(KEY_PREFIX + "garrisonRefillDelaySeconds")
@@ -112,12 +122,30 @@ public final class WorldConfig {
                 .defineInRange("activationRadius", 64, 16, 256);
         builder.pop();
 
+        builder.comment("Captain: morale aura and effect of its death.")
+                .translation(KEY_PREFIX + "captain")
+                .push("captain");
+        CAPTAIN_AURA_RADIUS = builder
+                .comment("Radius in blocks of the morale aura (Strength I for the units of the village).")
+                .translation(KEY_PREFIX + "captainAuraRadius")
+                .defineInRange("auraRadius", 16, 0, 64);
+        CAPTAIN_ROUT_SHARE = builder
+                .comment("Share of the units of the village that run away when the captain dies (0 to 1).")
+                .translation(KEY_PREFIX + "captainRoutShare")
+                .defineInRange("routShare", 0.3, 0.0, 1.0);
+        CAPTAIN_ROUT_SECONDS = builder
+                .comment("Duration in seconds of the rout and of the Weakness effect after the death of the captain.")
+                .translation(KEY_PREFIX + "captainRoutSeconds")
+                .defineInRange("routSeconds", 20, 1, 600);
+        builder.pop();
+
         builder.comment("Base values of each unit type.")
                 .translation(KEY_PREFIX + "unit")
                 .push("unit");
         GUARD = new UnitStats(builder, "guard", new UnitStats.Defaults(30.0, 3.0, 4.0, 0.3, 24.0));
         // For the archer, attackDamage is the base damage of its arrows.
         ARCHER = new UnitStats(builder, "archer", new UnitStats.Defaults(20.0, 2.0, 2.0, 0.3, 32.0));
+        CAPTAIN = new UnitStats(builder, "captain", new UnitStats.Defaults(40.0, 4.0, 6.0, 0.3, 28.0));
         builder.pop();
 
         SPEC = builder.build();
