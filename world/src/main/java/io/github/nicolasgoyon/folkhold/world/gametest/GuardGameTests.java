@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.MobSpawnType;
@@ -28,7 +29,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * </ul>
  *
  * <p>Tests with guards and monsters use separate batches. Tests in one batch run at the same time,
- * and a guard can see the monsters of a near test.
+ * and a guard can see the monsters of a near test. Each test removes its entities when it passes:
+ * the next batch runs near the same place, and a guard that stays alive can attack its monsters.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -43,6 +45,18 @@ public final class GuardGameTests {
         guard.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(guard.blockPosition()),
                 MobSpawnType.COMMAND, null);
         return guard;
+    }
+
+    /** Waits for the condition, removes the entities of the test, then marks the test as passed. */
+    private static void succeedWhenAndRemove(GameTestHelper helper, Runnable condition, Entity... entities) {
+        helper.startSequence()
+                .thenWaitUntil(condition)
+                .thenExecute(() -> {
+                    for (Entity entity : entities) {
+                        entity.discard();
+                    }
+                })
+                .thenSucceed();
     }
 
     /** A new guard has its equipment and the configured health. */
@@ -60,17 +74,18 @@ public final class GuardGameTests {
                 "Max health must be " + expectedHealth + ", not " + guard.getMaxHealth());
         helper.assertTrue(Math.abs(guard.getHealth() - expectedHealth) < 0.001,
                 "The guard must spawn with full health");
+        guard.discard();
         helper.succeed();
     }
 
     /** A guard attacks and kills a hostile monster near its home position. */
     @GameTest(template = "arena", timeoutTicks = 600, batch = "guard_kill")
     public static void guardKillsHostileMonster(GameTestHelper helper) {
-        spawnGuard(helper, new BlockPos(3, 1, 3));
+        GuardEntity guard = spawnGuard(helper, new BlockPos(3, 1, 3));
         // A husk does not burn in daylight.
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(10, 1, 10));
 
-        helper.succeedWhen(() -> helper.assertTrue(!husk.isAlive(), "The husk is still alive"));
+        succeedWhenAndRemove(helper, () -> helper.assertTrue(!husk.isAlive(), "The husk is still alive"), guard);
     }
 
     /** A guard drops a target that is farther than the chase radius from its home position. */
@@ -81,10 +96,10 @@ public final class GuardGameTests {
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(6, 1, 3));
         guard.setTarget(husk);
 
-        helper.succeedWhen(() -> {
+        succeedWhenAndRemove(helper, () -> {
             helper.assertTrue(guard.getTarget() == null, "The guard must drop the target");
             helper.assertTrue(husk.isAlive(), "The guard must not kill the target");
-        });
+        }, guard, husk);
     }
 
     /** An attack on one guard alerts the other guards in the alert radius. */
@@ -105,10 +120,10 @@ public final class GuardGameTests {
         // Wait some ticks before the attack. HurtByTargetGoal ignores an attack at tick 0 of the guard.
         helper.runAfterDelay(5, () -> attacked.hurt(helper.getLevel().damageSources().mobAttack(attacker), 1.0F));
 
-        helper.succeedWhen(() -> helper.assertTrue(other.getTarget() == attacker,
+        succeedWhenAndRemove(helper, () -> helper.assertTrue(other.getTarget() == attacker,
                 "The second guard must target the attacker of the first guard. First guard target: "
                         + attacked.getTarget() + ", last attacker: " + attacked.getLastHurtByMob()
-                        + ", second guard target: " + other.getTarget()));
+                        + ", second guard target: " + other.getTarget()), attacked, other, attacker);
     }
 
     /** A hostile monster targets a guard before the guard attacks it. */
@@ -120,7 +135,8 @@ public final class GuardGameTests {
         guard.setNoAi(true);
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(10, 1, 10));
 
-        helper.succeedWhen(() -> helper.assertTrue(husk.getTarget() == guard,
-                "The husk must target the guard. Husk target: " + husk.getTarget()));
+        succeedWhenAndRemove(helper, () -> helper.assertTrue(husk.getTarget() == guard,
+                "The husk must target the guard. Husk target: " + husk.getTarget()
+                        + ", husk alive: " + husk.isAlive()), guard, husk);
     }
 }
