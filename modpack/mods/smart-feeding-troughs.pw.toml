@@ -1,0 +1,13 @@
+name = "Smart Feeding Troughs"
+filename = "smartfeedingtroughs-neoforge-1.21.1-1.2.0.jar"
+side = "both"
+
+[download]
+url = "https://cdn.modrinth.com/data/4dEFIhvD/versions/WN2Y2hQf/smartfeedingtroughs-neoforge-1.21.1-1.2.0.jar"
+hash-format = "sha512"
+hash = "ed4fb120f4b9faffd8bdb2d202dc3f4d1a54aa5ae30f19e5ec88173a652ac9aaeed47723cddb925fba957dfb92188fa4b47dc607f449064da60480d48452fb0d"
+
+[update]
+[update.modrinth]
+mod-id = "4dEFIhvD"
+version = "WN2Y2hQf"
