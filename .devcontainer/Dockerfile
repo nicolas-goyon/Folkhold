@@ -6,7 +6,7 @@ FROM golang:1.25-bookworm AS packwiz
 ARG PACKWIZ_VERSION=latest
 RUN CGO_ENABLED=0 go install github.com/packwiz/packwiz@${PACKWIZ_VERSION}
 
-FROM eclipse-temurin:21-jdk-noble
+FROM eclipse-temurin:25-jdk-noble
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git unzip curl ca-certificates \
