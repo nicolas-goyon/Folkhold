@@ -92,10 +92,14 @@ public final class GuardGameTests {
         GuardEntity other = spawnGuard(helper, new BlockPos(12, 1, 12));
         // A pig is not a monster. Only the alert can make the second guard target it.
         Pig attacker = helper.spawn(EntityType.PIG, new BlockPos(5, 1, 3));
+        // The pig must stay alive: a guard drops a dead target.
+        attacker.setInvulnerable(true);
 
         attacked.hurt(helper.getLevel().damageSources().mobAttack(attacker), 1.0F);
 
         helper.succeedWhen(() -> helper.assertTrue(other.getTarget() == attacker,
-                "The second guard must target the attacker of the first guard"));
+                "The second guard must target the attacker of the first guard. First guard target: "
+                        + attacked.getTarget() + ", last attacker: " + attacked.getLastHurtByMob()
+                        + ", second guard target: " + other.getTarget()));
     }
 }
