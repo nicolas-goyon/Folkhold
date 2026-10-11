@@ -1,7 +1,7 @@
 # Folkhold development image: JDK 21, Git and packwiz.
 # The Gradle wrapper downloads Gradle into the Gradle cache volume (/home/dev/.gradle).
 
-FROM golang:1.25-bookworm AS packwiz
+FROM golang:1.27-bookworm AS packwiz
 # packwiz has no releases. Set a commit hash here to get a reproducible build.
 ARG PACKWIZ_VERSION=latest
 RUN CGO_ENABLED=0 go install github.com/packwiz/packwiz@${PACKWIZ_VERSION}
