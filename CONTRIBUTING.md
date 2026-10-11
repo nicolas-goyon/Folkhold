@@ -4,6 +4,7 @@
 
 - Write all code, comments, documentation, commit messages, issues and pull requests in English.
 - Use the style of ASD-STE100 (Simplified Technical English): short sentences, active voice, one instruction for each sentence, no semicolons.
+- Documentation and comments describe the current state of the code and of the project. Do not refer to earlier versions, to the origin of a document or to the reason for a change. Put this information in commit messages and pull requests.
 - The mods support English (`en_us`) and French (`fr_fr`). See [Translations](#translations).
 
 ## Workflow
