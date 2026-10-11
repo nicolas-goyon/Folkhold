@@ -1,0 +1,38 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.148' apply false
+}
+
+// Fails when a translation key exists in one language file and not in the other language files of the same mod.
+// Supported languages: en_us (reference) and fr_fr.
+def langFiles = files(['core', 'world', 'balance', 'events'].collect { name ->
+    fileTree("${name}/src/main/resources/assets") { include '*/lang/*.json' }
+})
+def requiredLanguages = ['en_us', 'fr_fr']
+
+tasks.register('checkTranslations') {
+    group = 'verification'
+    description = 'Checks that each mod has the same translation keys in all supported languages.'
+    inputs.files(langFiles)
+    def marker = layout.buildDirectory.file('checkTranslations/ok')
+    outputs.file(marker)
+
+    doLast {
+        def slurper = new groovy.json.JsonSlurper()
+        def errors = []
+        langFiles.files.groupBy { it.parentFile }.each { dir, files ->
+            def byLang = files.collectEntries { f -> [(f.name - '.json'): (slurper.parse(f) as Map).keySet()] }
+            def missingFiles = requiredLanguages - byLang.keySet()
+            missingFiles.each { errors << "${dir}: missing file ${it}.json" }
+            def allKeys = byLang.values().flatten() as Set
+            byLang.each { lang, keys ->
+                (allKeys - keys).sort().each { errors << "${dir}/${lang}.json: missing key '${it}'" }
+            }
+        }
+        if (!errors.isEmpty()) {
+            throw new GradleException("Translation check failed:\n  " + errors.join('\n  '))
+        }
+        def out = marker.get().asFile
+        out.parentFile.mkdirs()
+        out.text = 'ok'
+    }
+}

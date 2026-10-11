@@ -1,0 +1,22 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev'
+}
+
+// The mods block below uses the source set of the core project.
+evaluationDependsOn(':core')
+
+apply from: rootProject.file('gradle/mod-common.gradle')
+
+dependencies {
+    api project(':core')
+}
+
+neoForge {
+    mods {
+        folkhold_core {
+            sourceSet(project(':core').sourceSets.main)
+        }
+    }
+}

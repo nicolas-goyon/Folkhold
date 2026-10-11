@@ -1,0 +1,32 @@
+name: Dev container
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.devcontainer/**'
+      - 'compose.yaml'
+      - '.github/workflows/container.yml'
+  pull_request:
+    paths:
+      - '.devcontainer/**'
+      - 'compose.yaml'
+      - '.github/workflows/container.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: Build the dev image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker compose build dev
+
+      - name: Check the tools in the image
+        run: docker compose run --rm -T dev sh -c 'java -version && git --version && packwiz --help > /dev/null && echo "packwiz OK"'
