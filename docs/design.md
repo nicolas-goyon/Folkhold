@@ -1,7 +1,6 @@
 # Folkhold — Design document
 
-> Translated from the original French document (2026-10-11, @Nicolas).
-> Open decisions are tracked in issue #7. The roadmap review is tracked in issue #6.
+> Open decisions: issue #7. Roadmap review: issue #6.
 
 ## Vision and principles
 
@@ -410,14 +409,30 @@ Folkhold/
 
 ## Roadmap and milestones
 
-> Under review in issue #6. The original roadmap diagram was lost in the Markdown export.
+The project moves forward in milestones. Each milestone gives a playable world. This keeps the motivation and lets us test the balance early. Each milestone is a GitHub milestone.
 
-The project moves forward in milestones. Each milestone gives a playable world. This keeps the motivation and lets us test the balance early.
+| Milestone | Scope | Playable result |
+| --- | --- | --- |
+| J0 · Foundations | Mono-repo, NeoForge 1.21.1 project, CI, packwiz modpack | The pack starts with the empty mods |
+| J1 · Guard and village | One NPC guard with AI, one jigsaw village and its garrison | An attack on a village in iron armor fails |
+| J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
+| J3 · Abstract simulation | `SavedData`, abstract tick, economy, village growth | Villages grow, territories change owner |
+| J4 · Caravans, quests | Mobile groups, materialization, generated quests | The player meets convoys and can escort them |
+| J5 · Additional mods | Balance mod (possible from J2), earthquakes and collapses | Farms have limits, first earthquakes |
 
-What the original text says:
+```mermaid
+flowchart TB
+    J0["J0 · Foundations"] --> J1["J1 · Guard and village"]
+    J1 --> J2["J2 · Factions, reputation"]
+    J2 --> J3["J3 · Abstract simulation"]
+    J3 --> J4["J4 · Caravans, quests"]
+    J4 --> J5["J5 · Additional mods"]
+    J2 -. "balance mod can start here" .-> J5
+```
 
-- J0: create the repository, the NeoForge project and import the modpack.
-- J1 and J2 already give a mod that is interesting to play.
+Notes:
+
+- J1 and J2 give a mod that is interesting to play.
 - J3 is the core of the project and the milestone with the highest risk. Prototype it first in pure Java with JUnit tests.
 - Wars between factions come after J4, in phase 2.
 
