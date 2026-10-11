@@ -10,6 +10,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.item.Items;
@@ -92,10 +94,16 @@ public final class GuardGameTests {
         GuardEntity other = spawnGuard(helper, new BlockPos(12, 1, 12));
         // A pig is not a monster. Only the alert can make the second guard target it.
         Pig attacker = helper.spawn(EntityType.PIG, new BlockPos(5, 1, 3));
-        // The pig must stay alive: a guard drops a dead target.
-        attacker.setInvulnerable(true);
+        // The pig must stay alive during the test: a guard drops a dead target.
+        // An invulnerable pig does not work: mobs cannot target an invulnerable entity.
+        AttributeInstance pigHealth = attacker.getAttribute(Attributes.MAX_HEALTH);
+        if (pigHealth != null) {
+            pigHealth.setBaseValue(500.0);
+        }
+        attacker.setHealth(500.0F);
 
-        attacked.hurt(helper.getLevel().damageSources().mobAttack(attacker), 1.0F);
+        // Wait some ticks before the attack. HurtByTargetGoal ignores an attack at tick 0 of the guard.
+        helper.runAfterDelay(5, () -> attacked.hurt(helper.getLevel().damageSources().mobAttack(attacker), 1.0F));
 
         helper.succeedWhen(() -> helper.assertTrue(other.getTarget() == attacker,
                 "The second guard must target the attacker of the first guard. First guard target: "
