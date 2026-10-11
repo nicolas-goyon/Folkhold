@@ -1,0 +1,13 @@
+name = "Folkhold"
+author = "nicolas-goyon"
+version = "0.1.0"
+pack-format = "packwiz:1.1.0"
+
+[index]
+file = "index.toml"
+hash-format = "sha256"
+hash = "3ba7e5ee9e83a902fb045b9aa4840121a678961e1730e4e3c5057cdd933df47e"
+
+[versions]
+minecraft = "1.21.1"
+neoforge = "21.1.259"
