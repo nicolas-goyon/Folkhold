@@ -3,7 +3,9 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
+import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -11,6 +13,8 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.CampfireBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -64,6 +68,40 @@ public final class VillageStructureGameTests {
         helper.assertTrue(layout.braziers().size() == BRAZIERS,
                 "Expected " + BRAZIERS + " braziers, found " + layout.braziers().size());
         helper.assertTrue(archersOnPosts, "Each archer must spawn on a post of the village");
+        helper.succeed();
+    }
+
+    /** At night, the gates close, the braziers burn and the guards watch the gates. By day, the opposite. */
+    @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_night")
+    public static void villageAppliesDayAndNight(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = findHeart(helper);
+        heart.ensureGarrison(helper.getLevel().getGameTime());
+        VillageLayout layout = heart.getLayout();
+        List<GuardEntity> guards = heart.getUnits().stream()
+                .filter(unit -> unit instanceof GuardEntity && !(unit instanceof CaptainEntity))
+                .map(GuardEntity.class::cast).toList();
+
+        heart.applyDayNight(true);
+        boolean gatesClosed = layout.gates().stream()
+                .allMatch(pos -> !helper.getLevel().getBlockState(pos).getValue(FenceGateBlock.OPEN));
+        boolean braziersLit = layout.braziers().stream()
+                .allMatch(pos -> helper.getLevel().getBlockState(pos).getValue(CampfireBlock.LIT));
+        boolean guardsOnWatch = !guards.isEmpty() && guards.stream().allMatch(guard -> guard.getNightPos() != null);
+
+        heart.applyDayNight(false);
+        boolean gatesOpen = layout.gates().stream()
+                .allMatch(pos -> helper.getLevel().getBlockState(pos).getValue(FenceGateBlock.OPEN));
+        boolean braziersOut = layout.braziers().stream()
+                .noneMatch(pos -> helper.getLevel().getBlockState(pos).getValue(CampfireBlock.LIT));
+        boolean guardsOffWatch = guards.stream().allMatch(guard -> guard.getNightPos() == null);
+        heart.getUnits().forEach(Entity::discard);
+
+        helper.assertTrue(gatesClosed, "At night, all gates must be closed");
+        helper.assertTrue(braziersLit, "At night, all braziers must burn");
+        helper.assertTrue(guardsOnWatch, "At night, each guard must have a night watch position");
+        helper.assertTrue(gatesOpen, "By day, all gates must be open");
+        helper.assertTrue(braziersOut, "By day, the braziers must not burn");
+        helper.assertTrue(guardsOffWatch, "By day, the guards must have no night watch position");
         helper.succeed();
     }
 }
