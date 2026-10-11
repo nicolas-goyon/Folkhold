@@ -1,10 +1,12 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.level.block.Blocks;
 
@@ -41,12 +43,17 @@ final class TestSupport {
         }
     }
 
-    /** Spawns a guard as a spawn egg or a command does: equipment, configured values, home, village. */
-    static GuardEntity spawnGuard(GameTestHelper helper, BlockPos relativePos) {
-        GuardEntity guard = helper.spawn(ModEntities.GUARD.get(), relativePos);
-        guard.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(guard.blockPosition()),
+    /** Spawns a unit as a spawn egg or a command does: equipment, configured values, home, village. */
+    static <T extends FactionUnit> T spawnUnit(GameTestHelper helper, EntityType<T> type, BlockPos relativePos) {
+        T unit = helper.spawn(type, relativePos);
+        unit.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(unit.blockPosition()),
                 MobSpawnType.COMMAND, null);
-        return guard;
+        return unit;
+    }
+
+    /** Spawns a guard. See {@link #spawnUnit(GameTestHelper, EntityType, BlockPos)}. */
+    static GuardEntity spawnGuard(GameTestHelper helper, BlockPos relativePos) {
+        return spawnUnit(helper, ModEntities.GUARD.get(), relativePos);
     }
 
     /** Waits for the condition, removes the entities of the test, then marks the test as passed. */

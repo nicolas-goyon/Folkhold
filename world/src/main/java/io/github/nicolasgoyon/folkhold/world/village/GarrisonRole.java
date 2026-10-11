@@ -11,7 +11,8 @@ import net.minecraft.world.entity.EntityType;
  * Role of a unit in a garrison. Each role has an entity type and a configured count.
  */
 public enum GarrisonRole {
-    GUARD(ModEntities.GUARD::get);
+    GUARD(ModEntities.GUARD::get),
+    ARCHER(ModEntities.ARCHER::get);
 
     private final Supplier<? extends EntityType<? extends FactionUnit>> entityType;
 
@@ -27,6 +28,7 @@ public enum GarrisonRole {
     public int configuredCount() {
         return switch (this) {
             case GUARD -> WorldConfig.GARRISON_GUARDS.get();
+            case ARCHER -> WorldConfig.GARRISON_ARCHERS.get();
         };
     }
 
