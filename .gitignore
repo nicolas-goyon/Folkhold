@@ -1,0 +1,42 @@
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/**/build/
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/**/out/
+.run/
+
+### Eclipse / VS Code Java ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+bin/
+!**/src/**/bin/
+
+### VS Code ###
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### Minecraft modding ###
+run/
+run-data/
+!**/src/**/run/
+**/src/generated/**/.cache/
+repo/
+
+### Modpack exports ###
+*.mrpack

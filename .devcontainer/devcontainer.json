@@ -1,0 +1,33 @@
+{
+  "name": "Folkhold",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "dev",
+  "mounts": [
+    "source=folkhold-gradle-cache,target=/home/dev/.gradle,type=volume"
+  ],
+  "forwardPorts": [25565, 5005],
+  "portsAttributes": {
+    "25565": { "label": "Minecraft server" },
+    "5005": { "label": "Java debugger (dev server)" }
+  },
+  "postCreateCommand": "./gradlew --version",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-gradle",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml",
+        "editorconfig.editorconfig",
+        "bierner.markdown-mermaid"
+      ],
+      "settings": {
+        "java.import.gradle.wrapper.enabled": true,
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "java.jdt.ls.vmargs": "-Xmx2G"
+      }
+    }
+  }
+}

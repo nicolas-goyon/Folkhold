@@ -1,0 +1,456 @@
+# Folkhold — Design document
+
+> Open decisions: issue #7. Roadmap review: issue #6.
+
+## Vision and principles
+
+Goal: a single-player Minecraft (NeoForge 1.21.1) where the world changes without the player. NPC factions trade, fight and take territory. Nature grows and ages. Natural events occur. There is less grind and fewer abusive automatic farms.
+
+The project has a base modpack (existing mods) and three mods to develop:
+
+- **World**: factions, villages, economy, quests.
+- **Balance**: farms, villagers, chunk loading.
+- **Events**: earthquakes, collapses.
+
+Design principles:
+
+- **The world lives without the player.** The mod simulates all important state (factions, stocks, territories) in an abstract form, also when the chunks are not loaded.
+- **The player is one actor among others.** The player can influence the factions but cannot control them. No system needs the player to work.
+- **Stable states, not infinite curves.** Prices, populations and budgets move toward an equilibrium. A disturbance creates a story. Then the system returns to equilibrium.
+- **Less grind, not more farms.** Comfort comes from trade and NPCs, not from unlimited automation.
+- **Everything is configurable.** Each rule has a setting (config or datapack). Balance changes do not need a new build.
+- **Data-driven first.** Factions, NPC recipes, structures and quests are JSON files (datapacks). Code and content stay separate.
+- **Two languages.** All text that the player sees exists in English and French. Code uses translation keys only.
+
+## Base modpack
+
+The pack targets **NeoForge 1.21.1**. **packwiz** manages it: a versioned list in Git, updated with one command (`packwiz update --all`), exported as a `.mrpack` file. Prism Launcher and the Modrinth app import a `.mrpack` file in one click.
+
+| Category | Mod | Modrinth slug | 1.21.1 status (Modrinth, 2026-10-11) |
+| --- | --- | --- | --- |
+| Performance | Sodium | `sodium` | NeoForge release available |
+| Performance | Lithium | `lithium` | NeoForge release available (`0.15.4`) |
+| Performance | ModernFix | `modernfix` | NeoForge release available |
+| Performance | FerriteCore | `ferrite-core` | NeoForge release available |
+| Performance | ImmediatelyFast | `immediatelyfast` | NeoForge release available |
+| Performance | Entity Culling | `entityculling` | NeoForge release available |
+| Nature | Dynamic Trees | `dynamictrees` | NeoForge release available (1.7.x) |
+| Nature | Serene Seasons | `serene-seasons` | Beta only, requires GlitchCore |
+| Nature | Smart Feeding Troughs | `4dEFIhvD` (ID) | NeoForge release available. Confirm that this is the intended mod. |
+| Weather | Weather, Storms & Tornadoes | `weather-storms-tornadoes` | NeoForge release available |
+| Weather | Expanded Weather2 Dynamics | `expanded-weather2-dynamics` | NeoForge release available, optional |
+| Terrain | The Roads More Travelled | `74oZhrEe` (ID) | Beta |
+| Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | Beta, unofficial port |
+| Navigation | Small Ships | `small-ships` | Beta, last update November 2024 |
+| Comfort | JEI, Jade | `jei`, `jade` | Recommended for development |
+
+packwiz resolves most dependencies automatically (for example CoroUtil for Weather2). Exception: Immersive Weathering: Renewed does not declare Moonlight Lib in its Modrinth metadata. Add Moonlight Lib explicitly.
+
+Maintenance rules:
+
+- Each update goes through a Git branch, a test launch and a test world before the merge.
+- Pin the beta and unofficial mods (`packwiz pin`). This prevents a silent update that breaks the pack.
+- During development, add our own mods to the pack as local files. If we publish them, add them through Modrinth.
+
+## General architecture
+
+The three mods use a shared library, `core`. The library separates two layers:
+
+- The **abstract layer** always runs. It decides what happens (wars, stocks, travel).
+- The **concrete layer** runs only in loaded chunks. It shows the result near the player. Then it writes the changes back to the abstract layer (deaths, raids, sales).
+
+```mermaid
+flowchart TB
+    subgraph mods["Gameplay mods"]
+        world["world<br/>factions, villages, economy, quests"]
+        events["events<br/>earthquakes, collapses"]
+        balance["balance<br/>farms, villagers, chunk loading"]
+    end
+    subgraph core["core (shared library)"]
+        abstract["Abstract layer<br/>always simulated, pure Java"]
+        concrete["Concrete layer<br/>loaded chunks only"]
+    end
+    world --> core
+    events --> core
+    balance -. "optional integration" .-> world
+    abstract -- "materialize near the player" --> concrete
+    concrete -- "write back changes" --> abstract
+```
+
+The balance mod has a small link to `core` and stays usable alone (see issue #7).
+
+## World mod: factions, diplomacy, territories
+
+When a new world starts, the mod creates 5 to 7 factions:
+
+- 1 or 2 factions that are allies of the player.
+- 1 neutral faction.
+- The other factions are hostile.
+
+Each faction has 3 to 8 villages, spread across regions.
+
+### Data model
+
+| Entity | Main fields |
+| --- | --- |
+| `Faction` | id, name, culture (village style, units), color and banner, treasury, military power, base attitude to the player, traits (expansionist, merchant, isolationist) |
+| `Relation` | pair of factions, value from -100 to +100, state (alliance, peace, tension, war), date of the last change |
+| `Territory` | region (grid of 16×16 chunks), owner faction, linked village, current contest |
+| `Settlement` | id, faction, position, size (hamlet, village, city, fortress), population, garrison, stocks, buildings |
+
+The mod stores all of this in a `SavedData` of the Overworld level. `Codec` objects serialize it to NBT.
+
+### Simulation rules (abstract tick every 2,400 ticks = 2 minutes)
+
+**Phase 1: living territories, no wars between NPCs.** Territories change mostly because of the player and because of the slow growth of the factions.
+
+- **Claim**: each village claims the regions around it, as a function of its tier (1 region for a hamlet, up to 9 for a city).
+- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its regions become **unclaimed**.
+- **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in an unclaimed region.
+- **Rally a village**: with sufficient reputation and a quest, a village can change its banner and join a different faction.
+- **Natural growth**: a prosperous faction slowly founds a hamlet in an adjacent unclaimed region (maximum one each game week).
+- **Diplomacy**: relations change with trade and incidents. Relations decide which factions trade together.
+- **Decline**: a faction with no village disappears. Its ruins stay in the world.
+
+**Phase 2 (later)**: wars between factions, sieges, armies and NPC-against-NPC conquests, on the same simulation.
+
+### Datapack parameters
+
+Each faction is one file: `data/<namespace>/folkhold/factions/<id>.json` (culture, units, structures, traits, initial relations). A new faction needs no code.
+
+## World mod: villages, NPCs, defense
+
+Each faction village has fortifications and guards. A player in iron armor with no enchantments must lose a frontal attack. The player needs enchanted diamond gear, allies or a trick.
+
+### Villages
+
+- Generated as *jigsaw* structures, one set for each culture (building pools: center, houses, workshops, wall, towers, gates).
+- The size follows the abstract state: a hamlet has a palisade, a city has a stone wall and archer towers.
+- Materialization: when the player comes near, the mod creates the garrison and the inhabitants from the `Settlement` state. When the player goes away, the mod removes them and writes their state back (health, deaths, equipment).
+
+### Village growth
+
+A prosperous village goes up one tier. Its defenses change visibly:
+
+| Tier | Defenses | Trades | Condition to go up |
+| --- | --- | --- | --- |
+| Hamlet | Wood palisade, 2 guards | Basic offers | Population and stocks above the threshold for 5 game days |
+| Village | Palisade and watchtowers, archers | More offers, better prices | Same, with higher thresholds |
+| Town | Stone wall, gates, riders | Specialized craftsmen | Same, plus one active trade route |
+| City | Large wall, keep, golems | Rare offers, inn, advanced quests | Same, plus 2 linked villages of the same faction |
+
+A village that loses its prosperity (raided, isolated) can go down one tier. Construction work occurs out of the view of the player. The mod replaces a building with its upgraded version when the player cannot see it. It does not touch blocks that the player placed.
+
+### Reputation and welcome
+
+- The mod tracks reputation **for each village** and **for each faction**. The behavior of a village depends mostly on its own reputation. The faction reputation pulls the village reputation.
+- When the player enters a village:
+  - Hostile: the guards attack.
+  - Neutral: the guards watch and give a warning.
+  - Friend: the guards greet the player and the gates stay open.
+- Two villages of the same faction trade together first (see the economy section).
+
+### Shelter at night
+
+- At night, the guards light torches and braziers, close the gates and patrol the walls.
+- The village heart prevents monster spawns in its area.
+- A neutral or friendly player can take shelter in the village. From the Town tier, the player can rent a bed at the inn for emeralds.
+
+### NPC types
+
+| NPC | Role | Key behavior |
+| --- | --- | --- |
+| Inhabitant | Population, economic job | Day/night routine, runs away from fights, takes shelter in buildings |
+| Guard | Basic defense | Fixed patrol, sword and shield, chases in a limited radius |
+| Archer | Ranged defense | Takes position on towers and walls. Priority target: hostile players |
+| Rider | Interceptor | Patrols outside the walls, charges isolated threats |
+| Faction golem | Heavy unit | Guards the gates and the center, very resistant, slow |
+| Captain | Garrison leader | Morale buff, general alarm. Its death lowers morale (some units run away) |
+
+### AI
+
+- Based on the `Goal` system of `PathfinderMob` (simpler than the `Brain` system to start). Each village has a shared state: *calm*, *alert*, *assault*.
+- An alert spreads: an attack on a guard starts the alert, the archers go to their positions, the gates close.
+- Aggression depends on reputation. Below the hostile threshold, the guards attack on sight. At neutral, they give a warning, then attack if the player breaks blocks or steals.
+
+### Balancing
+
+Use configurable values (health, damage, armor for each type) and a GameTest scenario. Target: a player in iron armor against the garrison of an average village loses in more than 80 % of tries.
+
+## World mod: simulated economy
+
+Each village has real stocks. It produces and consumes according to its jobs. It sets its prices from the difference between stock and need. Villages trade together. The player is one more customer.
+
+### Producers and recipes
+
+Each job has one recipe for each cycle (1 game day = 24,000 ticks). The recipes are datapack files.
+
+| Job | Consumes | Produces |
+| --- | --- | --- |
+| Miner | 1 tool (wear) | 6 iron ore, 4 coal, 1 diamond (5 %) |
+| Farmer | — | 12 wheat, 6 carrots |
+| Blacksmith | 3 iron ingots, 1 coal | 1 weapon or armor piece |
+| Smelter | 6 ore, 3 coal | 6 ingots |
+| Butcher | 2 livestock (breeding stock) | 8 meat |
+
+A recipe with no inputs produces nothing. The job goes into "need" state and buys.
+
+### Price formula
+
+```math
+P = P_{base} \times \mathrm{clamp}\left( \left( \frac{S_{target}}{\max(S, 1)} \right)^{\varepsilon},\ 0.5,\ 3 \right)
+```
+
+- `S` = current stock.
+- `S_target` = stock target of the village.
+- `ε` = elasticity (default 0.5).
+
+A surplus lowers the price down to ×0.5. A shortage raises the price up to ×3. The sell price to the player is `P × 1.15`. The buy price from the player is `P × 0.85`.
+
+### Trade between villages
+
+- On each abstract tick, each village makes a list of its surpluses (`S > 1.5 × S_target`) and its needs (`S < 0.5 × S_target`).
+- A greedy match links one seller and one buyer from factions that are not hostile. Distance is a weight.
+- The trade creates a **caravan** (next section). The goods arrive after a delay that is proportional to the distance. If bandits raid the caravan, the goods are lost.
+- Expected result: prices converge between connected villages. A war that cuts a route makes prices go up on one side.
+
+### Trade with the player
+
+- NPCs sell **only what they have in stock**. There is no magic restock and no "fast reset".
+- The player can sell surplus items (ore, crops). This lowers their local price. To get the best price, the player must sell in different places.
+- The currency stays the emerald. The treasury of each faction is finite. Its sales fill it.
+
+### Stability
+
+To prevent runaway loops:
+
+- The population sets a maximum production.
+- The warehouse size sets a maximum stock.
+- A small consumption (rot, wear) removes 2 % of the stocks on each cycle.
+
+## World mod: caravans, squads, traveling merchants
+
+Mobile groups travel in an abstract form along a route. They become entities only when their position comes near the player.
+
+### Mobile groups
+
+| Group | Origin | Content | Player interaction |
+| --- | --- | --- | --- |
+| Merchant caravan | Trade between villages | Merchant, loaded mules, 2 to 4 guards | Trade on the road, escort (quest), raid (reputation) |
+| Patrol | Faction, around its territory | 3 to 6 soldiers, sometimes one rider | Hostile, neutral or ally, as a function of reputation |
+| Army | Faction at war | 10 to 30 units | The player can join (ally) or harass it |
+| Traveling merchant | Neutral faction | 1 merchant + pack animal | Rare stock, moves from village to village |
+| Bandits | Fallen faction or event | 3 to 8 outlaws | Hostile, raid caravans |
+
+### Abstract movement
+
+- A route is a list of points between two villages. The mod generates it once: an approximate line on the heightmap that avoids deep water.
+- The group moves N blocks on each abstract tick. The mod interpolates its position on the route.
+- When the position enters the simulation distance of a player, the mod materializes the group at the nearest point. The group then uses the vanilla pathfinding over short distances.
+- When the group leaves the area, it becomes abstract again and keeps its state (losses, cargo).
+- Encounters: two hostile groups on near segments fight. A comparison of power with a random factor gives the result. If the player is present, the fight is real.
+
+### Synergy with the pack mods
+
+With The Roads More Travelled, the materialized caravans that walk on their route can create real paths over time. This gives visible trade routes. To check: TRMT reacts to mobs, not only to players (its Forge port says so).
+
+## World mod: reputation and quests
+
+The reputation of the player is one value for each faction (-1000 to +1000). It spreads to the allies and enemies of that faction. The mod generates quests from the real state of the world.
+
+### Reputation tiers
+
+| Tier | Range | Effect |
+| --- | --- | --- |
+| Sworn enemy | -1000 to -600 | Attacked on sight, bounties on the player, raids on the player base |
+| Hostile | -600 to -200 | Attacked on sight in the territory |
+| Neutral | -200 to +200 | Tolerated, warning before attack, basic trade |
+| Friend | +200 to +600 | Better prices, advanced quests, lodging |
+| Ally | +600 to +1000 | Recruit escorts, access to elite units, support in war |
+
+Spread: an action toward faction A changes the reputation with the allies of A (50 %) and with the enemies of A (-30 %). Both values are configurable.
+
+### Quests from the state of the world
+
+- **Delivery**: a village with a shortage asks for an item. Linked to the economy. The reward follows the local price.
+- **Escort**: a real caravan leaves. The player protects it to its destination.
+- **Defense**: an army on the road threatens an allied village.
+- **Hunt**: bandits or monsters attack a trade route.
+- **Diplomacy**: carry a message to improve the relation between two factions.
+
+A quest has a giver, a success condition that the mod checks on the state of the world, a deadline and a reward (emeralds, items, reputation). Each village has a quest board. Captains also give quests.
+
+### Lore
+
+Each culture has a short history. Players find it in books in villages and ruins. The text exists in each supported language. Past wars leave real ruins in the world, so each game gets its own lore.
+
+## Balance mod: farms, villagers, chunk loading
+
+This mod does not need the world mod. It limits infinite farms with regional budgets, not with the detection of farm designs. It also gives expensive chunk loading or an offline catch-up.
+
+### Regional spawn saturation
+
+- The mod divides the world into regions of 4×4 chunks. Each region counts the recent deaths of hostile mobs.
+- The natural spawn rate is multiplied by `max(0.1, 1 - deaths / threshold)`. The counter decreases by 5 % each game minute.
+- Result: a small farm stays useful, an industrial farm reaches its limit quickly, and no design is "forbidden".
+- Option: deaths in flowing water or from falls count double (simple detection from the damage source).
+
+### Budget of vanilla villages
+
+- **Golems**: each village has a golem budget (default 4). The budget recovers one unit each game day.
+- **Breeding**: the number of villagers in a village has a maximum from the beds and a minimum delay between births.
+- **Cure of zombie villagers**: the price reduction from a cure does not stack and expires after 7 game days.
+
+### Fairer trades
+
+- The mod replaces the vanilla restock with a stock for each offer that refills slowly. If the world mod is present, the village stock is used.
+- **Clean reroll** of a master villager: an item or a paid village service gives a new list of offers. Cooldown: 5 game days.
+- Offers with too much value (rare enchanted books, valuable items) have a maximum number of purchases each week.
+
+### Chunk loading
+
+| Option | Principle | Cost | Use |
+| --- | --- | --- | --- |
+| World anchor | A block that keeps 3×3 chunks loaded | Fuel (for example 1 coal block each hour), maximum 2 anchors for each player | Critical machines |
+| Offline catch-up | When the chunk loads again, compatible blocks calculate the missed production | 50 % yield, maximum 3 game days | Crops, furnaces, beehives, machines of the mod |
+
+The catch-up is reliable only for our own blocks and some simple vanilla blocks (crops, furnaces). It does not cover redstone contraptions.
+
+All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict" preset.
+
+## Events mod
+
+Weather2 keeps the tornadoes and storms. This mod adds ground events and rare disasters. Players can protect their buildings.
+
+| Event | Trigger | Effect | Technical cost |
+| --- | --- | --- | --- |
+| Earthquake | Random, more frequent near mountains | Camera shake, unstable blocks fall (sand, gravel, cracked stone), cracks in the surface | Medium |
+| Collapse | Cavity below the surface + earthquake or rain | An area of 5 to 15 blocks collapses into falling blocks | Medium |
+| Landslide | Steep slope + long rain | Dirt and gravel slide down | Medium |
+| Wildfire | Summer (Serene Seasons) + lightning | Faster spread, ash, regrowth with Dynamic Trees | Low |
+| Flood | Heavy rain near rivers | Temporary rise of the water on the banks | Difficult |
+
+### Rules
+
+- An event occurs only in loaded chunks (technical limit). But the mod announces it: rumble sounds, animals run away, NPCs give an alert.
+- A **stabilizer** block (reinforced foundations) protects a radius of 16 blocks, as the Weather2 deflector does.
+- Batch updates: maximum N changed blocks for each tick, to keep the TPS stable.
+- Link with the world mod: a village that an event hits produces less and starts reconstruction quests.
+
+For the first milestone, only the earthquake with local collapses is planned. The other events come later.
+
+## Assets and content for a non-artist
+
+The strategy:
+
+- Use vanilla content as much as possible.
+- Generate buildings with code, not by hand.
+- Import external work only with a compatible license.
+
+### Characters and units
+
+- Start from the existing vanilla models (villager, illager, player). Change only the texture. A new color or a uniform is enough to identify a faction.
+- Banners and faction colors come from code (vanilla banner patterns). No drawing is necessary.
+- Use Blockbench (free) for the few new models. It exports directly to the Minecraft format.
+
+### Buildings and villages
+
+- **Generation with code**: walls, towers, gates and palisades are parametric shapes (length, height, culture material). A script makes the `.nbt` structure files. This is the most efficient method for this project.
+- **Construction in the game**: for unique buildings, build in creative mode, save with a structure block, then assemble with *jigsaw*.
+- **Palettes for each culture**: one building in several materials (oak/stone, birch/sandstone, spruce/slate) by block substitution. This multiplies the content with no drawing.
+
+### Work found on the internet
+
+- Sources: Planet Minecraft, GrabCraft, minecraft-schematics.com.
+- Always check the license. Much work is "all rights reserved". Keep a register, `docs/ASSETS_LICENSES.md` (source, author, license, file), for each import.
+- Prefer Creative Commons work (CC0, CC-BY), or get the permission of the author, especially if we publish the mod.
+- During the shared work sessions, Claude can search for work, check its license and convert a schematic into a structure.
+
+### Textures
+
+For new blocks (stabilizer, world anchor, quest board), start from a similar vanilla texture and change it a little. A frame or a color is enough.
+
+## Technical stack and tools
+
+Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the three mods, the shared library and the modpack.
+
+| Need | Tool | Note |
+| --- | --- | --- |
+| Project base | NeoForge MDK (ModDevGradle) | Official generator on the NeoForge site |
+| Readable names | Mojang mappings + Parchment | Named parameters and Javadoc |
+| IDE | VS Code or IntelliJ IDEA, in a dev container | See `docs/getting-started.md` |
+| Data | NeoForge datagen | Generates recipes, loot tables, tags, models, translations |
+| Tests | GameTest (built in) + JUnit for pure simulation | The abstract simulation is testable without the game |
+| Profiling | Spark | Measures the cost of each system for each tick |
+| Config | `ModConfigSpec` (TOML) | One file for each mod |
+| Modpack | packwiz | Versioned list, `.mrpack` export |
+| CI | GitHub Actions | Build, tests, `.jar` artifacts, release to GitHub Packages |
+| Languages | `en_us.json`, `fr_fr.json` | A Gradle check fails when a key is missing in one language |
+
+### Repository layout
+
+```
+Folkhold/
+  core/          shared library: abstract simulation, regions, scheduler
+  world/         factions, villages, economy, caravans, quests
+  balance/       farms, villagers, chunk loading
+  events/        earthquakes, collapses
+  dev/           development runtime that loads all mods together
+  modpack/       packwiz (pack.toml, index.toml, mods/)
+  tools/         scripts that generate structures (.nbt)
+  docs/          this document, getting started, balance notes, asset licenses
+```
+
+### Advice for a Java/C# developer who is new to modding
+
+- The code runs on the **logical server**, also in single-player. All simulation state lives on the server. The client receives only what it shows, through network packets.
+- Write the abstract simulation in **pure Java with no Minecraft classes** (data in, data out). You can test it with JUnit and debug it without the game.
+- Do not use mixins when a NeoForge event is sufficient (spawns, interactions, ticks). Mixins are mostly for the balance mod (villager offers, golems).
+
+## Roadmap and milestones
+
+The project moves forward in milestones. Each milestone gives a playable world. This keeps the motivation and lets us test the balance early. Each milestone is a GitHub milestone.
+
+| Milestone | Scope | Playable result |
+| --- | --- | --- |
+| J0 · Foundations | Mono-repo, NeoForge 1.21.1 project, CI, packwiz modpack | The pack starts with the empty mods |
+| J1 · Guard and village | One NPC guard with AI, one jigsaw village and its garrison | An attack on a village in iron armor fails |
+| J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
+| J3 · Abstract simulation | `SavedData`, abstract tick, economy, village growth | Villages grow, territories change owner |
+| J4 · Caravans, quests | Mobile groups, materialization, generated quests | The player meets convoys and can escort them |
+| J5 · Additional mods | Balance mod (possible from J2), earthquakes and collapses | Farms have limits, first earthquakes |
+
+```mermaid
+flowchart TB
+    J0["J0 · Foundations"] --> J1["J1 · Guard and village"]
+    J1 --> J2["J2 · Factions, reputation"]
+    J2 --> J3["J3 · Abstract simulation"]
+    J3 --> J4["J4 · Caravans, quests"]
+    J4 --> J5["J5 · Additional mods"]
+    J2 -. "balance mod can start here" .-> J5
+```
+
+Notes:
+
+- J1 and J2 give a mod that is interesting to play.
+- J3 is the core of the project and the milestone with the highest risk. Prototype it first in pure Java with JUnit tests.
+- Wars between factions come after J4, in phase 2.
+
+## Risks and open questions
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Size of the project (world mod) | Abandon before there is something playable | Playable milestones from J1, abstract simulation only in J3 |
+| CPU cost of the simulation | TPS loss | Abstract tick every 2 minutes, time budget in ms for each tick, Spark profiling |
+| Inconsistent materialization | NPCs that disappear or duplicate | Stable identifier for each unit, GameTest tests for entry and exit of the area |
+| Beta mods in the pack (TRMT, Immersive Weathering: Renewed, Small Ships) | Crash or world corruption | Pinned versions, backups before each update |
+| Long-distance pathfinding | Blocked caravans | Abstract movement, vanilla pathfinding only over short distances |
+| Visual content (buildings) | Production time | Generation with code, palettes, licensed imports |
+
+### Open questions
+
+- [ ] Are hostile factions only human, or also non-human cultures (illagers, piglins)?
+- [ ] Can the player found a faction, or join an existing faction?
+- [ ] Is a multiplayer mode necessary, or is single-player sufficient?
+- [ ] Publish the mods on Modrinth later, or personal use only? (This changes the asset licenses.)
+- [x] Does Lithium have a reliable NeoForge 1.21.1 version? Yes: `mc1.21.1-0.15.4-neoforge` (June 2026).

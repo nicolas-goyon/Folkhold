@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+    ignore:
+      # NeoForge must stay on 21.1.x (Minecraft 1.21.1). Update it by hand in gradle.properties.
+      - dependency-name: net.neoforged:neoforge
+
+  - package-ecosystem: docker
+    directory: /.devcontainer
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: build

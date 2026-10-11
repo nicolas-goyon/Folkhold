@@ -1,0 +1,115 @@
+// Shared configuration for each mod subproject (core, world, balance, events).
+// The subproject must apply the plugins 'java-library', 'maven-publish' and 'net.neoforged.moddev' first,
+// and must set mod_id, mod_name and mod_description in its gradle.properties.
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+sourceSets.main.resources {
+    // Resources from the data generators.
+    srcDir 'src/generated/resources'
+    exclude '**/*.bbmodel'
+    exclude '.cache'
+}
+
+configurations {
+    // Dependencies for local runs only. They are not published.
+    localRuntime
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    testImplementation platform("org.junit:junit-bom:${junit_version}")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}
+
+tasks.named('check') {
+    dependsOn ':checkTranslations'
+}
+
+neoForge {
+    version = neo_version
+
+    parchment {
+        mappingsVersion = parchment_mappings_version
+        minecraftVersion = parchment_minecraft_version
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+
+    runs {
+        // Data generation for this mod only. Output: src/generated/resources.
+        // Client, server and GameTest runs are in the 'dev' project, with all mods loaded.
+        data {
+            data()
+            gameDirectory = project.file('run-data')
+            programArguments.addAll '--mod', mod_id, '--all',
+                    '--output', file('src/generated/resources/').absolutePath,
+                    '--existing', file('src/main/resources/').absolutePath
+        }
+    }
+}
+
+// Expands the properties in src/main/templates (for example META-INF/neoforge.mods.toml).
+def generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    def replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_description        : mod_description,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from 'src/main/templates'
+    into 'build/generated/sources/modMetadata'
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifactId = mod_id
+            from components.java
+        }
+    }
+    repositories {
+        // GitHub Packages. The release workflow sets GITHUB_ACTOR and GITHUB_TOKEN.
+        maven {
+            name = 'GitHubPackages'
+            url = uri('https://maven.pkg.github.com/nicolas-goyon/folkhold')
+            credentials {
+                username = providers.environmentVariable('GITHUB_ACTOR').getOrElse('')
+                password = providers.environmentVariable('GITHUB_TOKEN').getOrElse('')
+            }
+        }
+    }
+}

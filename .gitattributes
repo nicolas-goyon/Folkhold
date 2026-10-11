@@ -1,2 +1,14 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Use LF in the working tree for all text files, also on Windows.
+# The dev container runs Linux: scripts such as gradlew fail with CRLF line endings.
+* text=auto eol=lf
+
+# Windows scripts
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files
+*.jar binary
+*.nbt binary
+*.png binary
+*.mrpack binary

@@ -1,0 +1,69 @@
+// Development runtime. It has no code and is not published.
+// It loads all Folkhold mods in one game instance: client, dedicated server and GameTest server.
+//
+//   ./gradlew :dev:runServer                     dedicated server (port 25565)
+//   ./gradlew :dev:runServer -PdebugPort=5005    same, with a Java debugger on port 5005
+//   ./gradlew :dev:runGameTestServer             runs all GameTests, then stops
+//   ./gradlew :dev:runClient                     client (needs a display, not available in the container)
+
+plugins {
+    id 'net.neoforged.moddev'
+}
+
+def modProjects = [':core', ':world', ':balance', ':events']
+modProjects.each { evaluationDependsOn(it) }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+dependencies {
+    modProjects.each { implementation project(it) }
+}
+
+def gameTestNamespaces = modProjects.collect { project(it).property('mod_id') }.join(',')
+def debugPort = providers.gradleProperty('debugPort').getOrNull()
+
+neoForge {
+    version = neo_version
+
+    parchment {
+        mappingsVersion = parchment_mappings_version
+        minecraftVersion = parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+        }
+
+        configureEach {
+            gameDirectory = project.file('run')
+            systemProperty 'neoforge.enabledGameTestNamespaces', gameTestNamespaces
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+            if (debugPort != null) {
+                // Listen on all interfaces, so that an IDE outside the container can attach.
+                jvmArgument "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:${debugPort}"
+            }
+        }
+    }
+}
+
+// Link each mod id to the source set of its project.
+modProjects.each { path ->
+    def modProject = project(path)
+    neoForge.mods.create(modProject.property('mod_id') as String) {
+        sourceSet(modProject.sourceSets.main)
+    }
+}
+
+// The dev project has no code. Do not make an empty jar.
+tasks.named('jar') {
+    enabled = false
+}
