@@ -17,5 +17,14 @@
   "folkhold_world.configuration.unit.guard.attackDamage": "Dégâts d'attaque",
   "folkhold_world.configuration.unit.guard.armor": "Armure",
   "folkhold_world.configuration.unit.guard.movementSpeed": "Vitesse de déplacement",
-  "folkhold_world.configuration.unit.guard.followRange": "Distance de détection"
+  "folkhold_world.configuration.unit.guard.followRange": "Distance de détection",
+  "block.folkhold_world.village_heart": "Cœur de village",
+  "message.folkhold_world.village_heart.status": "Village : %s",
+  "folkhold_world.alert_state.calm": "calme",
+  "folkhold_world.alert_state.alert": "en alerte",
+  "folkhold_world.alert_state.assault": "sous assaut",
+  "folkhold_world.configuration.village": "Villages",
+  "folkhold_world.configuration.villageRadius": "Rayon du village",
+  "folkhold_world.configuration.spawnProtectionRadius": "Rayon sans apparition de monstres",
+  "folkhold_world.configuration.calmDelaySeconds": "Délai avant le retour au calme (secondes)"
 }

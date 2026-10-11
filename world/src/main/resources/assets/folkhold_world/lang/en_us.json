@@ -17,5 +17,14 @@
   "folkhold_world.configuration.unit.guard.attackDamage": "Attack damage",
   "folkhold_world.configuration.unit.guard.armor": "Armor",
   "folkhold_world.configuration.unit.guard.movementSpeed": "Movement speed",
-  "folkhold_world.configuration.unit.guard.followRange": "Follow range"
+  "folkhold_world.configuration.unit.guard.followRange": "Follow range",
+  "block.folkhold_world.village_heart": "Village Heart",
+  "message.folkhold_world.village_heart.status": "Village: %s",
+  "folkhold_world.alert_state.calm": "calm",
+  "folkhold_world.alert_state.alert": "alert",
+  "folkhold_world.alert_state.assault": "under assault",
+  "folkhold_world.configuration.village": "Villages",
+  "folkhold_world.configuration.villageRadius": "Village radius",
+  "folkhold_world.configuration.spawnProtectionRadius": "Monster spawn protection radius",
+  "folkhold_world.configuration.calmDelaySeconds": "Delay before the village is calm (seconds)"
 }

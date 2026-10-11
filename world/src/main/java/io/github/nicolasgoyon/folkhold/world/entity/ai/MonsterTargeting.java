@@ -2,7 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.entity.ai;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
@@ -14,14 +14,14 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 
 /**
- * Makes hostile monsters target guards, as they target iron golems.
+ * Makes hostile monsters target faction units (guards, archers, captains), as they target iron golems.
  *
  * <p>Neutral monsters (for example the enderman) and the entity types in the tag
- * {@code folkhold_world:ignores_guards} do not target guards.
+ * {@code folkhold_world:ignores_guards} do not target faction units.
  */
 public final class MonsterTargeting {
 
-    /** Entity types that do not attack guards first. */
+    /** Entity types that do not attack faction units first. */
     public static final TagKey<EntityType<?>> IGNORES_GUARDS = TagKey.create(Registries.ENTITY_TYPE,
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "ignores_guards"));
 
@@ -42,6 +42,6 @@ public final class MonsterTargeting {
         if (!WorldConfig.SPEC.isLoaded() || !WorldConfig.MONSTERS_ATTACK_GUARDS.get()) {
             return;
         }
-        mob.targetSelector.addGoal(TARGET_PRIORITY, new NearestAttackableTargetGoal<>(mob, GuardEntity.class, true));
+        mob.targetSelector.addGoal(TARGET_PRIORITY, new NearestAttackableTargetGoal<>(mob, FactionUnit.class, true));
     }
 }

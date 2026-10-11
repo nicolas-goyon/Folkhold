@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.registry;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.IEventBus;
@@ -16,6 +17,8 @@ public final class ModItems {
     public static final DeferredItem<DeferredSpawnEggItem> GUARD_SPAWN_EGG = ITEMS.register("guard_spawn_egg",
             () -> new DeferredSpawnEggItem(ModEntities.GUARD, 0x3C5A9A, 0xC0C0C0, new Item.Properties()));
 
+    public static final DeferredItem<BlockItem> VILLAGE_HEART = ITEMS.registerSimpleBlockItem(ModBlocks.VILLAGE_HEART);
+
     private ModItems() {
     }
 
@@ -27,6 +30,8 @@ public final class ModItems {
     private static void onBuildCreativeTabs(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(GUARD_SPAWN_EGG.get());
+        } else if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
+            event.accept(VILLAGE_HEART.get());
         }
     }
 }
