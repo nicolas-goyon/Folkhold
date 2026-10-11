@@ -25,6 +25,10 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue SPAWN_PROTECTION_RADIUS;
     public static final ModConfigSpec.IntValue CALM_DELAY_SECONDS;
 
+    public static final ModConfigSpec.IntValue GARRISON_GUARDS;
+    public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
+    public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
+
     public static final UnitStats GUARD;
 
     static {
@@ -83,6 +87,23 @@ public final class WorldConfig {
                 .comment("Time in seconds without a threat before an alerted village becomes calm again.")
                 .translation(KEY_PREFIX + "calmDelaySeconds")
                 .defineInRange("calmDelaySeconds", 60, 5, 3600);
+        builder.pop();
+
+        builder.comment("Garrison of each village.")
+                .translation(KEY_PREFIX + "garrison")
+                .push("garrison");
+        GARRISON_GUARDS = builder
+                .comment("Number of guards in a full garrison.")
+                .translation(KEY_PREFIX + "garrisonGuards")
+                .defineInRange("guards", 4, 0, 32);
+        GARRISON_REFILL_DELAY_SECONDS = builder
+                .comment("Time in seconds before the village replaces a dead unit. The village must be calm.")
+                .translation(KEY_PREFIX + "garrisonRefillDelaySeconds")
+                .defineInRange("refillDelaySeconds", 300, 10, 86400);
+        GARRISON_ACTIVATION_RADIUS = builder
+                .comment("A heart creates its missing units only when a player is in this radius, in blocks.")
+                .translation(KEY_PREFIX + "garrisonActivationRadius")
+                .defineInRange("activationRadius", 64, 16, 256);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
+import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.List;
 import java.util.UUID;
@@ -11,6 +12,7 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -18,18 +20,24 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 /**
- * State of a village: id and alert state. The units of the village keep the position of this block.
+ * State of a village: id, alert state and garrison. The units of the village keep the position of this block.
+ *
+ * <p>When a player is in the activation radius, the heart creates the missing units of its garrison.
  */
 public class VillageHeartBlockEntity extends BlockEntity {
     private static final String ID_TAG = "VillageId";
     private static final String ALERT_TAG = "Alert";
     private static final String LAST_THREAT_TAG = "LastThreat";
+    private static final String GARRISON_TAG = "Garrison";
+    /** The heart checks its garrison every 2 seconds. */
+    private static final int GARRISON_INTERVAL = 40;
     /** The heart checks the end of the alert once each second. */
     private static final int CHECK_INTERVAL = 20;
 
     private UUID villageId = UUID.randomUUID();
     private AlertState alertState = AlertState.CALM;
     private long lastThreatTick;
+    private final Garrison garrison = new Garrison();
 
     public VillageHeartBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.VILLAGE_HEART.get(), pos, state);
@@ -84,6 +92,33 @@ public class VillageHeartBlockEntity extends BlockEntity {
         return level.getEntitiesOfClass(FactionUnit.class, area, unit -> worldPosition.equals(unit.getVillagePos()));
     }
 
+    public Garrison getGarrison() {
+        return garrison;
+    }
+
+    /**
+     * Creates the missing units of the garrison now (see {@link Garrison#ensure}).
+     *
+     * @param now the game time to use
+     */
+    public void ensureGarrison(long now) {
+        if (level instanceof ServerLevel serverLevel
+                && garrison.ensure(serverLevel, worldPosition, alertState == AlertState.CALM, now)) {
+            setChanged();
+        }
+    }
+
+    /**
+     * Records the death of a unit of this village.
+     *
+     * @param unitId the id of the unit
+     */
+    public void onUnitDied(UUID unitId) {
+        if (level != null && garrison.onUnitDied(unitId, level.getGameTime())) {
+            setChanged();
+        }
+    }
+
     /** Called when the block is removed. The units lose their village. */
     void onDestroyed() {
         for (FactionUnit unit : getUnits()) {
@@ -97,6 +132,12 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         // The registration in onLoad can happen before the level is ready. Register again: it costs nothing.
         VillageHearts.register(level, pos);
+        if (level.getGameTime() % GARRISON_INTERVAL == 0) {
+            double activation = WorldConfig.GARRISON_ACTIVATION_RADIUS.get();
+            if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {
+                heart.ensureGarrison(level.getGameTime());
+            }
+        }
         long calmDelayTicks = WorldConfig.CALM_DELAY_SECONDS.get() * 20L;
         if (heart.alertState != AlertState.CALM && level.getGameTime() - heart.lastThreatTick > calmDelayTicks) {
             heart.setAlertState(AlertState.CALM);
@@ -133,6 +174,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putUUID(ID_TAG, villageId);
         tag.putString(ALERT_TAG, alertState.serializedName());
         tag.putLong(LAST_THREAT_TAG, lastThreatTick);
+        tag.put(GARRISON_TAG, garrison.save());
     }
 
     @Override
@@ -143,5 +185,6 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         alertState = AlertState.fromSerializedName(tag.getString(ALERT_TAG));
         lastThreatTick = tag.getLong(LAST_THREAT_TAG);
+        garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
     }
 }
