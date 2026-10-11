@@ -1,7 +1,9 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
+import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
@@ -14,8 +16,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.CampfireBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -41,6 +48,11 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private final Garrison garrison = new Garrison();
     private final VillageLayout layout = new VillageLayout();
     private static final String LAYOUT_TAG = "Layout";
+    private static final String NIGHT_TAG = "NightMode";
+    /** A guard on night watch stays at this distance from the gate, toward the heart. */
+    private static final int GATE_WATCH_DISTANCE = 2;
+    /** True after the heart closed the gates and lit the braziers for the night. */
+    private boolean nightMode;
 
     public VillageHeartBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.VILLAGE_HEART.get(), pos, state);
@@ -133,6 +145,75 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
     }
 
+    /** True if the heart applied the night state (gates closed, braziers lit). */
+    public boolean isNightMode() {
+        return nightMode;
+    }
+
+    /**
+     * Applies the day or the night state to the village.
+     *
+     * <ul>
+     *   <li>Night: the gates close, the braziers burn, and the guards (not the captain, not the units with a
+     *       post) watch the gates.</li>
+     *   <li>Day: the gates open, the braziers go out, and the guards patrol around their home again.</li>
+     * </ul>
+     *
+     * @param night true for the night state
+     */
+    public void applyDayNight(boolean night) {
+        if (level == null || level.isClientSide()) {
+            return;
+        }
+        nightMode = night;
+        setChanged();
+        boolean soundPlayed = false;
+        for (BlockPos gate : layout.gates()) {
+            BlockState gateState = level.getBlockState(gate);
+            if (gateState.getBlock() instanceof FenceGateBlock && gateState.getValue(FenceGateBlock.OPEN) == night) {
+                level.setBlock(gate, gateState.setValue(FenceGateBlock.OPEN, !night), Block.UPDATE_ALL);
+                if (!soundPlayed) {
+                    level.playSound(null, gate, night ? SoundEvents.FENCE_GATE_CLOSE : SoundEvents.FENCE_GATE_OPEN,
+                            SoundSource.BLOCKS, 1.0F, 1.0F);
+                    soundPlayed = true;
+                }
+            }
+        }
+        for (BlockPos brazier : layout.braziers()) {
+            BlockState brazierState = level.getBlockState(brazier);
+            if (brazierState.getBlock() instanceof CampfireBlock && brazierState.getValue(CampfireBlock.LIT) != night) {
+                level.setBlock(brazier, brazierState.setValue(CampfireBlock.LIT, night), Block.UPDATE_ALL);
+            }
+        }
+        assignGateWatch(night);
+    }
+
+    private void assignGateWatch(boolean night) {
+        List<BlockPos> gates = layout.gates();
+        int index = 0;
+        for (FactionUnit unit : getUnits()) {
+            if (!(unit instanceof GuardEntity) || unit instanceof CaptainEntity || unit.getPostPos() != null) {
+                continue;
+            }
+            if (night && !gates.isEmpty()) {
+                unit.setNightPos(gateWatchPosition(gates.get(index % gates.size())));
+                index++;
+            } else {
+                unit.setNightPos(null);
+            }
+        }
+    }
+
+    /** The position at {@link #GATE_WATCH_DISTANCE} blocks from the gate, toward the heart. */
+    private BlockPos gateWatchPosition(BlockPos gate) {
+        int dx = worldPosition.getX() - gate.getX();
+        int dz = worldPosition.getZ() - gate.getZ();
+        if (Math.abs(dx) >= Math.abs(dz)) {
+            return gate.offset(Integer.signum(dx) * GATE_WATCH_DISTANCE, 0, 0);
+        }
+        return gate.offset(0, 0, Integer.signum(dz) * GATE_WATCH_DISTANCE);
+    }
+
     /** Called when the block is removed. The units lose their village. */
     void onDestroyed() {
         for (FactionUnit unit : getUnits()) {
@@ -151,6 +232,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
             if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {
                 heart.ensureGarrison(level.getGameTime());
             }
+        }
+        if (heart.layout.isScanned() && level.isNight() != heart.nightMode) {
+            heart.applyDayNight(level.isNight());
         }
         long calmDelayTicks = WorldConfig.CALM_DELAY_SECONDS.get() * 20L;
         if (heart.alertState != AlertState.CALM && level.getGameTime() - heart.lastThreatTick > calmDelayTicks) {
@@ -190,6 +274,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putLong(LAST_THREAT_TAG, lastThreatTick);
         tag.put(GARRISON_TAG, garrison.save());
         tag.put(LAYOUT_TAG, layout.save());
+        tag.putBoolean(NIGHT_TAG, nightMode);
     }
 
     @Override
@@ -202,5 +287,6 @@ public class VillageHeartBlockEntity extends BlockEntity {
         lastThreatTick = tag.getLong(LAST_THREAT_TAG);
         garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
         layout.load(tag.getCompound(LAYOUT_TAG));
+        nightMode = tag.getBoolean(NIGHT_TAG);
     }
 }

@@ -37,7 +37,9 @@ import net.minecraft.world.level.ServerLevelAccessor;
  *   <li>a <b>home position</b>: center of the patrol and of the chase limit;</li>
  *   <li>a <b>village</b>: the position of its village heart, or none. The unit reports threats to the heart,
  *       and the heart alerts all units of the village;</li>
- *   <li>a <b>post</b> (optional): a tower or wall position. A unit with a post stays at its post.</li>
+ *   <li>a <b>post</b> (optional): a tower or wall position. A unit with a post stays at its post;</li>
+ *   <li>a <b>night watch position</b> (optional, set by the heart): at night, the unit stays near it
+ *       instead of its home.</li>
  * </ul>
  *
  * <p>The attributes come from the config of the unit type when the unit spawns.
@@ -52,6 +54,7 @@ public abstract class FactionUnit extends PathfinderMob {
     private static final String VILLAGE_TAG = "VillagePos";
     private static final String POST_TAG = "PostPos";
     private static final String ROUTED_TAG = "RoutedUntil";
+    private static final String NIGHT_TAG = "NightPos";
     /** Speed of a routed unit that runs back home. */
     private static final double ROUT_SPEED = 1.3;
     /** Radius around the post while the village is not calm, in blocks. */
@@ -63,6 +66,9 @@ public abstract class FactionUnit extends PathfinderMob {
     private BlockPos villagePos;
     @Nullable
     private BlockPos postPos;
+    /** Position of the night watch (near a gate), or null. The village heart sets it. */
+    @Nullable
+    private BlockPos nightPos;
     /** Game time until which the unit is routed (runs away and does not fight). */
     private long routedUntil;
 
@@ -104,6 +110,16 @@ public abstract class FactionUnit extends PathfinderMob {
 
     public void setPostPos(@Nullable BlockPos pos) {
         postPos = pos == null ? null : pos.immutable();
+    }
+
+    /** The night watch position (near a gate), or null. At night, the unit stays near it. */
+    @Nullable
+    public BlockPos getNightPos() {
+        return nightPos;
+    }
+
+    public void setNightPos(@Nullable BlockPos pos) {
+        nightPos = pos == null ? null : pos.immutable();
     }
 
     /** True if the unit is routed: it runs back home and does not fight. */
@@ -161,6 +177,8 @@ public abstract class FactionUnit extends PathfinderMob {
         super.customServerAiStep();
         if (postPos != null) {
             restrictTo(postPos, POST_RADIUS);
+        } else if (nightPos != null && level().isNight()) {
+            restrictTo(nightPos, NIGHT_RADIUS);
         } else {
             int radius = level().isNight() ? NIGHT_RADIUS : WorldConfig.PATROL_RADIUS.get();
             restrictTo(getHomePos(), radius);
@@ -277,6 +295,9 @@ public abstract class FactionUnit extends PathfinderMob {
             tag.put(POST_TAG, NbtUtils.writeBlockPos(postPos));
         }
         tag.putLong(ROUTED_TAG, routedUntil);
+        if (nightPos != null) {
+            tag.put(NIGHT_TAG, NbtUtils.writeBlockPos(nightPos));
+        }
     }
 
     @Override
@@ -286,5 +307,6 @@ public abstract class FactionUnit extends PathfinderMob {
         NbtUtils.readBlockPos(tag, VILLAGE_TAG).ifPresent(this::setVillagePos);
         NbtUtils.readBlockPos(tag, POST_TAG).ifPresent(this::setPostPos);
         routedUntil = tag.getLong(ROUTED_TAG);
+        NbtUtils.readBlockPos(tag, NIGHT_TAG).ifPresent(this::setNightPos);
     }
 }

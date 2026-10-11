@@ -32,7 +32,8 @@ import net.minecraft.world.level.Level;
  * <p>Behavior (see also {@link FactionUnit}):
  * <ul>
  *   <li>By day, the guard patrols in the patrol radius around its home position.
- *       At night, it stays near the home position.</li>
+ *       At night, it watches a gate of its village (if the village heart gives it a night watch position),
+ *       or it stays near its home position.</li>
  *   <li>It attacks monsters in range, except creepers. It attacks any entity that attacks it, and alerts
  *       the other units in the alert radius and in its village.</li>
  *   <li>It never chases a target that is farther than the chase radius from the home position.</li>
