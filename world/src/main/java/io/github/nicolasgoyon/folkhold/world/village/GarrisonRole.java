@@ -12,7 +12,8 @@ import net.minecraft.world.entity.EntityType;
  */
 public enum GarrisonRole {
     GUARD(ModEntities.GUARD::get),
-    ARCHER(ModEntities.ARCHER::get);
+    ARCHER(ModEntities.ARCHER::get),
+    CAPTAIN(ModEntities.CAPTAIN::get);
 
     private final Supplier<? extends EntityType<? extends FactionUnit>> entityType;
 
@@ -29,6 +30,7 @@ public enum GarrisonRole {
         return switch (this) {
             case GUARD -> WorldConfig.GARRISON_GUARDS.get();
             case ARCHER -> WorldConfig.GARRISON_ARCHERS.get();
+            case CAPTAIN -> WorldConfig.GARRISON_CAPTAINS.get();
         };
     }
 

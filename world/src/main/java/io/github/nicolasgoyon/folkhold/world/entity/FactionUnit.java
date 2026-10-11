@@ -52,6 +52,9 @@ public abstract class FactionUnit extends PathfinderMob {
     private static final String HOME_TAG = "HomePos";
     private static final String VILLAGE_TAG = "VillagePos";
     private static final String POST_TAG = "PostPos";
+    private static final String ROUTED_TAG = "RoutedUntil";
+    /** Speed of a routed unit that runs back home. */
+    private static final double ROUT_SPEED = 1.3;
     /** Radius around the post while the village is not calm, in blocks. */
     private static final int POST_RADIUS = 1;
 
@@ -61,6 +64,8 @@ public abstract class FactionUnit extends PathfinderMob {
     private BlockPos villagePos;
     @Nullable
     private BlockPos postPos;
+    /** Game time until which the unit is routed (runs away and does not fight). */
+    private long routedUntil;
 
     protected FactionUnit(EntityType<? extends FactionUnit> type, Level level) {
         super(type, level);
@@ -102,6 +107,30 @@ public abstract class FactionUnit extends PathfinderMob {
         postPos = pos == null ? null : pos.immutable();
     }
 
+    /** True if the unit is routed: it runs back home and does not fight. */
+    public boolean isRouted() {
+        return level().getGameTime() < routedUntil;
+    }
+
+    /**
+     * Routes the unit: it drops its target, runs back home and does not fight for the given time.
+     *
+     * @param ticks the duration in game ticks
+     */
+    public void rout(long ticks) {
+        routedUntil = level().getGameTime() + ticks;
+        super.setTarget(null);
+    }
+
+    /** A routed unit does not accept a target. */
+    @Override
+    public void setTarget(@Nullable LivingEntity target) {
+        if (target != null && isRouted()) {
+            return;
+        }
+        super.setTarget(target);
+    }
+
     /** True if the unit has a village and the village is not calm. */
     public boolean isVillageAlerted() {
         return getVillageHeart().map(heart -> heart.getAlertState() != AlertState.CALM).orElse(false);
@@ -136,6 +165,18 @@ public abstract class FactionUnit extends PathfinderMob {
         } else {
             int radius = level().isNight() ? NIGHT_RADIUS : WorldConfig.PATROL_RADIUS.get();
             restrictTo(getHomePos(), radius);
+        }
+
+        if (isRouted()) {
+            if (getTarget() != null) {
+                super.setTarget(null);
+            }
+            if (distanceToSqr(getHomePos().getCenter()) > 9.0 && getNavigation().isDone()) {
+                BlockPos home = getHomePos();
+                getNavigation().moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, ROUT_SPEED);
+            }
+            unitServerAiStep(null);
+            return;
         }
 
         LivingEntity target = getTarget();
@@ -236,6 +277,7 @@ public abstract class FactionUnit extends PathfinderMob {
         if (postPos != null) {
             tag.put(POST_TAG, NbtUtils.writeBlockPos(postPos));
         }
+        tag.putLong(ROUTED_TAG, routedUntil);
     }
 
     @Override
@@ -244,5 +286,6 @@ public abstract class FactionUnit extends PathfinderMob {
         NbtUtils.readBlockPos(tag, HOME_TAG).ifPresent(this::setHomePos);
         NbtUtils.readBlockPos(tag, VILLAGE_TAG).ifPresent(this::setVillagePos);
         NbtUtils.readBlockPos(tag, POST_TAG).ifPresent(this::setPostPos);
+        routedUntil = tag.getLong(ROUTED_TAG);
     }
 }
