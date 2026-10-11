@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
+import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.List;
 import java.util.UUID;
@@ -38,6 +39,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private AlertState alertState = AlertState.CALM;
     private long lastThreatTick;
     private final Garrison garrison = new Garrison();
+    private final VillageLayout layout = new VillageLayout();
+    private static final String LAYOUT_TAG = "Layout";
 
     public VillageHeartBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.VILLAGE_HEART.get(), pos, state);
@@ -96,14 +99,25 @@ public class VillageHeartBlockEntity extends BlockEntity {
         return garrison;
     }
 
+    /** The posts, gates and braziers of the village. The heart scans them before the first garrison. */
+    public VillageLayout getLayout() {
+        return layout;
+    }
+
     /**
      * Creates the missing units of the garrison now (see {@link Garrison#ensure}).
      *
      * @param now the game time to use
      */
     public void ensureGarrison(long now) {
-        if (level instanceof ServerLevel serverLevel
-                && garrison.ensure(serverLevel, worldPosition, alertState == AlertState.CALM, now)) {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        if (!layout.isScanned()) {
+            layout.scan(serverLevel, worldPosition);
+            setChanged();
+        }
+        if (garrison.ensure(serverLevel, worldPosition, alertState == AlertState.CALM, now, layout.posts())) {
             setChanged();
         }
     }
@@ -175,6 +189,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putString(ALERT_TAG, alertState.serializedName());
         tag.putLong(LAST_THREAT_TAG, lastThreatTick);
         tag.put(GARRISON_TAG, garrison.save());
+        tag.put(LAYOUT_TAG, layout.save());
     }
 
     @Override
@@ -186,5 +201,6 @@ public class VillageHeartBlockEntity extends BlockEntity {
         alertState = AlertState.fromSerializedName(tag.getString(ALERT_TAG));
         lastThreatTick = tag.getLong(LAST_THREAT_TAG);
         garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
+        layout.load(tag.getCompound(LAYOUT_TAG));
     }
 }

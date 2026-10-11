@@ -25,6 +25,8 @@ public final class ModItems {
 
     public static final DeferredItem<BlockItem> VILLAGE_HEART = ITEMS.registerSimpleBlockItem(ModBlocks.VILLAGE_HEART);
 
+    public static final DeferredItem<BlockItem> WATCH_POST = ITEMS.registerSimpleBlockItem(ModBlocks.WATCH_POST);
+
     private ModItems() {
     }
 
@@ -40,6 +42,7 @@ public final class ModItems {
             event.accept(CAPTAIN_SPAWN_EGG.get());
         } else if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             event.accept(VILLAGE_HEART.get());
+            event.accept(WATCH_POST.get());
         }
     }
 }

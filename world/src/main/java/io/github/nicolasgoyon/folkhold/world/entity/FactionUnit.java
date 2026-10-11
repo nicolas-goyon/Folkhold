@@ -37,8 +37,7 @@ import net.minecraft.world.level.ServerLevelAccessor;
  *   <li>a <b>home position</b>: center of the patrol and of the chase limit;</li>
  *   <li>a <b>village</b>: the position of its village heart, or none. The unit reports threats to the heart,
  *       and the heart alerts all units of the village;</li>
- *   <li>a <b>post</b> (optional): a tower or wall position. While the village is not calm, the unit stays
- *       at its post.</li>
+ *   <li>a <b>post</b> (optional): a tower or wall position. A unit with a post stays at its post.</li>
  * </ul>
  *
  * <p>The attributes come from the config of the unit type when the unit spawns.
@@ -97,7 +96,7 @@ public abstract class FactionUnit extends PathfinderMob {
         villagePos = pos == null ? null : pos.immutable();
     }
 
-    /** The post of the unit (a tower or a wall position), or null. The unit goes there during an alert. */
+    /** The post of the unit (a tower or a wall position), or null. A unit with a post stays there. */
     @Nullable
     public BlockPos getPostPos() {
         return postPos;
@@ -160,7 +159,7 @@ public abstract class FactionUnit extends PathfinderMob {
     @Override
     protected void customServerAiStep() {
         super.customServerAiStep();
-        if (postPos != null && isVillageAlerted()) {
+        if (postPos != null) {
             restrictTo(postPos, POST_RADIUS);
         } else {
             int radius = level().isNight() ? NIGHT_RADIUS : WorldConfig.PATROL_RADIUS.get();

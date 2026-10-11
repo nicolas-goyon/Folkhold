@@ -28,6 +28,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
  *   <li>An entry becomes dead when its unit dies (the unit reports its death), or when the unit is missing
  *       for {@link #MISSING_TIMEOUT_TICKS} while the chunk of its last known position is loaded.</li>
  *   <li>The garrison replaces a dead unit after the refill delay, only when the village is calm.</li>
+ *   <li>Archers get a free post of the village (see {@link VillageLayout}), if there is one. They spawn on it.</li>
  * </ul>
  */
 public final class Garrison {
@@ -48,6 +49,8 @@ public final class Garrison {
         private long lastSeen;
         @Nullable
         private BlockPos lastPos;
+        @Nullable
+        private BlockPos post;
 
         Entry(UUID unitId, GarrisonRole role) {
             this.unitId = unitId;
@@ -64,6 +67,12 @@ public final class Garrison {
 
         public boolean isDead() {
             return dead;
+        }
+
+        /** The post of the unit, or null. */
+        @Nullable
+        public BlockPos post() {
+            return post;
         }
 
         void markDead(long now) {
@@ -113,9 +122,10 @@ public final class Garrison {
      * @param heartPos  the position of the heart
      * @param calm      true if the village is calm
      * @param now       the current game time
+     * @param posts     the posts of the village (positions where an archer stands)
      * @return true if the garrison changed (the heart must save)
      */
-    public boolean ensure(ServerLevel level, BlockPos heartPos, boolean calm, long now) {
+    public boolean ensure(ServerLevel level, BlockPos heartPos, boolean calm, long now, List<BlockPos> posts) {
         boolean changed = false;
         for (Entry entry : entries) {
             if (entry.dead) {
@@ -135,9 +145,11 @@ public final class Garrison {
         for (GarrisonRole role : GarrisonRole.values()) {
             int count = (int) entries.stream().filter(entry -> entry.role == role).count();
             for (int i = count; i < role.configuredCount(); i++) {
-                FactionUnit unit = spawnUnit(level, heartPos, role);
+                BlockPos post = role == GarrisonRole.ARCHER ? freePost(posts) : null;
+                FactionUnit unit = spawnUnit(level, heartPos, role, post);
                 if (unit != null) {
                     Entry entry = new Entry(unit.getUUID(), role);
+                    entry.post = post;
                     entry.lastSeen = now;
                     entry.lastPos = unit.blockPosition();
                     entries.add(entry);
@@ -150,7 +162,10 @@ public final class Garrison {
             long refillDelay = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
             for (Entry entry : entries) {
                 if (entry.dead && now - entry.deadSince >= refillDelay) {
-                    FactionUnit unit = spawnUnit(level, heartPos, entry.role);
+                    if (entry.post == null && entry.role == GarrisonRole.ARCHER) {
+                        entry.post = freePost(posts);
+                    }
+                    FactionUnit unit = spawnUnit(level, heartPos, entry.role, entry.post);
                     if (unit != null) {
                         entry.unitId = unit.getUUID();
                         entry.dead = false;
@@ -164,11 +179,33 @@ public final class Garrison {
         return changed;
     }
 
+    /** A post that no entry uses, or null. */
     @Nullable
-    private static FactionUnit spawnUnit(ServerLevel level, BlockPos heartPos, GarrisonRole role) {
+    private BlockPos freePost(List<BlockPos> posts) {
+        for (BlockPos post : posts) {
+            boolean used = entries.stream().anyMatch(entry -> post.equals(entry.post));
+            if (!used) {
+                return post;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static FactionUnit spawnUnit(ServerLevel level, BlockPos heartPos, GarrisonRole role,
+            @Nullable BlockPos post) {
         FactionUnit unit = role.entityType().create(level);
         if (unit == null) {
             return null;
+        }
+        if (post != null) {
+            unit.moveTo(post.getX() + 0.5, post.getY(), post.getZ() + 0.5, level.random.nextFloat() * 360.0F, 0.0F);
+            unit.setHomePos(post);
+            unit.setPostPos(post);
+            unit.setVillagePos(heartPos);
+            unit.finalizeSpawn(level, level.getCurrentDifficultyAt(post), MobSpawnType.STRUCTURE, null);
+            level.addFreshEntity(unit);
+            return unit;
         }
         float angle = level.random.nextFloat() * (float) (Math.PI * 2.0);
         int distance = Mth.nextInt(level.random, SPAWN_MIN_DISTANCE, SPAWN_MAX_DISTANCE);
@@ -194,6 +231,9 @@ public final class Garrison {
             if (entry.lastPos != null) {
                 tag.put("LastPos", NbtUtils.writeBlockPos(entry.lastPos));
             }
+            if (entry.post != null) {
+                tag.put("Post", NbtUtils.writeBlockPos(entry.post));
+            }
             list.add(tag);
         }
         return list;
@@ -212,6 +252,7 @@ public final class Garrison {
             entry.deadSince = tag.getLong("DeadSince");
             entry.lastSeen = tag.getLong("LastSeen");
             entry.lastPos = NbtUtils.readBlockPos(tag, "LastPos").orElse(null);
+            entry.post = NbtUtils.readBlockPos(tag, "Post").orElse(null);
             entries.add(entry);
         }
     }
