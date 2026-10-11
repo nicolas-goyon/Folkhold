@@ -44,7 +44,10 @@ The pack targets **NeoForge 1.21.1**. **packwiz** manages it: a versioned list i
 | Navigation | Small Ships | `small-ships` | Beta, last update November 2024 |
 | Comfort | JEI, Jade | `jei`, `jade` | Recommended for development |
 
-packwiz resolves most dependencies automatically (for example CoroUtil for Weather2). Exception: Immersive Weathering: Renewed does not declare Moonlight Lib in its Modrinth metadata. Add Moonlight Lib explicitly.
+packwiz resolves most dependencies automatically (for example CoroUtil for Weather2). Some mods do not declare a required library in their Modrinth metadata. Add these libraries explicitly:
+
+- Immersive Weathering: Renewed requires Moonlight Lib.
+- Smart Feeding Troughs requires Dirigo (1.3.0 or later, before 2.0.0).
 
 Maintenance rules:
 

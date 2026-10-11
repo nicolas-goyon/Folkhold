@@ -23,6 +23,7 @@ add entityculling
 add dynamictrees
 add serene-seasons
 add 4dEFIhvD                    # Smart Feeding Troughs (confirm, see issue #5)
+add dirigo                      # required by Smart Feeding Troughs, not declared on Modrinth
 
 # Weather
 add weather-storms-tornadoes
