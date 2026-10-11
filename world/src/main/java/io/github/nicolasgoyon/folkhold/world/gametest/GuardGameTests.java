@@ -115,6 +115,9 @@ public final class GuardGameTests {
     @GameTest(template = "arena", timeoutTicks = 200, batch = "monster_targets_guard")
     public static void monsterTargetsGuardFirst(GameTestHelper helper) {
         GuardEntity guard = spawnGuard(helper, new BlockPos(3, 1, 3));
+        // The guard has no AI in this test. Then only the husk can start the fight,
+        // and the guard cannot kill the husk before the check.
+        guard.setNoAi(true);
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(10, 1, 10));
 
         helper.succeedWhen(() -> helper.assertTrue(husk.getTarget() == guard,
