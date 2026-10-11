@@ -23,3 +23,7 @@ updates:
       interval: monthly
     commit-message:
       prefix: build
+    ignore:
+      # Minecraft 1.21.1 targets Java 21. Keep the JDK image on major version 21.
+      - dependency-name: eclipse-temurin
+        update-types: ["version-update:semver-major"]
