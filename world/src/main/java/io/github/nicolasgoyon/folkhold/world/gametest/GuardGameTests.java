@@ -16,6 +16,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -25,8 +26,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * <p>Templates (made with {@code tools/make_test_structure.py}):
  * <ul>
  *   <li>{@code folkhold_world:empty}: 1 air block.</li>
- *   <li>{@code folkhold_world:arena}: 16 × 4 × 16 blocks, smooth stone floor at y = 0.</li>
+ *   <li>{@code folkhold_world:arena}: 16 × 4 × 16 blocks of air. Each test builds the floor at y = 0 with
+ *       {@link #buildFloor(GameTestHelper)}.</li>
  * </ul>
+ *
+ * <p>The floor is not part of the template. The position of a template block and the position from
+ * {@link GameTestHelper#absolutePos(BlockPos)} do not always agree, and an entity can spawn inside a floor
+ * block. Blocks that a test places with {@link GameTestHelper#setBlock(BlockPos, net.minecraft.world.level.block.Block)}
+ * use the same positions as the entities.
  *
  * <p>Tests with guards and monsters use separate batches. Tests in one batch run at the same time,
  * and a guard can see the monsters of a near test. Each test removes its entities when it passes:
@@ -45,6 +52,17 @@ public final class GuardGameTests {
         guard.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(guard.blockPosition()),
                 MobSpawnType.COMMAND, null);
         return guard;
+    }
+
+    private static final int ARENA_SIZE = 16;
+
+    /** Fills the bottom layer of the arena (y = 0) with smooth stone. */
+    private static void buildFloor(GameTestHelper helper) {
+        for (int x = 0; x < ARENA_SIZE; x++) {
+            for (int z = 0; z < ARENA_SIZE; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.SMOOTH_STONE);
+            }
+        }
     }
 
     /** Waits for the condition, removes the entities of the test, then marks the test as passed. */
@@ -81,6 +99,7 @@ public final class GuardGameTests {
     /** A guard attacks and kills a hostile monster near its home position. */
     @GameTest(template = "arena", timeoutTicks = 600, batch = "guard_kill")
     public static void guardKillsHostileMonster(GameTestHelper helper) {
+        buildFloor(helper);
         GuardEntity guard = spawnGuard(helper, new BlockPos(3, 1, 3));
         // A husk does not burn in daylight.
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(10, 1, 10));
@@ -91,6 +110,7 @@ public final class GuardGameTests {
     /** A guard drops a target that is farther than the chase radius from its home position. */
     @GameTest(template = "arena", timeoutTicks = 100, batch = "guard_chase")
     public static void guardDropsTargetOutsideChaseRadius(GameTestHelper helper) {
+        buildFloor(helper);
         GuardEntity guard = spawnGuard(helper, new BlockPos(3, 1, 3));
         guard.setHomePos(helper.absolutePos(new BlockPos(3, 1, 3)).offset(WorldConfig.CHASE_RADIUS.get() * 4, 0, 0));
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(6, 1, 3));
@@ -105,6 +125,7 @@ public final class GuardGameTests {
     /** An attack on one guard alerts the other guards in the alert radius. */
     @GameTest(template = "arena", timeoutTicks = 100, batch = "guard_alert")
     public static void attackOnGuardAlertsOtherGuards(GameTestHelper helper) {
+        buildFloor(helper);
         GuardEntity attacked = spawnGuard(helper, new BlockPos(3, 1, 3));
         GuardEntity other = spawnGuard(helper, new BlockPos(12, 1, 12));
         // A pig is not a monster. Only the alert can make the second guard target it.
@@ -129,6 +150,7 @@ public final class GuardGameTests {
     /** A hostile monster targets a guard before the guard attacks it. */
     @GameTest(template = "arena", timeoutTicks = 200, batch = "monster_targets_guard")
     public static void monsterTargetsGuardFirst(GameTestHelper helper) {
+        buildFloor(helper);
         GuardEntity guard = spawnGuard(helper, new BlockPos(3, 1, 3));
         // The guard has no AI in this test. Then only the husk can start the fight,
         // and the guard cannot kill the husk before the check.
