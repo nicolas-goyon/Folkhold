@@ -110,4 +110,14 @@ public final class GuardGameTests {
                         + attacked.getTarget() + ", last attacker: " + attacked.getLastHurtByMob()
                         + ", second guard target: " + other.getTarget()));
     }
+
+    /** A hostile monster targets a guard before the guard attacks it. */
+    @GameTest(template = "arena", timeoutTicks = 200, batch = "monster_targets_guard")
+    public static void monsterTargetsGuardFirst(GameTestHelper helper) {
+        GuardEntity guard = spawnGuard(helper, new BlockPos(3, 1, 3));
+        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(10, 1, 10));
+
+        helper.succeedWhen(() -> helper.assertTrue(husk.getTarget() == guard,
+                "The husk must target the guard. Husk target: " + husk.getTarget()));
+    }
 }

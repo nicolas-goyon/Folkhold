@@ -10,6 +10,7 @@
   "folkhold_world.configuration.patrolRadius": "Patrol radius",
   "folkhold_world.configuration.chaseRadius": "Chase radius",
   "folkhold_world.configuration.alertRadius": "Alert radius",
+  "folkhold_world.configuration.monstersAttackGuards": "Monsters attack guards",
   "folkhold_world.configuration.unit": "Units",
   "folkhold_world.configuration.unit.guard": "Guard",
   "folkhold_world.configuration.unit.guard.health": "Health",
