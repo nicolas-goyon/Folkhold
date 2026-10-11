@@ -1,3 +1,20 @@
 {
-  "fml.menu.mods.info.description.folkhold_world": "Factions, villages, economy, caravans and quests that live without the player."
+  "fml.menu.mods.info.description.folkhold_world": "Factions, villages, economy, caravans and quests that live without the player.",
+  "entity.folkhold_world.guard": "Guard",
+  "item.folkhold_world.guard_spawn_egg": "Guard Spawn Egg",
+  "folkhold_world.configuration.title": "Folkhold World configuration",
+  "folkhold_world.configuration.difficulty": "Difficulty",
+  "folkhold_world.configuration.healthMultiplier": "Health multiplier",
+  "folkhold_world.configuration.damageMultiplier": "Damage multiplier",
+  "folkhold_world.configuration.ai": "Defender behavior",
+  "folkhold_world.configuration.patrolRadius": "Patrol radius",
+  "folkhold_world.configuration.chaseRadius": "Chase radius",
+  "folkhold_world.configuration.alertRadius": "Alert radius",
+  "folkhold_world.configuration.unit": "Units",
+  "folkhold_world.configuration.unit.guard": "Guard",
+  "folkhold_world.configuration.unit.guard.health": "Health",
+  "folkhold_world.configuration.unit.guard.attackDamage": "Attack damage",
+  "folkhold_world.configuration.unit.guard.armor": "Armor",
+  "folkhold_world.configuration.unit.guard.movementSpeed": "Movement speed",
+  "folkhold_world.configuration.unit.guard.followRange": "Follow range"
 }

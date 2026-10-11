@@ -1,3 +1,20 @@
 {
-  "fml.menu.mods.info.description.folkhold_world": "Factions, villages, économie, caravanes et quêtes qui vivent sans le joueur."
+  "fml.menu.mods.info.description.folkhold_world": "Factions, villages, économie, caravanes et quêtes qui vivent sans le joueur.",
+  "entity.folkhold_world.guard": "Garde",
+  "item.folkhold_world.guard_spawn_egg": "Œuf d'apparition de garde",
+  "folkhold_world.configuration.title": "Configuration de Folkhold World",
+  "folkhold_world.configuration.difficulty": "Difficulté",
+  "folkhold_world.configuration.healthMultiplier": "Multiplicateur de vie",
+  "folkhold_world.configuration.damageMultiplier": "Multiplicateur de dégâts",
+  "folkhold_world.configuration.ai": "Comportement des défenseurs",
+  "folkhold_world.configuration.patrolRadius": "Rayon de patrouille",
+  "folkhold_world.configuration.chaseRadius": "Rayon de poursuite",
+  "folkhold_world.configuration.alertRadius": "Rayon d'alerte",
+  "folkhold_world.configuration.unit": "Unités",
+  "folkhold_world.configuration.unit.guard": "Garde",
+  "folkhold_world.configuration.unit.guard.health": "Points de vie",
+  "folkhold_world.configuration.unit.guard.attackDamage": "Dégâts d'attaque",
+  "folkhold_world.configuration.unit.guard.armor": "Armure",
+  "folkhold_world.configuration.unit.guard.movementSpeed": "Vitesse de déplacement",
+  "folkhold_world.configuration.unit.guard.followRange": "Distance de détection"
 }
