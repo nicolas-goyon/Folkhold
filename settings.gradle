@@ -1,0 +1,27 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            name = 'NeoForged'
+            url = 'https://maven.neoforged.net/releases'
+            content {
+                includeGroup 'net.neoforged'
+            }
+        }
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'folkhold'
+
+// One subproject for each mod.
+include 'core'
+include 'world'
+include 'balance'
+include 'events'
+
+// Development runtime: loads all mods in one game instance. It has no code and is not published.
+include 'dev'

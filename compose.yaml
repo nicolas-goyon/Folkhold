@@ -1,0 +1,32 @@
+# Run commands in the Folkhold dev container from a terminal.
+# The scripts in scripts/ are short forms of these commands.
+#
+#   docker compose run --rm dev                      interactive shell
+#   docker compose run --rm dev ./gradlew build      one command
+#   docker compose up server                         dev server on port 25565, debugger on port 5005
+
+name: folkhold
+
+services:
+  dev:
+    build: .devcontainer
+    image: folkhold-dev:local
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - gradle-cache:/home/dev/.gradle
+    command: bash
+    stdin_open: true
+    tty: true
+
+  server:
+    extends:
+      service: dev
+    ports:
+      - "25565:25565"
+      - "5005:5005"
+    command: ./gradlew :dev:runServer -PdebugPort=5005
+
+volumes:
+  gradle-cache:
+    name: folkhold-gradle-cache
