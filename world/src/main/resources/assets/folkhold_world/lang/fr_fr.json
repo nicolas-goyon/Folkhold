@@ -52,5 +52,6 @@
   "folkhold_world.configuration.unit.captain.attackDamage": "Dégâts d'attaque",
   "folkhold_world.configuration.unit.captain.armor": "Armure",
   "folkhold_world.configuration.unit.captain.movementSpeed": "Vitesse de déplacement",
-  "folkhold_world.configuration.unit.captain.followRange": "Distance de détection"
+  "folkhold_world.configuration.unit.captain.followRange": "Distance de détection",
+  "block.folkhold_world.watch_post": "Poste de guet"
 }

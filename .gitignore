@@ -40,3 +40,7 @@ repo/
 
 ### Modpack exports ###
 *.mrpack
+
+### Python ###
+__pycache__/
+*.pyc

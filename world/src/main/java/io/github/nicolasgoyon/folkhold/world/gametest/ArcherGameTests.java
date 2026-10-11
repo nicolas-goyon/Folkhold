@@ -1,7 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
-import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
@@ -40,22 +39,18 @@ public final class ArcherGameTests {
                 () -> helper.assertTrue(!husk.isAlive(), "The husk is still alive"), archer, husk);
     }
 
-    /** During an alert, an archer goes to its post. */
+    /** An archer with a post goes to its post and stays there. */
     @GameTest(template = "arena", timeoutTicks = 400, batch = "archer_post")
-    public static void archerGoesToPostDuringAlert(GameTestHelper helper) {
+    public static void archerGoesToItsPost(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         BlockPos heartRel = new BlockPos(8, 1, 8);
         helper.setBlock(heartRel, ModBlocks.VILLAGE_HEART.get());
-        VillageHeartBlockEntity heart = helper.getBlockEntity(heartRel);
         ArcherEntity archer = TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 2));
         archer.setVillagePos(helper.absolutePos(heartRel));
         BlockPos post = helper.absolutePos(new BlockPos(13, 1, 13));
         archer.setPostPos(post);
 
-        heart.reportThreat(null);
-
         TestSupport.succeedWhenAndRemove(helper, () -> {
-            heart.reportThreat(null);
             double distance = archer.position().distanceTo(Vec3.atBottomCenterOf(post));
             helper.assertTrue(distance < 1.5, "The archer must be at its post, distance: " + distance);
         }, archer);

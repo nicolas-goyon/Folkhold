@@ -7,10 +7,9 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Moves the unit to its post (a tower or a wall) when its village is not calm.
+ * Moves the unit back to its post (a tower or a wall), for example after a knockback.
  *
- * <p>The goal stops when the unit is at the post. Then {@link FactionUnit} keeps the unit near the post
- * while the village is not calm.
+ * <p>The goal stops when the unit is at the post. Then {@link FactionUnit} keeps the unit near the post.
  */
 public class MoveToPostGoal extends Goal {
     private static final double ARRIVED_DISTANCE_SQR = 2.0;
@@ -27,7 +26,7 @@ public class MoveToPostGoal extends Goal {
     @Override
     public boolean canUse() {
         BlockPos post = unit.getPostPos();
-        return post != null && unit.isVillageAlerted() && unit.distanceToSqr(Vec3.atBottomCenterOf(post)) > ARRIVED_DISTANCE_SQR;
+        return post != null && unit.distanceToSqr(Vec3.atBottomCenterOf(post)) > ARRIVED_DISTANCE_SQR;
     }
 
     @Override

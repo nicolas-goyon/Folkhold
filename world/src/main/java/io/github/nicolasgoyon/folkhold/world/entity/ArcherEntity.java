@@ -36,8 +36,7 @@ import net.minecraft.world.level.Level;
  * <p>Behavior (see also {@link FactionUnit}):
  * <ul>
  *   <li>It shoots arrows at monsters in range and at attackers.</li>
- *   <li>When the village is not calm and the archer has a post (a tower or a wall), it goes to the post and
- *       stays there.</li>
+ *   <li>When the archer has a post (a tower or a wall), it stays there.</li>
  *   <li>The arrow damage comes from the "attackDamage" value of the archer config.</li>
  * </ul>
  */

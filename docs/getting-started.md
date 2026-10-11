@@ -170,6 +170,23 @@ Hot reload: when the debugger is attached, VS Code can replace the body of a cha
 
 The mods support English and French. Each text that the player sees needs one key in `en_us.json` and in `fr_fr.json`. `./gradlew build` fails when a key is missing in one file. See [CONTRIBUTING.md](../CONTRIBUTING.md#translations).
 
+## Structures
+
+The structure files of the village (`world/src/main/resources/data/folkhold_world/structure/village/*.nbt`) come from a script. Do not edit the `.nbt` files by hand. Change the script, then run it in the container:
+
+```bash
+python3 tools/structures/village.py
+```
+
+The village has:
+
+- a center piece (`center.nbt`): palisade, 4 corner towers with a watch post (archer post), 2 gates, paths, a plaza with the village heart and 4 braziers;
+- house pieces (`house_*.nbt`). Jigsaw connectors put up to 4 houses next to the main path.
+
+To see a village in the game: `/locate structure folkhold_world:village`, then `/tp` to the position.
+
+To replace a generated house with a house built by hand: build it in creative mode, save it with a structure block (name `folkhold_world:village/house_<name>`), copy the file from the world folder (`generated/folkhold_world/structure/`) to the `village` folder, and add it to `worldgen/template_pool/village/houses.json`. The porch row (z = 0) must contain the jigsaw block (name `folkhold_world:house_front`, facing out).
+
 ## Modpack
 
 The modpack is in `modpack/` (packwiz). Use packwiz in the container:
