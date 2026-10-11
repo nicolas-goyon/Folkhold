@@ -21,6 +21,10 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue ALERT_RADIUS;
     public static final ModConfigSpec.BooleanValue MONSTERS_ATTACK_GUARDS;
 
+    public static final ModConfigSpec.IntValue VILLAGE_RADIUS;
+    public static final ModConfigSpec.IntValue SPAWN_PROTECTION_RADIUS;
+    public static final ModConfigSpec.IntValue CALM_DELAY_SECONDS;
+
     public static final UnitStats GUARD;
 
     static {
@@ -60,6 +64,25 @@ public final class WorldConfig {
                         "Applies to monsters that spawn or load after the change.")
                 .translation(KEY_PREFIX + "monstersAttackGuards")
                 .define("monstersAttackGuards", true);
+        builder.pop();
+
+        builder.comment("Faction villages.")
+                .translation(KEY_PREFIX + "village")
+                .push("village");
+        VILLAGE_RADIUS = builder
+                .comment("Radius in blocks of a village around its heart. Units in this radius join the village",
+                        "when they spawn. An alert reaches all units of the village in this radius.")
+                .translation(KEY_PREFIX + "villageRadius")
+                .defineInRange("radius", 48, 8, 256);
+        SPAWN_PROTECTION_RADIUS = builder
+                .comment("Radius in blocks around a village heart where hostile monsters do not spawn naturally.",
+                        "0 turns off the protection.")
+                .translation(KEY_PREFIX + "spawnProtectionRadius")
+                .defineInRange("spawnProtectionRadius", 48, 0, 256);
+        CALM_DELAY_SECONDS = builder
+                .comment("Time in seconds without a threat before an alerted village becomes calm again.")
+                .translation(KEY_PREFIX + "calmDelaySeconds")
+                .defineInRange("calmDelaySeconds", 60, 5, 3600);
         builder.pop();
 
         builder.comment("Base values of each unit type.")
