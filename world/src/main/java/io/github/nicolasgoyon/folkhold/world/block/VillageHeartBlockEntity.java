@@ -1,9 +1,11 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
+import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
@@ -64,6 +66,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String LAYOUT_TAG = "Layout";
     private static final String NIGHT_TAG = "NightMode";
     private static final String FACTION_TAG = "Faction";
+    private static final String NAME_TAG = "Name";
+    /** Name of the village, or null before the village has a faction. */
+    @Nullable
+    private String villageName;
     /** Id of the faction that owns the village, or null before the first activation. */
     @Nullable
     private String factionId;
@@ -227,6 +233,26 @@ public class VillageHeartBlockEntity extends BlockEntity {
     @Nullable
     public String getFactionId() {
         return factionId;
+    }
+
+    /**
+     * The name of the village, from the culture of its faction (see {@link VillageNames}). The heart makes the name
+     * the first time and saves it.
+     *
+     * @return the name, or null before the village has a faction (or on the client)
+     */
+    @Nullable
+    public String getVillageName() {
+        if (villageName == null && level != null) {
+            FactionVisuals.faction(level.getServer(), factionId)
+                    .flatMap(faction -> Cultures.byId(faction.cultureId()))
+                    .ifPresent(culture -> {
+                        villageName = VillageNames.name(culture.info(),
+                                villageId.getMostSignificantBits() ^ villageId.getLeastSignificantBits());
+                        setChanged();
+                    });
+        }
+        return villageName;
     }
 
     /** Gives the village to the faction that owns its position, if the village has no faction. */
@@ -416,6 +442,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (factionId != null) {
             tag.putString(FACTION_TAG, factionId);
         }
+        if (villageName != null) {
+            tag.putString(NAME_TAG, villageName);
+        }
     }
 
     @Override
@@ -430,5 +459,6 @@ public class VillageHeartBlockEntity extends BlockEntity {
         layout.load(tag.getCompound(LAYOUT_TAG));
         nightMode = tag.getBoolean(NIGHT_TAG);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
+        villageName = tag.contains(NAME_TAG) ? tag.getString(NAME_TAG) : null;
     }
 }

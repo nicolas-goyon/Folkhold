@@ -127,4 +127,17 @@ public final class BehaviorGameTests {
         helper.assertTrue(!far, "A position outside the chase radius must not be in the chase area");
         helper.succeed();
     }
+
+    /** A village with a faction gets a name from the culture of the faction. The name does not change. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "behavior_village_name")
+    public static void villageHasStableName(GameTestHelper helper) {
+        Scene scene = scene(helper, 0);
+        String first = scene.heart().getVillageName();
+        String second = scene.heart().getVillageName();
+        scene.remove(helper);
+
+        helper.assertTrue(first != null && !first.isEmpty(), "A village with a faction must have a name");
+        helper.assertTrue(first.equals(second), "The village name must not change");
+        helper.succeed();
+    }
 }

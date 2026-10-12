@@ -22,6 +22,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.BooleanValue MONSTERS_ATTACK_GUARDS;
 
     public static final ModConfigSpec.IntValue VILLAGE_RADIUS;
+    public static final ModConfigSpec.IntValue VILLAGE_MESSAGE_RADIUS;
     public static final ModConfigSpec.IntValue SPAWN_PROTECTION_RADIUS;
     public static final ModConfigSpec.IntValue CALM_DELAY_SECONDS;
 
@@ -97,6 +98,11 @@ public final class WorldConfig {
                         "when they spawn. An alert reaches all units of the village in this radius.")
                 .translation(KEY_PREFIX + "villageRadius")
                 .defineInRange("radius", 48, 8, 256);
+        VILLAGE_MESSAGE_RADIUS = builder
+                .comment("Distance in blocks from a village heart where a player gets the village message",
+                        "(village name, faction, reputation). The village wall is at approximately 20 blocks.")
+                .translation(KEY_PREFIX + "villageMessageRadius")
+                .defineInRange("messageRadius", 50, 8, 256);
         SPAWN_PROTECTION_RADIUS = builder
                 .comment("Radius in blocks around a village heart where hostile monsters do not spawn naturally.",
                         "0 turns off the protection.")

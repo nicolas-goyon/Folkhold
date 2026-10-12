@@ -91,5 +91,11 @@
   "folkhold_world.configuration.reputationOffense": "Offense in a village",
   "folkhold_world.configuration.reputationOffenseWindowSeconds": "Offense window (seconds)",
   "message.folkhold_world.village_heart.status_no_faction": "Village: %s",
-  "message.folkhold_world.village_entry": "Village of %s (%s)"
+  "message.folkhold_world.village_entry": "Village of %s, %s (%s)",
+  "folkhold_world.configuration.showTerritoryHud": "Territory HUD",
+  "folkhold_world.configuration.villageMessageRadius": "Village message distance",
+  "message.folkhold_world.territory_entry": "Faction territory · your reputation: %s",
+  "message.folkhold_world.village_entry_no_name": "Village of %s (%s)",
+  "hud.folkhold_world.territory": "%s · %s",
+  "hud.folkhold_world.village": "Village: %s"
 }

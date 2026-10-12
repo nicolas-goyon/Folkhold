@@ -2,14 +2,20 @@ package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionUnitRenderer;
+import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.neoforge.common.NeoForge;
 
 /**
  * Client entry point of the world mod. The game loads this class only on the client.
@@ -20,7 +26,15 @@ public final class FolkholdWorldClient {
     public FolkholdWorldClient(IEventBus modEventBus, ModContainer modContainer) {
         // Config screen in the mod list. Server values are editable only in a world.
         modContainer.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         modEventBus.addListener(FolkholdWorldClient::onRegisterRenderers);
+        modEventBus.addListener(FolkholdWorldClient::onRegisterGuiLayers);
+        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientTerritory.clear());
+    }
+
+    private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {
+        event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "territory"),
+                TerritoryHud::render);
     }
 
     private static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {

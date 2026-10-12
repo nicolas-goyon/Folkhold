@@ -177,6 +177,11 @@ New elements go into the **construction queue** of the settlement. The mod never
   - Neutral: the guards watch and give a warning.
   - Friend: the guards greet the player and the gates stay open.
 - Two villages of the same faction trade together first (see the economy section).
+- Information for the player:
+  - When the player enters the territory of a faction, a title shows the faction and the reputation tier. This is an early warning before the villages.
+  - Near a village (50 blocks from the heart, configurable), the action bar shows the village name, the faction and the tier.
+  - An optional HUD (client option, off by default) shows the owner of the territory, the tier and the near village at the top right of the screen.
+  - The village heart opens a screen with the village information.
 
 ### Shelter at night
 
