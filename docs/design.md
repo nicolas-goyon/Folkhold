@@ -145,6 +145,17 @@ Each faction village has fortifications and guards. A player in iron armor with 
 - Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation (J3) uses the same method to know the villages of a region before the player goes there.
 - Materialization: when the player comes near, the mod creates the garrison and the inhabitants from the `Settlement` state. When the player goes away, the mod removes them and writes their state back (health, deaths, equipment).
 
+### Village styles and terrain
+
+- Each faction has an **architecture style**. There are 3 or 4 styles, and two factions can have the same style. Examples: Norse (long houses, steep roofs, axes), Medieval (cobblestone and timber frame, stone walls, swords and crossbows).
+- A style sets the architecture of the buildings and some traits of the units and the village.
+- Each style has **biome variants**: the buildings use the local materials (spruce in the taiga, sandstone in the desert).
+- The village adapts to the terrain:
+  - coast and river: docks, boats, fishing huts, bridges;
+  - mountain and cliff: large houses against the cliff, terraces, walls that follow the terrain, or a village dug into the rock;
+  - island: the wall follows the coast, piers are the access, stilt houses.
+- A village is a group of pieces on the terrain (streets, houses, towers, walls), as the vanilla villages, not one large piece.
+
 ### Village growth
 
 Growth is gradual. Each settlement has a **development** value (0 to 100) that changes slowly with prosperity. Each building, wall section and defense has its own development threshold. When the development reaches a threshold, this element is added. The village changes step by step, not in one jump.
@@ -199,6 +210,7 @@ New elements go into the **construction queue** of the settlement. The mod never
 | Rider | Interceptor | Patrols outside the walls, charges isolated threats |
 | Faction golem | Heavy unit | Guards the gates and the center, very resistant, slow |
 | Captain | Garrison leader | Morale buff, general alarm. Its death lowers morale (some units run away) |
+| Healer | Field medic | Stays behind the fighting units. Heals or buffs with potions, with long cooldowns and a limited supply. Not in a village of the first level |
 
 ### AI
 
@@ -254,6 +266,13 @@ A surplus lowers the price down to ×0.5. A shortage raises the price up to ×3.
 - NPCs sell **only what they have in stock**. There is no magic restock and no "fast reset".
 - The player can sell surplus items (ore, crops). This lowers their local price. To get the best price, the player must sell in different places.
 - The currency stays the emerald. The treasury of each faction is finite. Its sales fill it.
+
+### Professions and offers
+
+- Rails and minecarts (rail, powered rail, detector rail, activator rail, minecart variants).
+- **Lumberjack**: logs and planks of different wood types.
+- **Explorer**: rare items, very expensive, small quantities, slow restock (as the wandering trader).
+- No overpowered enchanted books (for example Mending) in the offers.
 
 ### Stability
 
@@ -342,6 +361,13 @@ This mod does not need the world mod. It limits infinite farms with regional bud
 - **Clean reroll** of a master villager: an item or a paid village service gives a new list of offers. Cooldown: 5 game days.
 - Offers with too much value (rare enchanted books, valuable items) have a maximum number of purchases each week.
 
+### Anvil
+
+- No level cap and no "Too Expensive!" limit. An enchantment level such as Efficiency 20 is possible, but very expensive.
+- The **enchantment cost** increases quadratically with the levels of the result.
+- The **repair cost** is separate. It depends on the item and on its current enchantments, and it stays the same for each repair (no prior work penalty for a repair).
+- Mending is not in the villager offers. The repair cost is then an important choice.
+
 ### Chunk loading
 
 | Option | Principle | Cost | Use |
@@ -352,6 +378,13 @@ This mod does not need the world mod. It limits infinite farms with regional bud
 The catch-up is reliable only for our own blocks and some simple vanilla blocks (crops, furnaces). It does not cover redstone contraptions.
 
 All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict" preset.
+
+## Maps and journal
+
+- A map mod (for example JourneyMap, with its overlay API) shows the territories and the known villages. It is an optional dependency.
+- The vanilla maps also show the territory borders and the known villages.
+- The player can update a map at a distance: a cartographer block, or a surveyor map that updates itself (for example each 10 minutes).
+- A **faction journal** shows the discovered factions and villages: reputation, relations, position, distance.
 
 ## Events mod
 
@@ -454,7 +487,10 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
 | J3 · Abstract simulation | `SavedData`, abstract tick, economy, village growth | Villages grow, territories change owner |
 | J4 · Caravans, quests | Mobile groups, materialization, generated quests | The player meets convoys and can escort them |
-| J5 · Additional mods | Balance mod (possible from J2), earthquakes and collapses | Farms have limits, first earthquakes |
+| J5 · Additional mods | Balance mod (possible from J2): farms, trades, anvil. Earthquakes and collapses | Farms have limits, the anvil has no cap, first earthquakes |
+| J6 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment from the village level, healer | Villages repair and improve themselves |
+| J7 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages | Each faction has its own look, villages fit the terrain |
+| J8 · Maps and journal | Territories on the maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
 
 ```mermaid
 flowchart TB
@@ -464,6 +500,9 @@ flowchart TB
     J3 --> J4["J4 · Caravans, quests"]
     J4 --> J5["J5 · Additional mods"]
     J2 -. "balance mod can start here" .-> J5
+    J3 --> J6["J6 · Living villages"]
+    J2 --> J7["J7 · Village architecture"]
+    J2 --> J8["J8 · Maps and journal"]
 ```
 
 Notes:
@@ -471,6 +510,7 @@ Notes:
 - J1 and J2 give a mod that is interesting to play.
 - J3 is the core of the project and the milestone with the highest risk. Prototype it first in pure Java with JUnit tests.
 - Wars between factions come after J4, in phase 2.
+- Version 1 contains J0 to J8. J6, J7 and J8 depend on J2 and J3, not on each other: their order can change.
 
 ## Risks and open questions
 
