@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.registry;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.BankChestBlock;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -29,6 +30,22 @@ public final class ModBlocks {
                     .mapColor(MapColor.WOOD)
                     .strength(2.0F, 3.0F)
                     .sound(SoundType.WOOD));
+
+    /** Chest of the village bank. It resists explosions, as obsidian. */
+    public static final DeferredBlock<BankChestBlock> BANK_CHEST = BLOCKS.register("bank_chest",
+            () -> new BankChestBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .strength(10.0F, 1200.0F)
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.METAL)));
+
+    /** Wall of the village bank. It resists explosions, as obsidian. */
+    public static final DeferredBlock<Block> BANK_WALL = BLOCKS.registerSimpleBlock("bank_wall",
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.STONE)
+                    .strength(4.0F, 1200.0F)
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.STONE));
 
     private ModBlocks() {
     }

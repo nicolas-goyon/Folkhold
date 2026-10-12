@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.registry;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -16,6 +17,11 @@ public final class ModBlockEntities {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<VillageHeartBlockEntity>> VILLAGE_HEART =
             BLOCK_ENTITY_TYPES.register("village_heart",
                     () -> BlockEntityType.Builder.of(VillageHeartBlockEntity::new, ModBlocks.VILLAGE_HEART.get())
+                            .build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BankChestBlockEntity>> BANK_CHEST =
+            BLOCK_ENTITY_TYPES.register("bank_chest",
+                    () -> BlockEntityType.Builder.of(BankChestBlockEntity::new, ModBlocks.BANK_CHEST.get())
                             .build(null));
 
     private ModBlockEntities() {

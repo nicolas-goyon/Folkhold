@@ -1,5 +1,7 @@
 {
   "values": [
-    "folkhold_world:village_heart"
+    "folkhold_world:village_heart",
+    "folkhold_world:bank_chest",
+    "folkhold_world:bank_wall"
   ]
 }

@@ -62,6 +62,10 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue ECONOMY_TREASURY_MINIMUM;
     public static final ModConfigSpec.IntValue ECONOMY_FOOD_SHORTAGE_LOSS;
 
+    public static final ModConfigSpec.IntValue BANK_PILLAGE_VALUE;
+    public static final ModConfigSpec.IntValue BANK_PILLAGE_LOSS;
+    public static final ModConfigSpec.DoubleValue BANK_TREASURY_SHARE;
+
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
     public static final UnitStats CAPTAIN;
@@ -290,6 +294,25 @@ public final class WorldConfig {
                 .comment("Experience that a settlement loses in a cycle with a food shortage (less than half of its need).")
                 .translation(KEY_PREFIX + "economyFoodShortageLoss")
                 .defineInRange("foodShortageLoss", 10, 0, 10000);
+        builder.pop();
+
+        builder.comment("Bank of the faction villages.")
+                .translation(KEY_PREFIX + "bank")
+                .push("bank");
+        BANK_PILLAGE_VALUE = builder
+                .comment("After a pillage of a bank, the village value and the faction value of the player go to this",
+                        "value. A lower value does not change. -800 is the tier sworn enemy.")
+                .translation(KEY_PREFIX + "bankPillageValue")
+                .defineInRange("pillageValue", -800, -1000, 1000);
+        BANK_PILLAGE_LOSS = builder
+                .comment("Experience that a settlement loses at the first pillage of its bank by a player.")
+                .translation(KEY_PREFIX + "bankPillageLoss")
+                .defineInRange("pillageLoss", 50, 0, 10000);
+        BANK_TREASURY_SHARE = builder
+                .comment("Share of the faction treasury in the banks. Each active village of the faction has an",
+                        "equal part of this share.")
+                .translation(KEY_PREFIX + "bankTreasuryShare")
+                .defineInRange("treasuryShare", 0.4, 0.0, 1.0);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

@@ -11,6 +11,8 @@ Pieces:
   the compound holds the banners on the outer face of the palisade. The other margin positions are empty: the
   terrain stays.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
+- bank.nbt: the village bank. Its walls and its chests resist explosions. The first plot of the center piece
+  always gets the bank (pool village/bank). The other plots get houses.
 
 Conventions: y = 0 is the ground layer (foundations, floors, paths). y = 1 is the first layer above ground.
 """
@@ -28,6 +30,9 @@ NS = "folkhold_world"
 WATCH_POST = f"{NS}:watch_post"
 HEART = f"{NS}:village_heart"
 HOUSE_POOL = f"{NS}:village/houses"
+BANK_POOL = f"{NS}:village/bank"
+BANK_CHEST = f"{NS}:bank_chest"
+BANK_WALL = f"{NS}:bank_wall"
 PLOT = f"{NS}:plot"
 HOUSE_FRONT = f"{NS}:house_front"
 # The village heart gives the banner of the faction to each banner of the village.
@@ -261,7 +266,8 @@ def center():
 
     # House plots: jigsaw connectors next to the north-south path. Houses go into the free space.
     for z in (9, SIZE - 10):
-        t.jigsaw(MID - 2, 1, z, "west_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+        west_pool = BANK_POOL if z == 9 else HOUSE_POOL
+        t.jigsaw(MID - 2, 1, z, "west_up", PLOT, HOUSE_FRONT, west_pool, "minecraft:air")
         t.jigsaw(MID + 2, 1, z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
     t = with_margin(t, 1)
     outer_banners(t)
@@ -408,12 +414,31 @@ def storehouse():
     return t
 
 
+def bank():
+    """The bank: walls of bank wall blocks, 4 bank chests on the back wall, iron bars in the windows."""
+    rng = random.Random(6)
+    t = house_shell(rng, lambda r: BANK_WALL, lambda r: BANK_WALL)
+    for (x, y, z), ((name, _props), nbt) in list(t.blocks.items()):
+        if name == "minecraft:glass_pane":
+            t.set(x, y, z, "minecraft:iron_bars")
+    for x in (2, 3, 5, 6):
+        t.set(x, 1, 7, BANK_CHEST)
+    t.set(1, 1, 2, BANNER, {"rotation": "4"})
+    t.set(7, 1, 2, BANNER, {"rotation": "12"})
+    lantern(t, 1, 1, 7)
+    lantern(t, 7, 1, 7)
+    t.set(4, 0, 4, "minecraft:polished_andesite")
+    t.set(4, 1, 4, "minecraft:red_carpet")
+    return t
+
+
 PIECES = {
     "center": center,
     "house_cottage": cottage,
     "house_barracks": barracks,
     "house_forge": forge,
     "house_storehouse": storehouse,
+    "bank": bank,
 }
 
 

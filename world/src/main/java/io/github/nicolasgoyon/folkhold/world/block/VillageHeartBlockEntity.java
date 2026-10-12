@@ -15,8 +15,10 @@ import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -79,6 +81,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean nightMode;
     /** True after the heart is linked to its settlement. Not saved: the heart links again after a load. */
     private boolean settlementBound;
+    /** Players who pillaged the bank of the village. They open the bank chests with no confirmation. Not saved. */
+    private final Set<UUID> pillagers = new HashSet<>();
     /** The player who breaks the heart, or null. Not saved. */
     @Nullable
     private ServerPlayer breaker;
@@ -401,6 +405,16 @@ public class VillageHeartBlockEntity extends BlockEntity {
             return gate.offset(Integer.signum(dx) * GATE_WATCH_DISTANCE, 0, 0);
         }
         return gate.offset(0, 0, Integer.signum(dz) * GATE_WATCH_DISTANCE);
+    }
+
+    /** True if the player pillaged the bank of this village since the heart loaded. */
+    public boolean hasPillaged(Player player) {
+        return pillagers.contains(player.getUUID());
+    }
+
+    /** Records that the player pillaged the bank of this village. */
+    public void addPillager(Player player) {
+        pillagers.add(player.getUUID());
     }
 
     /**
