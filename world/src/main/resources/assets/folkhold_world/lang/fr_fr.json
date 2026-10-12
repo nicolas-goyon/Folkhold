@@ -190,5 +190,8 @@
   "message.folkhold_world.merchant_refuses": "%s : Je ne commerce pas avec toi.",
   "folkhold_world.configuration.merchant": "Marchands",
   "folkhold_world.configuration.merchantFriendFactor": "Facteur de prix pour un ami",
-  "folkhold_world.configuration.merchantAllyFactor": "Facteur de prix pour un allié"
+  "folkhold_world.configuration.merchantAllyFactor": "Facteur de prix pour un allié",
+  "entity.minecraft.villager.inhabitant": "Habitant",
+  "entity.minecraft.villager.folkhold_world.inhabitant": "Habitant",
+  "folkhold_world.configuration.maxInhabitants": "Habitants maximum par village"
 }

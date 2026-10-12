@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,6 +23,8 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -49,7 +52,7 @@ public final class MerchantGameTests {
         return new Village(heart, settlement);
     }
 
-    /** The heart creates the merchants of the village: villagers with the merchant profession. */
+    /** The heart creates the merchants and the inhabitants of the village. */
     @GameTest(template = "arena", timeoutTicks = 40, batch = "merchant_spawn")
     public static void heartCreatesItsMerchants(GameTestHelper helper) {
         Village village = village(helper);
@@ -59,12 +62,18 @@ public final class MerchantGameTests {
         boolean professions = merchants.stream()
                 .allMatch(villager -> villager.getVillagerData().getProfession() == ModProfessions.MERCHANT.get());
         int expected = Merchants.merchantCount(village.settlement());
+        List<Villager> inhabitants = VillageFolk.of(helper.getLevel(), village.heart().getBlockPos(),
+                ModProfessions.INHABITANT.get());
+        int expectedInhabitants = VillageFolk.inhabitantCount(village.settlement());
         village.heart().getUnits().forEach(Entity::discard);
         village.heart().getCats().forEach(Entity::discard);
         merchants.forEach(Entity::discard);
+        inhabitants.forEach(Entity::discard);
 
         helper.assertTrue(merchants.size() == expected, "Expected " + expected + " merchants, found " + merchants.size());
         helper.assertTrue(professions, "Each merchant must have the merchant profession");
+        helper.assertTrue(inhabitants.size() == expectedInhabitants && expectedInhabitants > 0,
+                "Expected " + expectedInhabitants + " inhabitants, found " + inhabitants.size());
         helper.succeed();
     }
 
@@ -131,6 +140,37 @@ public final class MerchantGameTests {
 
         helper.assertTrue(neutral, "A neutral player must trade");
         helper.assertTrue(!hostile, "A hostile player must not trade");
+        helper.succeed();
+    }
+
+    /** A dead villager of the village removes 1 from the population. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "village_folk_death")
+    public static void deadVillagerLowersThePopulation(GameTestHelper helper) {
+        Village village = village(helper);
+        Villager inhabitant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
+                ModProfessions.INHABITANT.get());
+        int before = village.settlement().economy().population();
+
+        inhabitant.kill();
+
+        int after = village.settlement().economy().population();
+        helper.assertTrue(after == before - 1, "The population must be " + (before - 1) + ", not " + after);
+        helper.succeed();
+    }
+
+    /** Two villagers of a faction village do not breed. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "village_folk_breed")
+    public static void villageFolkDoesNotBreed(GameTestHelper helper) {
+        Village village = village(helper);
+        Villager a = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(), ModProfessions.INHABITANT.get());
+        Villager b = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(), ModProfessions.INHABITANT.get());
+        BabyEntitySpawnEvent event = new BabyEntitySpawnEvent(a, b, null);
+
+        NeoForge.EVENT_BUS.post(event);
+
+        a.discard();
+        b.discard();
+        helper.assertTrue(event.isCanceled(), "The birth must be canceled");
         helper.succeed();
     }
 }
