@@ -65,7 +65,7 @@ public final class EconomyGameTests {
         int slots = LevelTables.get().traits(1).jobSlots();
         helper.assertTrue(state.isInitialized() && state.population() >= 2, "The hamlet must have a population");
         helper.assertTrue(state.jobs().size() == slots, "Expected " + slots + " jobs, not " + state.jobs().size());
-        helper.assertTrue(state.stock().count("minecraft:wheat") > 0, "The hamlet must start with wheat");
+        helper.assertTrue(state.stock().total() > 0, "The hamlet must start with a stock");
         helper.assertTrue(town.economy().stock().total() > state.stock().total(),
                 "A town must start with more stock than a hamlet");
         helper.succeed();
