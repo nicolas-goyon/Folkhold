@@ -37,6 +37,15 @@ add moonlight                   # required by Immersive Weathering: Renewed, not
 # Navigation
 add small-ships                 # beta
 
+# Terrain shape: continents, oceans, mountain ranges
+add tectonic
+
+# Light
+add sodium-dynamic-lights       # client only, requires Sodium
+
+# Libraries of the Folkhold mods
+add geckolib                    # unit models and animations of folkhold_world
+
 # Comfort and development
 add jei
 add jade
