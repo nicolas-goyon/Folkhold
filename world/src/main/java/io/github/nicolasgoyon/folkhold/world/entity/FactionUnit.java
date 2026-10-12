@@ -2,7 +2,9 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
+import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Optional;
@@ -12,6 +14,9 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
@@ -23,6 +28,7 @@ import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.DyedItemColor;
@@ -68,6 +74,10 @@ public abstract class FactionUnit extends PathfinderMob {
     private BlockPos villagePos;
     @Nullable
     private BlockPos postPos;
+    /** The unit greets a friendly player at most once in this time, in ticks. */
+    private static final int GREETING_COOLDOWN = 600;
+    private static final double GREETING_DISTANCE = 5.0;
+    private long lastGreetingTick = -GREETING_COOLDOWN;
     /** Id of the faction of the unit, or null. */
     @Nullable
     private String factionId;
@@ -191,6 +201,30 @@ public abstract class FactionUnit extends PathfinderMob {
         factionId = id;
     }
 
+    /**
+     * The reputation tier of a player for this unit: the effective tier in its village, else the tier with its
+     * faction. {@link ReputationTier#NEUTRAL} for a unit without a faction.
+     */
+    public ReputationTier tierOf(Player player) {
+        MinecraftServer server = level().getServer();
+        if (server == null || factionId == null) {
+            return ReputationTier.NEUTRAL;
+        }
+        return getVillageHeart()
+                .map(heart -> Reputations.tier(server, player, heart))
+                .orElseGet(() -> Reputations.tier(server, player, factionId));
+    }
+
+    /** True if the unit attacks this player on sight. */
+    public boolean isHostileTo(Player player) {
+        return tierOf(player).isHostile();
+    }
+
+    /** True if the unit never attacks this player. */
+    public boolean isFriendlyTo(Player player) {
+        return tierOf(player).isFriendly();
+    }
+
     /** The heart of the village of this unit, if the unit has a village and the heart is loaded. */
     public Optional<VillageHeartBlockEntity> getVillageHeart() {
         if (villagePos == null || !level().isLoaded(villagePos)) {
@@ -229,14 +263,33 @@ public abstract class FactionUnit extends PathfinderMob {
         }
 
         LivingEntity target = getTarget();
+        if (target instanceof Player player && isFriendlyTo(player)) {
+            setTarget(null);
+            target = null;
+        }
         if (target != null && (!target.isAlive() || !canTargetFromHome(target))) {
             setTarget(null);
             target = null;
         }
         if (target != null) {
             getVillageHeart().ifPresent(heart -> heart.reportThreat(null));
+        } else if (tickCount % 40 == 0) {
+            greetFriendlyPlayer();
         }
         unitServerAiStep(target);
+    }
+
+    private void greetFriendlyPlayer() {
+        if (level().getGameTime() - lastGreetingTick < GREETING_COOLDOWN) {
+            return;
+        }
+        Player player = level().getNearestPlayer(this, GREETING_DISTANCE);
+        if (player instanceof ServerPlayer serverPlayer && !player.isSpectator() && isFriendlyTo(player)) {
+            lastGreetingTick = level().getGameTime();
+            int variant = getRandom().nextInt(3);
+            serverPlayer.displayClientMessage(Component.translatable(
+                    "message.folkhold_world.greeting." + variant, getDisplayName()), true);
+        }
     }
 
     /**

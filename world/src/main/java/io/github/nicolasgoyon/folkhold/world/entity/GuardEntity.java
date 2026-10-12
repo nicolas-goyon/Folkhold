@@ -74,7 +74,9 @@ public class GuardEntity extends FactionUnit {
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
 
         targetSelector.addGoal(1, new UnitHurtByTargetGoal(this).setAlertOthers());
-        targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Mob.class, 5, true, false,
+        targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, 10, true, false,
+                target -> target instanceof Player player && canTargetFromHome(player) && isHostileTo(player)));
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, Mob.class, 5, true, false,
                 target -> target instanceof Enemy && !(target instanceof Creeper) && canTargetFromHome(target)));
     }
 

@@ -5,21 +5,27 @@ import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.CampfireBlock;
@@ -47,6 +53,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private AlertState alertState = AlertState.CALM;
     private long lastThreatTick;
     private final Garrison garrison = new Garrison();
+    private final Map<UUID, Offense> offenses = new HashMap<>();
     private final VillageLayout layout = new VillageLayout();
     private static final String LAYOUT_TAG = "Layout";
     private static final String NIGHT_TAG = "NightMode";
@@ -81,6 +88,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level == null || level.isClientSide()) {
             return;
         }
+        if (attacker instanceof Player player && level.getServer() != null
+                && Reputations.tier(level.getServer(), player, this).isFriendly()) {
+            return;
+        }
         lastThreatTick = level.getGameTime();
         if (alertState == AlertState.CALM) {
             setAlertState(AlertState.ALERT);
@@ -92,6 +103,59 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 }
             }
         }
+    }
+
+    /**
+     * Records an offense of a neutral player in the village (a broken block, an opened container).
+     * The first offense in the offense window gives a warning. The next offenses make the units attack.
+     * Each offense lowers the reputation.
+     *
+     * @param player the player
+     */
+    public void recordOffense(ServerPlayer player) {
+        if (level == null || level.isClientSide() || factionId == null) {
+            return;
+        }
+        long now = level.getGameTime();
+        long window = WorldConfig.REPUTATION_OFFENSE_WINDOW_SECONDS.get() * 20L;
+        Offense offense = offenses.computeIfAbsent(player.getUUID(), id -> new Offense());
+        if (now - offense.lastTick > window) {
+            offense.count = 0;
+        }
+        offense.count++;
+        offense.lastTick = now;
+        Reputations.apply(player.server, player, factionId, villageId.toString(),
+                WorldConfig.REPUTATION_OFFENSE.get());
+        if (offense.count == 1) {
+            warn(player);
+        } else {
+            reportThreat(player);
+        }
+    }
+
+    /** Number of offenses of the player in the current offense window. */
+    public int offenseCount(Player player) {
+        Offense offense = offenses.get(player.getUUID());
+        return offense == null ? 0 : offense.count;
+    }
+
+    private void warn(ServerPlayer player) {
+        List<FactionUnit> units = getUnits();
+        FactionUnit speaker = units.stream()
+                .min((a, b) -> Double.compare(a.distanceToSqr(player), b.distanceToSqr(player)))
+                .orElse(null);
+        Component name = speaker != null ? speaker.getDisplayName() : Component.translatable("entity.folkhold_world.guard");
+        player.sendSystemMessage(Component.translatable("message.folkhold_world.warning", name));
+        if (speaker != null) {
+            speaker.getLookControl().setLookAt(player);
+            speaker.playSound(SoundEvents.VILLAGER_NO, 1.0F, 0.8F);
+        }
+    }
+
+    /** Offenses of one player. Not saved: a server restart clears them. */
+    private static final class Offense {
+        private int count;
+        private long lastTick;
     }
 
     /** Changes the alert state and saves the change. */

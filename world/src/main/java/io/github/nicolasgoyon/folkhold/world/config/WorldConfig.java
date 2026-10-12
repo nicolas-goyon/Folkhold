@@ -41,6 +41,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue REPUTATION_KILL_UNIT;
     public static final ModConfigSpec.IntValue REPUTATION_HIT_UNIT;
     public static final ModConfigSpec.IntValue REPUTATION_KILL_MONSTER;
+    public static final ModConfigSpec.IntValue REPUTATION_OFFENSE;
+    public static final ModConfigSpec.IntValue REPUTATION_OFFENSE_WINDOW_SECONDS;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -173,6 +175,15 @@ public final class WorldConfig {
                 .comment("Change when the player kills a hostile monster in the radius of a village.")
                 .translation(KEY_PREFIX + "reputationKillMonster")
                 .defineInRange("killMonsterNearVillage", 5, 0, 1000);
+        REPUTATION_OFFENSE = builder
+                .comment("Change when a neutral player breaks a block or opens a container in a village.")
+                .translation(KEY_PREFIX + "reputationOffense")
+                .defineInRange("offense", -10, -1000, 0);
+        REPUTATION_OFFENSE_WINDOW_SECONDS = builder
+                .comment("Time in seconds in which a second offense makes the units attack.",
+                        "After this time without an offense, the next offense gives a warning again.")
+                .translation(KEY_PREFIX + "reputationOffenseWindowSeconds")
+                .defineInRange("offenseWindowSeconds", 60, 5, 3600);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

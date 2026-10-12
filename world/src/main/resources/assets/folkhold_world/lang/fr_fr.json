@@ -83,5 +83,11 @@
   "folkhold_world.relation_state.alliance": "alliance",
   "folkhold_world.relation_state.peace": "paix",
   "folkhold_world.relation_state.tension": "tension",
-  "folkhold_world.relation_state.war": "guerre"
+  "folkhold_world.relation_state.war": "guerre",
+  "message.folkhold_world.warning": "<%s> Hé ! N'y touche pas. C'est ton seul avertissement.",
+  "message.folkhold_world.greeting.0": "%s : Bienvenue, ami.",
+  "message.folkhold_world.greeting.1": "%s : Content de te revoir.",
+  "message.folkhold_world.greeting.2": "%s : Bonne route, ami.",
+  "folkhold_world.configuration.reputationOffense": "Infraction dans un village",
+  "folkhold_world.configuration.reputationOffenseWindowSeconds": "Fenêtre des infractions (secondes)"
 }
