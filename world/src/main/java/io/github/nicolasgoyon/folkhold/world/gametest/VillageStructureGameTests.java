@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
@@ -86,6 +87,7 @@ public final class VillageStructureGameTests {
                         && helper.getLevel().canSeeSky(unit.blockPosition()));
         units.forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
 
         helper.assertTrue(layout.posts().size() == TOWERS, "Expected " + TOWERS + " posts, found " + layout.posts().size());
         helper.assertTrue(layout.gates().size() == GATE_BLOCKS,
@@ -104,6 +106,7 @@ public final class VillageStructureGameTests {
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         List<BlockPos> banners = heart.getLayout().banners();
         DyeColor expected = FactionVisuals.faction(helper.getLevel().getServer(), heart.getFactionId())
                 .flatMap(faction -> Cultures.byId(faction.cultureId()))
@@ -142,6 +145,7 @@ public final class VillageStructureGameTests {
         boolean guardsOffWatch = guards.stream().allMatch(guard -> guard.getNightPos() == null);
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
 
         helper.assertTrue(gatesClosed, "At night, all gates must be closed");
         helper.assertTrue(braziersLit, "At night, all braziers must burn");
@@ -197,6 +201,7 @@ public final class VillageStructureGameTests {
         boolean valid = archers.stream().allMatch(archer -> validPosts.contains(archer.getPostPos()));
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         helper.assertTrue(archers.size() >= 2, "The garrison must have 2 archers or more");
         helper.assertTrue(distinct == archers.size(), "Each archer must have its own tower");
         helper.assertTrue(valid, "Each archer must have a valid tower");
@@ -222,6 +227,7 @@ public final class VillageStructureGameTests {
         long distinct = after.stream().distinct().count();
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         helper.assertTrue(moved, "Each archer must move to another tower: " + before + " -> " + after);
         helper.assertTrue(distinct == archers.size(), "Two archers must not share a tower");
         helper.succeed();
@@ -234,6 +240,7 @@ public final class VillageStructureGameTests {
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         List<BlockPos> bells = heart.getLayout().bells();
 
         heart.reportThreat(null);
@@ -264,6 +271,7 @@ public final class VillageStructureGameTests {
         boolean anchored = cats.stream().allMatch(cat -> anchors.contains(cat.getAnchorPos()));
         int expected = heart.catCount();
         cats.forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         helper.getLevel().getServer().getPlayerList().remove(player);
 
         helper.assertTrue(anchors.size() == 3, "Expected 2 gate anchors and 1 center anchor, found " + anchors.size());

@@ -2,7 +2,9 @@ package io.github.nicolasgoyon.folkhold.world.block;
 
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
@@ -13,6 +15,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
+import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
@@ -24,6 +27,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.UUID;
@@ -38,7 +42,9 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BellBlock;
@@ -85,6 +91,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String NIGHT_TAG = "NightMode";
     private static final String CATS_TAG = "CatsSpawned";
     private static final String CAT_SPAWN_TAG = "LastCatSpawn";
+    private static final String MERCHANTS_TAG = "MerchantsSpawned";
+    private static final String MERCHANT_SPAWN_TAG = "LastMerchantSpawn";
     private static final String FACTION_TAG = "Faction";
     private static final String NAME_TAG = "Name";
     /** Name of the village, or null before the village has a faction. */
@@ -101,6 +109,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean catsSpawned;
     /** Game time of the last creation of cats. */
     private long lastCatSpawn;
+    /** True after the first merchants of the village appeared. */
+    private boolean merchantsSpawned;
+    /** Game time of the last creation of merchants. */
+    private long lastMerchantSpawn;
     /** Game time of the last ring of the bells. Not saved. */
     private long lastBellTick = Long.MIN_VALUE / 2;
     /** Game time of the last shared target. Not saved. */
@@ -456,6 +468,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }
+        if (alertState == AlertState.CALM && ensureMerchants(serverLevel, now)) {
+            setChanged();
+        }
         if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
                 layout.validPosts())) {
             setChanged();
@@ -535,6 +550,44 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         catsSpawned = true;
         lastCatSpawn = now;
+        return true;
+    }
+
+    /**
+     * Creates the missing merchants of the village (see {@link Merchants#merchantCount}). The first merchants
+     * appear at once. A dead merchant comes back after the refill delay of the garrison.
+     *
+     * @param serverLevel the level
+     * @param now         the current game time
+     * @return true if the heart must save
+     */
+    private boolean ensureMerchants(ServerLevel serverLevel, long now) {
+        Optional<Settlement> settlement = Settlements.of(serverLevel.getServer(), this).filter(Settlement::isActive);
+        if (settlement.isEmpty()) {
+            return false;
+        }
+        int missing = Merchants.merchantCount(settlement.get()) - Merchants.merchantsOf(serverLevel, worldPosition).size();
+        long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
+        if (missing <= 0 || merchantsSpawned && now - lastMerchantSpawn < refill) {
+            return false;
+        }
+        for (int i = 0; i < missing; i++) {
+            Villager merchant = EntityType.VILLAGER.create(serverLevel);
+            if (merchant == null) {
+                continue;
+            }
+            BlockPos pos = Garrison.groundSpawnPos(serverLevel, worldPosition);
+            merchant.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5,
+                    serverLevel.random.nextFloat() * 360.0F, 0.0F);
+            merchant.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
+            merchant.setVillagerData(merchant.getVillagerData().setProfession(ModProfessions.MERCHANT.get()).setLevel(1));
+            // Experience above 0: the villager keeps its profession with no job site block.
+            merchant.setVillagerXp(1);
+            merchant.getPersistentData().putLong(Merchants.VILLAGE_TAG, worldPosition.asLong());
+            serverLevel.addFreshEntity(merchant);
+        }
+        merchantsSpawned = true;
+        lastMerchantSpawn = now;
         return true;
     }
 
@@ -736,6 +789,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putBoolean(NIGHT_TAG, nightMode);
         tag.putBoolean(CATS_TAG, catsSpawned);
         tag.putLong(CAT_SPAWN_TAG, lastCatSpawn);
+        tag.putBoolean(MERCHANTS_TAG, merchantsSpawned);
+        tag.putLong(MERCHANT_SPAWN_TAG, lastMerchantSpawn);
         if (factionId != null) {
             tag.putString(FACTION_TAG, factionId);
         }
@@ -757,6 +812,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         nightMode = tag.getBoolean(NIGHT_TAG);
         catsSpawned = tag.getBoolean(CATS_TAG);
         lastCatSpawn = tag.getLong(CAT_SPAWN_TAG);
+        merchantsSpawned = tag.getBoolean(MERCHANTS_TAG);
+        lastMerchantSpawn = tag.getLong(MERCHANT_SPAWN_TAG);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
         villageName = tag.contains(NAME_TAG) ? tag.getString(NAME_TAG) : null;
     }

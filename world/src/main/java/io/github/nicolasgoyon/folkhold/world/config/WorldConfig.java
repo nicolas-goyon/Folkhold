@@ -65,6 +65,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue ECONOMY_TREASURY_MINIMUM;
     public static final ModConfigSpec.IntValue ECONOMY_FOOD_SHORTAGE_LOSS;
 
+    public static final ModConfigSpec.DoubleValue MERCHANT_FRIEND_FACTOR;
+    public static final ModConfigSpec.DoubleValue MERCHANT_ALLY_FACTOR;
     public static final ModConfigSpec.IntValue BANK_PILLAGE_VALUE;
     public static final ModConfigSpec.IntValue BANK_PILLAGE_LOSS;
     public static final ModConfigSpec.DoubleValue BANK_TREASURY_SHARE;
@@ -310,6 +312,19 @@ public final class WorldConfig {
                 .comment("Experience that a settlement loses in a cycle with a food shortage (less than half of its need).")
                 .translation(KEY_PREFIX + "economyFoodShortageLoss")
                 .defineInRange("foodShortageLoss", 10, 0, 10000);
+        builder.pop();
+
+        builder.comment("Merchants of the faction villages.")
+                .translation(KEY_PREFIX + "merchant")
+                .push("merchant");
+        MERCHANT_FRIEND_FACTOR = builder
+                .comment("Factor of the sell prices for a player in the tier friend.")
+                .translation(KEY_PREFIX + "merchantFriendFactor")
+                .defineInRange("friendFactor", 0.9, 0.1, 1.0);
+        MERCHANT_ALLY_FACTOR = builder
+                .comment("Factor of the sell prices for a player in the tier ally.")
+                .translation(KEY_PREFIX + "merchantAllyFactor")
+                .defineInRange("allyFactor", 0.8, 0.1, 1.0);
         builder.pop();
 
         builder.comment("Bank of the faction villages.")
