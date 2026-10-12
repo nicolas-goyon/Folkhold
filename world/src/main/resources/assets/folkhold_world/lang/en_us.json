@@ -30,6 +30,7 @@
   "folkhold_world.configuration.garrisonGuards": "Guards",
   "folkhold_world.configuration.garrisonRefillDelaySeconds": "Refill delay (seconds)",
   "folkhold_world.configuration.garrisonActivationRadius": "Activation radius",
+  "folkhold_world.configuration.archerRotationSeconds": "Time of an archer on one tower (seconds)",
   "entity.folkhold_world.archer": "Archer",
   "item.folkhold_world.archer_spawn_egg": "Archer Spawn Egg",
   "folkhold_world.configuration.garrisonArchers": "Archers",

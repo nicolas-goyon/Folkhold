@@ -35,6 +35,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue CAPTAIN_ROUT_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
+    public static final ModConfigSpec.IntValue ARCHER_ROTATION_SECONDS;
 
     public static final ModConfigSpec.DoubleValue REPUTATION_VILLAGE_WEIGHT;
     public static final ModConfigSpec.DoubleValue REPUTATION_ALLY_SPREAD;
@@ -159,6 +160,11 @@ public final class WorldConfig {
                 .comment("A heart creates its missing units only when a player is in this radius, in blocks.")
                 .translation(KEY_PREFIX + "garrisonActivationRadius")
                 .defineInRange("activationRadius", 64, 16, 256);
+        ARCHER_ROTATION_SECONDS = builder
+                .comment("Mean time in seconds that a calm archer stays on one tower before it moves to another tower.",
+                        "0 turns off the rotation.")
+                .translation(KEY_PREFIX + "archerRotationSeconds")
+                .defineInRange("archerRotationSeconds", 120, 0, 3600);
         builder.pop();
 
         builder.comment("Captain: morale aura and effect of its death.")

@@ -14,11 +14,13 @@ import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Important positions of a village, found once with a scan of the blocks around the heart:
  * <ul>
- *   <li><b>posts</b>: the position above each watch post block (the archer stands there);</li>
+ *   <li><b>posts</b>: the position above each watch post block (the archer stands there), with its view score
+ *       (see {@link #viewScore});</li>
  *   <li><b>gates</b>: the fence gates;</li>
  *   <li><b>braziers</b>: the campfires;</li>
  *   <li><b>banners</b>: the banners (standing and on walls). The heart gives them the banner of the faction;</li>
@@ -33,10 +35,20 @@ public final class VillageLayout {
     private static final int SCAN_BELOW = 6;
     private static final int SCAN_ABOVE = 14;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 3;
+    static final int VERSION = 4;
+    /** Number of horizontal directions of the view score. */
+    public static final int VIEW_DIRECTIONS = 16;
+    /** A post with a lower view score is not valid: no archer goes there. */
+    public static final int MIN_VIEW = 4;
+    /** Length of a line of sight of the view score, in blocks. */
+    private static final double VIEW_DISTANCE = 20.0;
+    /** The lines of sight go down by this value for each block, to see the ground outside the walls. */
+    private static final double VIEW_SLOPE = 0.15;
+    private static final double EYE_HEIGHT = 1.6;
 
     private boolean scanned;
     private final List<BlockPos> posts = new ArrayList<>();
+    private final List<Integer> views = new ArrayList<>();
     private final List<BlockPos> gates = new ArrayList<>();
     private final List<BlockPos> braziers = new ArrayList<>();
     private final List<BlockPos> banners = new ArrayList<>();
@@ -48,6 +60,59 @@ public final class VillageLayout {
 
     public List<BlockPos> posts() {
         return Collections.unmodifiableList(posts);
+    }
+
+    /** The view score of each post, in the order of {@link #posts()}. */
+    public List<Integer> views() {
+        return Collections.unmodifiableList(views);
+    }
+
+    /** The posts with a view score of {@link #MIN_VIEW} or more. */
+    public List<BlockPos> validPosts() {
+        List<BlockPos> valid = new ArrayList<>();
+        for (int i = 0; i < posts.size(); i++) {
+            if (i < views.size() && views.get(i) >= MIN_VIEW) {
+                valid.add(posts.get(i));
+            }
+        }
+        return valid;
+    }
+
+    /**
+     * The view score of a post: the number of open lines of sight from the eyes of an archer, in
+     * {@link #VIEW_DIRECTIONS} horizontal directions. A line of sight is open when no block with a collision shape
+     * is on its first {@link #VIEW_DISTANCE} blocks. A post where an archer cannot stand (a solid block at the feet
+     * or at the head) has a score of 0. A block in a chunk that is not loaded does not close a line of sight.
+     *
+     * @param level the level
+     * @param stand the position where the archer stands
+     * @return the score, from 0 to {@link #VIEW_DIRECTIONS}
+     */
+    public static int viewScore(Level level, BlockPos stand) {
+        if (!isFree(level, stand) || !isFree(level, stand.above())) {
+            return 0;
+        }
+        Vec3 eye = Vec3.atBottomCenterOf(stand).add(0.0, EYE_HEIGHT, 0.0);
+        int open = 0;
+        for (int i = 0; i < VIEW_DIRECTIONS; i++) {
+            double angle = i * 2.0 * Math.PI / VIEW_DIRECTIONS;
+            double dx = Math.cos(angle);
+            double dz = Math.sin(angle);
+            boolean clear = true;
+            for (double distance = 1.5; distance <= VIEW_DISTANCE && clear; distance += 0.5) {
+                BlockPos pos = BlockPos.containing(eye.x + dx * distance, eye.y - distance * VIEW_SLOPE,
+                        eye.z + dz * distance);
+                clear = !level.isLoaded(pos) || isFree(level, pos);
+            }
+            if (clear) {
+                open++;
+            }
+        }
+        return open;
+    }
+
+    private static boolean isFree(Level level, BlockPos pos) {
+        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
     }
 
     public List<BlockPos> gates() {
@@ -74,6 +139,7 @@ public final class VillageLayout {
      */
     public void scan(Level level, BlockPos heartPos) {
         posts.clear();
+        views.clear();
         gates.clear();
         braziers.clear();
         banners.clear();
@@ -94,6 +160,9 @@ public final class VillageLayout {
                 bankChests.add(pos.immutable());
             }
         }
+        for (BlockPos post : posts) {
+            views.add(viewScore(level, post));
+        }
         scanned = true;
     }
 
@@ -102,6 +171,7 @@ public final class VillageLayout {
         tag.putBoolean("Scanned", scanned);
         tag.putInt("Version", VERSION);
         tag.put("Posts", savePositions(posts));
+        tag.putIntArray("Views", views.stream().mapToInt(Integer::intValue).toArray());
         tag.put("Gates", savePositions(gates));
         tag.put("Braziers", savePositions(braziers));
         tag.put("Banners", savePositions(banners));
@@ -112,6 +182,10 @@ public final class VillageLayout {
     public void load(CompoundTag tag) {
         scanned = tag.getBoolean("Scanned") && tag.getInt("Version") == VERSION;
         loadPositions(tag, "Posts", posts);
+        views.clear();
+        for (int view : tag.getIntArray("Views")) {
+            views.add(view);
+        }
         loadPositions(tag, "Gates", gates);
         loadPositions(tag, "Braziers", braziers);
         loadPositions(tag, "Banners", banners);

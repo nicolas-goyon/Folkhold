@@ -41,6 +41,7 @@ import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.phys.Vec3;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animation.AnimatableManager;
@@ -95,6 +96,12 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     static final int GIVE_UP_TICKS = 100;
     /** A unit stops the chase after this time with no path to its target and no line of sight to it. */
     static final int UNREACHABLE_TICKS = 200;
+    /** A unit at the foot of the tower of its post climbs after this time. */
+    static final int CLIMB_TICKS = 40;
+    /** A unit on the way to its post moves to it after this time. */
+    static final int POST_TRAVEL_MAX_TICKS = 600;
+    private static final double CLIMB_RADIUS_SQR = 9.0;
+    private static final double POST_ARRIVED_SQR = 4.0;
     /** Radius around the post while the village is not calm, in blocks. */
     private static final int POST_RADIUS = 2;
 
@@ -120,6 +127,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private long gaveUpUntil;
     /** Time in ticks with no path to the target and no line of sight to it. Not saved. */
     private int unreachableTicks;
+    /** Time in ticks on the way to the post. Not saved. */
+    private int postTravelTicks;
 
     protected FactionUnit(EntityType<? extends FactionUnit> type, Level level) {
         super(type, level);
@@ -324,6 +333,28 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     }
 
     /**
+     * A unit on the way to its post climbs to it. The path finder does not use ladders, so the unit cannot walk up
+     * a tower. When the unit is at the foot of the tower for {@link #CLIMB_TICKS}, or on the way for
+     * {@link #POST_TRAVEL_MAX_TICKS}, it moves to the post.
+     */
+    private void updatePostTravel(@Nullable LivingEntity target) {
+        BlockPos post = getPostPos();
+        if (post == null || target != null || distanceToSqr(Vec3.atBottomCenterOf(post)) <= POST_ARRIVED_SQR) {
+            postTravelTicks = 0;
+            return;
+        }
+        postTravelTicks++;
+        double dx = getX() - (post.getX() + 0.5);
+        double dz = getZ() - (post.getZ() + 0.5);
+        boolean atFoot = dx * dx + dz * dz <= CLIMB_RADIUS_SQR;
+        if (atFoot && postTravelTicks > CLIMB_TICKS || postTravelTicks > POST_TRAVEL_MAX_TICKS) {
+            getNavigation().stop();
+            moveTo(post.getX() + 0.5, post.getY(), post.getZ() + 0.5, getYRot(), getXRot());
+            postTravelTicks = 0;
+        }
+    }
+
+    /**
      * True if the unit cannot reach its target: no line of sight, and the path does not go to the target (or
      * the unit has no path and is not near the target).
      */
@@ -436,6 +467,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         } else {
             unreachableTicks = 0;
         }
+        updatePostTravel(target);
         if (target != null) {
             LivingEntity threat = target;
             getVillageHeart().ifPresent(heart -> {

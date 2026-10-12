@@ -80,10 +80,29 @@ public final class Garrison {
             return post;
         }
 
+        /** Gives a new post to the unit of this entry. */
+        void setPost(@Nullable BlockPos post) {
+            this.post = post == null ? null : post.immutable();
+        }
+
         void markDead(long now) {
             if (!dead) {
                 dead = true;
                 deadSince = now;
+            }
+        }
+    }
+
+    /**
+     * Gives a new post to the entry of a unit.
+     *
+     * @param unitId the id of the unit
+     * @param post   the new post
+     */
+    public void setPost(UUID unitId, BlockPos post) {
+        for (Entry entry : entries) {
+            if (entry.unitId.equals(unitId)) {
+                entry.setPost(post);
             }
         }
     }
