@@ -1,0 +1,10 @@
+{
+  "outputs": [
+    {"item": "minecraft:cod", "count": 6},
+    {"item": "minecraft:salmon", "count": 3},
+    {"item": "minecraft:ink_sac", "count": 1, "chance": 0.5}
+  ],
+  "min_level": 1,
+  "weight": 15,
+  "biomes": ["#minecraft:is_ocean", "#minecraft:is_beach", "#minecraft:is_river", "minecraft:swamp", "minecraft:mangrove_swamp"]
+}

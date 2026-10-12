@@ -1,0 +1,10 @@
+{
+  "outputs": [
+    {"item": "minecraft:melon_slice", "count": 6},
+    {"item": "minecraft:cocoa_beans", "count": 6},
+    {"item": "minecraft:sugar_cane", "count": 4}
+  ],
+  "min_level": 1,
+  "weight": 15,
+  "biomes": ["#minecraft:is_jungle"]
+}

@@ -1,0 +1,10 @@
+{
+  "outputs": [
+    {"item": "minecraft:pumpkin", "count": 3},
+    {"item": "minecraft:melon_slice", "count": 8},
+    {"item": "minecraft:sugar_cane", "count": 6},
+    {"item": "minecraft:sweet_berries", "count": 6}
+  ],
+  "min_level": 1,
+  "weight": 10
+}

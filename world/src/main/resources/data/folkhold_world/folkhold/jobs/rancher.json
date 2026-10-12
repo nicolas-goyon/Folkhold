@@ -1,0 +1,18 @@
+{
+  "inputs": [
+    {"item": "minecraft:wheat", "count": 6},
+    {"item": "minecraft:wheat_seeds", "count": 4}
+  ],
+  "outputs": [
+    {"item": "minecraft:egg", "count": 6},
+    {"item": "minecraft:feather", "count": 4},
+    {"item": "minecraft:beef", "count": 3},
+    {"item": "minecraft:porkchop", "count": 3},
+    {"item": "minecraft:chicken", "count": 3},
+    {"item": "minecraft:leather", "count": 2},
+    {"item": "minecraft:rabbit", "count": 1, "chance": 0.5},
+    {"item": "minecraft:rabbit_hide", "count": 1, "chance": 0.5}
+  ],
+  "min_level": 1,
+  "weight": 10
+}
