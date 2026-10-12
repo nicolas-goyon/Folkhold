@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.core.sim.settlement;
 
+import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import java.util.Objects;
 
 /**
@@ -24,6 +25,8 @@ public final class Settlement {
     private SettlementState state = SettlementState.ACTIVE;
     private int level = 1;
     private int experience;
+    private String biome = "";
+    private final EconomyState economy = new EconomyState();
 
     /**
      * Makes an active settlement with no known heart.
@@ -148,6 +151,20 @@ public final class Settlement {
         }
         this.level = level;
         this.experience = experience;
+    }
+
+    /** The biome id at the position of the settlement, or an empty text if it is not known. */
+    public String biome() {
+        return biome;
+    }
+
+    public void setBiome(String biome) {
+        this.biome = Objects.requireNonNull(biome);
+    }
+
+    /** The economic state: population, jobs, stock. */
+    public EconomyState economy() {
+        return economy;
     }
 
     /** Square of the horizontal distance from the settlement to a position, in blocks. */

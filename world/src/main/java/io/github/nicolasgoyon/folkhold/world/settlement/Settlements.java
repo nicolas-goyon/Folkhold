@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
@@ -44,7 +45,8 @@ public final class Settlements {
      * @param server     the server
      * @param id         the id of the settlement
      * @param startChunk the chunk of the structure start
-     * @param pos        the position of the settlement (heart, or approximate position)
+     * @param pos        the position of the settlement (heart, or approximate position). The Y value selects the
+     *                   biome.
      * @return the settlement, not yet in the registry
      */
     public static Settlement create(MinecraftServer server, UUID id, ChunkPos startChunk, BlockPos pos) {
@@ -52,6 +54,7 @@ public final class Settlements {
         Settlement settlement = new Settlement(id.toString(), startChunk.x, startChunk.z, faction.id(),
                 name(faction, id), pos.getX(), pos.getZ());
         settlement.setProgress(startLevel(settlement.id()), 0);
+        settlement.setBiome(Economies.biomeAt(server.overworld(), pos.getX(), pos.getY(), pos.getZ()));
         return settlement;
     }
 

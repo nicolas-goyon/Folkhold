@@ -1,0 +1,8 @@
+{
+  "minecraft:wheat": {"price": 0.05, "target": 64},
+  "minecraft:wheat_seeds": {"price": 0.02, "target": 32},
+  "minecraft:carrot": {"price": 0.05, "food": 3, "target": 48},
+  "minecraft:potato": {"price": 0.04, "food": 1, "target": 48},
+  "minecraft:beetroot": {"price": 0.07, "food": 1, "target": 32},
+  "minecraft:beetroot_seeds": {"price": 0.02, "target": 16}
+}

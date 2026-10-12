@@ -1,24 +1,29 @@
 package io.github.nicolasgoyon.folkhold.world.settlement;
 
+import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementRegistry;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 
 /**
- * The settlements of a world and the placement regions that the discovery checked. Saved in the Overworld data
- * ({@code folkhold_settlements.dat}).
+ * The settlements of a world, the treasuries of the factions and the placement regions that the discovery
+ * checked. Saved in the Overworld data ({@code folkhold_settlements.dat}).
  *
  * <p>The territory claims come from the settlements (position, level, state). The data calculates them again
  * after each change ({@link #setDirty()}), when the next call needs them.
@@ -31,6 +36,7 @@ public final class SettlementData extends SavedData {
     private long tickNumber;
     private long nextTickAt = -1;
     private TerritoryClaims claims;
+    private final Map<String, Long> treasuries = new HashMap<>();
 
     private SettlementData() {
     }
@@ -47,6 +53,30 @@ public final class SettlementData extends SavedData {
      */
     public SettlementRegistry registry() {
         return registry;
+    }
+
+    /**
+     * The emeralds in the treasury of a faction. A faction with no treasury yet has the configured start value.
+     *
+     * @param factionId the id of the faction
+     * @return the emeralds
+     */
+    public long treasury(String factionId) {
+        return treasuries.getOrDefault(factionId, (long) WorldConfig.ECONOMY_START_TREASURY.get());
+    }
+
+    /**
+     * Changes the treasury of a faction. The treasury does not go below 0.
+     *
+     * @param factionId the id of the faction
+     * @param delta     the change in emeralds
+     * @return the new value
+     */
+    public long addTreasury(String factionId, long delta) {
+        long value = Math.max(0, treasury(factionId) + delta);
+        treasuries.put(factionId, value);
+        setDirty();
+        return value;
     }
 
     /** The territory cells that the active settlements claim. */
@@ -125,9 +155,14 @@ public final class SettlementData extends SavedData {
             entry.putString("State", settlement.state().serializedName());
             entry.putInt("Level", settlement.level());
             entry.putInt("Experience", settlement.experience());
+            entry.putString("Biome", settlement.biome());
+            entry.put("Economy", saveEconomy(settlement.economy()));
             list.add(entry);
         }
         tag.put("Settlements", list);
+        CompoundTag treasuryTag = new CompoundTag();
+        treasuries.forEach(treasuryTag::putLong);
+        tag.put("Treasuries", treasuryTag);
         tag.putLong("TickNumber", tickNumber);
         tag.putLong("NextTickAt", nextTickAt);
         tag.putLongArray("CheckedRegions", checkedRegions.stream().mapToLong(Long::longValue).toArray());
@@ -151,9 +186,15 @@ public final class SettlementData extends SavedData {
             } else {
                 settlement.setProgress(Settlements.startLevel(settlement.id()), 0);
             }
+            settlement.setBiome(entry.getString("Biome"));
+            loadEconomy(settlement.economy(), entry.getCompound("Economy"));
             if (data.registry.byId(settlement.id()).isEmpty()) {
                 data.registry.add(settlement);
             }
+        }
+        CompoundTag treasuryTag = tag.getCompound("Treasuries");
+        for (String key : treasuryTag.getAllKeys()) {
+            data.treasuries.put(key, treasuryTag.getLong(key));
         }
         data.tickNumber = tag.getLong("TickNumber");
         data.nextTickAt = tag.contains("NextTickAt") ? tag.getLong("NextTickAt") : -1;
@@ -161,5 +202,38 @@ public final class SettlementData extends SavedData {
             data.checkedRegions.add(key);
         }
         return data;
+    }
+
+    private static CompoundTag saveEconomy(EconomyState economy) {
+        CompoundTag tag = new CompoundTag();
+        tag.putBoolean("Initialized", economy.isInitialized());
+        tag.putInt("Population", economy.population());
+        ListTag jobs = new ListTag();
+        economy.jobs().forEach(job -> jobs.add(StringTag.valueOf(job)));
+        tag.put("Jobs", jobs);
+        CompoundTag stock = new CompoundTag();
+        economy.stock().asMap().forEach(stock::putInt);
+        tag.put("Stock", stock);
+        tag.putDouble("FoodCovered", economy.foodCovered());
+        tag.putDouble("JobsWorking", economy.jobsWorking());
+        return tag;
+    }
+
+    private static void loadEconomy(EconomyState economy, CompoundTag tag) {
+        economy.setInitialized(tag.getBoolean("Initialized"));
+        economy.setPopulation(tag.getInt("Population"));
+        ListTag jobs = tag.getList("Jobs", Tag.TAG_STRING);
+        List<String> jobIds = new ArrayList<>();
+        for (int i = 0; i < jobs.size(); i++) {
+            jobIds.add(jobs.getString(i));
+        }
+        economy.setJobs(jobIds);
+        CompoundTag stock = tag.getCompound("Stock");
+        for (String item : stock.getAllKeys()) {
+            economy.stock().set(item, stock.getInt(item));
+        }
+        double food = tag.contains("FoodCovered") ? tag.getDouble("FoodCovered") : 1.0;
+        double jobsWorking = tag.contains("JobsWorking") ? tag.getDouble("JobsWorking") : 1.0;
+        economy.setLastCycle(food, jobsWorking);
     }
 }

@@ -54,6 +54,13 @@ public final class WorldConfig {
     public static final ModConfigSpec.DoubleValue LEVEL_BASE_PROSPERITY;
     public static final ModConfigSpec.IntValue LEVEL_MAX_GAIN_PER_CYCLE;
     public static final ModConfigSpec.IntValue LEVEL_CAPTAIN_DEATH_LOSS;
+    public static final ModConfigSpec.IntValue ECONOMY_WORKERS_PER_JOB;
+    public static final ModConfigSpec.IntValue ECONOMY_FOOD_PER_INHABITANT;
+    public static final ModConfigSpec.DoubleValue ECONOMY_DECAY_RATE;
+    public static final ModConfigSpec.DoubleValue ECONOMY_ELASTICITY;
+    public static final ModConfigSpec.IntValue ECONOMY_START_TREASURY;
+    public static final ModConfigSpec.IntValue ECONOMY_TREASURY_MINIMUM;
+    public static final ModConfigSpec.IntValue ECONOMY_FOOD_SHORTAGE_LOSS;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -249,6 +256,40 @@ public final class WorldConfig {
                 .comment("Experience that a settlement loses when its captain dies.")
                 .translation(KEY_PREFIX + "levelCaptainDeathLoss")
                 .defineInRange("captainDeathLoss", 30, 0, 10000);
+        builder.pop();
+
+        builder.comment("Economy of the settlements. The jobs are in the data files folkhold/jobs/*.json and the item",
+                        "values in folkhold/items.json.")
+                .translation(KEY_PREFIX + "economy")
+                .push("economy");
+        ECONOMY_WORKERS_PER_JOB = builder
+                .comment("Inhabitants for one active job.")
+                .translation(KEY_PREFIX + "economyWorkersPerJob")
+                .defineInRange("workersPerJob", 2, 1, 20);
+        ECONOMY_FOOD_PER_INHABITANT = builder
+                .comment("Food points that one inhabitant eats in one cycle (bread: 5 points).")
+                .translation(KEY_PREFIX + "economyFoodPerInhabitant")
+                .defineInRange("foodPerInhabitant", 4, 0, 100);
+        ECONOMY_DECAY_RATE = builder
+                .comment("Share of each stock that rots or wears in one cycle.")
+                .translation(KEY_PREFIX + "economyDecayRate")
+                .defineInRange("decayRate", 0.02, 0.0, 1.0);
+        ECONOMY_ELASTICITY = builder
+                .comment("Elasticity of the prices. 0: the price does not change with the stock.")
+                .translation(KEY_PREFIX + "economyElasticity")
+                .defineInRange("elasticity", 0.5, 0.0, 3.0);
+        ECONOMY_START_TREASURY = builder
+                .comment("Emeralds in the treasury of a faction at the start.")
+                .translation(KEY_PREFIX + "economyStartTreasury")
+                .defineInRange("startTreasury", 1000, 0, 1_000_000);
+        ECONOMY_TREASURY_MINIMUM = builder
+                .comment("A faction with fewer emeralds in its treasury gives less prosperity to its settlements.")
+                .translation(KEY_PREFIX + "economyTreasuryMinimum")
+                .defineInRange("treasuryMinimum", 100, 0, 1_000_000);
+        ECONOMY_FOOD_SHORTAGE_LOSS = builder
+                .comment("Experience that a settlement loses in a cycle with a food shortage (less than half of its need).")
+                .translation(KEY_PREFIX + "economyFoodShortageLoss")
+                .defineInRange("foodShortageLoss", 10, 0, 10000);
         builder.pop();
 
         builder.comment("Base values of each unit type.")
