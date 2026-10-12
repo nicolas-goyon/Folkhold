@@ -68,5 +68,20 @@
   "folkhold_world.reputation_tier.hostile": "hostile",
   "folkhold_world.reputation_tier.neutral": "neutre",
   "folkhold_world.reputation_tier.friend": "ami",
-  "folkhold_world.reputation_tier.ally": "allié"
+  "folkhold_world.reputation_tier.ally": "allié",
+  "commands.folkhold_world.factions.header": "Factions de ce monde (%s) :",
+  "commands.folkhold_world.factions.entry": "%s [%s] culture : %s, attitude : %s, centre du territoire : %s %s",
+  "commands.folkhold_world.factions.relations": "Relations :",
+  "commands.folkhold_world.factions.relation": "%s / %s : %s (%s)",
+  "commands.folkhold_world.reputation.header": "Réputation de %s :",
+  "commands.folkhold_world.reputation.entry": "%s : %s (%s)",
+  "commands.folkhold_world.reputation.set": "Réputation de %s avec %s : %s (%s)",
+  "commands.folkhold_world.unknown_faction": "Faction inconnue : %s",
+  "folkhold_world.attitude.ally": "alliée",
+  "folkhold_world.attitude.neutral": "neutre",
+  "folkhold_world.attitude.hostile": "hostile",
+  "folkhold_world.relation_state.alliance": "alliance",
+  "folkhold_world.relation_state.peace": "paix",
+  "folkhold_world.relation_state.tension": "tension",
+  "folkhold_world.relation_state.war": "guerre"
 }
