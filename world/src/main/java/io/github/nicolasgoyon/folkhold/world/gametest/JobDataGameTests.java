@@ -132,4 +132,38 @@ public final class JobDataGameTests {
         helper.assertTrue(ingots >= 40, "Expected 40 iron ingots or more in 10 cycles, not " + ingots);
         helper.succeed();
     }
+
+    /** A town with a full chain (miner, smelter, blacksmith) produces iron armor. */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "job_data_blacksmith")
+    public static void townWithAFullChainProducesIronArmor(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        String faction = FactionData.get(server).factions().get(0).id();
+        int x = 720 * CELL + CELL / 2;
+        Settlement town = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Smithton", x, 100);
+        town.setProgress(9, 0);
+        town.setBiome("minecraft:plains");
+        SettlementData.get(server).registry().add(town);
+        town.economy().setPopulation(30);
+        town.economy().setJobs(List.of("folkhold_world:farmer", "folkhold_world:farmer", "folkhold_world:miner",
+                "folkhold_world:miner", "folkhold_world:digger", "folkhold_world:smelter", "folkhold_world:smelter",
+                "folkhold_world:lumberjack", "folkhold_world:sawyer", "folkhold_world:blacksmith"));
+        town.economy().stock().add("minecraft:stone_pickaxe", 8, 100);
+        town.economy().stock().add("minecraft:stone_shovel", 4, 100);
+        town.economy().stock().add("minecraft:stone_axe", 4, 100);
+        town.economy().stock().add("minecraft:bread", 800, 2000);
+        town.economy().setInitialized(true);
+        SplittableRandom random = new SplittableRandom(13);
+        List<String> armor = List.of("minecraft:iron_helmet", "minecraft:iron_chestplate", "minecraft:iron_leggings",
+                "minecraft:iron_boots");
+        int pieces = 0;
+        for (int cycle = 0; cycle < 20; cycle++) {
+            town.setProgress(9, 0);
+            var produced = Economies.runCycle(server, town, random).produced();
+            for (String piece : armor) {
+                pieces += produced.getOrDefault(piece, 0);
+            }
+        }
+        helper.assertTrue(pieces > 0, "The town must produce iron armor in 20 cycles");
+        helper.succeed();
+    }
 }

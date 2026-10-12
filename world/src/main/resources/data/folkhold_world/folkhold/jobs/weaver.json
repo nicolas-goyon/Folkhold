@@ -1,0 +1,14 @@
+{
+  "inputs": [
+    {"item": "minecraft:white_wool", "count": 9},
+    {"item": "minecraft:oak_planks", "count": 3},
+    {"item": "minecraft:stick", "count": 1}
+  ],
+  "outputs": [
+    {"item": "minecraft:white_bed", "count": 1},
+    {"item": "minecraft:white_carpet", "count": 6},
+    {"item": "minecraft:white_banner", "count": 1, "chance": 0.5}
+  ],
+  "min_level": 3,
+  "weight": 5
+}
