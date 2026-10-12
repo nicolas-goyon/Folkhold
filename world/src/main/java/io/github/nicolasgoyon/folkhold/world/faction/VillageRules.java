@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.faction;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -36,7 +37,8 @@ public final class VillageRules {
 
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         if (event.getEntity() instanceof ServerPlayer player && event.getLevel() instanceof ServerLevel level
-                && level.getBlockEntity(event.getPos()) instanceof Container) {
+                && level.getBlockEntity(event.getPos()) instanceof Container
+                && !level.getBlockState(event.getPos()).is(ModBlocks.BANK_CHEST.get())) {
             check(level, player, event.getPos());
         }
     }

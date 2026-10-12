@@ -142,5 +142,16 @@
   "folkhold_world.settlement_tier.village": "Village",
   "folkhold_world.settlement_tier.town": "Town",
   "folkhold_world.settlement_tier.city": "City",
-  "folkhold_world.settlement_tier.capital": "Capital"
+  "folkhold_world.settlement_tier.capital": "Capital",
+  "block.folkhold_world.bank_chest": "Bank Chest",
+  "block.folkhold_world.bank_wall": "Bank Wall",
+  "container.folkhold_world.bank_chest": "Bank Chest",
+  "screen.folkhold_world.bank_pillage.title": "Pillage the bank?",
+  "screen.folkhold_world.bank_pillage.message": "This is a pillage. Your reputation with this village and with its faction becomes very negative.",
+  "message.folkhold_world.bank_pillaged": "You pillaged the bank of %s.",
+  "message.folkhold_world.bank_warning": "This is the chest of the village bank. To break it is a pillage.",
+  "folkhold_world.configuration.bank": "Bank",
+  "folkhold_world.configuration.bankPillageValue": "Reputation after a pillage",
+  "folkhold_world.configuration.bankPillageLoss": "Experience loss for a pillage",
+  "folkhold_world.configuration.bankTreasuryShare": "Share of the treasury in the banks"
 }

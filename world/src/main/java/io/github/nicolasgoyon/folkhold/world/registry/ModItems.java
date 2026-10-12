@@ -27,6 +27,10 @@ public final class ModItems {
 
     public static final DeferredItem<BlockItem> WATCH_POST = ITEMS.registerSimpleBlockItem(ModBlocks.WATCH_POST);
 
+    public static final DeferredItem<BlockItem> BANK_CHEST = ITEMS.registerSimpleBlockItem(ModBlocks.BANK_CHEST);
+
+    public static final DeferredItem<BlockItem> BANK_WALL = ITEMS.registerSimpleBlockItem(ModBlocks.BANK_WALL);
+
     private ModItems() {
     }
 
@@ -43,6 +47,8 @@ public final class ModItems {
         } else if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             event.accept(VILLAGE_HEART.get());
             event.accept(WATCH_POST.get());
+            event.accept(BANK_CHEST.get());
+            event.accept(BANK_WALL.get());
         }
     }
 }

@@ -21,7 +21,8 @@ import net.minecraft.world.level.block.state.BlockState;
  *   <li><b>posts</b>: the position above each watch post block (the archer stands there);</li>
  *   <li><b>gates</b>: the fence gates;</li>
  *   <li><b>braziers</b>: the campfires;</li>
- *   <li><b>banners</b>: the banners (standing and on walls). The heart gives them the banner of the faction.</li>
+ *   <li><b>banners</b>: the banners (standing and on walls). The heart gives them the banner of the faction;</li>
+ *   <li><b>bank chests</b>: the chests of the village bank, in the scan order.</li>
  * </ul>
  *
  * <p>A saved layout with an other {@link #VERSION} is not valid: the heart scans the village again.
@@ -32,13 +33,14 @@ public final class VillageLayout {
     private static final int SCAN_BELOW = 6;
     private static final int SCAN_ABOVE = 14;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 2;
+    static final int VERSION = 3;
 
     private boolean scanned;
     private final List<BlockPos> posts = new ArrayList<>();
     private final List<BlockPos> gates = new ArrayList<>();
     private final List<BlockPos> braziers = new ArrayList<>();
     private final List<BlockPos> banners = new ArrayList<>();
+    private final List<BlockPos> bankChests = new ArrayList<>();
 
     public boolean isScanned() {
         return scanned;
@@ -60,6 +62,10 @@ public final class VillageLayout {
         return Collections.unmodifiableList(banners);
     }
 
+    public List<BlockPos> bankChests() {
+        return Collections.unmodifiableList(bankChests);
+    }
+
     /**
      * Scans the blocks around the heart and replaces the lists.
      *
@@ -71,6 +77,7 @@ public final class VillageLayout {
         gates.clear();
         braziers.clear();
         banners.clear();
+        bankChests.clear();
         BlockPos min = heartPos.offset(-SCAN_RADIUS, -SCAN_BELOW, -SCAN_RADIUS);
         BlockPos max = heartPos.offset(SCAN_RADIUS, SCAN_ABOVE, SCAN_RADIUS);
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
@@ -83,6 +90,8 @@ public final class VillageLayout {
                 braziers.add(pos.immutable());
             } else if (state.getBlock() instanceof AbstractBannerBlock) {
                 banners.add(pos.immutable());
+            } else if (state.is(ModBlocks.BANK_CHEST.get())) {
+                bankChests.add(pos.immutable());
             }
         }
         scanned = true;
@@ -96,6 +105,7 @@ public final class VillageLayout {
         tag.put("Gates", savePositions(gates));
         tag.put("Braziers", savePositions(braziers));
         tag.put("Banners", savePositions(banners));
+        tag.put("BankChests", savePositions(bankChests));
         return tag;
     }
 
@@ -105,6 +115,7 @@ public final class VillageLayout {
         loadPositions(tag, "Gates", gates);
         loadPositions(tag, "Braziers", braziers);
         loadPositions(tag, "Banners", banners);
+        loadPositions(tag, "BankChests", bankChests);
     }
 
     private static ListTag savePositions(List<BlockPos> positions) {

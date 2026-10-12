@@ -1,7 +1,10 @@
 package io.github.nicolasgoyon.folkhold.world.network;
 
+import io.github.nicolasgoyon.folkhold.world.client.BankPillageScreen;
 import io.github.nicolasgoyon.folkhold.world.client.ClientTerritory;
 import io.github.nicolasgoyon.folkhold.world.client.VillageHeartScreen;
+import io.github.nicolasgoyon.folkhold.world.village.BankChests;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
@@ -21,5 +24,13 @@ public final class ModNetwork {
                 (payload, context) -> ClientTerritory.set(payload));
         registrar.playToClient(VillageInfoPayload.TYPE, VillageInfoPayload.STREAM_CODEC,
                 (payload, context) -> VillageHeartScreen.open(payload));
+        registrar.playToClient(BankPillageRequestPayload.TYPE, BankPillageRequestPayload.STREAM_CODEC,
+                (payload, context) -> BankPillageScreen.open(payload));
+        registrar.playToServer(BankPillageConfirmPayload.TYPE, BankPillageConfirmPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    if (context.player() instanceof ServerPlayer player) {
+                        BankChests.onConfirm(player, payload.pos());
+                    }
+                });
     }
 }

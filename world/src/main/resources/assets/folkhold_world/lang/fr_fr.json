@@ -142,5 +142,16 @@
   "folkhold_world.settlement_tier.village": "Village",
   "folkhold_world.settlement_tier.town": "Ville",
   "folkhold_world.settlement_tier.city": "Cité",
-  "folkhold_world.settlement_tier.capital": "Capitale"
+  "folkhold_world.settlement_tier.capital": "Capitale",
+  "block.folkhold_world.bank_chest": "Coffre de banque",
+  "block.folkhold_world.bank_wall": "Mur de banque",
+  "container.folkhold_world.bank_chest": "Coffre de banque",
+  "screen.folkhold_world.bank_pillage.title": "Piller la banque ?",
+  "screen.folkhold_world.bank_pillage.message": "C'est un pillage. Ta réputation avec ce village et avec sa faction devient très négative.",
+  "message.folkhold_world.bank_pillaged": "Tu as pillé la banque de %s.",
+  "message.folkhold_world.bank_warning": "C'est le coffre de la banque du village. Le casser est un pillage.",
+  "folkhold_world.configuration.bank": "Banque",
+  "folkhold_world.configuration.bankPillageValue": "Réputation après un pillage",
+  "folkhold_world.configuration.bankPillageLoss": "Perte d'expérience pour un pillage",
+  "folkhold_world.configuration.bankTreasuryShare": "Part du trésor dans les banques"
 }
