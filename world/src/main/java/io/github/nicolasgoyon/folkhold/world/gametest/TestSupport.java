@@ -4,12 +4,16 @@ import com.mojang.authlib.GameProfile;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -18,6 +22,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 
 /**
  * Helpers for the GameTests of the world mod.
@@ -39,16 +44,47 @@ import net.minecraft.world.level.block.Blocks;
  */
 final class TestSupport {
     static final int ARENA_SIZE = 16;
+    /** The settlements of the earlier tests in this radius go into ruins, in blocks. */
+    private static final long RETIRE_RADIUS = 4096;
 
     private TestSupport() {
     }
 
-    /** Fills the bottom layer of the arena (y = 0) with smooth stone. */
+    /**
+     * Puts the settlements of the earlier tests in ruins (see {@link #retireEarlierSettlements(GameTestHelper)}),
+     * then fills the bottom layer of the arena (y = 0) with smooth stone.
+     */
     static void buildFloor(GameTestHelper helper) {
+        retireEarlierSettlements(helper);
         for (int x = 0; x < ARENA_SIZE; x++) {
             for (int z = 0; z < ARENA_SIZE; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.SMOOTH_STONE);
             }
+        }
+    }
+
+    /**
+     * Puts in ruins the active settlements near the test that are outside the test area. Each batch has one test,
+     * so these settlements are of earlier tests. An active settlement claims the territory around it, and a
+     * territory of another faction changes the chase area of the units of the test.
+     */
+    static void retireEarlierSettlements(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        SettlementData data = SettlementData.get(server);
+        AABB area = helper.getBounds().inflate(2.0);
+        BlockPos center = BlockPos.containing(area.getCenter());
+        boolean changed = false;
+        for (Settlement settlement : data.registry().all()) {
+            boolean inside = settlement.x() >= area.minX && settlement.x() <= area.maxX
+                    && settlement.z() >= area.minZ && settlement.z() <= area.maxZ;
+            if (settlement.isActive() && !inside
+                    && settlement.distanceSquared(center.getX(), center.getZ()) <= RETIRE_RADIUS * RETIRE_RADIUS) {
+                settlement.setState(SettlementState.RUINS);
+                changed = true;
+            }
+        }
+        if (changed) {
+            data.setDirty();
         }
     }
 

@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
+import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
@@ -44,6 +45,7 @@ import net.minecraft.server.MinecraftServer;
  *       With no id: the nearest settlement.</li>
  *   <li>{@code /folkhold settlement level <id> <level>}: sets the level.</li>
  *   <li>{@code /folkhold settlement stock <id> <item> <count>}: sets a stock.</li>
+ *   <li>{@code /folkhold admin}: opens the admin screen (see {@link AdminActions}).</li>
  *   <li>{@code /folkhold sim tick [count]} and {@code /folkhold sim cycle [count]}: run the simulation now for all
  *       active settlements.</li>
  * </ul>
@@ -87,6 +89,12 @@ public final class SettlementCommands {
                                                         .suggestResource(BuiltInRegistries.ITEM.keySet(), builder))
                                                 .then(Commands.argument("count", IntegerArgumentType.integer(0))
                                                         .executes(SettlementCommands::setStock))))))
+                .then(Commands.literal("admin")
+                        .requires(source -> source.hasPermission(AdminActions.PERMISSION_LEVEL))
+                        .executes(context -> {
+                            AdminActions.sendList(context.getSource().getPlayerOrException());
+                            return 1;
+                        }))
                 .then(Commands.literal("sim")
                         .requires(source -> source.hasPermission(OPERATOR_LEVEL))
                         .then(runLiteral("tick", false))

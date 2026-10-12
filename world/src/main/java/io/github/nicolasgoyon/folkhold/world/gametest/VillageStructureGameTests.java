@@ -64,6 +64,7 @@ public final class VillageStructureGameTests {
      * template block and the relative positions of {@link GameTestHelper} do not always agree.
      */
     private static VillageHeartBlockEntity findHeart(GameTestHelper helper) {
+        TestSupport.retireEarlierSettlements(helper);
         AABB bounds = helper.getBounds();
         for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
                 BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
