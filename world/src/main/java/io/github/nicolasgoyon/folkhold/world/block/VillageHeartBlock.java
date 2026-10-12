@@ -22,7 +22,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * Village heart: the block at the center of a faction village. It holds the state of the village.
  *
  * <p>A right click opens a screen with the village information. When the block is removed, the units lose their
- * village.
+ * village. If the captain of the village is dead, the village becomes ruins (see
+ * {@link VillageHeartBlockEntity#onDestroyed()}).
  */
 public class VillageHeartBlock extends BaseEntityBlock {
     public static final MapCodec<VillageHeartBlock> CODEC = simpleCodec(VillageHeartBlock::new);
@@ -66,6 +67,16 @@ public class VillageHeartBlock extends BaseEntityBlock {
             PacketDistributor.sendToPlayer(serverPlayer, VillageInfo.build(heart, serverPlayer));
         }
         return InteractionResult.sidedSuccess(level.isClientSide());
+    }
+
+    /** Records the player who breaks the heart, as the cause of a destruction. */
+    @Override
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (player instanceof ServerPlayer serverPlayer
+                && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
+            heart.setBreaker(serverPlayer);
+        }
+        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Override

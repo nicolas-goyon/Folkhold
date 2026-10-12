@@ -11,7 +11,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import javax.annotation.Nullable;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -33,7 +36,8 @@ import net.minecraft.world.phys.AABB;
  *   <li><b>Morale aura</b>: the units of its village near the captain get Strength I.</li>
  *   <li><b>General alarm</b>: when the captain has a target, its village goes to {@link AlertState#ASSAULT}.</li>
  *   <li><b>Death</b>: a share of the units of its village is routed (runs back home and does not fight),
- *       and all units of the village get Weakness I for the same time.</li>
+ *       and all units of the village get Weakness I for the same time. The settlement of the village loses
+ *       experience. If the heart of the village is destroyed, the village becomes ruins.</li>
  * </ul>
  *
  * <p>It wears the banner of its faction on its head (a blue banner without a faction).
@@ -42,6 +46,10 @@ public class CaptainEntity extends GuardEntity {
     /** The captain updates its aura every 2 seconds. The effect lasts 3 seconds. */
     private static final int AURA_INTERVAL = 40;
     private static final int AURA_DURATION = 60;
+    private static final String RUINS_TAG = "RuinsOnDeath";
+    /** The settlement that becomes ruins when this captain dies (its heart is destroyed), or null. */
+    @Nullable
+    private String ruinsOnDeath;
 
     public CaptainEntity(EntityType<? extends CaptainEntity> type, Level level) {
         super(type, level);
@@ -93,8 +101,41 @@ public class CaptainEntity extends GuardEntity {
         if (!level().isClientSide()) {
             demoralizeVillage();
             loseVillageExperience();
+            ruinVillage(damageSource);
         }
         super.die(damageSource);
+    }
+
+    /**
+     * Records that the heart of the village is destroyed. When this captain dies, the village becomes ruins.
+     *
+     * @param settlementId the id of the settlement of the village
+     */
+    public void setRuinsOnDeath(String settlementId) {
+        ruinsOnDeath = settlementId;
+    }
+
+    /** If the heart of the village is destroyed, the village becomes ruins (see {@link Settlements#ruin}). */
+    private void ruinVillage(DamageSource damageSource) {
+        if (ruinsOnDeath != null && level() instanceof ServerLevel serverLevel) {
+            ServerPlayer cause = damageSource.getEntity() instanceof ServerPlayer player ? player : null;
+            Settlements.ruin(serverLevel, ruinsOnDeath, blockPosition(), cause);
+            ruinsOnDeath = null;
+        }
+    }
+
+    @Override
+    public void addAdditionalSaveData(CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        if (ruinsOnDeath != null) {
+            tag.putString(RUINS_TAG, ruinsOnDeath);
+        }
+    }
+
+    @Override
+    public void readAdditionalSaveData(CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        ruinsOnDeath = tag.contains(RUINS_TAG) ? tag.getString(RUINS_TAG) : null;
     }
 
     /** The settlement of the village loses experience (see {@link WorldConfig#LEVEL_CAPTAIN_DEATH_LOSS}). */
