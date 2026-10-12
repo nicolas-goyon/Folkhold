@@ -5,6 +5,8 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,7 +33,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li><b>territory message</b>: when a player enters the territory of a faction, a title shows the faction
  *       name and the reputation tier of the player. This is an early warning before the villages.</li>
  *   <li><b>village message</b>: when a player comes near a village (see {@link WorldConfig#VILLAGE_MESSAGE_RADIUS}),
- *       the action bar shows the village name, the faction and the reputation tier in this village.</li>
+ *       the action bar shows the village name, the faction, the level and tier of the village, and the reputation
+ *       tier in this village.</li>
  *   <li><b>territory status</b>: the server sends the territory, the tier and the village to the client when
  *       they change. The client shows them in the territory HUD, if the player turns it on.</li>
  * </ul>
@@ -105,11 +108,15 @@ public final class TerritoryMessages {
         FactionVisuals.faction(server, heart.getFactionId()).ifPresent(faction -> {
             Component tier = tierName(Reputations.tier(server, player, heart));
             String name = heart.getVillageName();
+            Component level = Settlements.of(server, heart)
+                    .<Component>map(settlement -> Component.translatable("message.folkhold_world.village_level",
+                            SettlementLevels.tierName(settlement.level()), settlement.level()))
+                    .orElse(Component.empty());
             Component message = name != null
                     ? Component.translatable("message.folkhold_world.village_entry", name,
-                            FactionVisuals.name(faction), tier)
+                            FactionVisuals.name(faction), level, tier)
                     : Component.translatable("message.folkhold_world.village_entry_no_name",
-                            FactionVisuals.name(faction), tier);
+                            FactionVisuals.name(faction), level, tier);
             player.displayClientMessage(message, true);
         });
     }

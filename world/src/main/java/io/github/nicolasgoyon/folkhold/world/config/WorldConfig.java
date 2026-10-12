@@ -50,6 +50,9 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue SIMULATION_INTERVAL_TICKS;
     public static final ModConfigSpec.IntValue SIMULATION_CYCLE_LENGTH;
     public static final ModConfigSpec.DoubleValue SIMULATION_BUDGET_MS;
+    public static final ModConfigSpec.DoubleValue LEVEL_BASE_PROSPERITY;
+    public static final ModConfigSpec.IntValue LEVEL_MAX_GAIN_PER_CYCLE;
+    public static final ModConfigSpec.IntValue LEVEL_CAPTAIN_DEATH_LOSS;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -226,6 +229,19 @@ public final class WorldConfig {
                         "the simulation continues with the remaining settlements at the next server tick.")
                 .translation(KEY_PREFIX + "simulationBudgetMs")
                 .defineInRange("budgetMs", 5.0, 0.1, 50.0);
+        LEVEL_BASE_PROSPERITY = builder
+                .comment("Prosperity of a settlement (0 to 1) when no system of the simulation gives a prosperity.")
+                .translation(KEY_PREFIX + "levelBaseProsperity")
+                .defineInRange("baseProsperity", 0.5, 0.0, 1.0);
+        LEVEL_MAX_GAIN_PER_CYCLE = builder
+                .comment("Experience that a settlement gets in one cycle with a full prosperity.",
+                        "The levels and the experience for each level are in the data file folkhold/levels.json.")
+                .translation(KEY_PREFIX + "levelMaxGainPerCycle")
+                .defineInRange("maxExperiencePerCycle", 10, 0, 1000);
+        LEVEL_CAPTAIN_DEATH_LOSS = builder
+                .comment("Experience that a settlement loses when its captain dies.")
+                .translation(KEY_PREFIX + "levelCaptainDeathLoss")
+                .defineInRange("captainDeathLoss", 30, 0, 10000);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

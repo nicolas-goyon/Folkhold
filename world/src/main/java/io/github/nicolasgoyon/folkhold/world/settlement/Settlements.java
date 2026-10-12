@@ -42,8 +42,38 @@ public final class Settlements {
      */
     public static Settlement create(MinecraftServer server, UUID id, ChunkPos startChunk, BlockPos pos) {
         FactionSpec faction = FactionData.get(server).ownerAt(pos);
-        return new Settlement(id.toString(), startChunk.x, startChunk.z, faction.id(), name(faction, id),
-                pos.getX(), pos.getZ());
+        Settlement settlement = new Settlement(id.toString(), startChunk.x, startChunk.z, faction.id(),
+                name(faction, id), pos.getX(), pos.getZ());
+        settlement.setProgress(startLevel(settlement.id()), 0);
+        return settlement;
+    }
+
+    /**
+     * The start level of a settlement, from the level table. The same id gives the same level.
+     *
+     * @param id the id of the settlement
+     * @return the start level
+     */
+    public static int startLevel(String id) {
+        long seed;
+        try {
+            UUID uuid = UUID.fromString(id);
+            seed = uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+        } catch (IllegalArgumentException e) {
+            seed = id.hashCode();
+        }
+        return LevelTables.get().startLevel(seed);
+    }
+
+    /**
+     * The settlement of a village heart, if the heart is linked.
+     *
+     * @param server the server
+     * @param heart  the heart
+     * @return the settlement
+     */
+    public static Optional<Settlement> of(MinecraftServer server, VillageHeartBlockEntity heart) {
+        return SettlementData.get(server).registry().byId(heart.getVillageId().toString());
     }
 
     /**

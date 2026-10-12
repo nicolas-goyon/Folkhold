@@ -1,0 +1,38 @@
+{
+  "tiers": [
+    {"id": "hamlet", "min_level": 1, "max_level": 4},
+    {"id": "village", "min_level": 5, "max_level": 8},
+    {"id": "town", "min_level": 9, "max_level": 12},
+    {"id": "city", "min_level": 13, "max_level": 16},
+    {"id": "capital", "min_level": 17, "max_level": 20}
+  ],
+  "levels": [
+    {"experience": 15, "claim_cells": 1, "max_population": 9, "job_slots": 2, "stock_capacity": 128, "trade_offers": 3, "cats": 1},
+    {"experience": 20, "claim_cells": 1, "max_population": 14, "job_slots": 3, "stock_capacity": 256, "trade_offers": 4, "cats": 1},
+    {"experience": 25, "claim_cells": 1, "max_population": 19, "job_slots": 4, "stock_capacity": 384, "trade_offers": 5, "cats": 1},
+    {"experience": 30, "claim_cells": 1, "max_population": 24, "job_slots": 5, "stock_capacity": 512, "trade_offers": 6, "cats": 1},
+    {"experience": 35, "claim_cells": 2, "max_population": 29, "job_slots": 6, "stock_capacity": 640, "trade_offers": 7, "cats": 2},
+    {"experience": 40, "claim_cells": 3, "max_population": 34, "job_slots": 7, "stock_capacity": 768, "trade_offers": 8, "cats": 2},
+    {"experience": 45, "claim_cells": 3, "max_population": 39, "job_slots": 8, "stock_capacity": 896, "trade_offers": 9, "cats": 2},
+    {"experience": 50, "claim_cells": 4, "max_population": 44, "job_slots": 9, "stock_capacity": 1024, "trade_offers": 10, "cats": 2},
+    {"experience": 55, "claim_cells": 5, "max_population": 49, "job_slots": 10, "stock_capacity": 1152, "trade_offers": 11, "cats": 3},
+    {"experience": 60, "claim_cells": 6, "max_population": 54, "job_slots": 11, "stock_capacity": 1280, "trade_offers": 12, "cats": 3},
+    {"experience": 65, "claim_cells": 7, "max_population": 59, "job_slots": 12, "stock_capacity": 1408, "trade_offers": 13, "cats": 3},
+    {"experience": 70, "claim_cells": 8, "max_population": 64, "job_slots": 13, "stock_capacity": 1536, "trade_offers": 14, "cats": 3},
+    {"experience": 75, "claim_cells": 9, "max_population": 69, "job_slots": 14, "stock_capacity": 1664, "trade_offers": 15, "cats": 4},
+    {"experience": 80, "claim_cells": 9, "max_population": 74, "job_slots": 15, "stock_capacity": 1792, "trade_offers": 16, "cats": 4},
+    {"experience": 85, "claim_cells": 9, "max_population": 79, "job_slots": 16, "stock_capacity": 1920, "trade_offers": 17, "cats": 4},
+    {"experience": 90, "claim_cells": 9, "max_population": 84, "job_slots": 17, "stock_capacity": 2048, "trade_offers": 18, "cats": 4},
+    {"experience": 95, "claim_cells": 11, "max_population": 89, "job_slots": 18, "stock_capacity": 2176, "trade_offers": 19, "cats": 6},
+    {"experience": 100, "claim_cells": 12, "max_population": 94, "job_slots": 19, "stock_capacity": 2304, "trade_offers": 20, "cats": 6},
+    {"experience": 105, "claim_cells": 13, "max_population": 99, "job_slots": 20, "stock_capacity": 2432, "trade_offers": 21, "cats": 6},
+    {"experience": 110, "claim_cells": 13, "max_population": 104, "job_slots": 21, "stock_capacity": 2560, "trade_offers": 22, "cats": 6}
+  ],
+  "start_levels": [
+    {"min_level": 1, "max_level": 1, "weight": 40},
+    {"min_level": 2, "max_level": 4, "weight": 30},
+    {"min_level": 5, "max_level": 8, "weight": 20},
+    {"min_level": 9, "max_level": 12, "weight": 8},
+    {"min_level": 13, "max_level": 16, "weight": 2}
+  ]
+}

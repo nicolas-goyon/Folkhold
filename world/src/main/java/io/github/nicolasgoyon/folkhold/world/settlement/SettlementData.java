@@ -93,6 +93,8 @@ public final class SettlementData extends SavedData {
                 entry.putInt("HeartY", settlement.heartY());
             }
             entry.putString("State", settlement.state().serializedName());
+            entry.putInt("Level", settlement.level());
+            entry.putInt("Experience", settlement.experience());
             list.add(entry);
         }
         tag.put("Settlements", list);
@@ -114,6 +116,11 @@ public final class SettlementData extends SavedData {
                 settlement.setHeart(entry.getInt("X"), entry.getInt("HeartY"), entry.getInt("Z"));
             }
             settlement.setState(SettlementState.fromSerializedName(entry.getString("State")));
+            if (entry.contains("Level")) {
+                settlement.setProgress(Math.max(1, entry.getInt("Level")), Math.max(0, entry.getInt("Experience")));
+            } else {
+                settlement.setProgress(Settlements.startLevel(settlement.id()), 0);
+            }
             if (data.registry.byId(settlement.id()).isEmpty()) {
                 data.registry.add(settlement);
             }

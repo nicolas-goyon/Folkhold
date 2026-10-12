@@ -13,7 +13,9 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModItems;
+import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSpawnProtection;
@@ -57,6 +59,8 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(LevelTables::onAddReloadListener);
+        SimulationTicker.addSystem(SettlementLevels::tick);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
 }
