@@ -13,7 +13,8 @@ import net.minecraft.network.chat.Component;
 /**
  * Territory HUD at the top right of the screen (client option {@link ClientConfig#SHOW_TERRITORY_HUD}):
  * <ul>
- *   <li>line 1: the faction that owns the territory and the reputation tier of the player;</li>
+ *   <li>line 1: the faction that owns the territory and the reputation tier of the player, or "Unclaimed
+ *       territory";</li>
  *   <li>line 2: the village near the player, if there is one.</li>
  * </ul>
  */
@@ -37,8 +38,9 @@ public final class TerritoryHud {
             return;
         }
         List<Component> lines = new ArrayList<>();
-        Component tier = status.tier().orElse(Component.empty());
-        lines.add(Component.translatable("hud.folkhold_world.territory", status.faction().get(), tier));
+        lines.add(status.tier()
+                .map(tier -> Component.translatable("hud.folkhold_world.territory", status.faction().get(), tier))
+                .orElse(status.faction().get().copy()));
         status.village().ifPresent(village -> lines.add(Component.translatable("hud.folkhold_world.village", village)));
 
         Font font = minecraft.font;

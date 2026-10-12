@@ -6,9 +6,9 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
-import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Optional;
@@ -288,7 +288,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
      * <ul>
      *   <li>not farther than the chase radius ({@link WorldConfig#CHASE_RADIUS}) from the village heart, or from
      *       the home position for a unit without a village;</li>
-     *   <li>in the territory of the faction of the unit, for a unit with a faction.</li>
+     *   <li>not in the territory of another faction, for a unit with a faction.</li>
      * </ul>
      *
      * @param pos the position
@@ -305,13 +305,16 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return pos.getCenter().distanceToSqr(center.getCenter()) <= chase * chase;
     }
 
-    /** True if the position is in the territory of the faction of the unit, or if the unit has no faction. */
+    /**
+     * True if the position is not in the territory of another faction: the territory of the faction of the unit, or
+     * an unclaimed cell. Also true if the unit has no faction.
+     */
     private boolean isInTerritory(BlockPos pos) {
         MinecraftServer server = level().getServer();
         if (server == null || factionId == null) {
             return true;
         }
-        return factionId.equals(FactionData.get(server).ownerAt(pos).id());
+        return Territories.factionAt(server, pos).map(faction -> factionId.equals(faction.id())).orElse(true);
     }
 
     /** Stops the chase: the unit drops its target and ignores all targets for {@link #GIVE_UP_TICKS}. */

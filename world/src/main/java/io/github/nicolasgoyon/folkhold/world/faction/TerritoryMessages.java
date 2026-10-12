@@ -7,12 +7,14 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.Nullable;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
@@ -31,7 +33,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * Territory and village information for the players:
  * <ul>
  *   <li><b>territory message</b>: when a player enters the territory of a faction, a title shows the faction
- *       name and the reputation tier of the player. This is an early warning before the villages.</li>
+ *       name and the reputation tier of the player. This is an early warning before the villages. When a player
+ *       enters an unclaimed cell, a title shows "Unclaimed territory".</li>
  *   <li><b>village message</b>: when a player comes near a village (see {@link WorldConfig#VILLAGE_MESSAGE_RADIUS}),
  *       the action bar shows the village name, the faction, the level and tier of the village, and the reputation
  *       tier in this village.</li>
@@ -39,7 +42,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *       they change. The client shows them in the territory HUD, if the player turns it on.</li>
  * </ul>
  *
- * <p>The territories are in the overworld only.
+ * <p>The territories are in the overworld only. The settlements claim the territory cells (see
+ * {@link Territories}).
  */
 public final class TerritoryMessages {
     private static final int CHECK_INTERVAL = 20;
@@ -48,6 +52,10 @@ public final class TerritoryMessages {
     private static final int TITLE_STAY = 50;
     private static final int TITLE_FADE_OUT = 20;
     private static final Map<UUID, State> STATES = new HashMap<>();
+    /** Territory id of an unclaimed cell. A faction id is never empty, so it cannot be this value. */
+    private static final String UNCLAIMED = "";
+    /** Territory id outside the overworld. */
+    private static final String OUTSIDE = "-";
 
     /** What the server knows about one player: the last territory, the last village and the last status. */
     private record State(String territoryId, @Nullable BlockPos village, TerritoryStatusPayload status) {
@@ -62,8 +70,11 @@ public final class TerritoryMessages {
         }
         ServerLevel level = player.serverLevel();
         MinecraftServer server = level.getServer();
-        Optional<FactionSpec> territory = territoryAt(level, player.blockPosition());
-        String territoryId = territory.map(FactionSpec::id).orElse("");
+        boolean overworld = level.dimension() == Level.OVERWORLD;
+        Optional<FactionSpec> territory = overworld
+                ? Territories.factionAt(server, player.blockPosition())
+                : Optional.empty();
+        String territoryId = !overworld ? OUTSIDE : territory.map(FactionSpec::id).orElse(UNCLAIMED);
         Optional<VillageHeartBlockEntity> village = VillageHearts
                 .findNearest(level, player.blockPosition(), WorldConfig.VILLAGE_MESSAGE_RADIUS.get())
                 .map(level::getBlockEntity)
@@ -73,27 +84,34 @@ public final class TerritoryMessages {
         State previous = STATES.get(player.getUUID());
 
         // No title for the first check after the login: the player did not cross a border.
-        if (previous != null && !previous.territoryId().equals(territoryId) && territory.isPresent()) {
-            showTerritoryTitle(player, territory.get());
+        if (previous != null && !previous.territoryId().equals(territoryId) && overworld) {
+            if (territory.isPresent()) {
+                showTerritoryTitle(player, territory.get());
+            } else {
+                showUnclaimedTitle(player);
+            }
         }
         if (village.isPresent() && (previous == null || !village.get().getBlockPos().equals(previous.village()))) {
             showVillageMessage(server, player, village.get());
         }
 
-        TerritoryStatusPayload status = status(server, player, territory, village);
+        TerritoryStatusPayload status = overworld
+                ? status(server, player, territory, village)
+                : TerritoryStatusPayload.NONE;
         if (previous == null || !status.equals(previous.status())) {
             PacketDistributor.sendToPlayer(player, status);
         }
         STATES.put(player.getUUID(), new State(territoryId, villagePos, status));
     }
 
-    /** The faction that owns the position, in the overworld only. */
-    private static Optional<FactionSpec> territoryAt(ServerLevel level, BlockPos pos) {
-        if (level.dimension() != Level.OVERWORLD) {
-            return Optional.empty();
-        }
-        FactionData data = FactionData.get(level.getServer());
-        return data.factions().isEmpty() ? Optional.empty() : Optional.of(data.ownerAt(pos));
+    private static void showUnclaimedTitle(ServerPlayer player) {
+        player.connection.send(new ClientboundSetTitlesAnimationPacket(TITLE_FADE_IN, TITLE_STAY, TITLE_FADE_OUT));
+        player.connection.send(new ClientboundSetSubtitleTextPacket(Component.empty()));
+        player.connection.send(new ClientboundSetTitleTextPacket(unclaimedName()));
+    }
+
+    private static Component unclaimedName() {
+        return Component.translatable("message.folkhold_world.unclaimed_territory").withStyle(ChatFormatting.GRAY);
     }
 
     private static void showTerritoryTitle(ServerPlayer player, FactionSpec faction) {
@@ -124,7 +142,8 @@ public final class TerritoryMessages {
     private static TerritoryStatusPayload status(MinecraftServer server, ServerPlayer player,
             Optional<FactionSpec> territory, Optional<VillageHeartBlockEntity> village) {
         if (territory.isEmpty()) {
-            return TerritoryStatusPayload.NONE;
+            return new TerritoryStatusPayload(Optional.of(unclaimedName()), Optional.empty(),
+                    village.map(VillageHeartBlockEntity::getVillageName).map(Component::literal));
         }
         ReputationTier tier = village
                 .filter(heart -> territory.get().id().equals(heart.getFactionId()))
