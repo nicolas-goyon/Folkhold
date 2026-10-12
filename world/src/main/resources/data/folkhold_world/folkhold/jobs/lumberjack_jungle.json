@@ -9,5 +9,6 @@
   ],
   "min_level": 1,
   "weight": 25,
-  "biomes": ["#minecraft:is_jungle"]
+  "biomes": ["#minecraft:is_jungle"],
+  "profession": "folkhold_world:lumberjack"
 }

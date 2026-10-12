@@ -8,5 +8,6 @@
     {"item": "minecraft:pumpkin_pie", "count": 2}
   ],
   "min_level": 3,
-  "weight": 5
+  "weight": 5,
+  "profession": "folkhold_world:baker"
 }

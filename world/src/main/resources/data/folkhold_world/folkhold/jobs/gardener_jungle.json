@@ -6,5 +6,6 @@
   ],
   "min_level": 1,
   "weight": 15,
-  "biomes": ["#minecraft:is_jungle"]
+  "biomes": ["#minecraft:is_jungle"],
+  "profession": "minecraft:farmer"
 }

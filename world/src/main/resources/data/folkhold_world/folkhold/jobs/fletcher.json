@@ -11,5 +11,6 @@
     {"item": "minecraft:crossbow", "count": 1, "chance": 0.25}
   ],
   "min_level": 3,
-  "weight": 6
+  "weight": 6,
+  "profession": "minecraft:fletcher"
 }

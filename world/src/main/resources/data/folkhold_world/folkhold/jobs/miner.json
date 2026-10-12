@@ -14,5 +14,6 @@
     {"item": "minecraft:diamond", "count": 1, "chance": 0.03}
   ],
   "min_level": 1,
-  "weight": 15
+  "weight": 15,
+  "profession": "minecraft:toolsmith"
 }

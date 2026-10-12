@@ -9,5 +9,6 @@
     {"item": "minecraft:dirt", "count": 8}
   ],
   "min_level": 1,
-  "weight": 8
+  "weight": 8,
+  "profession": "minecraft:mason"
 }

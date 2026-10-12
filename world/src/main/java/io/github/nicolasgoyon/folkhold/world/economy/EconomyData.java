@@ -42,11 +42,14 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  *   "outputs": [{"item": "minecraft:bread", "count": 4, "chance": 1.0}],
  *   "min_level": 1,
  *   "weight": 10,
- *   "biomes": ["#minecraft:is_taiga", "minecraft:plains"]
+ *   "biomes": ["#minecraft:is_taiga", "minecraft:plains"],
+ *   "profession": "minecraft:farmer"
  * }
  * </pre>
- * {@code inputs}, {@code chance} (1), {@code min_level} (1), {@code weight} (10) and {@code biomes} (all biomes)
- * are optional. An input with a chance below 1 is a tool: the job needs it and uses it up sometimes. Items format: {@code {"minecraft:bread": {"price": 1.0, "food": 5, "target": 32}, ...}}.
+ * {@code inputs}, {@code chance} (1), {@code min_level} (1), {@code weight} (10), {@code biomes} (all biomes) and
+ * {@code profession} are optional. {@code profession} is the villager profession that shows the job: an inhabitant
+ * with this job has this profession (see {@link io.github.nicolasgoyon.folkhold.world.village.VillageFolk}). With no
+ * profession, the inhabitant has the inhabitant profession. An input with a chance below 1 is a tool: the job needs it and uses it up sometimes. Items format: {@code {"minecraft:bread": {"price": 1.0, "food": 5, "target": 32}, ...}}.
  *
  * <p>A file that is not valid is ignored, with an error in the log.
  */
@@ -57,6 +60,7 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
 
     private static Map<String, Job> jobs = Map.of();
     private static ItemCatalog catalog = ItemCatalog.EMPTY;
+    private static Map<String, ResourceLocation> professions = Map.of();
 
     public EconomyData() {
         super(new Gson(), JOBS_DIRECTORY);
@@ -76,6 +80,16 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
         return catalog;
     }
 
+    /**
+     * The villager profession that shows a job ({@code profession} in the job file).
+     *
+     * @param jobId the job id
+     * @return the profession id, or empty if the job file gives no profession
+     */
+    public static Optional<ResourceLocation> profession(String jobId) {
+        return Optional.ofNullable(professions.get(jobId));
+    }
+
     /** True if the data packs give at least one job. */
     public static boolean isActive() {
         return !jobs.isEmpty();
@@ -84,15 +98,21 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager manager, ProfilerFiller profiler) {
         Map<String, Job> loaded = new LinkedHashMap<>();
+        Map<String, ResourceLocation> loadedProfessions = new LinkedHashMap<>();
         for (Map.Entry<ResourceLocation, JsonElement> entry : files.entrySet()) {
             String id = entry.getKey().toString();
             try {
-                loaded.put(id, parseJob(id, entry.getValue().getAsJsonObject()));
+                JsonObject json = entry.getValue().getAsJsonObject();
+                loaded.put(id, parseJob(id, json));
+                if (json.has("profession")) {
+                    loadedProfessions.put(id, ResourceLocation.parse(GsonHelper.getAsString(json, "profession")));
+                }
             } catch (RuntimeException e) {
                 FolkholdWorld.LOGGER.error("The job {} is not valid", id, e);
             }
         }
         jobs = Collections.unmodifiableMap(loaded);
+        professions = Collections.unmodifiableMap(loadedProfessions);
         catalog = loadCatalog(manager);
         FolkholdWorld.LOGGER.info("Loaded {} jobs and {} item values", jobs.size(), catalog.all().size());
     }

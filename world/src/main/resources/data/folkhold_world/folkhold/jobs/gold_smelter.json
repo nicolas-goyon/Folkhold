@@ -7,5 +7,6 @@
     {"item": "minecraft:gold_ingot", "count": 2}
   ],
   "min_level": 9,
-  "weight": 2
+  "weight": 2,
+  "profession": "minecraft:armorer"
 }

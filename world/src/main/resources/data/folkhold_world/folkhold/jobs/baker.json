@@ -6,5 +6,6 @@
     {"item": "minecraft:bread", "count": 4}
   ],
   "min_level": 1,
-  "weight": 15
+  "weight": 15,
+  "profession": "folkhold_world:baker"
 }
