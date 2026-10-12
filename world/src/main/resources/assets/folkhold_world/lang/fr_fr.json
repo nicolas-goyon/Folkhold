@@ -169,5 +169,15 @@
   "folkhold_world.configuration.bank": "Banque",
   "folkhold_world.configuration.bankPillageValue": "Réputation après un pillage",
   "folkhold_world.configuration.bankPillageLoss": "Perte d'expérience pour un pillage",
-  "folkhold_world.configuration.bankTreasuryShare": "Part du trésor dans les banques"
+  "folkhold_world.configuration.bankTreasuryShare": "Part du trésor dans les banques",
+  "screen.folkhold_world.village_heart.economy": "Économie",
+  "screen.folkhold_world.village_heart.population": "Population",
+  "screen.folkhold_world.village_heart.jobs": "Métiers",
+  "screen.folkhold_world.village_heart.food": "Nourriture",
+  "screen.folkhold_world.village_heart.treasury": "Trésor de la faction",
+  "screen.folkhold_world.village_heart.percent": "%s %%",
+  "screen.folkhold_world.village_heart.emeralds": "%s émeraudes",
+  "screen.folkhold_world.village_heart.stock_value": "%s (vendu à %s)",
+  "screen.folkhold_world.village_heart.territory": "Territoire",
+  "screen.folkhold_world.village_heart.claimed_cells": "Cellules revendiquées"
 }
