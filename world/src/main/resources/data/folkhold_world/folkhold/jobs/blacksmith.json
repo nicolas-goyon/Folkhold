@@ -1,0 +1,21 @@
+{
+  "inputs": [
+    {"item": "minecraft:iron_ingot", "count": 9},
+    {"item": "minecraft:coal", "count": 2},
+    {"item": "minecraft:stick", "count": 4},
+    {"item": "minecraft:oak_planks", "count": 6}
+  ],
+  "outputs": [
+    {"item": "minecraft:iron_sword", "count": 1, "chance": 0.5},
+    {"item": "minecraft:iron_axe", "count": 1, "chance": 0.5},
+    {"item": "minecraft:iron_pickaxe", "count": 1, "chance": 0.5},
+    {"item": "minecraft:iron_shovel", "count": 1, "chance": 0.5},
+    {"item": "minecraft:iron_helmet", "count": 1, "chance": 0.3},
+    {"item": "minecraft:iron_chestplate", "count": 1, "chance": 0.2},
+    {"item": "minecraft:iron_leggings", "count": 1, "chance": 0.2},
+    {"item": "minecraft:iron_boots", "count": 1, "chance": 0.3},
+    {"item": "minecraft:shield", "count": 1, "chance": 0.5}
+  ],
+  "min_level": 5,
+  "weight": 8
+}

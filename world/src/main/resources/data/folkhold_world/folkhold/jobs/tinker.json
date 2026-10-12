@@ -1,0 +1,20 @@
+{
+  "inputs": [
+    {"item": "minecraft:iron_ingot", "count": 8},
+    {"item": "minecraft:copper_ingot", "count": 3},
+    {"item": "minecraft:redstone", "count": 1},
+    {"item": "minecraft:stick", "count": 2},
+    {"item": "minecraft:coal", "count": 1}
+  ],
+  "outputs": [
+    {"item": "minecraft:bucket", "count": 1},
+    {"item": "minecraft:shears", "count": 1, "chance": 0.5},
+    {"item": "minecraft:rail", "count": 16},
+    {"item": "minecraft:powered_rail", "count": 2, "chance": 0.25},
+    {"item": "minecraft:minecart", "count": 1, "chance": 0.5},
+    {"item": "minecraft:lantern", "count": 2},
+    {"item": "minecraft:lightning_rod", "count": 1, "chance": 0.5}
+  ],
+  "min_level": 5,
+  "weight": 6
+}
