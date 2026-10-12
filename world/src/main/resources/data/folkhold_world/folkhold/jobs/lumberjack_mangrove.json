@@ -1,0 +1,13 @@
+{
+  "inputs": [
+    {"item": "minecraft:stone_axe", "count": 1, "chance": 0.1}
+  ],
+  "outputs": [
+    {"item": "minecraft:mangrove_log", "count": 12},
+    {"item": "minecraft:stick", "count": 8},
+    {"item": "minecraft:mangrove_propagule", "count": 2}
+  ],
+  "min_level": 1,
+  "weight": 25,
+  "biomes": ["minecraft:mangrove_swamp"]
+}

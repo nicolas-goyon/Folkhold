@@ -1,0 +1,13 @@
+{
+  "inputs": [
+    {"item": "minecraft:stone_axe", "count": 1, "chance": 0.1}
+  ],
+  "outputs": [
+    {"item": "minecraft:jungle_log", "count": 12},
+    {"item": "minecraft:stick", "count": 8},
+    {"item": "minecraft:jungle_sapling", "count": 2}
+  ],
+  "min_level": 1,
+  "weight": 25,
+  "biomes": ["#minecraft:is_jungle"]
+}

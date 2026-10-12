@@ -38,15 +38,15 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  * <p>Job format:
  * <pre>
  * {
- *   "inputs": [{"item": "minecraft:wheat", "count": 6}],
+ *   "inputs": [{"item": "minecraft:wheat", "count": 6}, {"item": "minecraft:stone_pickaxe", "count": 1, "chance": 0.1}],
  *   "outputs": [{"item": "minecraft:bread", "count": 4, "chance": 1.0}],
  *   "min_level": 1,
  *   "weight": 10,
  *   "biomes": ["#minecraft:is_taiga", "minecraft:plains"]
  * }
  * </pre>
- * {@code inputs}, {@code chance}, {@code min_level} (1), {@code weight} (10) and {@code biomes} (all biomes) are
- * optional. Items format: {@code {"minecraft:bread": {"price": 1.0, "food": 5, "target": 32}, ...}}.
+ * {@code inputs}, {@code chance} (1), {@code min_level} (1), {@code weight} (10) and {@code biomes} (all biomes)
+ * are optional. An input with a chance below 1 is a tool: the job needs it and uses it up sometimes. Items format: {@code {"minecraft:bread": {"price": 1.0, "food": 5, "target": 32}, ...}}.
  *
  * <p>A file that is not valid is ignored, with an error in the log.
  */
@@ -122,7 +122,8 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
         List<Recipe.Input> inputs = new ArrayList<>();
         for (JsonElement element : GsonHelper.getAsJsonArray(json, "inputs", new JsonArray())) {
             JsonObject input = element.getAsJsonObject();
-            inputs.add(new Recipe.Input(GsonHelper.getAsString(input, "item"), GsonHelper.getAsInt(input, "count")));
+            inputs.add(new Recipe.Input(GsonHelper.getAsString(input, "item"), GsonHelper.getAsInt(input, "count"),
+                    GsonHelper.getAsDouble(input, "chance", 1.0)));
         }
         List<Recipe.Output> outputs = new ArrayList<>();
         for (JsonElement element : GsonHelper.getAsJsonArray(json, "outputs")) {

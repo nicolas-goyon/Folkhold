@@ -1,0 +1,13 @@
+{
+  "inputs": [
+    {"item": "minecraft:stone_axe", "count": 1, "chance": 0.1}
+  ],
+  "outputs": [
+    {"item": "minecraft:birch_log", "count": 12},
+    {"item": "minecraft:stick", "count": 8},
+    {"item": "minecraft:birch_sapling", "count": 2}
+  ],
+  "min_level": 1,
+  "weight": 20,
+  "biomes": ["minecraft:birch_forest", "minecraft:old_growth_birch_forest"]
+}

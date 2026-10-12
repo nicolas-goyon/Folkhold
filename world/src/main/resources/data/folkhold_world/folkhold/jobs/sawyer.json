@@ -1,0 +1,10 @@
+{
+  "inputs": [
+    {"item": "minecraft:oak_log", "count": 4}
+  ],
+  "outputs": [
+    {"item": "minecraft:oak_planks", "count": 16}
+  ],
+  "min_level": 1,
+  "weight": 6
+}

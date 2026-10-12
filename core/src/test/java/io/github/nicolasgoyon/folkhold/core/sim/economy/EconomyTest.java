@@ -150,4 +150,26 @@ class EconomyTest {
         // Mean 5 for each roll.
         assertTrue(total > 800 && total < 1200, "Total: " + total);
     }
+
+    @Test
+    void toolIsNeededAndWearsWithItsChance() {
+        Job miner = job("miner", List.of(new Recipe.Input("pickaxe", 1, 0.1)), List.of(new Recipe.Output("ore", 1, 1.0)));
+        EconomyState without = state(2, "miner");
+        CycleReport noTool = Economy.runCycle(without, List.of(miner), 2, 100, CATALOG, SETTINGS,
+                new SplittableRandom(1));
+        assertEquals(List.of("pickaxe"), noTool.needs());
+
+        EconomyState with = state(2, "miner");
+        with.stock().add("pickaxe", 1, 10);
+        // Food for the 2 inhabitants, so the job keeps its workers.
+        with.stock().add("bread", 2000, 2000);
+        SplittableRandom random = new SplittableRandom(2);
+        int cycles = 0;
+        while (with.stock().count("pickaxe") == 1 && cycles < 1000) {
+            Economy.runCycle(with, List.of(miner), 2, 1000, CATALOG, SETTINGS, random);
+            cycles++;
+        }
+        assertTrue(cycles > 1 && cycles < 1000, "The tool must wear after some cycles, not " + cycles);
+        assertEquals(cycles, with.stock().count("ore"));
+    }
 }

@@ -1,0 +1,12 @@
+{
+  "inputs": [
+    {"item": "minecraft:sugar_cane", "count": 9},
+    {"item": "minecraft:leather", "count": 1}
+  ],
+  "outputs": [
+    {"item": "minecraft:paper", "count": 9},
+    {"item": "minecraft:book", "count": 1}
+  ],
+  "min_level": 5,
+  "weight": 4
+}

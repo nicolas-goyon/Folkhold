@@ -1,0 +1,11 @@
+{
+  "inputs": [
+    {"item": "minecraft:wheat", "count": 4}
+  ],
+  "outputs": [
+    {"item": "minecraft:white_wool", "count": 6},
+    {"item": "minecraft:mutton", "count": 2}
+  ],
+  "min_level": 1,
+  "weight": 8
+}
