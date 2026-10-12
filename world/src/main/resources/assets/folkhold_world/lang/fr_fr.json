@@ -194,14 +194,6 @@
   "entity.minecraft.villager.inhabitant": "Habitant",
   "entity.minecraft.villager.folkhold_world.inhabitant": "Habitant",
   "folkhold_world.configuration.maxInhabitants": "Habitants maximum par village",
-  "block.folkhold_world.building_sign_house": "Panneau de maison",
-  "block.folkhold_world.building_sign_barracks": "Panneau de caserne",
-  "block.folkhold_world.building_sign_forge": "Panneau de forge",
-  "block.folkhold_world.building_sign_storehouse": "Panneau d'entrepôt",
-  "block.folkhold_world.building_sign_bank": "Panneau de banque",
-  "block.folkhold_world.building_sign_hall": "Panneau de maison commune",
-  "block.folkhold_world.building_sign_farm": "Panneau de ferme",
-  "block.folkhold_world.building_sign_market": "Panneau de marché"
   "screen.folkhold_world.admin.title": "Administration Folkhold",
   "screen.folkhold_world.admin.header": "%s / %s villages",
   "screen.folkhold_world.admin.filter": "Nom, id ou faction",
@@ -288,5 +280,13 @@
   "screen.folkhold_world.admin.row.treasury": "Trésor de la faction",
   "screen.folkhold_world.admin.row.stock_total": "Stock",
   "screen.folkhold_world.admin.row.economy": "Économie",
-  "screen.folkhold_world.admin.economy.inactive": "Aucune donnée de métier"
+  "screen.folkhold_world.admin.economy.inactive": "Aucune donnée de métier",
+  "block.folkhold_world.building_sign_house": "Panneau de maison",
+  "block.folkhold_world.building_sign_barracks": "Panneau de caserne",
+  "block.folkhold_world.building_sign_forge": "Panneau de forge",
+  "block.folkhold_world.building_sign_storehouse": "Panneau d'entrepôt",
+  "block.folkhold_world.building_sign_bank": "Panneau de banque",
+  "block.folkhold_world.building_sign_hall": "Panneau de maison commune",
+  "block.folkhold_world.building_sign_farm": "Panneau de ferme",
+  "block.folkhold_world.building_sign_market": "Panneau de marché"
 }

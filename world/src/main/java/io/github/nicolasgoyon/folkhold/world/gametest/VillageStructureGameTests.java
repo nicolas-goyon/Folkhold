@@ -32,6 +32,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.AbstractBannerBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.CrossCollisionBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -402,20 +404,23 @@ public final class VillageStructureGameTests {
     @GameTest(template = "village/bank", timeoutTicks = 20, batch = "village_bank_building")
     public static void bankHasItsSignAndItsVault(GameTestHelper helper) {
         AABB bounds = helper.getBounds();
-        int chests = 0;
+        List<BlockPos> chests = new ArrayList<>();
         int walls = 0;
         for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
                 BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
             BlockState state = helper.getLevel().getBlockState(pos);
             if (state.is(ModBlocks.BANK_CHEST.get())) {
-                chests++;
+                chests.add(pos.immutable());
             } else if (state.is(ModBlocks.BANK_WALL.get())) {
                 walls++;
             }
         }
         List<BuildingSignKind> signs = signsIn(helper);
+        // The bank chests stay in the world after the test. A village heart of a later test near this place
+        // would count them as chests of its bank.
+        chests.forEach(pos -> helper.getLevel().setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL));
         helper.assertTrue(signs.equals(List.of(BuildingSignKind.BANK)), "Expected 1 bank sign, found " + signs);
-        helper.assertTrue(chests == 4, "Expected 4 bank chests, found " + chests);
+        helper.assertTrue(chests.size() == 4, "Expected 4 bank chests, found " + chests.size());
         helper.assertTrue(walls > 100, "The walls and the roof must be bank walls, found " + walls);
         helper.succeed();
     }
