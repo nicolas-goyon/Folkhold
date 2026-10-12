@@ -125,7 +125,8 @@ public final class GuardGameTests {
 
     /**
      * A guard goes through a closed fence gate in a wall: it opens the gate, passes, and closes the gate again.
-     * The wall is 2 blocks high, so the gate is the only way.
+     * The wall is 2 blocks high, so the gate is the only way. The test removes the village of the guard: a heart
+     * of another test can be in the village radius and give the guard a night watch position.
      */
     @GameTest(template = "arena", timeoutTicks = 300, batch = "guard_gate")
     public static void guardOpensAndClosesFenceGate(GameTestHelper helper) {
@@ -139,15 +140,20 @@ public final class GuardGameTests {
                 .setValue(FenceGateBlock.FACING, Direction.NORTH).setValue(FenceGateBlock.OPEN, false));
         helper.setBlock(gate.above(), Blocks.AIR);
         GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(8, 1, 3));
+        guard.setVillagePos(null);
+        guard.setFactionId(null);
+        guard.setNightPos(null);
         BlockPos goal = helper.absolutePos(new BlockPos(8, 1, 13));
         helper.startSequence()
                 .thenExecute(() -> guard.getNavigation().moveTo(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0))
                 .thenWaitUntil(() -> {
-                    if (guard.getNavigation().isDone() && guard.blockPosition().getZ() < goal.getZ() - 2) {
+                    if (guard.getTarget() == null && guard.getNavigation().isDone()
+                            && guard.blockPosition().getZ() < goal.getZ() - 2) {
                         guard.getNavigation().moveTo(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0);
                     }
                     helper.assertTrue(guard.blockPosition().getZ() >= goal.getZ() - 2,
-                            "The guard must go through the gate");
+                            "The guard must go through the gate. Guard at " + guard.blockPosition()
+                                    + ", target " + guard.getTarget());
                     helper.assertBlockProperty(gate, FenceGateBlock.OPEN, false);
                 })
                 .thenExecute(guard::discard)
