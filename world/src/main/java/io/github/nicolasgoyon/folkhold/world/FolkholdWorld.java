@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.FriendlyFire;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
+import io.github.nicolasgoyon.folkhold.world.faction.ReputationEvents;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
@@ -34,6 +35,8 @@ public final class FolkholdWorld {
         ModItems.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(MonsterTargeting::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(FriendlyFire::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(ReputationEvents::onDeath);
+        NeoForge.EVENT_BUS.addListener(ReputationEvents::onDamage);
         NeoForge.EVENT_BUS.addListener(VillageSpawnProtection::onPositionCheck);
         NeoForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> VillageHearts.clear());
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
