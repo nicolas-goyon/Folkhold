@@ -1,0 +1,12 @@
+// Extra Maven repositories for the dependencies of the mods.
+// The mod projects and the dev project apply this file, because the dev project resolves
+// the dependencies of all mods.
+repositories {
+    maven {
+        name = 'GeckoLib'
+        url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        content {
+            includeGroup 'software.bernie.geckolib'
+        }
+    }
+}

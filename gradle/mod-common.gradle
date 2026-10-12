@@ -2,6 +2,8 @@
 // The subproject must apply the plugins 'java-library', 'maven-publish' and 'net.neoforged.moddev' first,
 // and must set mod_id, mod_name and mod_description in its gradle.properties.
 
+apply from: rootProject.file('gradle/repositories.gradle')
+
 version = mod_version
 group = mod_group_id
 
