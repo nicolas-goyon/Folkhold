@@ -1,0 +1,157 @@
+package io.github.nicolasgoyon.folkhold.world.economy;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemCatalog;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemInfo;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Recipe;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import java.io.IOException;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
+import net.minecraft.util.GsonHelper;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.neoforged.neoforge.event.AddReloadListenerEvent;
+
+/**
+ * The jobs and the item values of the economy, from the data packs.
+ *
+ * <ul>
+ *   <li>{@code data/<namespace>/folkhold/jobs/<id>.json}: one job. The job id is {@code <namespace>:<id>}.</li>
+ *   <li>{@code data/folkhold_world/folkhold/items.json}: the price, the food points and the stock target of each
+ *       item.</li>
+ * </ul>
+ *
+ * <p>Job format:
+ * <pre>
+ * {
+ *   "inputs": [{"item": "minecraft:wheat", "count": 6}],
+ *   "outputs": [{"item": "minecraft:bread", "count": 4, "chance": 1.0}],
+ *   "min_level": 1,
+ *   "weight": 10,
+ *   "biomes": ["#minecraft:is_taiga", "minecraft:plains"]
+ * }
+ * </pre>
+ * {@code inputs}, {@code chance}, {@code min_level} (1), {@code weight} (10) and {@code biomes} (all biomes) are
+ * optional. Items format: {@code {"minecraft:bread": {"price": 1.0, "food": 5, "target": 32}, ...}}.
+ *
+ * <p>A file that is not valid is ignored, with an error in the log.
+ */
+public final class EconomyData extends SimpleJsonResourceReloadListener {
+    public static final String JOBS_DIRECTORY = "folkhold/jobs";
+    public static final ResourceLocation ITEMS_FILE =
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "folkhold/items.json");
+
+    private static Map<String, Job> jobs = Map.of();
+    private static ItemCatalog catalog = ItemCatalog.EMPTY;
+
+    public EconomyData() {
+        super(new Gson(), JOBS_DIRECTORY);
+    }
+
+    public static void onAddReloadListener(AddReloadListenerEvent event) {
+        event.addListener(new EconomyData());
+    }
+
+    /** The jobs, by id. */
+    public static Map<String, Job> jobs() {
+        return jobs;
+    }
+
+    /** The item values. */
+    public static ItemCatalog catalog() {
+        return catalog;
+    }
+
+    /** True if the data packs give at least one job. */
+    public static boolean isActive() {
+        return !jobs.isEmpty();
+    }
+
+    @Override
+    protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager manager, ProfilerFiller profiler) {
+        Map<String, Job> loaded = new LinkedHashMap<>();
+        for (Map.Entry<ResourceLocation, JsonElement> entry : files.entrySet()) {
+            String id = entry.getKey().toString();
+            try {
+                loaded.put(id, parseJob(id, entry.getValue().getAsJsonObject()));
+            } catch (RuntimeException e) {
+                FolkholdWorld.LOGGER.error("The job {} is not valid", id, e);
+            }
+        }
+        jobs = Collections.unmodifiableMap(loaded);
+        catalog = loadCatalog(manager);
+        FolkholdWorld.LOGGER.info("Loaded {} jobs and {} item values", jobs.size(), catalog.all().size());
+    }
+
+    private static ItemCatalog loadCatalog(ResourceManager manager) {
+        Optional<Resource> resource = manager.getResource(ITEMS_FILE);
+        if (resource.isEmpty()) {
+            return ItemCatalog.EMPTY;
+        }
+        try (Reader reader = resource.get().openAsReader()) {
+            return parseCatalog(JsonParser.parseReader(reader).getAsJsonObject());
+        } catch (IOException | RuntimeException e) {
+            FolkholdWorld.LOGGER.error("The item values {} are not valid", ITEMS_FILE, e);
+            return ItemCatalog.EMPTY;
+        }
+    }
+
+    /**
+     * Reads a job.
+     *
+     * @param id   the job id
+     * @param json the content of the file
+     * @return the job
+     * @throws RuntimeException if the content is not valid
+     */
+    public static Job parseJob(String id, JsonObject json) {
+        List<Recipe.Input> inputs = new ArrayList<>();
+        for (JsonElement element : GsonHelper.getAsJsonArray(json, "inputs", new JsonArray())) {
+            JsonObject input = element.getAsJsonObject();
+            inputs.add(new Recipe.Input(GsonHelper.getAsString(input, "item"), GsonHelper.getAsInt(input, "count")));
+        }
+        List<Recipe.Output> outputs = new ArrayList<>();
+        for (JsonElement element : GsonHelper.getAsJsonArray(json, "outputs")) {
+            JsonObject output = element.getAsJsonObject();
+            outputs.add(new Recipe.Output(GsonHelper.getAsString(output, "item"),
+                    GsonHelper.getAsInt(output, "count"), GsonHelper.getAsDouble(output, "chance", 1.0)));
+        }
+        List<String> biomes = new ArrayList<>();
+        for (JsonElement element : GsonHelper.getAsJsonArray(json, "biomes", new JsonArray())) {
+            biomes.add(element.getAsString());
+        }
+        return new Job(id, new Recipe(inputs, outputs), GsonHelper.getAsInt(json, "min_level", 1),
+                GsonHelper.getAsInt(json, "weight", 10), biomes);
+    }
+
+    /**
+     * Reads the item values.
+     *
+     * @param json the content of the file
+     * @return the catalog
+     * @throws RuntimeException if the content is not valid
+     */
+    public static ItemCatalog parseCatalog(JsonObject json) {
+        Map<String, ItemInfo> items = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+            JsonObject item = entry.getValue().getAsJsonObject();
+            items.put(entry.getKey(), new ItemInfo(entry.getKey(), GsonHelper.getAsDouble(item, "price"),
+                    GsonHelper.getAsInt(item, "food", 0), GsonHelper.getAsInt(item, "target", 32)));
+        }
+        return new ItemCatalog(items);
+    }
+}
