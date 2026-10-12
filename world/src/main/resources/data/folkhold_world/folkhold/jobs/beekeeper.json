@@ -1,0 +1,11 @@
+{
+  "inputs": [
+    {"item": "minecraft:glass", "count": 1}
+  ],
+  "outputs": [
+    {"item": "minecraft:honey_bottle", "count": 2},
+    {"item": "minecraft:honeycomb", "count": 3}
+  ],
+  "min_level": 3,
+  "weight": 4
+}

@@ -1,0 +1,12 @@
+{
+  "inputs": [
+    {"item": "minecraft:pumpkin", "count": 2},
+    {"item": "minecraft:sugar_cane", "count": 2},
+    {"item": "minecraft:egg", "count": 2}
+  ],
+  "outputs": [
+    {"item": "minecraft:pumpkin_pie", "count": 2}
+  ],
+  "min_level": 3,
+  "weight": 5
+}
