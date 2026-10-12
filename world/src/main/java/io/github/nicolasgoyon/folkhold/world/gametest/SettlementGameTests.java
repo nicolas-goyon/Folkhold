@@ -78,6 +78,8 @@ public final class SettlementGameTests {
                 "The settlement must have the name of the heart");
         helper.assertTrue(settlement.hasHeart() && settlement.x() == pos.getX() && settlement.heartY() == pos.getY()
                 && settlement.z() == pos.getZ(), "The settlement must have the position of the heart");
+        helper.assertTrue(settlement.economy().isInitialized() && settlement.economy().population() > 0,
+                "The economy of a new settlement must start at once");
         helper.succeed();
     }
 
