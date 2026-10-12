@@ -41,7 +41,7 @@ add small-ships                 # beta
 add tectonic
 
 # Light
-add sodium-dynamic-lights       # client only, requires Sodium
+add lambdynamiclights           # client only, NeoForge build of the 1.21.1 line
 
 # Libraries of the Folkhold mods
 add geckolib                    # unit models and animations of folkhold_world

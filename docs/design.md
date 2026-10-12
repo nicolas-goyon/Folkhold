@@ -42,7 +42,7 @@ The pack targets **NeoForge 1.21.1**. **packwiz** manages it: a versioned list i
 | Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | Beta, unofficial port |
 | Navigation | Small Ships | `small-ships` | Beta, last update November 2024 |
 | Terrain | Tectonic | `tectonic` | NeoForge release available. Large continents, deep oceans, mountain ranges |
-| Light | Sodium Dynamic Lights | `sodium-dynamic-lights` | NeoForge release available, client only, requires Sodium |
+| Light | LambDynamicLights | `lambdynamiclights` | NeoForge release available (4.8.x for 1.21.1), client only |
 | Library | GeckoLib | `geckolib` | NeoForge release available. Required by `folkhold_world` |
 | Comfort | JEI, Jade | `jei`, `jade` | Recommended for development |
 
