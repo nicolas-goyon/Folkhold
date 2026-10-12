@@ -184,5 +184,11 @@
   "entity.folkhold_world.village_cat": "Chat du village",
   "folkhold_world.configuration.reputationHitCat": "Frapper un chat du village",
   "folkhold_world.configuration.reputationKillCat": "Tuer un chat du village",
-  "screen.folkhold_world.village_heart.empty": "Aucune information"
+  "screen.folkhold_world.village_heart.empty": "Aucune information",
+  "entity.minecraft.villager.merchant": "Marchand",
+  "entity.minecraft.villager.folkhold_world.merchant": "Marchand",
+  "message.folkhold_world.merchant_refuses": "%s : Je ne commerce pas avec toi.",
+  "folkhold_world.configuration.merchant": "Marchands",
+  "folkhold_world.configuration.merchantFriendFactor": "Facteur de prix pour un ami",
+  "folkhold_world.configuration.merchantAllyFactor": "Facteur de prix pour un allié"
 }

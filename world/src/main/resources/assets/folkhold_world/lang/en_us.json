@@ -184,5 +184,11 @@
   "entity.folkhold_world.village_cat": "Village Cat",
   "folkhold_world.configuration.reputationHitCat": "Hit a village cat",
   "folkhold_world.configuration.reputationKillCat": "Kill a village cat",
-  "screen.folkhold_world.village_heart.empty": "No information"
+  "screen.folkhold_world.village_heart.empty": "No information",
+  "entity.minecraft.villager.merchant": "Merchant",
+  "entity.minecraft.villager.folkhold_world.merchant": "Merchant",
+  "message.folkhold_world.merchant_refuses": "%s: I do not trade with you.",
+  "folkhold_world.configuration.merchant": "Merchants",
+  "folkhold_world.configuration.merchantFriendFactor": "Price factor for a friend",
+  "folkhold_world.configuration.merchantAllyFactor": "Price factor for an ally"
 }

@@ -252,7 +252,7 @@ public final class Garrison {
      * @param heartPos the position of the heart
      * @return the spawn position, or a position next to the heart if there is no good position
      */
-    static BlockPos groundSpawnPos(ServerLevel level, BlockPos heartPos) {
+    public static BlockPos groundSpawnPos(ServerLevel level, BlockPos heartPos) {
         for (int attempt = 0; attempt < SPAWN_ATTEMPTS; attempt++) {
             float angle = level.random.nextFloat() * (float) (Math.PI * 2.0);
             int distance = Mth.nextInt(level.random, SPAWN_MIN_DISTANCE, SPAWN_MAX_DISTANCE);
