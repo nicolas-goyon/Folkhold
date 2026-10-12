@@ -2,7 +2,12 @@ package io.github.nicolasgoyon.folkhold.world.registry;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlock;
+import io.github.nicolasgoyon.folkhold.world.block.BuildingSignBlock;
+import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlock;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -47,7 +52,27 @@ public final class ModBlocks {
                     .requiresCorrectToolForDrops()
                     .sound(SoundType.STONE));
 
+    /** The building signs, one block for each kind. */
+    public static final Map<BuildingSignKind, DeferredBlock<BuildingSignBlock>> BUILDING_SIGNS = buildingSigns();
+
     private ModBlocks() {
+    }
+
+    private static Map<BuildingSignKind, DeferredBlock<BuildingSignBlock>> buildingSigns() {
+        Map<BuildingSignKind, DeferredBlock<BuildingSignBlock>> signs = new EnumMap<>(BuildingSignKind.class);
+        for (BuildingSignKind kind : BuildingSignKind.values()) {
+            signs.put(kind, BLOCKS.register(kind.blockId(), () -> new BuildingSignBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.WOOD)
+                    .strength(1.5F, 3.0F)
+                    .sound(SoundType.WOOD)
+                    .noOcclusion())));
+        }
+        return Collections.unmodifiableMap(signs);
+    }
+
+    /** The building sign of a kind. */
+    public static BuildingSignBlock buildingSign(BuildingSignKind kind) {
+        return BUILDING_SIGNS.get(kind).get();
     }
 
     public static void register(IEventBus modEventBus) {

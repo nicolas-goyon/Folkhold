@@ -313,6 +313,8 @@ def center():
             t.set(MID + dx, 1, MID + dz, "minecraft:campfire",
                   {"facing": "north", "lit": "false", "signal_fire": "false", "waterlogged": "false"})
 
+    # Village hall sign on the plaza, between the heart and the north gate, out of the paths.
+    building_sign(t, MID + 2, 1, MID - 4, "hall")
     for (x, z) in ((MID - 2, 7), (MID + 2, 7), (MID - 2, SIZE - 8), (MID + 2, SIZE - 8),
                    (7, MID - 2), (7, MID + 2), (SIZE - 8, MID - 2), (SIZE - 8, MID + 2)):
         lamp_post(t, x, z)
@@ -335,8 +337,16 @@ D = 9   # z: 0 = porch, 1..8 = body
 H = 10
 
 
-def house_shell(rng, wall_lower, wall_upper, door=True, wide_front=False):
-    """Timber frame house: cobblestone base, frame of stripped spruce logs, gable roof over the porch."""
+def building_sign(t, x, y, z, kind, facing="north"):
+    """The building sign of a kind (see tools/textures/building_signs.py)."""
+    t.set(x, y, z, f"{NS}:building_sign_{kind}", {"facing": facing})
+
+
+def house_shell(rng, wall_lower, wall_upper, sign, door=True, wide_front=False):
+    """Timber frame house: cobblestone base, frame of stripped spruce logs, gable roof over the porch.
+
+    The building sign of the kind stands on the porch, next to the east porch post.
+    """
     t = Template(W, H, D)
     t.fill(0, 1, 0, W - 1, H - 1, D - 1, "minecraft:air")
     # Porch and floor.
@@ -398,6 +408,7 @@ def house_shell(rng, wall_lower, wall_upper, door=True, wide_front=False):
         for x in range(left + 1, right):
             for z in (1, D - 1):
                 t.set(x, y, z, wall_upper(rng))
+    building_sign(t, W - 2, 1, 0, sign)
     # Jigsaw connector in the porch, facing out (north).
     t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
     return t
@@ -419,7 +430,7 @@ def bed(t, x, z_foot, color="blue"):
 
 def cottage():
     rng = random.Random(2)
-    t = house_shell(rng, cobble, calcite)
+    t = house_shell(rng, cobble, calcite, "house")
     bed(t, 2, 6, "red")
     t.set(6, 1, 7, "minecraft:crafting_table")
     t.set(5, 1, 7, "minecraft:chest", {"facing": "north", "type": "single", "waterlogged": "false"})
@@ -433,7 +444,7 @@ def cottage():
 
 def barracks():
     rng = random.Random(3)
-    t = house_shell(rng, cobble, lambda r: "minecraft:spruce_planks")
+    t = house_shell(rng, cobble, lambda r: "minecraft:spruce_planks", "barracks")
     for x in (1, 3, 5, 7):
         bed(t, x, 6, "blue")
     t.set(7, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
@@ -444,7 +455,7 @@ def barracks():
 
 def forge():
     rng = random.Random(4)
-    t = house_shell(rng, cobble, cobble, wide_front=True)
+    t = house_shell(rng, cobble, cobble, "forge", wide_front=True)
     t.set(2, 1, 5, "minecraft:anvil", {"facing": "east"})
     t.set(5, 1, 7, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
     t.set(6, 1, 7, "minecraft:furnace", {"facing": "north", "lit": "false"})
@@ -457,7 +468,7 @@ def forge():
 
 def storehouse():
     rng = random.Random(5)
-    t = house_shell(rng, cobble, lambda r: "minecraft:spruce_planks")
+    t = house_shell(rng, cobble, lambda r: "minecraft:spruce_planks", "storehouse")
     for (x, z) in ((1, 7), (2, 7), (1, 6), (7, 7), (7, 6)):
         t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
     for (x, z) in ((6, 7), (6, 6), (5, 7)):
@@ -469,20 +480,78 @@ def storehouse():
 
 
 def bank():
-    """The bank: walls of bank wall blocks, 4 bank chests on the back wall, iron bars in the windows."""
-    rng = random.Random(6)
-    t = house_shell(rng, lambda r: BANK_WALL, lambda r: BANK_WALL)
-    for (x, y, z), ((name, _props), nbt) in list(t.blocks.items()):
-        if name == "minecraft:glass_pane":
-            t.set(x, y, z, "minecraft:iron_bars")
+    """The bank: a small stone treasury, different from the houses.
+
+    - Walls, flat roof and crenellated parapet of bank wall blocks: they resist explosions.
+    - Front portico (z = 0..1) with two columns, an entablature and the bank sign.
+    - Door in the middle of the front wall, narrow windows with iron bars.
+    - Inside: a counter with iron bars (the teller windows) and the vault with the 4 bank chests on the back wall.
+    """
+    t = Template(W, H, D)
+    t.fill(0, 1, 0, W - 1, H - 1, D - 1, "minecraft:air")
+    front, back = 2, D - 1
+    roof = 6
+    # Floors: the portico, then the hall of the bank.
+    for x in range(W):
+        for z in range(0, front):
+            t.set(x, 0, z, "minecraft:polished_deepslate")
+        for z in range(front, D):
+            edge = x in (0, W - 1) or z in (front, back)
+            t.set(x, 0, z, BANK_WALL if edge else "minecraft:deepslate_tiles")
+    # Walls and flat roof.
+    for x in range(W):
+        for z in range(front, D):
+            if x in (0, W - 1) or z in (front, back):
+                for y in range(1, roof):
+                    t.set(x, y, z, BANK_WALL)
+            t.set(x, roof, z, BANK_WALL)
+    # Crenellated parapet.
+    for x in range(W):
+        for z in range(front, D):
+            if (x in (0, W - 1) or z in (front, back)) and (x + z) % 2 == 0:
+                t.set(x, roof + 1, z, BANK_WALL)
+    # Door and windows.
+    mid = W // 2
+    t.set(mid, 1, front, "minecraft:dark_oak_door",
+          {"facing": "north", "half": "lower", "hinge": "left", "open": "false", "powered": "false"})
+    t.set(mid, 2, front, "minecraft:dark_oak_door",
+          {"facing": "north", "half": "upper", "hinge": "left", "open": "false", "powered": "false"})
+    for x in (2, W - 3):
+        t.set(x, 2, front, "minecraft:iron_bars")
+        t.set(x, 3, front, "minecraft:iron_bars")
+    for z in (4, 6):
+        for x in (0, W - 1):
+            t.set(x, 2, z, "minecraft:iron_bars")
+            t.set(x, 3, z, "minecraft:iron_bars")
+    # Portico: two columns, the entablature, the parapet edge, lights and banners.
+    for x in (1, W - 2):
+        t.set(x, 1, 0, "minecraft:chiseled_deepslate")
+        for y in range(2, roof - 1):
+            t.set(x, y, 0, "minecraft:polished_basalt", LOG_Y)
+    for x in range(W):
+        for z in range(0, front):
+            t.set(x, roof - 1, z, "minecraft:polished_deepslate")
+        t.set(x, roof, 0, "minecraft:deepslate_tile_slab", {"type": "bottom", "waterlogged": "false"})
+        t.set(x, roof, 1, "minecraft:deepslate_tile_slab", {"type": "bottom", "waterlogged": "false"})
+    for x in (2, W - 3):
+        t.set(x, roof - 2, 1, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    for x in (mid - 1, mid + 1):
+        t.set(x, 3, 1, WALL_BANNER, {"facing": "north"})
+    building_sign(t, W - 3, 1, 0, "bank")
+    # Inside: carpet to the counter, the counter with the teller windows, the vault.
+    for z in range(front + 1, 5):
+        t.set(mid, 1, z, "minecraft:red_carpet")
+    for x in range(1, W - 1):
+        if x != mid:
+            t.set(x, 1, 5, "minecraft:polished_deepslate_slab", {"type": "top", "waterlogged": "false"})
+            t.set(x, 2, 5, "minecraft:iron_bars")
     for x in (2, 3, 5, 6):
-        t.set(x, 1, 7, BANK_CHEST)
-    t.set(1, 1, 2, BANNER, {"rotation": "4"})
-    t.set(7, 1, 2, BANNER, {"rotation": "12"})
-    lantern(t, 1, 1, 7)
-    lantern(t, 7, 1, 7)
-    t.set(4, 0, 4, "minecraft:polished_andesite")
-    t.set(4, 1, 4, "minecraft:red_carpet")
+        t.set(x, 1, back - 1, BANK_CHEST)
+    lantern(t, 1, 1, front + 1)
+    lantern(t, W - 2, 1, front + 1)
+    t.set(mid, roof - 1, 6, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    # Jigsaw connector in the portico, facing out (north).
+    t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
     return t
 
 

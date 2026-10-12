@@ -280,5 +280,13 @@
   "screen.folkhold_world.admin.row.treasury": "Faction treasury",
   "screen.folkhold_world.admin.row.stock_total": "Stock",
   "screen.folkhold_world.admin.row.economy": "Economy",
-  "screen.folkhold_world.admin.economy.inactive": "No job data"
+  "screen.folkhold_world.admin.economy.inactive": "No job data",
+  "block.folkhold_world.building_sign_house": "House Sign",
+  "block.folkhold_world.building_sign_barracks": "Barracks Sign",
+  "block.folkhold_world.building_sign_forge": "Forge Sign",
+  "block.folkhold_world.building_sign_storehouse": "Storehouse Sign",
+  "block.folkhold_world.building_sign_bank": "Bank Sign",
+  "block.folkhold_world.building_sign_hall": "Village Hall Sign",
+  "block.folkhold_world.building_sign_farm": "Farm Sign",
+  "block.folkhold_world.building_sign_market": "Market Sign"
 }

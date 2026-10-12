@@ -1,0 +1,9 @@
+{
+  "parent": "folkhold_world:block/building_sign",
+  "textures": {
+    "post": "minecraft:block/polished_blackstone",
+    "cap": "minecraft:block/gold_block",
+    "bar": "minecraft:block/dark_oak_planks",
+    "plaque": "folkhold_world:block/building_sign/bank"
+  }
+}

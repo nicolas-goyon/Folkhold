@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
@@ -11,10 +12,12 @@ import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.core.BlockPos;
@@ -29,6 +32,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.AbstractBannerBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.CrossCollisionBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -361,5 +366,62 @@ public final class VillageStructureGameTests {
             helper.assertTrue(seen[0], "The archer must walk on the ground of the compound");
             archer.discard();
         });
+    }
+
+    /** The kinds of the building signs in the test area, one entry for each sign. */
+    private static List<BuildingSignKind> signsIn(GameTestHelper helper) {
+        AABB bounds = helper.getBounds();
+        List<BuildingSignKind> kinds = new ArrayList<>();
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
+                BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
+            BlockState state = helper.getLevel().getBlockState(pos);
+            for (BuildingSignKind kind : BuildingSignKind.values()) {
+                if (state.is(ModBlocks.buildingSign(kind))) {
+                    kinds.add(kind);
+                }
+            }
+        }
+        return kinds;
+    }
+
+    /** The center piece has the village hall sign near the heart. */
+    @GameTest(template = "village/center", timeoutTicks = 20, batch = "village_hall_sign")
+    public static void centerHasTheHallSign(GameTestHelper helper) {
+        List<BuildingSignKind> signs = signsIn(helper);
+        helper.assertTrue(signs.equals(List.of(BuildingSignKind.HALL)), "Expected 1 hall sign, found " + signs);
+        helper.succeed();
+    }
+
+    /** A house has the sign of its kind on its porch. */
+    @GameTest(template = "village/house_cottage", timeoutTicks = 20, batch = "village_house_sign")
+    public static void houseHasItsSign(GameTestHelper helper) {
+        List<BuildingSignKind> signs = signsIn(helper);
+        helper.assertTrue(signs.equals(List.of(BuildingSignKind.HOUSE)), "Expected 1 house sign, found " + signs);
+        helper.succeed();
+    }
+
+    /** The bank has its sign, the 4 bank chests, and its walls are bank walls. */
+    @GameTest(template = "village/bank", timeoutTicks = 20, batch = "village_bank_building")
+    public static void bankHasItsSignAndItsVault(GameTestHelper helper) {
+        AABB bounds = helper.getBounds();
+        List<BlockPos> chests = new ArrayList<>();
+        int walls = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
+                BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
+            BlockState state = helper.getLevel().getBlockState(pos);
+            if (state.is(ModBlocks.BANK_CHEST.get())) {
+                chests.add(pos.immutable());
+            } else if (state.is(ModBlocks.BANK_WALL.get())) {
+                walls++;
+            }
+        }
+        List<BuildingSignKind> signs = signsIn(helper);
+        // The bank chests stay in the world after the test. A village heart of a later test near this place
+        // would count them as chests of its bank.
+        chests.forEach(pos -> helper.getLevel().setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL));
+        helper.assertTrue(signs.equals(List.of(BuildingSignKind.BANK)), "Expected 1 bank sign, found " + signs);
+        helper.assertTrue(chests.size() == 4, "Expected 4 bank chests, found " + chests.size());
+        helper.assertTrue(walls > 100, "The walls and the roof must be bank walls, found " + walls);
+        helper.succeed();
     }
 }

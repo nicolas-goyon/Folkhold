@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "folkhold_world:block/building_sign_bank"
+    },
+    "facing=east": {
+      "model": "folkhold_world:block/building_sign_bank",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "folkhold_world:block/building_sign_bank",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "folkhold_world:block/building_sign_bank",
+      "y": 270
+    }
+  }
+}
