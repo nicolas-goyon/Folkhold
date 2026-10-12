@@ -144,7 +144,7 @@
   "screen.folkhold_world.village_heart.position_value": "X %s, Z %s",
   "screen.folkhold_world.village_heart.garrison": "Garrison",
   "screen.folkhold_world.village_heart.units": "%s / %s alive, %s dead",
-  "screen.folkhold_world.village_heart.reputation": "Your reputation",
+  "screen.folkhold_world.village_heart.reputation": "Reputation",
   "screen.folkhold_world.village_heart.tier": "Tier",
   "screen.folkhold_world.village_heart.effective": "Effective value",
   "screen.folkhold_world.village_heart.value": "%s / %s",
@@ -183,5 +183,6 @@
   "screen.folkhold_world.village_heart.claimed_cells": "Claimed cells",
   "entity.folkhold_world.village_cat": "Village Cat",
   "folkhold_world.configuration.reputationHitCat": "Hit a village cat",
-  "folkhold_world.configuration.reputationKillCat": "Kill a village cat"
+  "folkhold_world.configuration.reputationKillCat": "Kill a village cat",
+  "screen.folkhold_world.village_heart.empty": "No information"
 }
