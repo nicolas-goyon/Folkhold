@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import java.util.Collections;
 import java.util.SplittableRandom;
 import java.util.UUID;
 import net.minecraft.gametest.framework.GameTest;
@@ -70,12 +71,15 @@ public final class EconomyGameTests {
         helper.succeed();
     }
 
-    /** A cycle produces items, feeds the population and gives a prosperity. */
+    /** A cycle of a village of farmers produces wheat, feeds the population and gives a prosperity. */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "economy_cycle")
     public static void cycleProducesAndFeeds(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement settlement = settlement(server, 620, 3);
         Economies.initialize(server, settlement);
+        // Only farmers: the test does not depend on the random jobs.
+        int slots = LevelTables.get().traits(3).jobSlots();
+        settlement.economy().setJobs(Collections.nCopies(slots, "folkhold_world:farmer"));
 
         CycleReport report = Economies.runCycle(server, settlement, new SplittableRandom(1));
         double prosperity = Economies.prosperity(server, settlement);
