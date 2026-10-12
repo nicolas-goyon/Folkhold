@@ -1,7 +1,9 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
@@ -14,11 +16,13 @@ import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SplittableRandom;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -29,6 +33,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -51,6 +56,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String GARRISON_TAG = "Garrison";
     /** The heart checks its garrison every 2 seconds. */
     private static final int GARRISON_INTERVAL = 40;
+    /** The heart checks the rotation of the archers every 20 seconds. */
+    private static final int ROTATION_INTERVAL = 400;
     /** The heart checks the end of the alert once each second. */
     private static final int CHECK_INTERVAL = 20;
 
@@ -216,11 +223,91 @@ public class VillageHeartBlockEntity extends BlockEntity {
         private long lastTick;
     }
 
-    /** Changes the alert state and saves the change. */
+    /**
+     * Changes the alert state and saves the change. When the village leaves the calm state, each archer goes to the
+     * nearest free tower (see {@link #assignAlertPosts()}).
+     */
     public void setAlertState(AlertState state) {
         if (alertState != state) {
+            boolean wasCalm = alertState == AlertState.CALM;
             alertState = state;
             setChanged();
+            if (wasCalm) {
+                assignAlertPosts();
+            }
+        }
+    }
+
+    /** The loaded archers of the village. */
+    private List<ArcherEntity> archers() {
+        return getUnits().stream().filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();
+    }
+
+    private List<PostAssignment.Post> postList() {
+        List<PostAssignment.Post> result = new ArrayList<>();
+        for (int i = 0; i < layout.posts().size(); i++) {
+            BlockPos post = layout.posts().get(i);
+            int view = i < layout.views().size() ? layout.views().get(i) : 0;
+            result.add(new PostAssignment.Post(post.getX(), post.getY(), post.getZ(), view));
+        }
+        return result;
+    }
+
+    private void movePost(FactionUnit unit, BlockPos post) {
+        if (!post.equals(unit.getPostPos())) {
+            unit.setPostPos(post);
+            unit.setHomePos(post);
+            garrison.setPost(unit.getUUID(), post);
+            setChanged();
+        }
+    }
+
+    /**
+     * Each loaded archer goes to the nearest free valid tower. If possible, only one archer goes on each tower.
+     */
+    public void assignAlertPosts() {
+        if (!layout.isScanned()) {
+            return;
+        }
+        List<ArcherEntity> archers = archers();
+        List<PostAssignment.Position> positions = archers.stream()
+                .map(archer -> new PostAssignment.Position(archer.getBlockX(), archer.getBlockY(), archer.getBlockZ()))
+                .toList();
+        int[] posts = PostAssignment.assignNearest(positions, postList(), VillageLayout.MIN_VIEW);
+        for (int i = 0; i < archers.size(); i++) {
+            if (posts[i] >= 0) {
+                movePost(archers.get(i), layout.posts().get(posts[i]));
+            }
+        }
+    }
+
+    /**
+     * Calm rotation: each loaded archer moves to another free valid tower with the given chance. The view score
+     * of a tower is its weight.
+     *
+     * @param random the random source
+     * @param chance the chance for each archer to move (0 to 1)
+     */
+    public void rotateArchers(RandomSource random, double chance) {
+        if (!layout.isScanned()) {
+            return;
+        }
+        List<PostAssignment.Post> posts = postList();
+        List<ArcherEntity> archers = archers();
+        for (ArcherEntity archer : archers) {
+            if (archer.getTarget() != null || random.nextDouble() >= chance) {
+                continue;
+            }
+            Set<Integer> taken = new HashSet<>();
+            for (ArcherEntity other : archers) {
+                if (other != archer && other.getPostPos() != null) {
+                    taken.add(layout.posts().indexOf(other.getPostPos()));
+                }
+            }
+            int current = archer.getPostPos() == null ? -1 : layout.posts().indexOf(archer.getPostPos());
+            SplittableRandom pick = new SplittableRandom(random.nextLong());
+            PostAssignment.pickCalm(posts, taken, current, VillageLayout.MIN_VIEW, pick)
+                    .ifPresent(index -> movePost(archer, layout.posts().get(index)));
         }
     }
 
@@ -313,7 +400,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
             setChanged();
         }
         if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
-                layout.posts())) {
+                layout.validPosts())) {
             setChanged();
         }
     }
@@ -463,6 +550,11 @@ public class VillageHeartBlockEntity extends BlockEntity {
             if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {
                 heart.ensureGarrison(level.getGameTime());
             }
+        }
+        int rotationSeconds = WorldConfig.ARCHER_ROTATION_SECONDS.get();
+        if (rotationSeconds > 0 && heart.alertState == AlertState.CALM && heart.layout.isScanned()
+                && level.getGameTime() % ROTATION_INTERVAL == 0) {
+            heart.rotateArchers(level.random, (double) ROTATION_INTERVAL / (rotationSeconds * 20.0));
         }
         if (heart.layout.isScanned() && level.isNight() != heart.nightMode) {
             heart.applyDayNight(level.isNight());

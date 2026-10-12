@@ -166,4 +166,52 @@ public final class VillageStructureGameTests {
         helper.assertTrue(posts == 0, posts + " window panes do not connect to the wall on their two sides");
         helper.succeed();
     }
+
+    /** In an alert, two archers on the same tower go to two different towers. */
+    @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_archer_alert")
+    public static void alertSendsArchersToDifferentTowers(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = findHeart(helper);
+        heart.ensureGarrison(helper.getLevel().getGameTime());
+        List<ArcherEntity> archers = heart.getUnits().stream()
+                .filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();
+        BlockPos first = heart.getLayout().validPosts().get(0);
+        for (ArcherEntity archer : archers) {
+            archer.setPostPos(first);
+            archer.moveTo(first.getX() + 0.5, first.getY(), first.getZ() + 0.5);
+        }
+
+        heart.assignAlertPosts();
+
+        long distinct = archers.stream().map(FactionUnit::getPostPos).distinct().count();
+        List<BlockPos> validPosts = heart.getLayout().validPosts();
+        boolean valid = archers.stream().allMatch(archer -> validPosts.contains(archer.getPostPos()));
+        heart.getUnits().forEach(Entity::discard);
+        helper.assertTrue(archers.size() >= 2, "The garrison must have 2 archers or more");
+        helper.assertTrue(distinct == archers.size(), "Each archer must have its own tower");
+        helper.assertTrue(valid, "Each archer must have a valid tower");
+        helper.succeed();
+    }
+
+    /** In the calm rotation, each archer moves to another free tower. */
+    @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_archer_rotation")
+    public static void calmRotationMovesTheArchers(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = findHeart(helper);
+        heart.ensureGarrison(helper.getLevel().getGameTime());
+        List<ArcherEntity> archers = heart.getUnits().stream()
+                .filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();
+        List<BlockPos> before = archers.stream().map(FactionUnit::getPostPos).toList();
+
+        heart.rotateArchers(helper.getLevel().random, 1.0);
+
+        List<BlockPos> after = archers.stream().map(FactionUnit::getPostPos).toList();
+        boolean moved = true;
+        for (int i = 0; i < archers.size(); i++) {
+            moved &= !after.get(i).equals(before.get(i));
+        }
+        long distinct = after.stream().distinct().count();
+        heart.getUnits().forEach(Entity::discard);
+        helper.assertTrue(moved, "Each archer must move to another tower: " + before + " -> " + after);
+        helper.assertTrue(distinct == archers.size(), "Two archers must not share a tower");
+        helper.succeed();
+    }
 }
