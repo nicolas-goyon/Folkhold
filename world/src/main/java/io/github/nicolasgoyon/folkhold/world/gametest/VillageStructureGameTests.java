@@ -12,7 +12,9 @@ import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
+import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -31,7 +33,9 @@ import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.IronBarsBlock;
 import net.minecraft.world.level.block.entity.BellBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -280,5 +284,72 @@ public final class VillageStructureGameTests {
         helper.assertTrue(anchored, "Each cat must have an anchor of the village");
         helper.assertTrue(!tamed, "The player must not tame a village cat");
         helper.succeed();
+    }
+
+    /**
+     * An archer with a new tower walks to it: down the stair of its tower, across the compound and up the stair of
+     * the new tower. The archer does not move directly to the post.
+     */
+    @GameTest(template = "village/center", timeoutTicks = 1200, batch = "village_archer_walk")
+    public static void archerWalksToANewTower(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = findHeart(helper);
+        heart.ensureGarrison(helper.getLevel().getGameTime());
+        List<ArcherEntity> archers = heart.getUnits().stream()
+                .filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();
+        helper.assertTrue(!archers.isEmpty(), "The garrison must have an archer");
+        ArcherEntity archer = archers.get(0);
+        heart.getUnits().stream().filter(unit -> unit != archer).forEach(Entity::discard);
+        heart.getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
+        BlockPos start = archer.getPostPos();
+        // The rotation occurs when the archer stands on its post (after the first ticks).
+        helper.runAfterDelay(10, () -> {
+            heart.rotateArchers(helper.getLevel().random, 1.0);
+            if (archer.getPostPos() == null || archer.getPostPos().equals(start)) {
+                helper.fail("The archer must get another tower");
+            }
+        });
+
+        int groundY = heart.getBlockPos().getY();
+        double[] last = {archer.getX(), archer.getY(), archer.getZ()};
+        // seen[0]: the archer was on the ground of the compound. seen[1]: the archer moved more than 2 blocks in 1 tick.
+        boolean[] seen = {false, false};
+        // The last states of the archer, for the message of a failure.
+        ArrayDeque<String> history = new ArrayDeque<>();
+        String[] jump = {""};
+        helper.onEachTick(() -> {
+            double dx = archer.getX() - last[0];
+            double dy = archer.getY() - last[1];
+            double dz = archer.getZ() - last[2];
+            if (dx * dx + dy * dy + dz * dz > 4.0 && !seen[1]) {
+                seen[1] = true;
+                jump[0] = String.format(Locale.ROOT, " (%.1f %.1f %.1f -> %s, post %s, start %s; %s)",
+                        last[0], last[1], last[2], archer.blockPosition().toShortString(),
+                        archer.getPostPos() == null ? "none" : archer.getPostPos().toShortString(),
+                        start.toShortString(), String.join(" | ", history));
+            }
+            last[0] = archer.getX();
+            last[1] = archer.getY();
+            last[2] = archer.getZ();
+            if (archer.getBlockY() <= groundY + 1) {
+                seen[0] = true;
+            }
+            Path path = archer.getNavigation().getPath();
+            history.addLast(archer.blockPosition().toShortString() + " ground=" + archer.onGround() + " path="
+                    + (path == null ? "null" : path.getEndNode() + "/" + path.canReach() + "/" + path.isDone())
+                    + " target=" + archer.getTarget());
+            if (history.size() > 6) {
+                history.removeFirst();
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertFalse(seen[1], "The archer must walk, not move directly to the post" + jump[0]);
+            BlockPos post = archer.getPostPos();
+            helper.assertTrue(post != null && !post.equals(start), "The archer must have another tower");
+            helper.assertTrue(archer.distanceToSqr(Vec3.atBottomCenterOf(post)) <= 4.0,
+                    "The archer must arrive at the new post");
+            helper.assertTrue(seen[0], "The archer must walk on the ground of the compound");
+            archer.discard();
+        });
     }
 }

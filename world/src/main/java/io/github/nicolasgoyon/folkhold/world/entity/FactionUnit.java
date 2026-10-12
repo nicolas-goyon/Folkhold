@@ -100,11 +100,10 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     static final int UNREACHABLE_TICKS = 200;
     /** A path goes to the target when its end is nearer than this distance to the target, in blocks. */
     private static final double PATH_TARGET_DISTANCE = 3.0;
-    /** A unit at the foot of the tower of its post climbs after this time. */
-    static final int CLIMB_TICKS = 40;
+    /** A unit on the way to its post moves to it after this time with no path. */
+    static final int NO_PATH_TICKS = 60;
     /** A unit on the way to its post moves to it after this time. */
     static final int POST_TRAVEL_MAX_TICKS = 600;
-    private static final double CLIMB_RADIUS_SQR = 9.0;
     private static final double POST_ARRIVED_SQR = 4.0;
     /** Radius around the post while the village is not calm, in blocks. */
     private static final int POST_RADIUS = 2;
@@ -133,6 +132,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private int unreachableTicks;
     /** Time in ticks on the way to the post. Not saved. */
     private int postTravelTicks;
+    private int noPathTicks;
 
     protected FactionUnit(EntityType<? extends FactionUnit> type, Level level) {
         super(type, level);
@@ -337,24 +337,29 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * A unit on the way to its post climbs to it. The path finder does not use ladders, so the unit cannot walk up
-     * a tower. When the unit is at the foot of the tower for {@link #CLIMB_TICKS}, or on the way for
-     * {@link #POST_TRAVEL_MAX_TICKS}, it moves to the post.
+     * A unit on the way to its post walks to it. The towers of the village have stairs, so the path finder can find
+     * a path to the post. If the unit has no path for {@link #NO_PATH_TICKS} (for example a post with a ladder
+     * only), or is on the way for {@link #POST_TRAVEL_MAX_TICKS}, it moves directly to the post.
      */
     private void updatePostTravel(@Nullable LivingEntity target) {
         BlockPos post = getPostPos();
         if (post == null || target != null || distanceToSqr(Vec3.atBottomCenterOf(post)) <= POST_ARRIVED_SQR) {
             postTravelTicks = 0;
+            noPathTicks = 0;
             return;
         }
         postTravelTicks++;
-        double dx = getX() - (post.getX() + 0.5);
-        double dz = getZ() - (post.getZ() + 0.5);
-        boolean atFoot = dx * dx + dz * dz <= CLIMB_RADIUS_SQR;
-        if (atFoot && postTravelTicks > CLIMB_TICKS || postTravelTicks > POST_TRAVEL_MAX_TICKS) {
+        Path path = getNavigation().getPath();
+        if (path == null || getNavigation().isDone()) {
+            noPathTicks++;
+        } else {
+            noPathTicks = 0;
+        }
+        if (noPathTicks > NO_PATH_TICKS || postTravelTicks > POST_TRAVEL_MAX_TICKS) {
             getNavigation().stop();
             moveTo(post.getX() + 0.5, post.getY(), post.getZ() + 0.5, getYRot(), getXRot());
             postTravelTicks = 0;
+            noPathTicks = 0;
         }
     }
 
