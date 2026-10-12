@@ -86,6 +86,11 @@ hash = "709bfedec583aee1370ad11210b75a454b1e3f10c0a1da7fe25abd1c28a8681d"
 metafile = true
 
 [[files]]
+file = "mods/reeses-sodium-options.pw.toml"
+hash = "8690379014fbba53059759936c7deb4d62aabc7a2006da3d45929dc582b119b7"
+metafile = true
+
+[[files]]
 file = "mods/serene-seasons.pw.toml"
 hash = "f8ee1a1a3f4658aebb894eb6a4dd656514cececbc03b209c43a1c72dabc09b04"
 metafile = true
