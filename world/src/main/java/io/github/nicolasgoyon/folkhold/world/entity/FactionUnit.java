@@ -33,6 +33,7 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.ItemStack;
@@ -64,7 +65,8 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  * </ul>
  *
  * <p>A unit chases a target only in its chase area (see {@link #isInChaseArea}). When the unit or its target
- * leaves the area, the unit stops the chase, ignores all targets for {@link #GIVE_UP_TICKS} and goes back.
+ * leaves the area, the unit stops the chase, ignores all targets for {@link #GIVE_UP_TICKS} and goes back. The unit
+ * also stops the chase after {@link #UNREACHABLE_TICKS} with no path to the target and no line of sight to it.
  *
  * <p>The attributes come from the config of the unit type when the unit spawns.
  */
@@ -91,6 +93,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final double ROUT_SPEED = 1.3;
     /** After the end of a chase at the limit of the chase area, the unit ignores all targets for this time. */
     static final int GIVE_UP_TICKS = 100;
+    /** A unit stops the chase after this time with no path to its target and no line of sight to it. */
+    static final int UNREACHABLE_TICKS = 200;
     /** Radius around the post while the village is not calm, in blocks. */
     private static final int POST_RADIUS = 2;
 
@@ -114,6 +118,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private long routedUntil;
     /** Game time until which the unit ignores all targets, after the end of a chase. Not saved. */
     private long gaveUpUntil;
+    /** Time in ticks with no path to the target and no line of sight to it. Not saved. */
+    private int unreachableTicks;
 
     protected FactionUnit(EntityType<? extends FactionUnit> type, Level level) {
         super(type, level);
@@ -314,6 +320,21 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return factionId.equals(FactionData.get(server).ownerAt(pos).id());
     }
 
+    /**
+     * True if the unit cannot reach its target: no line of sight, and the path does not go to the target (or
+     * the unit has no path and is not near the target).
+     */
+    private boolean isUnreachable(LivingEntity target) {
+        if (getSensing().hasLineOfSight(target)) {
+            return false;
+        }
+        Path path = getNavigation().getPath();
+        if (path != null) {
+            return !path.canReach();
+        }
+        return getNavigation().isDone() && distanceToSqr(target) > 9.0;
+    }
+
     /** Stops the chase: the unit drops its target and ignores all targets for {@link #GIVE_UP_TICKS}. */
     private void giveUpChase() {
         super.setTarget(null);
@@ -403,6 +424,14 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
                 || (tickCount % 10 == 0 && (!isInTerritory(target.blockPosition()) || !isInTerritory(blockPosition()))))) {
             giveUpChase();
             target = null;
+        }
+        if (target != null && isUnreachable(target)) {
+            if (++unreachableTicks > UNREACHABLE_TICKS) {
+                giveUpChase();
+                target = null;
+            }
+        } else {
+            unreachableTicks = 0;
         }
         if (target != null) {
             LivingEntity threat = target;
