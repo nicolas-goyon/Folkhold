@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
@@ -89,26 +90,27 @@ public final class MerchantGameTests {
         helper.succeed();
     }
 
-    /** The player sells wheat that the village needs: the wheat goes into the stock, the treasury pays. */
+    /** The player sells an item that the village needs: the item goes into the stock, the treasury pays. */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "merchant_buy")
     public static void playerSellsWhatTheVillageNeeds(GameTestHelper helper) {
         Village village = village(helper);
         MinecraftServer server = helper.getLevel().getServer();
-        village.settlement().economy().stock().set("minecraft:wheat", 0);
         village.settlement().setProgress(20, 0);
         SettlementData data = SettlementData.get(server);
         long treasury = data.treasury(village.settlement().factionId());
 
         MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL);
-        MerchantOffer wheat = offers.stream().filter(offer -> offer.getCostA().is(Items.WHEAT)
-                && offer.getResult().is(Items.EMERALD)).findFirst().orElse(null);
-        helper.assertTrue(wheat != null, "The merchant must buy wheat");
-        Merchants.applyTrade(server, village.settlement(), wheat);
+        MerchantOffer purchase = offers.stream().filter(offer -> offer.getResult().is(Items.EMERALD)).findFirst()
+                .orElse(null);
+        helper.assertTrue(purchase != null, "The merchant must buy an item that the village needs");
+        String item = BuiltInRegistries.ITEM.getKey(purchase.getCostA().getItem()).toString();
+        int before = village.settlement().economy().stock().count(item);
+        Merchants.applyTrade(server, village.settlement(), purchase);
 
-        int stock = village.settlement().economy().stock().count("minecraft:wheat");
+        int stock = village.settlement().economy().stock().count(item);
         long after = data.treasury(village.settlement().factionId());
-        helper.assertTrue(stock == wheat.getCostA().getCount(), "The wheat must go into the stock, not " + stock);
-        helper.assertTrue(after == treasury - wheat.getResult().getCount(), "The treasury must pay the emeralds");
+        helper.assertTrue(stock == before + purchase.getCostA().getCount(), "The item must go into the stock");
+        helper.assertTrue(after == treasury - purchase.getResult().getCount(), "The treasury must pay the emeralds");
         helper.succeed();
     }
 
