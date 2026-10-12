@@ -144,7 +144,7 @@
   "screen.folkhold_world.village_heart.position_value": "X %s, Z %s",
   "screen.folkhold_world.village_heart.garrison": "Garnison",
   "screen.folkhold_world.village_heart.units": "%s / %s en vie, %s morts",
-  "screen.folkhold_world.village_heart.reputation": "Ta réputation",
+  "screen.folkhold_world.village_heart.reputation": "Réputation",
   "screen.folkhold_world.village_heart.tier": "Niveau",
   "screen.folkhold_world.village_heart.effective": "Valeur effective",
   "screen.folkhold_world.village_heart.value": "%s / %s",
@@ -183,5 +183,6 @@
   "screen.folkhold_world.village_heart.claimed_cells": "Cellules revendiquées",
   "entity.folkhold_world.village_cat": "Chat du village",
   "folkhold_world.configuration.reputationHitCat": "Frapper un chat du village",
-  "folkhold_world.configuration.reputationKillCat": "Tuer un chat du village"
+  "folkhold_world.configuration.reputationKillCat": "Tuer un chat du village",
+  "screen.folkhold_world.village_heart.empty": "Aucune information"
 }
