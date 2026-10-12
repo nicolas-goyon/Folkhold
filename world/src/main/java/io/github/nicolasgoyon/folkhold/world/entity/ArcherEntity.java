@@ -2,7 +2,8 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.entity.ai.MoveToPostGoal;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.ReturnToAnchorGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitHurtByTargetGoal;
 import javax.annotation.Nullable;
 import net.minecraft.sounds.SoundEvents;
@@ -15,10 +16,8 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
-import net.minecraft.world.entity.ai.goal.MoveTowardsRestrictionGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.RangedAttackGoal;
-import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
@@ -66,10 +65,9 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(0, new FloatGoal(this));
-        goalSelector.addGoal(1, new MoveToPostGoal(this, 1.1));
         goalSelector.addGoal(2, new RangedAttackGoal(this, 1.0, ATTACK_INTERVAL, ATTACK_RADIUS));
-        goalSelector.addGoal(4, new MoveTowardsRestrictionGoal(this, 1.0));
-        goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.6));
+        goalSelector.addGoal(4, new ReturnToAnchorGoal(this, 1.0));
+        goalSelector.addGoal(5, new AnchorStrollGoal(this, 0.6));
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
 

@@ -6,7 +6,7 @@ Output: world/src/main/resources/data/folkhold_world/structure/village/*.nbt
     python3 tools/structures/village.py
 
 Pieces:
-- center.nbt: the walled compound. Palisade, 4 corner towers with an archer post, 2 gates, paths,
+- center.nbt: the walled compound. Palisade, 4 corner towers with an archer post and a low parapet, 2 gates, paths,
   a plaza with the village heart and 4 braziers. 4 jigsaw connectors for the house plots.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
 
@@ -67,15 +67,15 @@ def tower(t, rng, tx, tz):
                 else:
                     t.set(x, y, z, "minecraft:air")
             t.set(x, 7, z, "minecraft:spruce_planks")
+            # Low parapet: the archer shoots over it. Logs at the corners, slabs between them.
             if ring:
                 if corner:
                     t.set(x, 8, z, "minecraft:spruce_log", LOG_Y)
-                    t.set(x, 9, z, "minecraft:lantern", {"hanging": "false", "waterlogged": "false"})
                 else:
-                    t.set(x, 8, z, "minecraft:spruce_fence")
+                    t.set(x, 8, z, "minecraft:spruce_slab", {"type": "bottom", "waterlogged": "false"})
             else:
                 t.set(x, 8, z, "minecraft:air")
-                t.set(x, 9, z, "minecraft:air")
+            t.set(x, 9, z, "minecraft:air")
     # Arrow slits in the two outer faces.
     outer_x = tx if west_side else tx + TOWER - 1
     outer_z = tz if north_side else tz + TOWER - 1
@@ -92,6 +92,8 @@ def tower(t, rng, tx, tz):
         t.set(ladder_x, y, tz + 2, "minecraft:ladder", {"facing": ladder_facing, "waterlogged": "false"})
     # Archer post: the archer stands on the block above.
     t.set(tx + 2, 7, tz + 2, WATCH_POST)
+    # Light inside the tower, under the platform (not in the line of fire).
+    t.set(tx + 2, 6, tz + 2, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
 
 
 def palisade_column(t, rng, x, z, pointed):

@@ -73,7 +73,7 @@ def main():
         + compound_list("entities", [])
     )
     data = bytes([TAG_COMPOUND]) + name("") + root + bytes([TAG_END])
-    with gzip.open(args.output, "wb") as f:
+    with gzip.GzipFile(args.output, "wb", mtime=0) as f:
         f.write(data)
 
 

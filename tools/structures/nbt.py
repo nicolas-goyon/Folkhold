@@ -53,7 +53,8 @@ def _payload(value):
 def write_nbt(path, root):
     tag, data = _payload(root)
     assert tag == TAG_COMPOUND
-    with gzip.open(path, "wb") as out:
+    # mtime=0: the same content gives the same file, so Git sees no change.
+    with gzip.GzipFile(path, "wb", mtime=0) as out:
         out.write(bytes([TAG_COMPOUND]) + _name("") + data)
 
 
