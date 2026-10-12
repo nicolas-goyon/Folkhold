@@ -248,6 +248,16 @@ public abstract class FactionUnit extends PathfinderMob {
         return target.distanceToSqr(getHomePos().getCenter()) <= chase * chase;
     }
 
+    /**
+     * Advances the swing time of the arm. {@code Monster} does this in {@code aiStep}, {@code PathfinderMob}
+     * does not. Without it, the attack swing does not play.
+     */
+    @Override
+    public void aiStep() {
+        updateSwingTime();
+        super.aiStep();
+    }
+
     @Override
     protected void customServerAiStep() {
         super.customServerAiStep();
