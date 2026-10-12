@@ -21,6 +21,8 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
@@ -587,6 +589,26 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     }
 
     /** Units do not pick up items. */
+    /**
+     * The ambient sound of a calm unit: the vanilla villager sound for now. A unit with a target makes no ambient
+     * sound.
+     */
+    @Override
+    @Nullable
+    protected SoundEvent getAmbientSound() {
+        return getTarget() == null ? SoundEvents.VILLAGER_AMBIENT : null;
+    }
+
+    @Override
+    protected SoundEvent getHurtSound(DamageSource damageSource) {
+        return SoundEvents.VILLAGER_HURT;
+    }
+
+    @Override
+    protected SoundEvent getDeathSound() {
+        return SoundEvents.VILLAGER_DEATH;
+    }
+
     @Override
     public boolean canPickUpLoot() {
         return false;
