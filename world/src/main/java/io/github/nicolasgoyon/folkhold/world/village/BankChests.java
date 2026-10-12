@@ -89,8 +89,9 @@ public final class BankChests {
                 .orElse(null);
     }
 
+    /** True for a player in creative mode (instant build) or in spectator mode. */
     private static boolean isExempt(Player player) {
-        return player.isCreative() || player.isSpectator();
+        return player.getAbilities().instabuild || player.isSpectator();
     }
 
     /**
