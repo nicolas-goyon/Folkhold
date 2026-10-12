@@ -22,6 +22,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
+import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSpawnProtection;
 import net.neoforged.bus.api.IEventBus;
@@ -60,6 +61,8 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(BankChests::onExplosion);
         NeoForge.EVENT_BUS.addListener(Merchants::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(Merchants::onTrade);
+        NeoForge.EVENT_BUS.addListener(VillageFolk::onDeath);
+        NeoForge.EVENT_BUS.addListener(VillageFolk::onBabySpawn);
         NeoForge.EVENT_BUS.addListener(TerritoryMessages::onPlayerTick);
         NeoForge.EVENT_BUS.addListener(TerritoryMessages::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(TerritoryMessages::onServerStopped);

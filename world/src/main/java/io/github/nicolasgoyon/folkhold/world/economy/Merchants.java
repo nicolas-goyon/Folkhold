@@ -13,8 +13,8 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +38,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
-import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
 
@@ -263,10 +262,6 @@ public final class Merchants {
 
     /** A list of the loaded merchants of a village. */
     public static List<Villager> merchantsOf(ServerLevel level, BlockPos heartPos) {
-        double radius = WorldConfig.VILLAGE_RADIUS.get();
-        return new ArrayList<>(level.getEntitiesOfClass(Villager.class,
-                new AABB(heartPos).inflate(radius, 32.0, radius),
-                villager -> isMerchant(villager) && villager.getPersistentData().contains(VILLAGE_TAG)
-                        && villager.getPersistentData().getLong(VILLAGE_TAG) == heartPos.asLong()));
+        return VillageFolk.of(level, heartPos, ModProfessions.MERCHANT.get());
     }
 }

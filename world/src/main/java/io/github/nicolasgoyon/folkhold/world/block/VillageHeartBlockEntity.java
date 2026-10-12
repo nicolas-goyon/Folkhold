@@ -21,6 +21,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
+import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,9 +43,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BellBlock;
@@ -91,8 +90,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String NIGHT_TAG = "NightMode";
     private static final String CATS_TAG = "CatsSpawned";
     private static final String CAT_SPAWN_TAG = "LastCatSpawn";
-    private static final String MERCHANTS_TAG = "MerchantsSpawned";
-    private static final String MERCHANT_SPAWN_TAG = "LastMerchantSpawn";
+    private static final String VILLAGERS_TAG = "VillagersSpawned";
+    private static final String VILLAGER_SPAWN_TAG = "LastVillagerSpawn";
     private static final String FACTION_TAG = "Faction";
     private static final String NAME_TAG = "Name";
     /** Name of the village, or null before the village has a faction. */
@@ -109,10 +108,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean catsSpawned;
     /** Game time of the last creation of cats. */
     private long lastCatSpawn;
-    /** True after the first merchants of the village appeared. */
-    private boolean merchantsSpawned;
-    /** Game time of the last creation of merchants. */
-    private long lastMerchantSpawn;
+    /** True after the first villagers (merchants and inhabitants) of the village appeared. */
+    private boolean villagersSpawned;
+    /** Game time of the last creation of villagers. */
+    private long lastVillagerSpawn;
     /** Game time of the last ring of the bells. Not saved. */
     private long lastBellTick = Long.MIN_VALUE / 2;
     /** Game time of the last shared target. Not saved. */
@@ -468,7 +467,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }
-        if (alertState == AlertState.CALM && ensureMerchants(serverLevel, now)) {
+        if (alertState == AlertState.CALM && ensureVillagers(serverLevel, now)) {
             setChanged();
         }
         if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
@@ -554,40 +553,35 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Creates the missing merchants of the village (see {@link Merchants#merchantCount}). The first merchants
-     * appear at once. A dead merchant comes back after the refill delay of the garrison.
+     * Creates the missing villagers of the village: the merchants ({@link Merchants#merchantCount}), then the
+     * inhabitants ({@link VillageFolk#inhabitantCount}). The first villagers appear at once. A dead villager comes
+     * back after the refill delay of the garrison.
      *
      * @param serverLevel the level
      * @param now         the current game time
      * @return true if the heart must save
      */
-    private boolean ensureMerchants(ServerLevel serverLevel, long now) {
+    private boolean ensureVillagers(ServerLevel serverLevel, long now) {
         Optional<Settlement> settlement = Settlements.of(serverLevel.getServer(), this).filter(Settlement::isActive);
         if (settlement.isEmpty()) {
             return false;
         }
-        int missing = Merchants.merchantCount(settlement.get()) - Merchants.merchantsOf(serverLevel, worldPosition).size();
+        int missingMerchants = Merchants.merchantCount(settlement.get())
+                - VillageFolk.of(serverLevel, worldPosition, ModProfessions.MERCHANT.get()).size();
+        int missingInhabitants = VillageFolk.inhabitantCount(settlement.get())
+                - VillageFolk.of(serverLevel, worldPosition, ModProfessions.INHABITANT.get()).size();
         long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
-        if (missing <= 0 || merchantsSpawned && now - lastMerchantSpawn < refill) {
+        if (missingMerchants <= 0 && missingInhabitants <= 0 || villagersSpawned && now - lastVillagerSpawn < refill) {
             return false;
         }
-        for (int i = 0; i < missing; i++) {
-            Villager merchant = EntityType.VILLAGER.create(serverLevel);
-            if (merchant == null) {
-                continue;
-            }
-            BlockPos pos = Garrison.groundSpawnPos(serverLevel, worldPosition);
-            merchant.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5,
-                    serverLevel.random.nextFloat() * 360.0F, 0.0F);
-            merchant.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
-            merchant.setVillagerData(merchant.getVillagerData().setProfession(ModProfessions.MERCHANT.get()).setLevel(1));
-            // Experience above 0: the villager keeps its profession with no job site block.
-            merchant.setVillagerXp(1);
-            merchant.getPersistentData().putLong(Merchants.VILLAGE_TAG, worldPosition.asLong());
-            serverLevel.addFreshEntity(merchant);
+        for (int i = 0; i < missingMerchants; i++) {
+            VillageFolk.spawn(serverLevel, worldPosition, ModProfessions.MERCHANT.get());
         }
-        merchantsSpawned = true;
-        lastMerchantSpawn = now;
+        for (int i = 0; i < missingInhabitants; i++) {
+            VillageFolk.spawn(serverLevel, worldPosition, ModProfessions.INHABITANT.get());
+        }
+        villagersSpawned = true;
+        lastVillagerSpawn = now;
         return true;
     }
 
@@ -789,8 +783,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putBoolean(NIGHT_TAG, nightMode);
         tag.putBoolean(CATS_TAG, catsSpawned);
         tag.putLong(CAT_SPAWN_TAG, lastCatSpawn);
-        tag.putBoolean(MERCHANTS_TAG, merchantsSpawned);
-        tag.putLong(MERCHANT_SPAWN_TAG, lastMerchantSpawn);
+        tag.putBoolean(VILLAGERS_TAG, villagersSpawned);
+        tag.putLong(VILLAGER_SPAWN_TAG, lastVillagerSpawn);
         if (factionId != null) {
             tag.putString(FACTION_TAG, factionId);
         }
@@ -812,8 +806,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         nightMode = tag.getBoolean(NIGHT_TAG);
         catsSpawned = tag.getBoolean(CATS_TAG);
         lastCatSpawn = tag.getLong(CAT_SPAWN_TAG);
-        merchantsSpawned = tag.getBoolean(MERCHANTS_TAG);
-        lastMerchantSpawn = tag.getLong(MERCHANT_SPAWN_TAG);
+        villagersSpawned = tag.getBoolean(VILLAGERS_TAG);
+        lastVillagerSpawn = tag.getLong(VILLAGER_SPAWN_TAG);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
         villageName = tag.contains(NAME_TAG) ? tag.getString(NAME_TAG) : null;
     }

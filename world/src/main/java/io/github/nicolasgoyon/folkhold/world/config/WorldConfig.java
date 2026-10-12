@@ -35,6 +35,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue CAPTAIN_ROUT_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
+    public static final ModConfigSpec.IntValue MAX_INHABITANTS;
     public static final ModConfigSpec.IntValue ARCHER_ROTATION_SECONDS;
 
     public static final ModConfigSpec.DoubleValue REPUTATION_VILLAGE_WEIGHT;
@@ -164,6 +165,11 @@ public final class WorldConfig {
                 .comment("A heart creates its missing units only when a player is in this radius, in blocks.")
                 .translation(KEY_PREFIX + "garrisonActivationRadius")
                 .defineInRange("activationRadius", 64, 16, 256);
+        MAX_INHABITANTS = builder
+                .comment("Maximum number of inhabitants (villagers with no trades) in the world for each village.",
+                        "The number comes from the population of the settlement, minus the merchants.")
+                .translation(KEY_PREFIX + "maxInhabitants")
+                .defineInRange("maxInhabitants", 6, 0, 64);
         ARCHER_ROTATION_SECONDS = builder
                 .comment("Mean time in seconds that a calm archer stays on one tower before it moves to another tower.",
                         "0 turns off the rotation.")
