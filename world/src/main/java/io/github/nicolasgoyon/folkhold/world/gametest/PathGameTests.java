@@ -1,7 +1,11 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -80,8 +84,24 @@ public final class PathGameTests {
         Pig pig = target(helper, new BlockPos(11, 1, 11));
         guard.setTarget(pig);
 
-        TestSupport.succeedWhenAndRemove(helper, () -> helper.assertTrue(guard.getTarget() == null,
-                "The guard must stop the chase. " + chaseState(guard)), guard, pig);
+        List<String> history = new ArrayList<>();
+        TestSupport.succeedWhenAndRemove(helper, () -> {
+            if (guard.tickCount % 20 == 0) {
+                history.add(guard.tickCount + ": " + chaseState(guard) + ", counter " + counter(guard));
+            }
+            helper.assertTrue(guard.getTarget() == null, "The guard must stop the chase. History: " + history);
+        }, guard, pig);
+    }
+
+    /** The value of the unreachable counter of a unit, for the failure messages. */
+    private static String counter(GuardEntity guard) {
+        try {
+            Field field = FactionUnit.class.getDeclaredField("unreachableTicks");
+            field.setAccessible(true);
+            return String.valueOf(field.getInt(guard));
+        } catch (ReflectiveOperationException e) {
+            return "?";
+        }
     }
 
     /** The chase state of a unit, for the failure messages. */
