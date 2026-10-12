@@ -56,8 +56,28 @@ def merchant():
     return image
 
 
+def inhabitant():
+    """Brown tunic with a dot pattern and a dark belt."""
+    brown = (122, 86, 52, 255)
+    dot = (96, 66, 40, 255)
+    belt = (60, 40, 24, 255)
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    fill(image, BODY, brown)
+    x1, y1, x2, y2 = ROBE
+    fill(image, ROBE, brown)
+    for y in range(y1 + 1, y2, 3):
+        row = (y - y1 - 1) // 3
+        for x in range(x1, x2):
+            if (x - x1 + row) % 3 == 1:
+                image.putpixel((x, y), dot)
+    for x in range(x1, x2):
+        image.putpixel((x, 45), belt)
+    return image
+
+
 PROFESSIONS = {
     "merchant": merchant,
+    "inhabitant": inhabitant,
 }
 
 

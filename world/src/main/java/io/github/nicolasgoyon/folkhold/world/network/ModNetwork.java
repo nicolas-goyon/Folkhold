@@ -1,5 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.network;
 
+import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
+import io.github.nicolasgoyon.folkhold.world.client.AdminScreen;
 import io.github.nicolasgoyon.folkhold.world.client.BankPillageScreen;
 import io.github.nicolasgoyon.folkhold.world.client.ClientTerritory;
 import io.github.nicolasgoyon.folkhold.world.client.VillageHeartScreen;
@@ -30,6 +32,16 @@ public final class ModNetwork {
                 (payload, context) -> {
                     if (context.player() instanceof ServerPlayer player) {
                         BankChests.onConfirm(player, payload.pos());
+                    }
+                });
+        registrar.playToClient(AdminListPayload.TYPE, AdminListPayload.STREAM_CODEC,
+                (payload, context) -> AdminScreen.open(payload));
+        registrar.playToClient(AdminDetailsPayload.TYPE, AdminDetailsPayload.STREAM_CODEC,
+                (payload, context) -> AdminScreen.showDetails(payload));
+        registrar.playToServer(AdminActionPayload.TYPE, AdminActionPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    if (context.player() instanceof ServerPlayer player) {
+                        AdminActions.handle(player, payload);
                     }
                 });
     }
