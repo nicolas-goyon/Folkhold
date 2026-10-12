@@ -15,6 +15,8 @@ Pieces:
   always gets the bank (pool village/bank). The other plots get houses.
 
 Conventions: y = 0 is the ground layer (foundations, floors, paths). y = 1 is the first layer above ground.
+The center piece gets a foundation of FOUNDATION layers under its ground layer (see with_foundation). The
+structure start height is -FOUNDATION (worldgen/structure/village.json).
 """
 import os
 import random
@@ -116,8 +118,7 @@ def tower(t, rng, tx, tz):
             else:
                 t.set(x, 8, z, "minecraft:air")
             t.set(x, 9, z, "minecraft:air")
-    # Arrow slits in the two outer faces. The ladder is on the middle of the outer face along z,
-    # so the slits of this face are on each side of the ladder.
+    # Arrow slits in the two outer faces.
     outer_x = tx if west_side else tx + TOWER - 1
     outer_z = tz if north_side else tz + TOWER - 1
     t.set(outer_x, 4, tz + 1, "minecraft:air")
@@ -127,21 +128,43 @@ def tower(t, rng, tx, tz):
     inner_x = tx + TOWER - 1 if west_side else tx
     t.set(inner_x, 1, tz + 2, "minecraft:air")
     t.set(inner_x, 2, tz + 2, "minecraft:air")
-    # Ladder on the outer wall, up through the platform.
-    ladder_x = tx + 1 if west_side else tx + TOWER - 2
-    ladder_facing = "east" if west_side else "west"
-    for y in range(1, 8):
-        t.set(ladder_x, y, tz + 2, "minecraft:ladder", {"facing": ladder_facing, "waterlogged": "false"})
-    # Archer post: the archer stands on the block above.
+    spiral_stair(t, tx, tz, west_side)
+    # Archer post on the center pillar: the archer stands on the block above.
     t.set(tx + 2, 7, tz + 2, WATCH_POST)
-    # Light inside the tower, under the platform (not in the line of fire).
-    t.set(tx + 2, 6, tz + 2, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    # Light inside the tower, under the platform, above the first steps.
+    lamp_x = tx + 3 if west_side else tx + 1
+    t.set(lamp_x, 6, tz + 3, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
     # Light on the platform: a lantern on the inner corner log (the archer shoots to the outside).
     inner_z = tz + TOWER - 1 if north_side else tz
     t.set(inner_x, 9, inner_z, "minecraft:lantern", {"hanging": "false", "waterlogged": "false"})
     # Light above the door, on the side of the compound.
     door_side = "east" if west_side else "west"
     t.set(inner_x + (1 if west_side else -1), 3, tz + 2, *wall_torch(door_side))
+
+
+# The cells of the spiral stair in a west tower, as (dx, dz) inside the tower, from the door to the platform.
+# The first cell is the ground next to the door. Cell i is a column of i blocks. The last cell is at the level of
+# the platform.
+SPIRAL = [(3, 2), (3, 3), (2, 3), (1, 3), (1, 2), (1, 1), (2, 1), (3, 1)]
+PLATFORM_Y = 7
+
+
+def spiral_stair(t, tx, tz, west_side):
+    """Spiral stair of full blocks around the center pillar, from the door to the platform.
+
+    Mobs and players walk up and down it: each step is 1 block high, and each step has 3 blocks of free space
+    above it, so a mob can jump to the next step and walk down from it. The platform has an opening above the
+    high steps. The path finder does not use ladders.
+    """
+    for y in range(1, PLATFORM_Y):
+        t.set(tx + 2, y, tz + 2, "minecraft:spruce_log", LOG_Y)
+    for i, (dx, dz) in enumerate(SPIRAL):
+        x = tx + (dx if west_side else TOWER - 1 - dx)
+        z = tz + dz
+        for y in range(1, i + 1):
+            t.set(x, y, z, "minecraft:spruce_planks")
+        for y in range(i + 1, min(i + 4, PLATFORM_Y + 1)):
+            t.set(x, y, z, "minecraft:air")
 
 
 def palisade_column(t, rng, x, z, pointed):
@@ -192,6 +215,34 @@ def with_margin(t, margin):
     out = Template(sx + 2 * margin, sy, sz + 2 * margin)
     for (x, y, z), entry in t.blocks.items():
         out.blocks[(x + margin, y, z + margin)] = entry
+    return out
+
+
+FOUNDATION = 3
+SOLID_GROUND = ("minecraft:cobblestone", "minecraft:mossy_cobblestone", "minecraft:stone_bricks",
+                "minecraft:chiseled_stone_bricks")
+
+
+def with_foundation(t, margin):
+    """A copy of the template on a foundation of FOUNDATION layers, under the compound (not under the margin).
+
+    The ground layer of the compound becomes complete: grass blocks between the paths and the buildings. Under
+    the ground layer, the foundation is dirt, and cobblestone under the stone blocks (walls, towers, plaza). The
+    foundation fills the holes of the terrain under the village. The structure starts FOUNDATION blocks lower, so
+    the ground layer stays at the level of the terrain.
+    """
+    sx, sy, sz = t.size
+    out = Template(sx, sy + FOUNDATION, sz)
+    for (x, y, z), entry in t.blocks.items():
+        out.blocks[(x, y + FOUNDATION, z)] = entry
+    for x in range(margin, sx - margin):
+        for z in range(margin, sz - margin):
+            ground = out.get(x, FOUNDATION, z)
+            if ground is None:
+                out.set(x, FOUNDATION, z, "minecraft:grass_block", {"snowy": "false"})
+            below = "minecraft:cobblestone" if ground in SOLID_GROUND else "minecraft:dirt"
+            for y in range(FOUNDATION):
+                out.set(x, y, z, below)
     return out
 
 
@@ -274,7 +325,7 @@ def center():
         t.jigsaw(MID + 2, 1, z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
     t = with_margin(t, 1)
     outer_banners(t)
-    return t
+    return with_foundation(t, 1)
 
 
 # ---------------------------------------------------------------- houses
