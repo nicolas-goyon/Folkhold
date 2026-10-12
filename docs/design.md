@@ -18,7 +18,7 @@ Design principles:
 - **Stable states, not infinite curves.** Prices, populations and budgets move toward an equilibrium. A disturbance creates a story. Then the system returns to equilibrium.
 - **Less grind, not more farms.** Comfort comes from trade and NPCs, not from unlimited automation.
 - **Everything is configurable.** Each rule has a setting (config or datapack). Balance changes do not need a new build.
-- **Data-driven first.** Factions, NPC recipes, structures and quests are JSON files (datapacks). Code and content stay separate.
+- **Data-driven when stable.** Content (cultures, NPC recipes, structures, quests) starts in Java code. When a type of content is stable, it moves to JSON files in the mod jar, which a datapack can replace. Code and content stay separate.
 - **Two languages.** All text that the player sees exists in English and French. Code uses translation keys only.
 
 ## Base modpack
@@ -126,9 +126,13 @@ The mod stores all of this in a `SavedData` of the Overworld level. `Codec` obje
 
 **Phase 2 (later)**: wars between factions, sieges, patrols, bandits, armies and NPC-against-NPC conquests, on the same simulation.
 
-### Datapack parameters
+### Cultures
 
-Each faction is one file: `data/<namespace>/folkhold/factions/<id>.json` (culture, units, structures, traits, initial relations). A new faction needs no code.
+A culture is a template for factions: name, colors, banner, name syllables (for faction and village names). In J2, the cultures are Java definitions. When they are stable, each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
+
+The factions of a world are not static content. The mod creates them when the world starts, from the cultures, and saves them in the world.
+
+In J2, all cultures are human. Non-human cultures (illagers, piglins) come later.
 
 ## World mod: villages, NPCs, defense
 
@@ -378,6 +382,7 @@ The strategy:
 - Start from the existing vanilla models (villager, illager, player). Change only the texture. A new color or a uniform is enough to identify a faction.
 - Banners and faction colors come from code (vanilla banner patterns). No drawing is necessary.
 - Use Blockbench (free) for the few new models. It exports directly to the Minecraft format.
+- Animations of the faction units use GeckoLib (MIT license): a humanoid model and animation files made with Blockbench (attack wind-up and swing, shield block, bow draw, hit reaction). GeckoLib is a dependency of the world mod and is in the modpack.
 
 ### Buildings and villages
 
@@ -475,7 +480,7 @@ Notes:
 
 ### Open questions
 
-- [ ] Are hostile factions only human, or also non-human cultures (illagers, piglins)?
+- [x] Are hostile factions only human, or also non-human cultures (illagers, piglins)? Human only in J2. Non-human cultures later.
 - [ ] Can the player found a faction, or join an existing faction?
 - [ ] Is a multiplayer mode necessary, or is single-player sufficient? (The data already uses the player UUID.)
 - [ ] Publish the mods on Modrinth later, or personal use only? (This changes the asset licenses.)
