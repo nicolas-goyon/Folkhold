@@ -5,18 +5,27 @@ import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Content of a bank chest while a player looks at it. The content comes from the stocks of the village when the
- * player opens the chest (see {@link BankChests#open}). When the player closes the chest, the changes go back to
- * the stocks and to the treasury. The content is not saved.
+ * Content of a bank chest.
+ *
+ * <ul>
+ *   <li>Active village: the content is a view of the stocks. It comes from the stocks of the village when the player
+ *       opens the chest (see {@link BankChests}). When the player closes the chest, the changes go back to the stocks
+ *       and to the treasury, and the chest becomes empty.</li>
+ *   <li>No active village (ruins): the chest holds real items, as a normal chest. The content is saved.</li>
+ * </ul>
  */
 public class BankChestBlockEntity extends BlockEntity {
     public static final int SIZE = 27;
+    private static final String ITEMS_TAG = "Items";
 
     private final Map<String, Integer> snapshot = new HashMap<>();
     private final SimpleContainer container = new SimpleContainer(SIZE) {
@@ -31,7 +40,24 @@ public class BankChestBlockEntity extends BlockEntity {
         super(ModBlockEntities.BANK_CHEST.get(), pos, state);
     }
 
-    /** The items of the chest while a player looks at it. */
+    @Override
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
+        if (!container.isEmpty()) {
+            tag.put(ITEMS_TAG, container.createTag(registries));
+        }
+    }
+
+    @Override
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+        container.clearContent();
+        if (tag.contains(ITEMS_TAG, Tag.TAG_LIST)) {
+            container.fromTag(tag.getList(ITEMS_TAG, Tag.TAG_COMPOUND), registries);
+        }
+    }
+
+    /** The items of the chest. */
     public SimpleContainer container() {
         return container;
     }

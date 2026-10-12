@@ -3,15 +3,22 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -26,6 +33,8 @@ public final class RuinsGameTests {
 
     private RuinsGameTests() {
     }
+
+    private static final BlockPos CHEST = new BlockPos(3, 1, 12);
 
     private record Village(Settlement settlement, CaptainEntity captain) {
     }
@@ -71,6 +80,93 @@ public final class RuinsGameTests {
 
         helper.assertTrue(activeAfterHeart, "The village must stay active while its captain lives");
         helper.assertTrue(village.settlement().state() == SettlementState.RUINS, "The village must be ruins");
+        helper.succeed();
+    }
+
+    /** Counts the items of the bank chest of the test. */
+    private static int count(GameTestHelper helper, Item item) {
+        BankChestBlockEntity chest = helper.getBlockEntity(CHEST);
+        int total = 0;
+        for (int slot = 0; slot < chest.container().getContainerSize(); slot++) {
+            ItemStack stack = chest.container().getItem(slot);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    /**
+     * A village with a bank chest, 10 bread in the stock and 100 emeralds in the treasury. The captain dies, then
+     * the heart breaks: the village becomes ruins.
+     */
+    private record RuinedBank(Village village, int share) {
+    }
+
+    private static RuinedBank ruinedVillageWithBank(GameTestHelper helper) {
+        Village village = village(helper);
+        helper.setBlock(CHEST, ModBlocks.BANK_CHEST.get());
+        SettlementData data = SettlementData.get(helper.getLevel().getServer());
+        String faction = village.settlement().factionId();
+        data.addTreasury(faction, 100 - data.treasury(faction));
+        village.settlement().economy().stock().set("minecraft:bread", 10);
+        int share = BankChests.emeraldShare(helper.getLevel().getServer(), village.settlement());
+        village.captain().kill();
+        helper.setBlock(HEART, Blocks.AIR);
+        return new RuinedBank(village, share);
+    }
+
+    /** The stock and the share of the treasury go into the bank chest. In ruins, the chest keeps its items. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "ruins_bank")
+    public static void ruinsKeepTheBankContent(GameTestHelper helper) {
+        RuinedBank ruined = ruinedVillageWithBank(helper);
+        Village village = ruined.village();
+        int share = ruined.share();
+        SettlementData data = SettlementData.get(helper.getLevel().getServer());
+        int bread = count(helper, Items.BREAD);
+        int emeralds = count(helper, Items.EMERALD);
+        int stock = village.settlement().economy().stock().count("minecraft:bread");
+        long treasury = data.treasury(village.settlement().factionId());
+
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        BankChests.onClose(helper.getBlockEntity(CHEST), player);
+        int afterClose = count(helper, Items.BREAD);
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.setBlock(CHEST, Blocks.AIR);
+
+        helper.assertTrue(village.settlement().state() == SettlementState.RUINS, "The village must be ruins");
+        helper.assertTrue(bread == 10 && stock == 0, "The 10 bread must go from the stock into the chest, found "
+                + bread + " in the chest and " + stock + " in the stock");
+        helper.assertTrue(emeralds == share && treasury == 100 - share, "Expected " + share
+                + " emeralds in the chest, found " + emeralds + " (treasury " + treasury + ")");
+        helper.assertTrue(afterClose == 10, "In ruins, the chest must keep its items when it closes");
+        helper.assertItemEntityPresent(Items.BREAD, CHEST, 2.0);
+        helper.killAllEntitiesOfClass(ItemEntity.class);
+        helper.succeed();
+    }
+
+    /** Restore: the settlement is active, a heart of the same settlement is back, the bank items go back. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "ruins_restore")
+    public static void restoreBringsBackHeartAndBank(GameTestHelper helper) {
+        Village village = ruinedVillageWithBank(helper).village();
+        SettlementData data = SettlementData.get(helper.getLevel().getServer());
+        String faction = village.settlement().factionId();
+
+        BlockPos heartPos = Settlements.restore(helper.getLevel(), village.settlement());
+
+        boolean heart = helper.getLevel().getBlockEntity(heartPos) instanceof VillageHeartBlockEntity found
+                && found.getVillageId().toString().equals(village.settlement().id());
+        int stock = village.settlement().economy().stock().count("minecraft:bread");
+        int inChest = count(helper, Items.BREAD) + count(helper, Items.EMERALD);
+        long treasury = data.treasury(faction);
+        helper.setBlock(CHEST, Blocks.AIR);
+
+        helper.assertTrue(village.settlement().isActive(), "The village must be active");
+        helper.assertTrue(heartPos.equals(helper.absolutePos(HEART)) && heart,
+                "A heart of the same settlement must be at the position of the heart");
+        helper.assertTrue(stock == 10, "The bread must go back into the stock, found " + stock);
+        helper.assertTrue(treasury == 100, "The emeralds must go back into the treasury, found " + treasury);
+        helper.assertTrue(inChest == 0, "The chest must be empty");
         helper.succeed();
     }
 }

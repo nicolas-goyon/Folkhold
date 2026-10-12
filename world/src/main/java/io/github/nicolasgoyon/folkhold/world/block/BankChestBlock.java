@@ -4,6 +4,7 @@ import com.mojang.serialization.MapCodec;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -16,7 +17,7 @@ import net.minecraft.world.phys.BlockHitResult;
 
 /**
  * Bank chest: a chest of the village bank. It shows the stocks of the village and a part of the treasury of its
- * faction. To open or break it is a pillage (see {@link BankChests}).
+ * faction. To open or break it is a pillage (see {@link BankChests}). In ruins, it is a normal chest.
  */
 public class BankChestBlock extends BaseEntityBlock {
     public static final MapCodec<BankChestBlock> CODEC = simpleCodec(BankChestBlock::new);
@@ -39,6 +40,16 @@ public class BankChestBlock extends BaseEntityBlock {
     @Override
     protected RenderShape getRenderShape(BlockState state) {
         return RenderShape.MODEL;
+    }
+
+    /** With no active village, the chest drops its items (see {@link BankChests#onChestRemoved}). */
+    @Override
+    protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
+        if (!state.is(newState.getBlock()) && level instanceof ServerLevel serverLevel
+                && level.getBlockEntity(pos) instanceof BankChestBlockEntity chest) {
+            BankChests.onChestRemoved(serverLevel, pos, chest);
+        }
+        super.onRemove(state, level, pos, newState, movedByPiston);
     }
 
     @Override

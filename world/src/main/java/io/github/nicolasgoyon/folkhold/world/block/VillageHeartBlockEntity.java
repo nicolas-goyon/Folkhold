@@ -428,8 +428,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Gives the id, the faction and the name of the settlement to the heart. Only {@link Settlements#bind} calls
-     * this method.
+     * Gives the id, the faction and the name of the settlement to the heart. {@link Settlements#bind} calls this
+     * method, and {@link Settlements#restore} calls it before the binding, so that a new heart links to the
+     * settlement it restores.
      *
      * @param id        the id of the settlement
      * @param faction   the id of the faction of the settlement
