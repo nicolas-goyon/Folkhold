@@ -60,11 +60,16 @@ public final class GuardGameTests {
                 () -> helper.assertTrue(!husk.isAlive(), "The husk is still alive"), guard);
     }
 
-    /** A guard drops a target that is farther than the chase radius from its home position. */
+    /**
+     * A guard without a village drops a target when the guard is farther than the chase radius from its home
+     * position. The test removes the village of the guard: a heart of another test can be in the village radius.
+     */
     @GameTest(template = "arena", timeoutTicks = 100, batch = "guard_chase")
     public static void guardDropsTargetOutsideChaseRadius(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(3, 1, 3));
+        guard.setVillagePos(null);
+        guard.setFactionId(null);
         guard.setHomePos(helper.absolutePos(new BlockPos(3, 1, 3)).offset(WorldConfig.CHASE_RADIUS.get() * 4, 0, 0));
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(6, 1, 3));
         guard.setTarget(husk);
