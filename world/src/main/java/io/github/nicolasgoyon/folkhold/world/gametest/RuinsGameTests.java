@@ -100,7 +100,18 @@ public final class RuinsGameTests {
      * A village with a bank chest, 10 bread in the stock and 100 emeralds in the treasury. The captain dies, then
      * the heart breaks: the village becomes ruins.
      */
-    private record RuinedBank(Village village, int share) {
+    /**
+     * @param village  the village
+     * @param share    the emeralds of the treasury in the bank before the ruin
+     * @param treasury the treasury of the faction before the test: each test puts it back at the end, because the
+     *                 other tests use the same factions
+     */
+    private record RuinedBank(Village village, int share, long treasury) {
+        void restoreTreasury(GameTestHelper helper) {
+            SettlementData data = SettlementData.get(helper.getLevel().getServer());
+            String faction = village.settlement().factionId();
+            data.addTreasury(faction, treasury - data.treasury(faction));
+        }
     }
 
     private static RuinedBank ruinedVillageWithBank(GameTestHelper helper) {
@@ -108,12 +119,13 @@ public final class RuinsGameTests {
         helper.setBlock(CHEST, ModBlocks.BANK_CHEST.get());
         SettlementData data = SettlementData.get(helper.getLevel().getServer());
         String faction = village.settlement().factionId();
-        data.addTreasury(faction, 100 - data.treasury(faction));
+        long before = data.treasury(faction);
+        data.addTreasury(faction, 100 - before);
         village.settlement().economy().stock().set("minecraft:bread", 10);
         int share = BankChests.emeraldShare(helper.getLevel().getServer(), village.settlement());
         village.captain().kill();
         helper.setBlock(HEART, Blocks.AIR);
-        return new RuinedBank(village, share);
+        return new RuinedBank(village, share, before);
     }
 
     /** The stock and the share of the treasury go into the bank chest. In ruins, the chest keeps its items. */
@@ -133,6 +145,7 @@ public final class RuinsGameTests {
         int afterClose = count(helper, Items.BREAD);
         helper.getLevel().getServer().getPlayerList().remove(player);
         helper.setBlock(CHEST, Blocks.AIR);
+        ruined.restoreTreasury(helper);
 
         helper.assertTrue(village.settlement().state() == SettlementState.RUINS, "The village must be ruins");
         helper.assertTrue(bread == 10 && stock == 0, "The 10 bread must go from the stock into the chest, found "
@@ -148,7 +161,8 @@ public final class RuinsGameTests {
     /** Restore: the settlement is active, a heart of the same settlement is back, the bank items go back. */
     @GameTest(template = "arena", timeoutTicks = 40, batch = "ruins_restore")
     public static void restoreBringsBackHeartAndBank(GameTestHelper helper) {
-        Village village = ruinedVillageWithBank(helper).village();
+        RuinedBank ruined = ruinedVillageWithBank(helper);
+        Village village = ruined.village();
         SettlementData data = SettlementData.get(helper.getLevel().getServer());
         String faction = village.settlement().factionId();
 
@@ -160,6 +174,7 @@ public final class RuinsGameTests {
         int inChest = count(helper, Items.BREAD) + count(helper, Items.EMERALD);
         long treasury = data.treasury(faction);
         helper.setBlock(CHEST, Blocks.AIR);
+        ruined.restoreTreasury(helper);
 
         helper.assertTrue(village.settlement().isActive(), "The village must be active");
         helper.assertTrue(heartPos.equals(helper.absolutePos(HEART)) && heart,
