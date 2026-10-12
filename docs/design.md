@@ -41,6 +41,9 @@ The pack targets **NeoForge 1.21.1**. **packwiz** manages it: a versioned list i
 | Terrain | The Roads More Travelled | `74oZhrEe` (ID) | Beta |
 | Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | Beta, unofficial port |
 | Navigation | Small Ships | `small-ships` | Beta, last update November 2024 |
+| Terrain | Tectonic | `tectonic` | NeoForge release available. Large continents, deep oceans, mountain ranges |
+| Light | Sodium Dynamic Lights | `sodium-dynamic-lights` | NeoForge release available, client only, requires Sodium |
+| Library | GeckoLib | `geckolib` | NeoForge release available. Required by `folkhold_world` |
 | Comfort | JEI, Jade | `jei`, `jade` | Recommended for development |
 
 packwiz resolves most dependencies automatically (for example CoroUtil for Weather2). Some mods do not declare a required library in their Modrinth metadata. Add these libraries explicitly:
