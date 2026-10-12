@@ -161,6 +161,8 @@ class EconomyTest {
 
         EconomyState with = state(2, "miner");
         with.stock().add("pickaxe", 1, 10);
+        // Food for the 2 inhabitants, so the job keeps its workers.
+        with.stock().add("bread", 2000, 2000);
         SplittableRandom random = new SplittableRandom(2);
         int cycles = 0;
         while (with.stock().count("pickaxe") == 1 && cycles < 1000) {
