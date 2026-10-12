@@ -47,6 +47,9 @@ public final class WorldConfig {
 
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue DISCOVERY_CHECKS_PER_TICK;
+    public static final ModConfigSpec.IntValue SIMULATION_INTERVAL_TICKS;
+    public static final ModConfigSpec.IntValue SIMULATION_CYCLE_LENGTH;
+    public static final ModConfigSpec.DoubleValue SIMULATION_BUDGET_MS;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -209,6 +212,20 @@ public final class WorldConfig {
                 .comment("Maximum number of placement regions that the discovery checks in each server tick.")
                 .translation(KEY_PREFIX + "discoveryChecksPerTick")
                 .defineInRange("discoveryChecksPerTick", 2, 1, 64);
+        SIMULATION_INTERVAL_TICKS = builder
+                .comment("Game ticks between two abstract ticks of the simulation (2400 = 2 minutes).")
+                .translation(KEY_PREFIX + "simulationIntervalTicks")
+                .defineInRange("intervalTicks", 2400, 20, 72000);
+        SIMULATION_CYCLE_LENGTH = builder
+                .comment("Abstract ticks in one cycle. Production and consumption run once each cycle.",
+                        "With the default interval, 10 abstract ticks are one game day.")
+                .translation(KEY_PREFIX + "simulationCycleLength")
+                .defineInRange("cycleLength", 10, 1, 1000);
+        SIMULATION_BUDGET_MS = builder
+                .comment("Maximum time in milliseconds of the simulation in one server tick. When the time is spent,",
+                        "the simulation continues with the remaining settlements at the next server tick.")
+                .translation(KEY_PREFIX + "simulationBudgetMs")
+                .defineInRange("budgetMs", 5.0, 0.1, 50.0);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

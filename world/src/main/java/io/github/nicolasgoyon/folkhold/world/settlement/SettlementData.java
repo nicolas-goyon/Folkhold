@@ -21,6 +21,8 @@ public final class SettlementData extends SavedData {
 
     private final SettlementRegistry registry = new SettlementRegistry();
     private final Set<Long> checkedRegions = new HashSet<>();
+    private long tickNumber;
+    private long nextTickAt = -1;
 
     private SettlementData() {
     }
@@ -51,6 +53,30 @@ public final class SettlementData extends SavedData {
         }
     }
 
+    /** Number of the last abstract tick. */
+    public long tickNumber() {
+        return tickNumber;
+    }
+
+    /** Game time of the next abstract tick, or -1 if the simulation did not start. */
+    public long nextTickAt() {
+        return nextTickAt;
+    }
+
+    /**
+     * Records the state of the scheduler.
+     *
+     * @param tickNumber the number of the last abstract tick
+     * @param nextTickAt the game time of the next abstract tick
+     */
+    public void saveSchedule(long tickNumber, long nextTickAt) {
+        if (this.tickNumber != tickNumber || this.nextTickAt != nextTickAt) {
+            this.tickNumber = tickNumber;
+            this.nextTickAt = nextTickAt;
+            setDirty();
+        }
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
@@ -70,6 +96,8 @@ public final class SettlementData extends SavedData {
             list.add(entry);
         }
         tag.put("Settlements", list);
+        tag.putLong("TickNumber", tickNumber);
+        tag.putLong("NextTickAt", nextTickAt);
         tag.putLongArray("CheckedRegions", checkedRegions.stream().mapToLong(Long::longValue).toArray());
         return tag;
     }
@@ -90,6 +118,8 @@ public final class SettlementData extends SavedData {
                 data.registry.add(settlement);
             }
         }
+        data.tickNumber = tag.getLong("TickNumber");
+        data.nextTickAt = tag.contains("NextTickAt") ? tag.getLong("NextTickAt") : -1;
         for (long key : tag.getLongArray("CheckedRegions")) {
             data.checkedRegions.add(key);
         }
