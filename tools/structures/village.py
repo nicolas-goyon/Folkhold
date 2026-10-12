@@ -7,7 +7,7 @@ Output: world/src/main/resources/data/folkhold_world/structure/village/*.nbt
 
 Pieces:
 - center.nbt: the walled compound. Palisade, 4 corner towers with an archer post and a low parapet, 2 gates, paths,
-  a plaza with the village heart and 4 braziers. 4 jigsaw connectors for the house plots. A margin of 1 block around
+  a plaza with the village heart, 4 braziers and the alarm bell. 4 jigsaw connectors for the house plots. A margin of 1 block around
   the compound holds the banners on the outer face of the palisade. The other margin positions are empty: the
   terrain stays.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
@@ -253,6 +253,9 @@ def center():
             t.set(x, 0, z, "minecraft:stone_bricks" if border else cobble(rng))
     t.set(MID, 0, MID, "minecraft:chiseled_stone_bricks")
     t.set(MID, 1, MID, HEART)
+    # Alarm bell on the plaza, next to the paths. The heart rings it in an alert.
+    t.set(MID - 4, 0, MID - 2, "minecraft:stone_bricks")
+    t.set(MID - 4, 1, MID - 2, "minecraft:bell", {"attachment": "floor", "facing": "north", "powered": "false"})
     for dx in (-3, 3):
         for dz in (-3, 3):
             t.set(MID + dx, 0, MID + dz, "minecraft:stone_bricks")

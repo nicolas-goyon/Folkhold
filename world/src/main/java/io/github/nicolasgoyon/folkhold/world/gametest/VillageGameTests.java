@@ -11,6 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
@@ -105,5 +106,28 @@ public final class VillageGameTests {
 
         TestSupport.succeedWhenAndRemove(helper,
                 () -> helper.assertTrue(guard.getVillagePos() == null, "The guard must have no village"), guard);
+    }
+
+    /** A unit with a target gives it to a unit of the village at the other side, which has no target. */
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "village_share_target")
+    public static void targetIsSharedWithTheFarUnits(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
+        VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+        GuardEntity near = TestSupport.spawnGuard(helper, new BlockPos(2, 1, 2));
+        GuardEntity far = TestSupport.spawnGuard(helper, new BlockPos(13, 1, 13));
+        near.setVillagePos(helper.absolutePos(HEART));
+        far.setVillagePos(helper.absolutePos(HEART));
+        Pig pig = helper.spawn(EntityType.PIG, new BlockPos(2, 1, 5));
+        near.setTarget(pig);
+
+        heart.shareTarget(pig);
+
+        LivingEntity farTarget = far.getTarget();
+        near.discard();
+        far.discard();
+        pig.discard();
+        helper.assertTrue(farTarget == pig, "The far guard must get the target");
+        helper.succeed();
     }
 }

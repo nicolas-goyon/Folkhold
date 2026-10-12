@@ -472,6 +472,9 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             LivingEntity threat = target;
             getVillageHeart().ifPresent(heart -> {
                 heart.reportThreat(null);
+                if (!(threat instanceof Player friend) || !isFriendlyTo(friend)) {
+                    heart.shareTarget(threat);
+                }
                 if (threat instanceof Player player && heart.isHostilePlayer(player)) {
                     heart.markHostile(player);
                 }

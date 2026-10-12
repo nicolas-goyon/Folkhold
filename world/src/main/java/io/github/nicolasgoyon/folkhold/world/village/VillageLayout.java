@@ -11,6 +11,7 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AbstractBannerBlock;
+import net.minecraft.world.level.block.BellBlock;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -24,7 +25,8 @@ import net.minecraft.world.phys.Vec3;
  *   <li><b>gates</b>: the fence gates;</li>
  *   <li><b>braziers</b>: the campfires;</li>
  *   <li><b>banners</b>: the banners (standing and on walls). The heart gives them the banner of the faction;</li>
- *   <li><b>bank chests</b>: the chests of the village bank, in the scan order.</li>
+ *   <li><b>bank chests</b>: the chests of the village bank, in the scan order;</li>
+ *   <li><b>bells</b>: the alarm bells. The heart rings them in an alert.</li>
  * </ul>
  *
  * <p>A saved layout with an other {@link #VERSION} is not valid: the heart scans the village again.
@@ -35,7 +37,7 @@ public final class VillageLayout {
     private static final int SCAN_BELOW = 6;
     private static final int SCAN_ABOVE = 14;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 4;
+    static final int VERSION = 5;
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -53,6 +55,7 @@ public final class VillageLayout {
     private final List<BlockPos> braziers = new ArrayList<>();
     private final List<BlockPos> banners = new ArrayList<>();
     private final List<BlockPos> bankChests = new ArrayList<>();
+    private final List<BlockPos> bells = new ArrayList<>();
 
     public boolean isScanned() {
         return scanned;
@@ -127,6 +130,10 @@ public final class VillageLayout {
         return Collections.unmodifiableList(banners);
     }
 
+    public List<BlockPos> bells() {
+        return Collections.unmodifiableList(bells);
+    }
+
     public List<BlockPos> bankChests() {
         return Collections.unmodifiableList(bankChests);
     }
@@ -144,6 +151,7 @@ public final class VillageLayout {
         braziers.clear();
         banners.clear();
         bankChests.clear();
+        bells.clear();
         BlockPos min = heartPos.offset(-SCAN_RADIUS, -SCAN_BELOW, -SCAN_RADIUS);
         BlockPos max = heartPos.offset(SCAN_RADIUS, SCAN_ABOVE, SCAN_RADIUS);
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
@@ -158,6 +166,8 @@ public final class VillageLayout {
                 banners.add(pos.immutable());
             } else if (state.is(ModBlocks.BANK_CHEST.get())) {
                 bankChests.add(pos.immutable());
+            } else if (state.getBlock() instanceof BellBlock) {
+                bells.add(pos.immutable());
             }
         }
         for (BlockPos post : posts) {
@@ -176,6 +186,7 @@ public final class VillageLayout {
         tag.put("Braziers", savePositions(braziers));
         tag.put("Banners", savePositions(banners));
         tag.put("BankChests", savePositions(bankChests));
+        tag.put("Bells", savePositions(bells));
         return tag;
     }
 
@@ -190,6 +201,7 @@ public final class VillageLayout {
         loadPositions(tag, "Braziers", braziers);
         loadPositions(tag, "Banners", banners);
         loadPositions(tag, "BankChests", bankChests);
+        loadPositions(tag, "Bells", bells);
     }
 
     private static ListTag savePositions(List<BlockPos> positions) {
