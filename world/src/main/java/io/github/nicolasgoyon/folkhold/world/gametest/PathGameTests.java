@@ -6,10 +6,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.pathfinder.Path;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -79,6 +81,17 @@ public final class PathGameTests {
         guard.setTarget(pig);
 
         TestSupport.succeedWhenAndRemove(helper, () -> helper.assertTrue(guard.getTarget() == null,
-                "The guard must stop the chase"), guard, pig);
+                "The guard must stop the chase. " + chaseState(guard)), guard, pig);
+    }
+
+    /** The chase state of a unit, for the failure messages. */
+    private static String chaseState(GuardEntity guard) {
+        Path path = guard.getNavigation().getPath();
+        LivingEntity target = guard.getTarget();
+        return "Guard at " + guard.blockPosition() + ", target " + (target == null ? "none" : target.getType())
+                + (target == null ? "" : " at " + target.blockPosition() + ", line of sight "
+                        + guard.hasLineOfSight(target))
+                + ", path " + (path == null ? "none" : "to " + path.getTarget() + " reach " + path.canReach()
+                        + " done " + path.isDone());
     }
 }
