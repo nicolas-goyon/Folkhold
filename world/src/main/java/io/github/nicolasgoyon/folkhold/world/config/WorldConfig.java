@@ -72,9 +72,11 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "patrolRadius")
                 .defineInRange("patrolRadius", 16, 2, 128);
         CHASE_RADIUS = builder
-                .comment("Maximum distance in blocks from the home position during a chase. Then the unit goes back.")
+                .comment("Radius in blocks of the chase area around the village heart (around the home position for a",
+                        "unit without a village). A unit chases a target only in this area and in the territory of its",
+                        "faction. When the unit or its target leaves the area, the unit stops the chase and goes back.")
                 .translation(KEY_PREFIX + "chaseRadius")
-                .defineInRange("chaseRadius", 32, 4, 256);
+                .defineInRange("chaseRadius", 64, 4, 2000);
         ALERT_RADIUS = builder
                 .comment("Radius in blocks in which an attack on one unit alerts the other units.")
                 .translation(KEY_PREFIX + "alertRadius")

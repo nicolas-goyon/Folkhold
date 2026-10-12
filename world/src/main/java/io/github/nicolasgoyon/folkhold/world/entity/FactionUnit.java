@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
@@ -51,7 +52,7 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  *
  * <p>A unit has:
  * <ul>
- *   <li>a <b>home position</b>: center of the patrol and of the chase limit;</li>
+ *   <li>a <b>home position</b>: center of the patrol;</li>
  *   <li>a <b>faction</b>: the faction of its village, or none;</li>
  *   <li>a <b>village</b>: the position of its village heart, or none. The unit reports threats to the heart,
  *       and the heart alerts all units of the village;</li>
@@ -59,6 +60,9 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  *   <li>a <b>night watch position</b> (optional, set by the heart): at night, the unit stays near it
  *       instead of its home.</li>
  * </ul>
+ *
+ * <p>A unit chases a target only in its chase area (see {@link #isInChaseArea}). When the unit or its target
+ * leaves the area, the unit stops the chase, ignores all targets for {@link #GIVE_UP_TICKS} and goes back.
  *
  * <p>The attributes come from the config of the unit type when the unit spawns.
  */
@@ -83,6 +87,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final String FACTION_TAG = "Faction";
     /** Speed of a routed unit that runs back home. */
     private static final double ROUT_SPEED = 1.3;
+    /** After the end of a chase at the limit of the chase area, the unit ignores all targets for this time. */
+    static final int GIVE_UP_TICKS = 100;
     /** Radius around the post while the village is not calm, in blocks. */
     private static final int POST_RADIUS = 2;
 
@@ -104,6 +110,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private BlockPos nightPos;
     /** Game time until which the unit is routed (runs away and does not fight). */
     private long routedUntil;
+    /** Game time until which the unit ignores all targets, after the end of a chase. Not saved. */
+    private long gaveUpUntil;
 
     protected FactionUnit(EntityType<? extends FactionUnit> type, Level level) {
         super(type, level);
@@ -195,10 +203,10 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         super.setTarget(null);
     }
 
-    /** A routed unit does not accept a target. */
+    /** A routed unit, or a unit that stopped a chase, does not accept a target. */
     @Override
     public void setTarget(@Nullable LivingEntity target) {
-        if (target != null && isRouted()) {
+        if (target != null && (isRouted() || level().getGameTime() < gaveUpUntil)) {
             return;
         }
         super.setTarget(target);
@@ -233,9 +241,13 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
                 .orElseGet(() -> Reputations.tier(server, player, factionId));
     }
 
-    /** True if the unit attacks this player on sight. */
+    /**
+     * True if the unit attacks this player on sight: the reputation of the player is hostile, or the player
+     * attacked the village of the unit (see {@link VillageHeartBlockEntity#isHostilePlayer}).
+     */
     public boolean isHostileTo(Player player) {
-        return tierOf(player).isHostile();
+        return tierOf(player).isHostile()
+                || getVillageHeart().map(heart -> heart.isHostilePlayer(player)).orElse(false);
     }
 
     /** True if the unit never attacks this player. */
@@ -254,14 +266,43 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * Tells if the target is in the chase area: not farther than the chase radius from the home position.
+     * Tells if the target is in the chase area (see {@link #isInChaseArea}).
      *
      * @param target the possible target
      * @return true if the unit can chase this target
      */
     public boolean canTargetFromHome(LivingEntity target) {
+        return isInChaseArea(target.blockPosition());
+    }
+
+    /**
+     * Tells if a position is in the chase area of the unit:
+     * <ul>
+     *   <li>not farther than the chase radius ({@link WorldConfig#CHASE_RADIUS}) from the village heart, or from
+     *       the home position for a unit without a village;</li>
+     *   <li>in the territory of the faction of the unit, for a unit with a faction.</li>
+     * </ul>
+     *
+     * @param pos the position
+     * @return true if the position is in the chase area
+     */
+    public boolean isInChaseArea(BlockPos pos) {
+        BlockPos center = villagePos != null ? villagePos : getHomePos();
         double chase = WorldConfig.CHASE_RADIUS.get();
-        return target.distanceToSqr(getHomePos().getCenter()) <= chase * chase;
+        if (pos.getCenter().distanceToSqr(center.getCenter()) > chase * chase) {
+            return false;
+        }
+        MinecraftServer server = level().getServer();
+        if (server == null || factionId == null) {
+            return true;
+        }
+        return factionId.equals(FactionData.get(server).ownerAt(pos).id());
+    }
+
+    /** Stops the chase: the unit drops its target and ignores all targets for {@link #GIVE_UP_TICKS}. */
+    private void giveUpChase() {
+        super.setTarget(null);
+        gaveUpUntil = level().getGameTime() + GIVE_UP_TICKS;
     }
 
     /**
@@ -338,12 +379,22 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             setTarget(null);
             target = null;
         }
-        if (target != null && (!target.isAlive() || !canTargetFromHome(target))) {
+        if (target != null && !target.isAlive()) {
             setTarget(null);
             target = null;
         }
+        if (target != null && tickCount % 10 == 0 && (!canTargetFromHome(target) || !isInChaseArea(blockPosition()))) {
+            giveUpChase();
+            target = null;
+        }
         if (target != null) {
-            getVillageHeart().ifPresent(heart -> heart.reportThreat(null));
+            LivingEntity threat = target;
+            getVillageHeart().ifPresent(heart -> {
+                heart.reportThreat(null);
+                if (threat instanceof Player player && heart.isHostilePlayer(player)) {
+                    heart.markHostile(player);
+                }
+            });
         } else if (tickCount % 40 == 0) {
             greetFriendlyPlayer();
         }
