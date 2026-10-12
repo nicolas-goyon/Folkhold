@@ -64,12 +64,21 @@ jobs:
         if: steps.modpack.outputs.present == 'true'
         uses: actions/setup-go@v7
         with:
-          go-version: stable
+          go-version: '1.27'
           cache: false
 
+      # packwiz has no releases: the commit is the same as in .devcontainer/Dockerfile. The download can fail on a
+      # network error, so the step tries 3 times.
       - name: Install packwiz
         if: steps.modpack.outputs.present == 'true'
-        run: go install github.com/packwiz/packwiz@latest
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            go install github.com/packwiz/packwiz@ef87d964f8cbd52b3b13ea42453ef322290e2b9e && exit 0
+            echo "Attempt $attempt failed. Next attempt in 15 seconds."
+            sleep 15
+          done
+          exit 1
 
       - name: Export the modpack
         if: steps.modpack.outputs.present == 'true'
