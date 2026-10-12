@@ -22,6 +22,8 @@ public final class Settlement {
     private boolean hasHeart;
     private int heartY;
     private SettlementState state = SettlementState.ACTIVE;
+    private int level = 1;
+    private int experience;
 
     /**
      * Makes an active settlement with no known heart.
@@ -124,6 +126,30 @@ public final class Settlement {
         return state == SettlementState.ACTIVE;
     }
 
+    /** The level, from 1. */
+    public int level() {
+        return level;
+    }
+
+    /** The experience in the current level. */
+    public int experience() {
+        return experience;
+    }
+
+    /**
+     * Sets the level and the experience.
+     *
+     * @param level      the level (1 or more)
+     * @param experience the experience in this level (0 or more)
+     */
+    public void setProgress(int level, int experience) {
+        if (level < 1 || experience < 0) {
+            throw new IllegalArgumentException("Invalid progress: level " + level + ", experience " + experience);
+        }
+        this.level = level;
+        this.experience = experience;
+    }
+
     /** Square of the horizontal distance from the settlement to a position, in blocks. */
     public long distanceSquared(int blockX, int blockZ) {
         long dx = (long) blockX - x;
@@ -133,6 +159,7 @@ public final class Settlement {
 
     @Override
     public String toString() {
-        return name + " (" + id + ", " + factionId + ", " + state.serializedName() + ", " + x + " " + z + ")";
+        return name + " (" + id + ", " + factionId + ", " + state.serializedName() + ", level " + level + ", " + x
+                + " " + z + ")";
     }
 }

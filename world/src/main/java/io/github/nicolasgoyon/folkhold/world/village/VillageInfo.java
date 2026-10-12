@@ -12,6 +12,9 @@ import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
+import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,7 +25,7 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * The content of the village heart screen, for one player. Sections:
  * <ul>
- *   <li><b>village</b>: name, faction, culture, alert state, position;</li>
+ *   <li><b>village</b>: name, faction, culture, level and tier, experience, alert state, position;</li>
  *   <li><b>garrison</b>: for each role, the units alive and dead, and the configured count;</li>
  *   <li><b>reputation</b>: tier, effective value, village value and faction value of the player.</li>
  * </ul>
@@ -40,18 +43,27 @@ public final class VillageInfo {
         Component title = name != null ? Component.literal(name) : Component.translatable(KEY + "unnamed");
 
         List<Section> sections = new ArrayList<>();
-        sections.add(villageSection(heart, faction));
+        sections.add(villageSection(server, heart, faction));
         sections.add(garrisonSection(heart));
         faction.ifPresent(spec -> sections.add(reputationSection(server, player, heart, spec)));
         return new VillageInfoPayload(title, sections);
     }
 
-    private static Section villageSection(VillageHeartBlockEntity heart, Optional<FactionSpec> faction) {
+    private static Section villageSection(MinecraftServer server, VillageHeartBlockEntity heart,
+            Optional<FactionSpec> faction) {
         List<Row> rows = new ArrayList<>();
         rows.add(row("faction", faction.<Component>map(FactionVisuals::name)
                 .orElse(Component.translatable(KEY + "none"))));
         faction.flatMap(spec -> Cultures.byId(spec.cultureId()))
                 .ifPresent(culture -> rows.add(row("culture", Component.translatable(culture.translationKey()))));
+        Settlements.of(server, heart).ifPresent(settlement -> {
+            rows.add(row("level", Component.translatable(KEY + "level_value", settlement.level(),
+                    SettlementLevels.tierName(settlement.level()))));
+            int needed = LevelTables.get().traits(settlement.level()).experience();
+            rows.add(row("experience", settlement.level() >= LevelTables.get().maxLevel()
+                    ? Component.translatable(KEY + "experience_max")
+                    : Component.translatable(KEY + "value", settlement.experience(), needed)));
+        });
         rows.add(row("state", Component.translatable(heart.getAlertState().translationKey())));
         rows.add(row("position", Component.translatable(KEY + "position_value",
                 heart.getBlockPos().getX(), heart.getBlockPos().getZ())));

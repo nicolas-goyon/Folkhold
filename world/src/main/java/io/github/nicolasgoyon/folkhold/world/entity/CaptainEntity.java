@@ -3,12 +3,15 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import javax.annotation.Nullable;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -89,8 +92,19 @@ public class CaptainEntity extends GuardEntity {
     public void die(DamageSource damageSource) {
         if (!level().isClientSide()) {
             demoralizeVillage();
+            loseVillageExperience();
         }
         super.die(damageSource);
+    }
+
+    /** The settlement of the village loses experience (see {@link WorldConfig#LEVEL_CAPTAIN_DEATH_LOSS}). */
+    private void loseVillageExperience() {
+        MinecraftServer server = level().getServer();
+        if (server == null) {
+            return;
+        }
+        getVillageHeart().flatMap(heart -> Settlements.of(server, heart)).ifPresent(settlement ->
+                SettlementLevels.addExperience(server, settlement, -WorldConfig.LEVEL_CAPTAIN_DEATH_LOSS.get()));
     }
 
     /** Routes a share of the units of the village and weakens all of them. */
