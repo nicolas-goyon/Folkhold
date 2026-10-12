@@ -19,14 +19,17 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.CampfireBlock;
+import net.minecraft.world.level.block.CrossCollisionBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.IronBarsBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * In-game tests for the village structure. The template is the center piece of the village
- * ({@code folkhold_world:village/center}), without the houses.
+ * In-game tests for the village structure. The templates are the pieces of the village: the center piece
+ * ({@code folkhold_world:village/center}) and the houses ({@code folkhold_world:village/house_*}).
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -36,6 +39,8 @@ public final class VillageStructureGameTests {
     private static final int BRAZIERS = 4;
     /** 4 banners on the north and south walls, 3 banners on the west and east walls. */
     private static final int BANNERS = 14;
+    /** Each house has 2 windows in each side wall and 2 windows in the back wall. */
+    private static final int HOUSE_WINDOWS = 6;
 
     private VillageStructureGameTests() {
     }
@@ -134,6 +139,31 @@ public final class VillageStructureGameTests {
         helper.assertTrue(gatesOpen, "By day, all gates must be open");
         helper.assertTrue(braziersOut, "By day, the braziers must not burn");
         helper.assertTrue(guardsOffWatch, "By day, the guards must have no night watch position");
+        helper.succeed();
+    }
+
+    /** Each window of a house is a full pane: it connects to the wall on its two sides. */
+    @GameTest(template = "village/house_cottage", timeoutTicks = 20, batch = "village_house")
+    public static void houseWindowsConnectToWalls(GameTestHelper helper) {
+        AABB bounds = helper.getBounds();
+        int panes = 0;
+        int posts = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
+                BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
+            BlockState state = helper.getLevel().getBlockState(pos);
+            if (!(state.getBlock() instanceof IronBarsBlock)) {
+                continue;
+            }
+            panes++;
+            boolean northSouth = state.getValue(CrossCollisionBlock.NORTH) && state.getValue(CrossCollisionBlock.SOUTH);
+            boolean eastWest = state.getValue(CrossCollisionBlock.EAST) && state.getValue(CrossCollisionBlock.WEST);
+            if (!northSouth && !eastWest) {
+                posts++;
+            }
+        }
+
+        helper.assertTrue(panes == HOUSE_WINDOWS, "Expected " + HOUSE_WINDOWS + " window panes, found " + panes);
+        helper.assertTrue(posts == 0, posts + " window panes do not connect to the wall on their two sides");
         helper.succeed();
     }
 }
