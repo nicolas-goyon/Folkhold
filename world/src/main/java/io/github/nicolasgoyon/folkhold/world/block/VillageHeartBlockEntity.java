@@ -79,6 +79,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean nightMode;
     /** True after the heart is linked to its settlement. Not saved: the heart links again after a load. */
     private boolean settlementBound;
+    /** The player who breaks the heart, or null. Not saved. */
+    @Nullable
+    private ServerPlayer breaker;
 
     public VillageHeartBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.VILLAGE_HEART.get(), pos, state);
@@ -400,9 +403,37 @@ public class VillageHeartBlockEntity extends BlockEntity {
         return gate.offset(0, 0, Integer.signum(dz) * GATE_WATCH_DISTANCE);
     }
 
-    /** Called when the block is removed. The units lose their village. */
+    /**
+     * Records the player who breaks the heart.
+     *
+     * @param player the player
+     */
+    void setBreaker(ServerPlayer player) {
+        breaker = player;
+    }
+
+    /**
+     * Called when the block is removed. The units lose their village.
+     *
+     * <ul>
+     *   <li>No living captain in the village: the village becomes ruins (see {@link Settlements#ruin}).</li>
+     *   <li>A living captain: the village becomes ruins when this captain dies.</li>
+     * </ul>
+     */
     void onDestroyed() {
-        for (FactionUnit unit : getUnits()) {
+        List<FactionUnit> units = getUnits();
+        if (level instanceof ServerLevel serverLevel && factionId != null) {
+            List<CaptainEntity> captains = units.stream()
+                    .filter(unit -> unit instanceof CaptainEntity && unit.isAlive())
+                    .map(CaptainEntity.class::cast)
+                    .toList();
+            if (captains.isEmpty()) {
+                Settlements.ruin(serverLevel, villageId.toString(), worldPosition, breaker);
+            } else {
+                captains.forEach(captain -> captain.setRuinsOnDeath(villageId.toString()));
+            }
+        }
+        for (FactionUnit unit : units) {
             unit.setVillagePos(null);
         }
     }

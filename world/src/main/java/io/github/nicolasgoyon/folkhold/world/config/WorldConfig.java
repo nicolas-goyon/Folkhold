@@ -44,6 +44,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue REPUTATION_KILL_MONSTER;
     public static final ModConfigSpec.IntValue REPUTATION_OFFENSE;
     public static final ModConfigSpec.IntValue REPUTATION_OFFENSE_WINDOW_SECONDS;
+    public static final ModConfigSpec.IntValue REPUTATION_DESTROY_VILLAGE;
 
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue DISCOVERY_CHECKS_PER_TICK;
@@ -202,6 +203,11 @@ public final class WorldConfig {
                         "After this time without an offense, the next offense gives a warning again.")
                 .translation(KEY_PREFIX + "reputationOffenseWindowSeconds")
                 .defineInRange("offenseWindowSeconds", 60, 5, 3600);
+        REPUTATION_DESTROY_VILLAGE = builder
+                .comment("Change for the player who destroys a village of the faction (the last action: the death of",
+                        "the captain or the destruction of the village heart).")
+                .translation(KEY_PREFIX + "reputationDestroyVillage")
+                .defineInRange("destroyVillage", -400, -2000, 0);
         builder.pop();
 
         builder.comment("Abstract simulation of the settlements.")

@@ -3,19 +3,26 @@ package io.github.nicolasgoyon.folkhold.world.settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import java.util.Optional;
 import java.util.UUID;
+import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
@@ -165,5 +172,51 @@ public final class Settlements {
         heart.adoptSettlement(UUID.fromString(settlement.id()), settlement.factionId(), settlement.name());
         data.setDirty();
         return settlement;
+    }
+
+    /** Players in this radius around a destroyed village get a message. */
+    private static final double DESTRUCTION_MESSAGE_RADIUS = 128.0;
+
+    /**
+     * Destroys a settlement: the settlement goes to the state {@link SettlementState#RUINS}. Its territory cells
+     * become unclaimed, and the simulation ignores it. The blocks of the village stay in the world.
+     *
+     * <ul>
+     *   <li>The players near the village get a message.</li>
+     *   <li>The player who caused the destruction loses reputation with the faction
+     *       ({@link WorldConfig#REPUTATION_DESTROY_VILLAGE}).</li>
+     * </ul>
+     *
+     * @param level      the level of the village
+     * @param settlementId the id of the settlement
+     * @param pos        the position of the village heart
+     * @param cause      the player who caused the destruction, or null
+     */
+    public static void ruin(ServerLevel level, String settlementId, BlockPos pos, @Nullable ServerPlayer cause) {
+        MinecraftServer server = level.getServer();
+        SettlementData data = SettlementData.get(server);
+        Optional<Settlement> found = data.registry().byId(settlementId).filter(Settlement::isActive);
+        if (found.isEmpty()) {
+            return;
+        }
+        Settlement settlement = found.get();
+        settlement.setState(SettlementState.RUINS);
+        data.setDirty();
+        FolkholdWorld.LOGGER.info("The settlement {} is destroyed", settlement);
+        Component factionName = FactionData.get(server).byId(settlement.factionId())
+                .<Component>map(FactionVisuals::name)
+                .orElse(Component.literal(settlement.factionId()));
+        Component message = Component.translatable("message.folkhold_world.village_destroyed", settlement.name(),
+                factionName);
+        double radiusSquared = DESTRUCTION_MESSAGE_RADIUS * DESTRUCTION_MESSAGE_RADIUS;
+        for (ServerPlayer player : level.players()) {
+            if (player.distanceToSqr(pos.getCenter()) <= radiusSquared) {
+                player.sendSystemMessage(message);
+            }
+        }
+        if (cause != null) {
+            Reputations.apply(server, cause, settlement.factionId(), settlement.id(),
+                    WorldConfig.REPUTATION_DESTROY_VILLAGE.get());
+        }
     }
 }
