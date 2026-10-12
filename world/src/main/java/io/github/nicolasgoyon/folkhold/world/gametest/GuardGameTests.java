@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityType;
@@ -13,6 +14,8 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FenceGateBlock;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -118,5 +121,36 @@ public final class GuardGameTests {
         TestSupport.succeedWhenAndRemove(helper, () -> helper.assertTrue(husk.getTarget() == guard,
                 "The husk must target the guard. Husk target: " + husk.getTarget()
                         + ", husk alive: " + husk.isAlive()), guard, husk);
+    }
+
+    /**
+     * A guard goes through a closed fence gate in a wall: it opens the gate, passes, and closes the gate again.
+     * The wall is 2 blocks high, so the gate is the only way.
+     */
+    @GameTest(template = "arena", timeoutTicks = 300, batch = "guard_gate")
+    public static void guardOpensAndClosesFenceGate(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockPos gate = new BlockPos(8, 1, 8);
+        for (int x = 0; x < TestSupport.ARENA_SIZE; x++) {
+            helper.setBlock(new BlockPos(x, 1, 8), Blocks.COBBLESTONE);
+            helper.setBlock(new BlockPos(x, 2, 8), Blocks.COBBLESTONE);
+        }
+        helper.setBlock(gate, Blocks.SPRUCE_FENCE_GATE.defaultBlockState()
+                .setValue(FenceGateBlock.FACING, Direction.NORTH).setValue(FenceGateBlock.OPEN, false));
+        helper.setBlock(gate.above(), Blocks.AIR);
+        GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(8, 1, 3));
+        BlockPos goal = helper.absolutePos(new BlockPos(8, 1, 13));
+        helper.startSequence()
+                .thenExecute(() -> guard.getNavigation().moveTo(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0))
+                .thenWaitUntil(() -> {
+                    if (guard.getNavigation().isDone() && guard.blockPosition().getZ() < goal.getZ() - 2) {
+                        guard.getNavigation().moveTo(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0);
+                    }
+                    helper.assertTrue(guard.blockPosition().getZ() >= goal.getZ() - 2,
+                            "The guard must go through the gate");
+                    helper.assertBlockProperty(gate, FenceGateBlock.OPEN, false);
+                })
+                .thenExecute(guard::discard)
+                .thenSucceed();
     }
 }
