@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,7 +33,7 @@ import net.minecraft.world.phys.AABB;
  *       and all units of the village get Weakness I for the same time.</li>
  * </ul>
  *
- * <p>It wears a blue banner on its head.
+ * <p>It wears the banner of its faction on its head (a blue banner without a faction).
  */
 public class CaptainEntity extends GuardEntity {
     /** The captain updates its aura every 2 seconds. The effect lasts 3 seconds. */
@@ -118,7 +119,8 @@ public class CaptainEntity extends GuardEntity {
     protected void equip() {
         setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
-        setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.BLUE_BANNER));
+        ItemStack banner = faction().map(f -> FactionVisuals.banner(level(), f)).orElse(ItemStack.EMPTY);
+        setItemSlot(EquipmentSlot.HEAD, banner.isEmpty() ? new ItemStack(Items.BLUE_BANNER) : banner);
         setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.IRON_CHESTPLATE));
         setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.IRON_LEGGINGS));
         setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));

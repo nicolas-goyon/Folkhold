@@ -104,7 +104,7 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
     protected void equip() {
         setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.CHAINMAIL_HELMET));
-        setItemSlot(EquipmentSlot.CHEST, tabard(DEFAULT_TABARD_COLOR));
+        setItemSlot(EquipmentSlot.CHEST, tabard(factionColor()));
         setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.CHAINMAIL_LEGGINGS));
         setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.LEATHER_BOOTS));
     }

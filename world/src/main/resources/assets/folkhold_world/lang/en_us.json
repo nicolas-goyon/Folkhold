@@ -19,7 +19,7 @@
   "folkhold_world.configuration.unit.guard.movementSpeed": "Movement speed",
   "folkhold_world.configuration.unit.guard.followRange": "Follow range",
   "block.folkhold_world.village_heart": "Village Heart",
-  "message.folkhold_world.village_heart.status": "Village: %s",
+  "message.folkhold_world.village_heart.status": "Village of %s: %s. Your reputation: %s",
   "folkhold_world.alert_state.calm": "calm",
   "folkhold_world.alert_state.alert": "alert",
   "folkhold_world.alert_state.assault": "under assault",
@@ -89,5 +89,7 @@
   "message.folkhold_world.greeting.1": "%s: Good to see you again.",
   "message.folkhold_world.greeting.2": "%s: Safe travels, friend.",
   "folkhold_world.configuration.reputationOffense": "Offense in a village",
-  "folkhold_world.configuration.reputationOffenseWindowSeconds": "Offense window (seconds)"
+  "folkhold_world.configuration.reputationOffenseWindowSeconds": "Offense window (seconds)",
+  "message.folkhold_world.village_heart.status_no_faction": "Village: %s",
+  "message.folkhold_world.village_entry": "Village of %s (%s)"
 }

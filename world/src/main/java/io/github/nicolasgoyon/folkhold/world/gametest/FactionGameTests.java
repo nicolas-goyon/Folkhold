@@ -3,15 +3,20 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.component.DyedItemColor;
+import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -53,6 +58,34 @@ public final class FactionGameTests {
 
         helper.assertTrue(expected.equals(actual), "The village faction must be " + expected + ", not " + actual);
         helper.assertTrue(unitsMatch, "All units must have the faction of the village");
+        helper.succeed();
+    }
+
+    /** Units wear the color of their faction. The captain wears the banner of its faction. */
+    @GameTest(template = "arena", batch = "faction_visuals")
+    public static void unitsWearFactionColors(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
+        VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+        heart.ensureGarrison(helper.getLevel().getGameTime());
+        FactionSpec faction = FactionData.get(helper.getLevel().getServer()).byId(heart.getFactionId()).orElseThrow();
+        List<FactionUnit> units = heart.getUnits();
+        boolean tabards = units.stream()
+                .filter(unit -> !(unit instanceof CaptainEntity))
+                .allMatch(unit -> {
+                    DyedItemColor color = unit.getItemBySlot(EquipmentSlot.CHEST).get(DataComponents.DYED_COLOR);
+                    return color != null && color.rgb() == faction.color();
+                });
+        boolean banner = units.stream()
+                .filter(CaptainEntity.class::isInstance)
+                .allMatch(unit -> {
+                    BannerPatternLayers layers = unit.getItemBySlot(EquipmentSlot.HEAD).get(DataComponents.BANNER_PATTERNS);
+                    return layers != null && !layers.layers().isEmpty();
+                });
+        units.forEach(Entity::discard);
+
+        helper.assertTrue(tabards, "Each unit must wear a tabard in the color of its faction");
+        helper.assertTrue(banner, "The captain must wear the banner of its faction");
         helper.succeed();
     }
 }

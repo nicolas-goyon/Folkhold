@@ -98,7 +98,7 @@ public class GuardEntity extends FactionUnit {
         setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
         setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
-        setItemSlot(EquipmentSlot.CHEST, tabard(DEFAULT_TABARD_COLOR));
+        setItemSlot(EquipmentSlot.CHEST, tabard(factionColor()));
         setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.IRON_LEGGINGS));
         setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
     }
