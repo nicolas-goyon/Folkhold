@@ -253,7 +253,7 @@ public final class VillageStructureGameTests {
         heart.getUnits().forEach(Entity::discard);
         List<VillageCat> cats = heart.getCats();
         List<BlockPos> anchors = heart.catAnchors();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
         player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COD, 64));
         boolean tamed = false;

@@ -37,7 +37,7 @@ public final class ReputationGameTests {
         GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(3, 1, 3));
         guard.setVillagePos(helper.absolutePos(HEART));
         guard.setFactionId(heart.getFactionId());
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
 
         FactionSpec faction = FactionData.get(helper.getLevel().getServer()).byId(heart.getFactionId()).orElseThrow();
         PlayerReputation reputation = ReputationData.get(helper.getLevel().getServer()).get(player.getUUID());

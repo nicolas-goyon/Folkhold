@@ -60,7 +60,7 @@ public final class BankGameTests {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement settlement = Settlements.of(server, heart).orElseThrow();
         settlement.economy().stock().set("minecraft:bread", 10);
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
         BlockPos chestPos = helper.absolutePos(CHEST);
         player.setPos(chestPos.getX() + 0.5, chestPos.getY(), chestPos.getZ() + 1.5);
@@ -148,7 +148,7 @@ public final class BankGameTests {
     @GameTest(template = "arena", timeoutTicks = 40, batch = "bank_explosion_cause")
     public static void explosionCauseIsThePlayer(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
         BlockPos pos = helper.absolutePos(new BlockPos(12, 1, 12));
 
         Explosion byPlayer = helper.getLevel().explode(player, pos.getX(), pos.getY(), pos.getZ(), 0.5F,

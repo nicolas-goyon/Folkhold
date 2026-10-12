@@ -20,7 +20,7 @@ permissions:
 jobs:
   image:
     name: Build the dev image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
