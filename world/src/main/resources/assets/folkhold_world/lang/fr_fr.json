@@ -56,5 +56,17 @@
   "block.folkhold_world.watch_post": "Poste de guet",
   "folkhold_world.culture.valeholm": "Valeholm",
   "folkhold_world.culture.ashmark": "Ashmark",
-  "folkhold_world.culture.sunreach": "Sunreach"
+  "folkhold_world.culture.sunreach": "Sunreach",
+  "folkhold_world.configuration.reputation": "Réputation",
+  "folkhold_world.configuration.reputationVillageWeight": "Poids du village",
+  "folkhold_world.configuration.reputationAllySpread": "Propagation aux alliés",
+  "folkhold_world.configuration.reputationEnemySpread": "Propagation aux ennemis",
+  "folkhold_world.configuration.reputationKillUnit": "Tuer une unité",
+  "folkhold_world.configuration.reputationHitUnit": "Frapper une unité",
+  "folkhold_world.configuration.reputationKillMonster": "Tuer un monstre près d'un village",
+  "folkhold_world.reputation_tier.sworn_enemy": "ennemi juré",
+  "folkhold_world.reputation_tier.hostile": "hostile",
+  "folkhold_world.reputation_tier.neutral": "neutre",
+  "folkhold_world.reputation_tier.friend": "ami",
+  "folkhold_world.reputation_tier.ally": "allié"
 }

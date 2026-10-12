@@ -35,6 +35,13 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
 
+    public static final ModConfigSpec.DoubleValue REPUTATION_VILLAGE_WEIGHT;
+    public static final ModConfigSpec.DoubleValue REPUTATION_ALLY_SPREAD;
+    public static final ModConfigSpec.DoubleValue REPUTATION_ENEMY_SPREAD;
+    public static final ModConfigSpec.IntValue REPUTATION_KILL_UNIT;
+    public static final ModConfigSpec.IntValue REPUTATION_HIT_UNIT;
+    public static final ModConfigSpec.IntValue REPUTATION_KILL_MONSTER;
+
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
     public static final UnitStats CAPTAIN;
@@ -137,6 +144,35 @@ public final class WorldConfig {
                 .comment("Duration in seconds of the rout and of the Weakness effect after the death of the captain.")
                 .translation(KEY_PREFIX + "captainRoutSeconds")
                 .defineInRange("routSeconds", 20, 1, 600);
+        builder.pop();
+
+        builder.comment("Reputation of the players with the factions and the villages (-1000 to +1000).")
+                .translation(KEY_PREFIX + "reputation")
+                .push("reputation");
+        REPUTATION_VILLAGE_WEIGHT = builder
+                .comment("Share of the village reputation in the effective reputation. The faction has the rest.")
+                .translation(KEY_PREFIX + "reputationVillageWeight")
+                .defineInRange("villageWeight", 0.7, 0.0, 1.0);
+        REPUTATION_ALLY_SPREAD = builder
+                .comment("Share of a change that also applies to the allies of the faction.")
+                .translation(KEY_PREFIX + "reputationAllySpread")
+                .defineInRange("allySpread", 0.5, 0.0, 1.0);
+        REPUTATION_ENEMY_SPREAD = builder
+                .comment("Share of a change that applies, with the opposite sign, to the enemies of the faction.")
+                .translation(KEY_PREFIX + "reputationEnemySpread")
+                .defineInRange("enemySpread", 0.3, 0.0, 1.0);
+        REPUTATION_KILL_UNIT = builder
+                .comment("Change when the player kills a unit of the faction.")
+                .translation(KEY_PREFIX + "reputationKillUnit")
+                .defineInRange("killUnit", -150, -1000, 0);
+        REPUTATION_HIT_UNIT = builder
+                .comment("Change when the player hits a unit of the faction.")
+                .translation(KEY_PREFIX + "reputationHitUnit")
+                .defineInRange("hitUnit", -20, -1000, 0);
+        REPUTATION_KILL_MONSTER = builder
+                .comment("Change when the player kills a hostile monster in the radius of a village.")
+                .translation(KEY_PREFIX + "reputationKillMonster")
+                .defineInRange("killMonsterNearVillage", 5, 0, 1000);
         builder.pop();
 
         builder.comment("Base values of each unit type.")
