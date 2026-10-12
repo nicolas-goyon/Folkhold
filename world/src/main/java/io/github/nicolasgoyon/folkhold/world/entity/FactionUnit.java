@@ -287,11 +287,18 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
      * @return true if the position is in the chase area
      */
     public boolean isInChaseArea(BlockPos pos) {
+        return isInChaseRadius(pos) && isInTerritory(pos);
+    }
+
+    /** True if the position is not farther than the chase radius from the village heart (or the home position). */
+    private boolean isInChaseRadius(BlockPos pos) {
         BlockPos center = villagePos != null ? villagePos : getHomePos();
         double chase = WorldConfig.CHASE_RADIUS.get();
-        if (pos.getCenter().distanceToSqr(center.getCenter()) > chase * chase) {
-            return false;
-        }
+        return pos.getCenter().distanceToSqr(center.getCenter()) <= chase * chase;
+    }
+
+    /** True if the position is in the territory of the faction of the unit, or if the unit has no faction. */
+    private boolean isInTerritory(BlockPos pos) {
         MinecraftServer server = level().getServer();
         if (server == null || factionId == null) {
             return true;
@@ -383,7 +390,9 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             setTarget(null);
             target = null;
         }
-        if (target != null && tickCount % 10 == 0 && (!canTargetFromHome(target) || !isInChaseArea(blockPosition()))) {
+        // The distance check is cheap: each tick. The territory check only each 10 ticks.
+        if (target != null && (!isInChaseRadius(target.blockPosition()) || !isInChaseRadius(blockPosition())
+                || (tickCount % 10 == 0 && (!isInTerritory(target.blockPosition()) || !isInTerritory(blockPosition()))))) {
             giveUpChase();
             target = null;
         }
