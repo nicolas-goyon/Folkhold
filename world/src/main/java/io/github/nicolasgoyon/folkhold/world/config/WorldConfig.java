@@ -45,6 +45,9 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue REPUTATION_OFFENSE;
     public static final ModConfigSpec.IntValue REPUTATION_OFFENSE_WINDOW_SECONDS;
 
+    public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
+    public static final ModConfigSpec.IntValue DISCOVERY_CHECKS_PER_TICK;
+
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
     public static final UnitStats CAPTAIN;
@@ -192,6 +195,20 @@ public final class WorldConfig {
                         "After this time without an offense, the next offense gives a warning again.")
                 .translation(KEY_PREFIX + "reputationOffenseWindowSeconds")
                 .defineInRange("offenseWindowSeconds", 60, 5, 3600);
+        builder.pop();
+
+        builder.comment("Abstract simulation of the settlements.")
+                .translation(KEY_PREFIX + "simulation")
+                .push("simulation");
+        DISCOVERY_RADIUS = builder
+                .comment("Radius in blocks around each player and around the world spawn where the mod finds the",
+                        "villages before the game generates their chunks.")
+                .translation(KEY_PREFIX + "discoveryRadius")
+                .defineInRange("discoveryRadius", 1024, 128, 8192);
+        DISCOVERY_CHECKS_PER_TICK = builder
+                .comment("Maximum number of placement regions that the discovery checks in each server tick.")
+                .translation(KEY_PREFIX + "discoveryChecksPerTick")
+                .defineInRange("discoveryChecksPerTick", 2, 1, 64);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

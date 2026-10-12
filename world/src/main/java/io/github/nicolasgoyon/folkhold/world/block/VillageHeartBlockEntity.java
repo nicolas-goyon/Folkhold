@@ -6,10 +6,10 @@ import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
-import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
@@ -77,6 +77,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final int GATE_WATCH_DISTANCE = 2;
     /** True after the heart closed the gates and lit the braziers for the night. */
     private boolean nightMode;
+    /** True after the heart is linked to its settlement. Not saved: the heart links again after a load. */
+    private boolean settlementBound;
 
     public VillageHeartBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.VILLAGE_HEART.get(), pos, state);
@@ -255,10 +257,30 @@ public class VillageHeartBlockEntity extends BlockEntity {
         return villageName;
     }
 
-    /** Gives the village to the faction that owns its position, if the village has no faction. */
-    public void ensureFaction() {
-        if (factionId == null && level instanceof ServerLevel serverLevel) {
-            factionId = FactionData.get(serverLevel.getServer()).ownerAt(worldPosition).id();
+    /**
+     * Links the heart to its settlement (see {@link Settlements#bind}). After this call, the village has a
+     * faction and a name.
+     */
+    public void ensureSettlement() {
+        if (!settlementBound && level instanceof ServerLevel serverLevel) {
+            Settlements.bind(serverLevel, this);
+            settlementBound = true;
+        }
+    }
+
+    /**
+     * Gives the id, the faction and the name of the settlement to the heart. Only {@link Settlements#bind} calls
+     * this method.
+     *
+     * @param id        the id of the settlement
+     * @param faction   the id of the faction of the settlement
+     * @param name      the name of the settlement
+     */
+    public void adoptSettlement(UUID id, String faction, String name) {
+        if (!id.equals(villageId) || !faction.equals(factionId) || !name.equals(villageName)) {
+            villageId = id;
+            factionId = faction;
+            villageName = name;
             setChanged();
         }
     }
@@ -277,7 +299,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (!(level instanceof ServerLevel serverLevel)) {
             return;
         }
-        ensureFaction();
+        ensureSettlement();
         if (!layout.isScanned()) {
             layout.scan(serverLevel, worldPosition);
             paintBanners();

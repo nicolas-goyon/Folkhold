@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModItems;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSpawnProtection;
 import net.neoforged.bus.api.IEventBus;
@@ -50,6 +51,9 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(TerritoryMessages::onServerStopped);
         NeoForge.EVENT_BUS.addListener(VillageSpawnProtection::onPositionCheck);
         NeoForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> VillageHearts.clear());
+        NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerStarted);
+        NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerTick);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
 }
