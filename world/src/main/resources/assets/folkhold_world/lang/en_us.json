@@ -288,5 +288,10 @@
   "block.folkhold_world.building_sign_bank": "Bank Sign",
   "block.folkhold_world.building_sign_hall": "Village Hall Sign",
   "block.folkhold_world.building_sign_farm": "Farm Sign",
-  "block.folkhold_world.building_sign_market": "Market Sign"
+  "block.folkhold_world.building_sign_market": "Market Sign",
+  "entity.minecraft.villager.lumberjack": "Lumberjack",
+  "entity.minecraft.villager.folkhold_world.lumberjack": "Lumberjack",
+  "entity.minecraft.villager.baker": "Baker",
+  "entity.minecraft.villager.folkhold_world.baker": "Baker",
+  "message.folkhold_world.inhabitant_no_trade": "%s does not trade. The merchant of the village trades."
 }

@@ -9,5 +9,6 @@
   ],
   "min_level": 1,
   "weight": 25,
-  "biomes": ["minecraft:mangrove_swamp"]
+  "biomes": ["minecraft:mangrove_swamp"],
+  "profession": "folkhold_world:lumberjack"
 }

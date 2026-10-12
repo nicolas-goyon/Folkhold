@@ -15,5 +15,6 @@
     {"item": "minecraft:blue_wool", "count": 2}
   ],
   "min_level": 5,
-  "weight": 4
+  "weight": 4,
+  "profession": "minecraft:shepherd"
 }

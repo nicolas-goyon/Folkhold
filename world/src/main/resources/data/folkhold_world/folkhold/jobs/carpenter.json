@@ -12,5 +12,6 @@
     {"item": "minecraft:crafting_table", "count": 1}
   ],
   "min_level": 1,
-  "weight": 8
+  "weight": 8,
+  "profession": "folkhold_world:lumberjack"
 }

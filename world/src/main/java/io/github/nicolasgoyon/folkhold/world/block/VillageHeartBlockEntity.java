@@ -44,6 +44,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BellBlock;
@@ -555,8 +556,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
 
     /**
      * Creates the missing villagers of the village: the merchants ({@link Merchants#merchantCount}), then the
-     * inhabitants ({@link VillageFolk#inhabitantCount}). The first villagers appear at once. A dead villager comes
-     * back after the refill delay of the garrison.
+     * inhabitants ({@link VillageFolk#inhabitantCount}) with the professions of the jobs of the settlement
+     * ({@link VillageFolk#professions}). The first villagers appear at once. A dead villager comes back after the
+     * refill delay of the garrison. When the jobs change, the inhabitants get the new professions at once
+     * ({@link VillageFolk#assign}).
      *
      * @param serverLevel the level
      * @param now         the current game time
@@ -569,17 +572,20 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         int missingMerchants = Merchants.merchantCount(settlement.get())
                 - VillageFolk.of(serverLevel, worldPosition, ModProfessions.MERCHANT.get()).size();
-        int missingInhabitants = VillageFolk.inhabitantCount(settlement.get())
-                - VillageFolk.of(serverLevel, worldPosition, ModProfessions.INHABITANT.get()).size();
+        List<VillagerProfession> wanted = VillageFolk.professions(settlement.get(),
+                VillageFolk.inhabitantCount(settlement.get()));
+        List<VillagerProfession> missingInhabitants =
+                VillageFolk.assign(VillageFolk.inhabitants(serverLevel, worldPosition), wanted);
         long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
-        if (missingMerchants <= 0 && missingInhabitants <= 0 || villagersSpawned && now - lastVillagerSpawn < refill) {
+        if (missingMerchants <= 0 && missingInhabitants.isEmpty()
+                || villagersSpawned && now - lastVillagerSpawn < refill) {
             return false;
         }
         for (int i = 0; i < missingMerchants; i++) {
             VillageFolk.spawn(serverLevel, worldPosition, ModProfessions.MERCHANT.get());
         }
-        for (int i = 0; i < missingInhabitants; i++) {
-            VillageFolk.spawn(serverLevel, worldPosition, ModProfessions.INHABITANT.get());
+        for (VillagerProfession profession : missingInhabitants) {
+            VillageFolk.spawn(serverLevel, worldPosition, profession);
         }
         villagersSpawned = true;
         lastVillagerSpawn = now;

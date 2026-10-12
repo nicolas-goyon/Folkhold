@@ -12,9 +12,10 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 /**
  * Villager professions of the world mod.
  *
- * <p>The merchant and the inhabitant have no job site block (see
- * {@link io.github.nicolasgoyon.folkhold.world.village.VillageFolk}). Its trades come from the stocks of its village (see
- * {@link io.github.nicolasgoyon.folkhold.world.economy.Merchants}).
+ * <p>These professions have no job site block (see {@link io.github.nicolasgoyon.folkhold.world.village.VillageFolk}).
+ * The trades of the merchant come from the stocks of its village (see
+ * {@link io.github.nicolasgoyon.folkhold.world.economy.Merchants}). The other professions show the jobs of the
+ * economy that no vanilla profession shows (the {@code profession} of a job file).
  */
 public final class ModProfessions {
     private static final DeferredRegister<VillagerProfession> PROFESSIONS =
@@ -27,6 +28,16 @@ public final class ModProfessions {
     /** Inhabitant of a faction village: no trades, no job site block. */
     public static final DeferredHolder<VillagerProfession, VillagerProfession> INHABITANT = PROFESSIONS.register(
             "inhabitant", () -> new VillagerProfession("inhabitant", holder -> false, holder -> false,
+                    ImmutableSet.of(), ImmutableSet.of(), null));
+
+    /** Lumberjack, sawyer and carpenter: no trades, no job site block. */
+    public static final DeferredHolder<VillagerProfession, VillagerProfession> LUMBERJACK = PROFESSIONS.register(
+            "lumberjack", () -> new VillagerProfession("lumberjack", holder -> false, holder -> false,
+                    ImmutableSet.of(), ImmutableSet.of(), null));
+
+    /** Baker and pastry cook: no trades, no job site block. */
+    public static final DeferredHolder<VillagerProfession, VillagerProfession> BAKER = PROFESSIONS.register(
+            "baker", () -> new VillagerProfession("baker", holder -> false, holder -> false,
                     ImmutableSet.of(), ImmutableSet.of(), null));
 
     private ModProfessions() {

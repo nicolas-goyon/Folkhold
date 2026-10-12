@@ -7,5 +7,6 @@
   ],
   "min_level": 1,
   "weight": 10,
-  "biomes": ["#minecraft:is_taiga"]
+  "biomes": ["#minecraft:is_taiga"],
+  "profession": "folkhold_world:lumberjack"
 }

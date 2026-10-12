@@ -288,5 +288,10 @@
   "block.folkhold_world.building_sign_bank": "Panneau de banque",
   "block.folkhold_world.building_sign_hall": "Panneau de maison commune",
   "block.folkhold_world.building_sign_farm": "Panneau de ferme",
-  "block.folkhold_world.building_sign_market": "Panneau de marché"
+  "block.folkhold_world.building_sign_market": "Panneau de marché",
+  "entity.minecraft.villager.lumberjack": "Bûcheron",
+  "entity.minecraft.villager.folkhold_world.lumberjack": "Bûcheron",
+  "entity.minecraft.villager.baker": "Boulanger",
+  "entity.minecraft.villager.folkhold_world.baker": "Boulanger",
+  "message.folkhold_world.inhabitant_no_trade": "%s ne fait pas de commerce. Le marchand du village fait du commerce."
 }
