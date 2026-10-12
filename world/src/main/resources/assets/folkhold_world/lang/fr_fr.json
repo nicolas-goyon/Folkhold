@@ -180,5 +180,8 @@
   "screen.folkhold_world.village_heart.emeralds": "%s émeraudes",
   "screen.folkhold_world.village_heart.stock_value": "%s (vendu à %s)",
   "screen.folkhold_world.village_heart.territory": "Territoire",
-  "screen.folkhold_world.village_heart.claimed_cells": "Cellules revendiquées"
+  "screen.folkhold_world.village_heart.claimed_cells": "Cellules revendiquées",
+  "entity.folkhold_world.village_cat": "Chat du village",
+  "folkhold_world.configuration.reputationHitCat": "Frapper un chat du village",
+  "folkhold_world.configuration.reputationKillCat": "Tuer un chat du village"
 }

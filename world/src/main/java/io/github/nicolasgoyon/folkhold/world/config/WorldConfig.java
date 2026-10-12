@@ -46,6 +46,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue REPUTATION_OFFENSE;
     public static final ModConfigSpec.IntValue REPUTATION_OFFENSE_WINDOW_SECONDS;
     public static final ModConfigSpec.IntValue REPUTATION_DESTROY_VILLAGE;
+    public static final ModConfigSpec.IntValue REPUTATION_HIT_CAT;
+    public static final ModConfigSpec.IntValue REPUTATION_KILL_CAT;
 
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue DISCOVERY_CHECKS_PER_TICK;
@@ -225,6 +227,14 @@ public final class WorldConfig {
                         "the captain or the destruction of the village heart).")
                 .translation(KEY_PREFIX + "reputationDestroyVillage")
                 .defineInRange("destroyVillage", -400, -2000, 0);
+        REPUTATION_HIT_CAT = builder
+                .comment("Change when the player hits a cat of a village of the faction.")
+                .translation(KEY_PREFIX + "reputationHitCat")
+                .defineInRange("hitCat", -10, -1000, 0);
+        REPUTATION_KILL_CAT = builder
+                .comment("Change when the player kills a cat of a village of the faction.")
+                .translation(KEY_PREFIX + "reputationKillCat")
+                .defineInRange("killCat", -50, -1000, 0);
         builder.pop();
 
         builder.comment("Abstract simulation of the settlements.")
