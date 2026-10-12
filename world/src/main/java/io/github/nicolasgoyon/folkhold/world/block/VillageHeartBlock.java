@@ -1,14 +1,11 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
 import com.mojang.serialization.MapCodec;
-import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
-import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
-import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
-import java.util.Optional;
+import io.github.nicolasgoyon.folkhold.world.village.VillageInfo;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -19,11 +16,13 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Village heart: the block at the center of a faction village. It holds the state of the village.
  *
- * <p>A right click shows the faction, the alert state and the reputation tier of the player. When the block is removed, the units lose their village.
+ * <p>A right click opens a screen with the village information. When the block is removed, the units lose their
+ * village.
  */
 public class VillageHeartBlock extends BaseEntityBlock {
     public static final MapCodec<VillageHeartBlock> CODEC = simpleCodec(VillageHeartBlock::new);
@@ -57,21 +56,14 @@ public class VillageHeartBlock extends BaseEntityBlock {
                 : createTickerHelper(type, ModBlockEntities.VILLAGE_HEART.get(), VillageHeartBlockEntity::serverTick);
     }
 
+    /** A right click opens the village heart screen (see {@link VillageInfo}). */
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
             BlockHitResult hitResult) {
-        if (!level.isClientSide() && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
-            Component alert = Component.translatable(heart.getAlertState().translationKey());
-            Optional<FactionSpec> faction = FactionVisuals.faction(level.getServer(), heart.getFactionId());
-            if (faction.isPresent() && level.getServer() != null) {
-                Component tier = Component.translatable("folkhold_world.reputation_tier."
-                        + Reputations.tier(level.getServer(), player, heart).serializedName());
-                player.displayClientMessage(Component.translatable("message.folkhold_world.village_heart.status",
-                        FactionVisuals.name(faction.get()), alert, tier), true);
-            } else {
-                player.displayClientMessage(Component.translatable(
-                        "message.folkhold_world.village_heart.status_no_faction", alert), true);
-            }
+        if (player instanceof ServerPlayer serverPlayer
+                && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
+            heart.ensureFaction();
+            PacketDistributor.sendToPlayer(serverPlayer, VillageInfo.build(heart, serverPlayer));
         }
         return InteractionResult.sidedSuccess(level.isClientSide());
     }
