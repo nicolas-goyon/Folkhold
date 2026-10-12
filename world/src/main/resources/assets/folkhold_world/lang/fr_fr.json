@@ -19,7 +19,7 @@
   "folkhold_world.configuration.unit.guard.movementSpeed": "Vitesse de déplacement",
   "folkhold_world.configuration.unit.guard.followRange": "Distance de détection",
   "block.folkhold_world.village_heart": "Cœur de village",
-  "message.folkhold_world.village_heart.status": "Village : %s",
+  "message.folkhold_world.village_heart.status": "Village de %s : %s. Ta réputation : %s",
   "folkhold_world.alert_state.calm": "calme",
   "folkhold_world.alert_state.alert": "en alerte",
   "folkhold_world.alert_state.assault": "sous assaut",
@@ -89,5 +89,7 @@
   "message.folkhold_world.greeting.1": "%s : Content de te revoir.",
   "message.folkhold_world.greeting.2": "%s : Bonne route, ami.",
   "folkhold_world.configuration.reputationOffense": "Infraction dans un village",
-  "folkhold_world.configuration.reputationOffenseWindowSeconds": "Fenêtre des infractions (secondes)"
+  "folkhold_world.configuration.reputationOffenseWindowSeconds": "Fenêtre des infractions (secondes)",
+  "message.folkhold_world.village_heart.status_no_faction": "Village : %s",
+  "message.folkhold_world.village_entry": "Village de %s (%s)"
 }

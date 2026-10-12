@@ -1,7 +1,11 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
 import com.mojang.serialization.MapCodec;
+import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
+import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -19,7 +23,7 @@ import net.minecraft.world.phys.BlockHitResult;
 /**
  * Village heart: the block at the center of a faction village. It holds the state of the village.
  *
- * <p>A right click shows the alert state. When the block is removed, the units lose their village.
+ * <p>A right click shows the faction, the alert state and the reputation tier of the player. When the block is removed, the units lose their village.
  */
 public class VillageHeartBlock extends BaseEntityBlock {
     public static final MapCodec<VillageHeartBlock> CODEC = simpleCodec(VillageHeartBlock::new);
@@ -57,8 +61,17 @@ public class VillageHeartBlock extends BaseEntityBlock {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
             BlockHitResult hitResult) {
         if (!level.isClientSide() && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
-            player.displayClientMessage(Component.translatable("message.folkhold_world.village_heart.status",
-                    Component.translatable(heart.getAlertState().translationKey())), true);
+            Component alert = Component.translatable(heart.getAlertState().translationKey());
+            Optional<FactionSpec> faction = FactionVisuals.faction(level.getServer(), heart.getFactionId());
+            if (faction.isPresent() && level.getServer() != null) {
+                Component tier = Component.translatable("folkhold_world.reputation_tier."
+                        + Reputations.tier(level.getServer(), player, heart).serializedName());
+                player.displayClientMessage(Component.translatable("message.folkhold_world.village_heart.status",
+                        FactionVisuals.name(faction.get()), alert, tier), true);
+            } else {
+                player.displayClientMessage(Component.translatable(
+                        "message.folkhold_world.village_heart.status_no_faction", alert), true);
+            }
         }
         return InteractionResult.sidedSuccess(level.isClientSide());
     }

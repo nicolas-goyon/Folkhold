@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.FriendlyFire;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationEvents;
+import io.github.nicolasgoyon.folkhold.world.faction.VillageEntryMessages;
 import io.github.nicolasgoyon.folkhold.world.faction.VillageRules;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
@@ -42,6 +43,8 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(FolkholdCommands::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(VillageRules::onBlockBreak);
         NeoForge.EVENT_BUS.addListener(VillageRules::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(VillageEntryMessages::onPlayerTick);
+        NeoForge.EVENT_BUS.addListener(VillageEntryMessages::onServerStopped);
         NeoForge.EVENT_BUS.addListener(VillageSpawnProtection::onPositionCheck);
         NeoForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> VillageHearts.clear());
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());

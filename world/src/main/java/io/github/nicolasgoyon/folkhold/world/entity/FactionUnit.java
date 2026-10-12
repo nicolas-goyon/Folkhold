@@ -2,8 +2,10 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
+import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -52,7 +54,7 @@ import net.minecraft.world.level.ServerLevelAccessor;
  * <p>The attributes come from the config of the unit type when the unit spawns.
  */
 public abstract class FactionUnit extends PathfinderMob {
-    /** Color of the tabard (dyed leather chestplate). The faction color replaces it in J2. */
+    /** Color of the tabard (dyed leather chestplate) of a unit without a faction. */
     public static final int DEFAULT_TABARD_COLOR = 0x3C5A9A;
 
     /** Patrol radius at night, in blocks. */
@@ -353,6 +355,16 @@ public abstract class FactionUnit extends PathfinderMob {
         if (!level().isClientSide()) {
             getVillageHeart().ifPresent(heart -> heart.onUnitDied(getUUID()));
         }
+    }
+
+    /** The color of the faction of the unit, or {@link #DEFAULT_TABARD_COLOR} without a faction. */
+    protected int factionColor() {
+        return faction().map(FactionSpec::color).orElse(DEFAULT_TABARD_COLOR);
+    }
+
+    /** The faction of the unit, if it has one and the server knows it. */
+    public Optional<FactionSpec> faction() {
+        return FactionVisuals.faction(level().getServer(), factionId);
     }
 
     /** A leather chestplate in the given color. Units wear it as a tabard. */
