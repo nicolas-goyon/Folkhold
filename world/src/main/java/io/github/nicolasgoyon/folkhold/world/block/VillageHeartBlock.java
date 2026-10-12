@@ -61,16 +61,16 @@ public class VillageHeartBlock extends BaseEntityBlock {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player,
             BlockHitResult hitResult) {
         if (!level.isClientSide() && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
-            Component state = Component.translatable(heart.getAlertState().translationKey());
+            Component alert = Component.translatable(heart.getAlertState().translationKey());
             Optional<FactionSpec> faction = FactionVisuals.faction(level.getServer(), heart.getFactionId());
             if (faction.isPresent() && level.getServer() != null) {
                 Component tier = Component.translatable("folkhold_world.reputation_tier."
                         + Reputations.tier(level.getServer(), player, heart).serializedName());
                 player.displayClientMessage(Component.translatable("message.folkhold_world.village_heart.status",
-                        FactionVisuals.name(faction.get()), state, tier), true);
+                        FactionVisuals.name(faction.get()), alert, tier), true);
             } else {
                 player.displayClientMessage(Component.translatable(
-                        "message.folkhold_world.village_heart.status_no_faction", state), true);
+                        "message.folkhold_world.village_heart.status_no_faction", alert), true);
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide());
