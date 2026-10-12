@@ -37,6 +37,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BellBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -56,6 +57,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String GARRISON_TAG = "Garrison";
     /** The heart checks its garrison every 2 seconds. */
     private static final int GARRISON_INTERVAL = 40;
+    /** In an alert, the heart rings the bells every 5 seconds. */
+    private static final int BELL_INTERVAL = 100;
+    /** A unit with a target shares it with the other units of the village at most once each second. */
+    private static final int SHARE_INTERVAL = 20;
     /** The heart checks the rotation of the archers every 20 seconds. */
     private static final int ROTATION_INTERVAL = 400;
     /** The heart checks the end of the alert once each second. */
@@ -86,6 +91,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final int GATE_WATCH_DISTANCE = 2;
     /** True after the heart closed the gates and lit the braziers for the night. */
     private boolean nightMode;
+    /** Game time of the last ring of the bells. Not saved. */
+    private long lastBellTick = Long.MIN_VALUE / 2;
+    /** Game time of the last shared target. Not saved. */
+    private long lastShareTick = Long.MIN_VALUE / 2;
     /** True after the heart is linked to its settlement. Not saved: the heart links again after a load. */
     private boolean settlementBound;
     /** Players who pillaged the bank of the village. They open the bank chests with no confirmation. Not saved. */
@@ -234,6 +243,41 @@ public class VillageHeartBlockEntity extends BlockEntity {
             setChanged();
             if (wasCalm) {
                 assignAlertPosts();
+                ringBells();
+            }
+        }
+    }
+
+    /**
+     * Rings the alarm bells of the village. The vanilla villagers near a bell go into the houses, as in a raid.
+     */
+    public void ringBells() {
+        if (level == null || level.isClientSide()) {
+            return;
+        }
+        lastBellTick = level.getGameTime();
+        for (BlockPos bell : layout.bells()) {
+            BlockState state = level.getBlockState(bell);
+            if (state.getBlock() instanceof BellBlock bellBlock) {
+                bellBlock.attemptToRing(null, level, bell, null);
+            }
+        }
+    }
+
+    /**
+     * Gives the target of one unit to the other units of the village that have no target, also to the units far
+     * from the target. A unit of the village calls this method when it has a target.
+     *
+     * @param target the target
+     */
+    public void shareTarget(LivingEntity target) {
+        if (level == null || level.isClientSide() || level.getGameTime() - lastShareTick < SHARE_INTERVAL) {
+            return;
+        }
+        lastShareTick = level.getGameTime();
+        for (FactionUnit unit : getUnits()) {
+            if (unit.getTarget() == null && unit != target && unit.canTargetFromHome(target)) {
+                unit.setTarget(target);
             }
         }
     }
@@ -560,6 +604,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
             heart.applyDayNight(level.isNight());
         }
         long calmDelayTicks = WorldConfig.CALM_DELAY_SECONDS.get() * 20L;
+        if (heart.alertState != AlertState.CALM && level.getGameTime() - heart.lastBellTick >= BELL_INTERVAL) {
+            heart.ringBells();
+        }
         if (heart.alertState != AlertState.CALM && level.getGameTime() - heart.lastThreatTick > calmDelayTicks) {
             heart.setAlertState(AlertState.CALM);
         }

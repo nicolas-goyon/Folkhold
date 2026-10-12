@@ -22,6 +22,7 @@ import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.CrossCollisionBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.IronBarsBlock;
+import net.minecraft.world.level.block.entity.BellBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -212,6 +213,23 @@ public final class VillageStructureGameTests {
         heart.getUnits().forEach(Entity::discard);
         helper.assertTrue(moved, "Each archer must move to another tower: " + before + " -> " + after);
         helper.assertTrue(distinct == archers.size(), "Two archers must not share a tower");
+        helper.succeed();
+    }
+
+    /** When the village goes to the alert state, the alarm bell rings. */
+    @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_bell")
+    public static void alertRingsTheBell(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = findHeart(helper);
+        heart.ensureGarrison(helper.getLevel().getGameTime());
+        heart.getUnits().forEach(Entity::discard);
+        List<BlockPos> bells = heart.getLayout().bells();
+
+        heart.reportThreat(null);
+
+        boolean rang = !bells.isEmpty() && bells.stream().allMatch(pos ->
+                helper.getLevel().getBlockEntity(pos) instanceof BellBlockEntity bell && bell.shaking);
+        helper.assertTrue(bells.size() == 1, "Expected 1 bell, found " + bells.size());
+        helper.assertTrue(rang, "The bell must ring");
         helper.succeed();
     }
 }
