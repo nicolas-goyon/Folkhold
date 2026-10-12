@@ -144,7 +144,10 @@ public final class BehaviorGameTests {
         helper.succeed();
     }
 
-    /** The village heart screen has the village, garrison and reputation sections, with the village name. */
+    /**
+     * The village heart screen has the village, garrison, reputation, economy and territory sections, with the
+     * village name.
+     */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "behavior_village_info")
     public static void villageInfoHasAllSections(GameTestHelper helper) {
         Scene scene = scene(helper, 0);
@@ -153,7 +156,7 @@ public final class BehaviorGameTests {
         scene.remove(helper);
 
         helper.assertTrue(info.title().getString().equals(name), "The title must be the village name");
-        helper.assertTrue(info.sections().size() == 3, "Expected 3 sections, found " + info.sections().size());
+        helper.assertTrue(info.sections().size() == 5, "Expected 5 sections, found " + info.sections().size());
         helper.assertTrue(info.sections().get(1).rows().size() == GarrisonRole.values().length,
                 "The garrison section must have one row for each role");
         helper.succeed();
