@@ -77,7 +77,7 @@ public final class WorldConfig {
                         "unit without a village). A unit chases a target only in this area and in the territory of its",
                         "faction. When the unit or its target leaves the area, the unit stops the chase and goes back.")
                 .translation(KEY_PREFIX + "chaseRadius")
-                .defineInRange("chaseRadius", 64, 4, 2000);
+                .defineInRange("chaseRadius", 64, 4, 200);
         ALERT_RADIUS = builder
                 .comment("Radius in blocks in which an attack on one unit alerts the other units.")
                 .translation(KEY_PREFIX + "alertRadius")
