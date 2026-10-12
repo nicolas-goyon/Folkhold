@@ -60,6 +60,11 @@ public final class VillageStructureGameTests {
         boolean archersOnPosts = !archers.isEmpty() && archers.stream()
                 .allMatch(archer -> archer.getPostPos() != null && layout.posts().contains(archer.getPostPos())
                         && archer.blockPosition().equals(archer.getPostPos()));
+        int heartY = heart.getBlockPos().getY();
+        boolean othersOnGround = units.stream()
+                .filter(unit -> unit.getPostPos() == null)
+                .allMatch(unit -> Math.abs(unit.blockPosition().getY() - heartY) <= 2
+                        && helper.getLevel().canSeeSky(unit.blockPosition()));
         units.forEach(Entity::discard);
 
         helper.assertTrue(layout.posts().size() == TOWERS, "Expected " + TOWERS + " posts, found " + layout.posts().size());
@@ -68,6 +73,7 @@ public final class VillageStructureGameTests {
         helper.assertTrue(layout.braziers().size() == BRAZIERS,
                 "Expected " + BRAZIERS + " braziers, found " + layout.braziers().size());
         helper.assertTrue(archersOnPosts, "Each archer must spawn on a post of the village");
+        helper.assertTrue(othersOnGround, "Each unit without a post must spawn on the ground near the heart");
         helper.succeed();
     }
 
