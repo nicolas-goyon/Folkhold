@@ -62,7 +62,7 @@ public class VillageHeartBlock extends BaseEntityBlock {
             BlockHitResult hitResult) {
         if (player instanceof ServerPlayer serverPlayer
                 && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
-            heart.ensureFaction();
+            heart.ensureSettlement();
             PacketDistributor.sendToPlayer(serverPlayer, VillageInfo.build(heart, serverPlayer));
         }
         return InteractionResult.sidedSuccess(level.isClientSide());

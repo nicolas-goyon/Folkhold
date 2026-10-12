@@ -453,7 +453,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         }
         if (factionId == null) {
             getVillageHeart().ifPresent(heart -> {
-                heart.ensureFaction();
+                heart.ensureSettlement();
                 setFactionId(heart.getFactionId());
             });
         }

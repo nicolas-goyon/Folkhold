@@ -33,7 +33,7 @@ public final class ReputationGameTests {
         TestSupport.buildFloor(helper);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
-        heart.ensureFaction();
+        heart.ensureSettlement();
         GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(3, 1, 3));
         guard.setVillagePos(helper.absolutePos(HEART));
         guard.setFactionId(heart.getFactionId());
