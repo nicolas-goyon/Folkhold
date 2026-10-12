@@ -55,4 +55,17 @@ public final class ArcherGameTests {
             helper.assertTrue(distance < 1.5, "The archer must be at its post, distance: " + distance);
         }, archer);
     }
+
+    /** An archer at its post sees and kills a monster far from the post. */
+    @GameTest(template = "arena", timeoutTicks = 800, batch = "archer_post_kill")
+    public static void archerAtPostKillsDistantMonster(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ArcherEntity archer = TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 2));
+        archer.setPostPos(helper.absolutePos(new BlockPos(2, 1, 2)));
+        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(13, 1, 13));
+        husk.setNoAi(true);
+
+        TestSupport.succeedWhenAndRemove(helper,
+                () -> helper.assertTrue(!husk.isAlive(), "The husk is still alive"), archer, husk);
+    }
 }

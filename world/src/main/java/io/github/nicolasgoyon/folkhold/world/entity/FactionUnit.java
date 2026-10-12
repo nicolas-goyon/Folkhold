@@ -58,7 +58,7 @@ public abstract class FactionUnit extends PathfinderMob {
     /** Speed of a routed unit that runs back home. */
     private static final double ROUT_SPEED = 1.3;
     /** Radius around the post while the village is not calm, in blocks. */
-    private static final int POST_RADIUS = 1;
+    private static final int POST_RADIUS = 2;
 
     @Nullable
     private BlockPos homePos;
@@ -110,6 +110,31 @@ public abstract class FactionUnit extends PathfinderMob {
 
     public void setPostPos(@Nullable BlockPos pos) {
         postPos = pos == null ? null : pos.immutable();
+    }
+
+    /**
+     * The center of the area where the unit must stay now: the post, else the night watch position at night,
+     * else the home position.
+     *
+     * <p>The unit does not use the vanilla restriction ({@code restrictTo}): vanilla target goals ignore all
+     * targets outside the restriction, and a unit on a post must see the targets below its tower.
+     */
+    public BlockPos getAnchorPos() {
+        if (postPos != null) {
+            return postPos;
+        }
+        if (nightPos != null && level().isNight()) {
+            return nightPos;
+        }
+        return getHomePos();
+    }
+
+    /** The radius of the area around {@link #getAnchorPos()}, in blocks. */
+    public int getAnchorRadius() {
+        if (postPos != null) {
+            return POST_RADIUS;
+        }
+        return level().isNight() ? NIGHT_RADIUS : WorldConfig.PATROL_RADIUS.get();
     }
 
     /** The night watch position (near a gate), or null. At night, the unit stays near it. */
@@ -175,14 +200,6 @@ public abstract class FactionUnit extends PathfinderMob {
     @Override
     protected void customServerAiStep() {
         super.customServerAiStep();
-        if (postPos != null) {
-            restrictTo(postPos, POST_RADIUS);
-        } else if (nightPos != null && level().isNight()) {
-            restrictTo(nightPos, NIGHT_RADIUS);
-        } else {
-            int radius = level().isNight() ? NIGHT_RADIUS : WorldConfig.PATROL_RADIUS.get();
-            restrictTo(getHomePos(), radius);
-        }
 
         if (isRouted()) {
             if (getTarget() != null) {
