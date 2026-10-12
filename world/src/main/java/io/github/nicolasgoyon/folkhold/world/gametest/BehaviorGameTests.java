@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
@@ -90,6 +91,40 @@ public final class BehaviorGameTests {
 
         helper.assertTrue(warnedOnly, "The first offense must give only a warning");
         helper.assertTrue(attacked, "The second offense must make the guard attack");
+        helper.succeed();
+    }
+
+    /** After an attack on the village, a unit that did not see the attack also attacks the player on sight. */
+    @GameTest(template = "arena", timeoutTicks = 200, batch = "behavior_village_hostility")
+    public static void villageAttacksOffenderOnSight(GameTestHelper helper) {
+        Scene scene = scene(helper, 0);
+        scene.heart().recordOffense(scene.player());
+        scene.heart().recordOffense(scene.player());
+        GuardEntity other = TestSupport.spawnGuard(helper, new BlockPos(12, 1, 12));
+        other.setVillagePos(helper.absolutePos(HEART));
+        other.setFactionId(scene.heart().getFactionId());
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(other.getTarget() == scene.player(),
+                        "A unit of the village must attack the player that attacked the village"))
+                .thenExecute(() -> {
+                    other.discard();
+                    scene.remove(helper);
+                })
+                .thenSucceed();
+    }
+
+    /** The chase area is around the village heart, with the chase radius. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "behavior_chase_area")
+    public static void chaseAreaIsAroundTheVillage(GameTestHelper helper) {
+        Scene scene = scene(helper, 0);
+        BlockPos heart = helper.absolutePos(HEART);
+        int radius = WorldConfig.CHASE_RADIUS.get();
+        boolean near = scene.guard().isInChaseArea(heart.offset(radius / 2, 0, 0));
+        boolean far = scene.guard().isInChaseArea(heart.offset(radius + 8, 0, 0));
+        scene.remove(helper);
+
+        helper.assertTrue(near, "A position in the chase radius must be in the chase area");
+        helper.assertTrue(!far, "A position outside the chase radius must not be in the chase area");
         helper.succeed();
     }
 }

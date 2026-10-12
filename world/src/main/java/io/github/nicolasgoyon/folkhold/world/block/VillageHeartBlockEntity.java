@@ -55,6 +55,11 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private long lastThreatTick;
     private final Garrison garrison = new Garrison();
     private final Map<UUID, Offense> offenses = new HashMap<>();
+    /**
+     * Players that attacked the village, with the game time when the hostility ends. All units of the village
+     * attack these players on sight. Not saved: a server restart clears the list.
+     */
+    private final Map<UUID, Long> hostilePlayers = new HashMap<>();
     private final VillageLayout layout = new VillageLayout();
     private static final String LAYOUT_TAG = "Layout";
     private static final String NIGHT_TAG = "NightMode";
@@ -97,6 +102,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (alertState == AlertState.CALM) {
             setAlertState(AlertState.ALERT);
         }
+        if (attacker instanceof Player player) {
+            markHostile(player);
+        }
         if (attacker != null) {
             for (FactionUnit unit : getUnits()) {
                 if (unit.getTarget() == null && unit != attacker && unit.canTargetFromHome(attacker)) {
@@ -104,6 +112,40 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 }
             }
         }
+    }
+
+    /**
+     * Puts the player in the list of hostile players of the village, or extends the hostility. The hostility
+     * ends after the calm delay (see {@link WorldConfig#CALM_DELAY_SECONDS}) without a new threat from the player.
+     *
+     * @param player the player
+     */
+    public void markHostile(Player player) {
+        if (level == null || level.isClientSide()) {
+            return;
+        }
+        hostilePlayers.put(player.getUUID(), level.getGameTime() + WorldConfig.CALM_DELAY_SECONDS.get() * 20L);
+    }
+
+    /**
+     * True if all units of the village attack this player on sight: the player attacked the village, the
+     * hostility did not end, and the reputation of the player is not friendly.
+     *
+     * @param player the player
+     * @return true if the player is hostile to the village
+     */
+    public boolean isHostilePlayer(Player player) {
+        Long until = hostilePlayers.get(player.getUUID());
+        if (until == null || level == null) {
+            return false;
+        }
+        boolean friendly = level.getServer() != null
+                && Reputations.tier(level.getServer(), player, this).isFriendly();
+        if (level.getGameTime() > until || friendly) {
+            hostilePlayers.remove(player.getUUID());
+            return false;
+        }
+        return true;
     }
 
     /**
