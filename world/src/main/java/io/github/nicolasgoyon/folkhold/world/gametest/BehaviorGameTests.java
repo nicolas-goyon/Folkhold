@@ -45,7 +45,7 @@ public final class BehaviorGameTests {
         GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(3, 1, 3));
         guard.setVillagePos(helper.absolutePos(HEART));
         guard.setFactionId(heart.getFactionId());
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
         Vec3 pos = helper.absoluteVec(new Vec3(7.5, 1.0, 3.5));
         player.moveTo(pos.x, pos.y, pos.z);
