@@ -91,5 +91,11 @@
   "folkhold_world.configuration.reputationOffense": "Infraction dans un village",
   "folkhold_world.configuration.reputationOffenseWindowSeconds": "Fenêtre des infractions (secondes)",
   "message.folkhold_world.village_heart.status_no_faction": "Village : %s",
-  "message.folkhold_world.village_entry": "Village de %s (%s)"
+  "message.folkhold_world.village_entry": "Village de %s, %s (%s)",
+  "folkhold_world.configuration.showTerritoryHud": "Affichage du territoire",
+  "folkhold_world.configuration.villageMessageRadius": "Distance du message de village",
+  "message.folkhold_world.territory_entry": "Territoire de faction · votre réputation : %s",
+  "message.folkhold_world.village_entry_no_name": "Village de %s (%s)",
+  "hud.folkhold_world.territory": "%s · %s",
+  "hud.folkhold_world.village": "Village : %s"
 }
