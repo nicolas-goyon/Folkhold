@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
@@ -39,6 +40,15 @@ public final class SettlementGameTests {
         data.registry().add(settlement);
         data.setDirty();
         return settlement;
+    }
+
+    /**
+     * Makes a test settlement inactive, so it claims no territory. A settlement of another faction near the test
+     * area changes the chase area of the units in the other tests.
+     */
+    private static void retire(GameTestHelper helper, Settlement settlement) {
+        settlement.setState(SettlementState.RUINS);
+        SettlementData.get(helper.getLevel().getServer()).setDirty();
     }
 
     /** A faction that is not the owner of the heart position, so the test can see which faction the heart gets. */
@@ -81,12 +91,16 @@ public final class SettlementGameTests {
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
 
         heart.ensureSettlement();
+        boolean sameId = heart.getVillageId().toString().equals(discovered.id());
+        boolean sameFaction = faction.id().equals(heart.getFactionId());
+        boolean sameName = "Discoveredton".equals(heart.getVillageName());
+        boolean knowsHeart = discovered.hasHeart();
+        retire(helper, discovered);
 
-        helper.assertTrue(heart.getVillageId().toString().equals(discovered.id()),
-                "The heart must get the id of the settlement");
-        helper.assertTrue(faction.id().equals(heart.getFactionId()), "The heart must get the faction of the settlement");
-        helper.assertTrue("Discoveredton".equals(heart.getVillageName()), "The heart must get the name of the settlement");
-        helper.assertTrue(discovered.hasHeart(), "The settlement must know its heart");
+        helper.assertTrue(sameId, "The heart must get the id of the settlement");
+        helper.assertTrue(sameFaction, "The heart must get the faction of the settlement");
+        helper.assertTrue(sameName, "The heart must get the name of the settlement");
+        helper.assertTrue(knowsHeart, "The settlement must know its heart");
         helper.succeed();
     }
 
@@ -109,12 +123,16 @@ public final class SettlementGameTests {
         heart.ensureSettlement();
 
         SettlementData data = SettlementData.get(helper.getLevel().getServer());
-        helper.assertTrue(heart.getVillageId().equals(heartId), "The heart must keep its id");
-        helper.assertTrue(data.registry().byId(discoveredId).isEmpty(), "The discovered id must not exist any more");
-        helper.assertTrue(data.registry().byId(heartId.toString()).orElse(null) == discovered,
-                "The discovered settlement must get the id of the heart");
-        helper.assertTrue(discovered.factionId().equals(heartFaction.id()) && "Oldbury".equals(discovered.name()),
-                "The settlement must get the faction and the name of the heart");
+        boolean keepsId = heart.getVillageId().equals(heartId);
+        boolean oldIdGone = data.registry().byId(discoveredId).isEmpty();
+        boolean newId = data.registry().byId(heartId.toString()).orElse(null) == discovered;
+        boolean identity = discovered.factionId().equals(heartFaction.id()) && "Oldbury".equals(discovered.name());
+        retire(helper, discovered);
+
+        helper.assertTrue(keepsId, "The heart must keep its id");
+        helper.assertTrue(oldIdGone, "The discovered id must not exist any more");
+        helper.assertTrue(newId, "The discovered settlement must get the id of the heart");
+        helper.assertTrue(identity, "The settlement must get the faction and the name of the heart");
         helper.succeed();
     }
 
