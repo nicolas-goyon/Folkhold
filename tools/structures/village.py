@@ -7,7 +7,9 @@ Output: world/src/main/resources/data/folkhold_world/structure/village/*.nbt
 
 Pieces:
 - center.nbt: the walled compound. Palisade, 4 corner towers with an archer post and a low parapet, 2 gates, paths,
-  a plaza with the village heart and 4 braziers. 4 jigsaw connectors for the house plots.
+  a plaza with the village heart and 4 braziers. 4 jigsaw connectors for the house plots. A margin of 1 block around
+  the compound holds the banners on the outer face of the palisade. The other margin positions are empty: the
+  terrain stays.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
 
 Conventions: y = 0 is the ground layer (foundations, floors, paths). y = 1 is the first layer above ground.
@@ -28,12 +30,20 @@ HEART = f"{NS}:village_heart"
 HOUSE_POOL = f"{NS}:village/houses"
 PLOT = f"{NS}:plot"
 HOUSE_FRONT = f"{NS}:house_front"
+# The village heart gives the banner of the faction to each banner of the village.
+BANNER = "minecraft:white_banner"
+WALL_BANNER = "minecraft:white_wall_banner"
 
 LOG_Y = {"axis": "y"}
 
 
 def stairs(facing, half="bottom"):
     return {"facing": facing, "half": half, "shape": "straight", "waterlogged": "false"}
+
+
+def wall_torch(facing):
+    """A wall torch. facing: the direction of the torch, away from the block that holds it."""
+    return "minecraft:wall_torch", {"facing": facing}
 
 
 def cobble(rng):
@@ -76,10 +86,12 @@ def tower(t, rng, tx, tz):
             else:
                 t.set(x, 8, z, "minecraft:air")
             t.set(x, 9, z, "minecraft:air")
-    # Arrow slits in the two outer faces.
+    # Arrow slits in the two outer faces. The ladder is on the middle of the outer face along z,
+    # so the slits of this face are on each side of the ladder.
     outer_x = tx if west_side else tx + TOWER - 1
     outer_z = tz if north_side else tz + TOWER - 1
-    t.set(outer_x, 4, tz + 2, "minecraft:air")
+    t.set(outer_x, 4, tz + 1, "minecraft:air")
+    t.set(outer_x, 4, tz + 3, "minecraft:air")
     t.set(tx + 2, 4, outer_z, "minecraft:air")
     # Door to the compound (2 blocks high) in the inner face along x.
     inner_x = tx + TOWER - 1 if west_side else tx
@@ -94,6 +106,12 @@ def tower(t, rng, tx, tz):
     t.set(tx + 2, 7, tz + 2, WATCH_POST)
     # Light inside the tower, under the platform (not in the line of fire).
     t.set(tx + 2, 6, tz + 2, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    # Light on the platform: a lantern on the inner corner log (the archer shoots to the outside).
+    inner_z = tz + TOWER - 1 if north_side else tz
+    t.set(inner_x, 9, inner_z, "minecraft:lantern", {"hanging": "false", "waterlogged": "false"})
+    # Light above the door, on the side of the compound.
+    door_side = "east" if west_side else "west"
+    t.set(inner_x + (1 if west_side else -1), 3, tz + 2, *wall_torch(door_side))
 
 
 def palisade_column(t, rng, x, z, pointed):
@@ -125,6 +143,40 @@ def lamp_post(t, x, z):
     t.set(x, 1, z, "minecraft:spruce_fence")
     t.set(x, 2, z, "minecraft:spruce_fence")
     t.set(x, 3, z, "minecraft:lantern", {"hanging": "false", "waterlogged": "false"})
+
+
+def palisade_torches(t):
+    """Wall torches on the inner face of the palisade, between the towers and the gates."""
+    for i in range(TOWER + 2, SIZE - TOWER - 1, 6):
+        if i in GATE or i in (GATE[0] - 1, GATE[-1] + 1):
+            continue
+        t.set(i, 3, 1, *wall_torch("south"))
+        t.set(i, 3, SIZE - 2, *wall_torch("north"))
+        t.set(1, 3, i, *wall_torch("east"))
+        t.set(SIZE - 2, 3, i, *wall_torch("west"))
+
+
+def with_margin(t, margin):
+    """A copy of the template, moved by the margin in x and z, in a template that is larger by 2 × margin."""
+    sx, sy, sz = t.size
+    out = Template(sx + 2 * margin, sy, sz + 2 * margin)
+    for (x, y, z), entry in t.blocks.items():
+        out.blocks[(x + margin, y, z + margin)] = entry
+    return out
+
+
+def outer_banners(t):
+    """Wall banners on the outer face of the palisade. t is the template with a margin of 1 block."""
+    last = SIZE + 1  # the margin line on the far side
+    spots = [GATE[0] - 1, GATE[-1] + 1, 10, SIZE - 11]
+    for i in spots:
+        c = i + 1  # palisade coordinate in the template with the margin
+        t.set(c, 4, 0, WALL_BANNER, {"facing": "north"})
+        t.set(c, 4, last, WALL_BANNER, {"facing": "south"})
+    for i in (10, MID, SIZE - 11):
+        c = i + 1
+        t.set(0, 4, c, WALL_BANNER, {"facing": "west"})
+        t.set(last, 4, c, WALL_BANNER, {"facing": "east"})
 
 
 def path_block(rng):
@@ -177,13 +229,17 @@ def center():
             t.set(MID + dx, 1, MID + dz, "minecraft:campfire",
                   {"facing": "north", "lit": "false", "signal_fire": "false", "waterlogged": "false"})
 
-    for (x, z) in ((MID - 2, 7), (MID + 2, 7), (MID - 2, SIZE - 8), (MID + 2, SIZE - 8)):
+    for (x, z) in ((MID - 2, 7), (MID + 2, 7), (MID - 2, SIZE - 8), (MID + 2, SIZE - 8),
+                   (7, MID - 2), (7, MID + 2), (SIZE - 8, MID - 2), (SIZE - 8, MID + 2)):
         lamp_post(t, x, z)
+    palisade_torches(t)
 
     # House plots: jigsaw connectors next to the north-south path. Houses go into the free space.
     for z in (9, SIZE - 10):
         t.jigsaw(MID - 2, 1, z, "west_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
         t.jigsaw(MID + 2, 1, z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+    t = with_margin(t, 1)
+    outer_banners(t)
     return t
 
 
@@ -240,6 +296,9 @@ def house_shell(rng, wall_lower, wall_upper, door=True, wide_front=False):
     for x in (0, W - 1):
         for y in range(1, 5):
             t.set(x, y, 0, "minecraft:spruce_fence")
+    # Porch light: 2 wall torches on the front wall.
+    for x in (mid - 2, mid + 2):
+        t.set(x, 3, 0, *wall_torch("north"))
     # Gable roof (ridge along z), over the porch.
     for step in range(5):
         y = 5 + step
@@ -293,7 +352,7 @@ def barracks():
     for x in (1, 3, 5, 7):
         bed(t, x, 6, "blue")
     t.set(7, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
-    t.set(1, 1, 2, "minecraft:blue_banner", {"rotation": "4"})
+    t.set(1, 1, 2, BANNER, {"rotation": "4"})
     lantern(t, 4, 1, 4)
     return t
 

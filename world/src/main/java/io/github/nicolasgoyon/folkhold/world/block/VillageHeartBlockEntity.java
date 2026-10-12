@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
@@ -211,12 +212,22 @@ public class VillageHeartBlockEntity extends BlockEntity {
         ensureFaction();
         if (!layout.isScanned()) {
             layout.scan(serverLevel, worldPosition);
+            paintBanners();
             setChanged();
         }
         if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
                 layout.posts())) {
             setChanged();
         }
+    }
+
+    /** Gives the banner of the faction to the banners of the village. */
+    private void paintBanners() {
+        if (level == null) {
+            return;
+        }
+        FactionVisuals.faction(level.getServer(), factionId)
+                .ifPresent(faction -> layout.banners().forEach(pos -> FactionVisuals.paintBanner(level, pos, faction)));
     }
 
     /**
