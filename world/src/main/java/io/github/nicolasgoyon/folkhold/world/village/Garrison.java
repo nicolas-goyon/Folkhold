@@ -120,12 +120,14 @@ public final class Garrison {
      *
      * @param level     the level of the heart
      * @param heartPos  the position of the heart
+     * @param factionId the faction of the village, or null
      * @param calm      true if the village is calm
      * @param now       the current game time
      * @param posts     the posts of the village (positions where an archer stands)
      * @return true if the garrison changed (the heart must save)
      */
-    public boolean ensure(ServerLevel level, BlockPos heartPos, boolean calm, long now, List<BlockPos> posts) {
+    public boolean ensure(ServerLevel level, BlockPos heartPos, @Nullable String factionId, boolean calm, long now,
+            List<BlockPos> posts) {
         boolean changed = false;
         for (Entry entry : entries) {
             if (entry.dead) {
@@ -146,7 +148,7 @@ public final class Garrison {
             int count = (int) entries.stream().filter(entry -> entry.role == role).count();
             for (int i = count; i < role.configuredCount(); i++) {
                 BlockPos post = role == GarrisonRole.ARCHER ? freePost(posts) : null;
-                FactionUnit unit = spawnUnit(level, heartPos, role, post);
+                FactionUnit unit = spawnUnit(level, heartPos, factionId, role, post);
                 if (unit != null) {
                     Entry entry = new Entry(unit.getUUID(), role);
                     entry.post = post;
@@ -165,7 +167,7 @@ public final class Garrison {
                     if (entry.post == null && entry.role == GarrisonRole.ARCHER) {
                         entry.post = freePost(posts);
                     }
-                    FactionUnit unit = spawnUnit(level, heartPos, entry.role, entry.post);
+                    FactionUnit unit = spawnUnit(level, heartPos, factionId, entry.role, entry.post);
                     if (unit != null) {
                         entry.unitId = unit.getUUID();
                         entry.dead = false;
@@ -192,12 +194,13 @@ public final class Garrison {
     }
 
     @Nullable
-    private static FactionUnit spawnUnit(ServerLevel level, BlockPos heartPos, GarrisonRole role,
-            @Nullable BlockPos post) {
+    private static FactionUnit spawnUnit(ServerLevel level, BlockPos heartPos, @Nullable String factionId,
+            GarrisonRole role, @Nullable BlockPos post) {
         FactionUnit unit = role.entityType().create(level);
         if (unit == null) {
             return null;
         }
+        unit.setFactionId(factionId);
         if (post != null) {
             unit.moveTo(post.getX() + 0.5, post.getY(), post.getZ() + 0.5, level.random.nextFloat() * 360.0F, 0.0F);
             unit.setHomePos(post);

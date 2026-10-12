@@ -53,5 +53,8 @@
   "folkhold_world.configuration.unit.captain.armor": "Armor",
   "folkhold_world.configuration.unit.captain.movementSpeed": "Movement speed",
   "folkhold_world.configuration.unit.captain.followRange": "Follow range",
-  "block.folkhold_world.watch_post": "Watch Post"
+  "block.folkhold_world.watch_post": "Watch Post",
+  "folkhold_world.culture.valeholm": "Valeholm",
+  "folkhold_world.culture.ashmark": "Ashmark",
+  "folkhold_world.culture.sunreach": "Sunreach"
 }
