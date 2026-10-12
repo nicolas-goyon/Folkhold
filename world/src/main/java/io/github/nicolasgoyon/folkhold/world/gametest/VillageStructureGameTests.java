@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
@@ -15,8 +16,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.CrossCollisionBlock;
@@ -79,6 +85,7 @@ public final class VillageStructureGameTests {
                 .allMatch(unit -> Math.abs(unit.blockPosition().getY() - heartY) <= 2
                         && helper.getLevel().canSeeSky(unit.blockPosition()));
         units.forEach(Entity::discard);
+        heart.getCats().forEach(Entity::discard);
 
         helper.assertTrue(layout.posts().size() == TOWERS, "Expected " + TOWERS + " posts, found " + layout.posts().size());
         helper.assertTrue(layout.gates().size() == GATE_BLOCKS,
@@ -96,6 +103,7 @@ public final class VillageStructureGameTests {
         VillageHeartBlockEntity heart = findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
+        heart.getCats().forEach(Entity::discard);
         List<BlockPos> banners = heart.getLayout().banners();
         DyeColor expected = FactionVisuals.faction(helper.getLevel().getServer(), heart.getFactionId())
                 .flatMap(faction -> Cultures.byId(faction.cultureId()))
@@ -133,6 +141,7 @@ public final class VillageStructureGameTests {
                 .noneMatch(pos -> helper.getLevel().getBlockState(pos).getValue(CampfireBlock.LIT));
         boolean guardsOffWatch = guards.stream().allMatch(guard -> guard.getNightPos() == null);
         heart.getUnits().forEach(Entity::discard);
+        heart.getCats().forEach(Entity::discard);
 
         helper.assertTrue(gatesClosed, "At night, all gates must be closed");
         helper.assertTrue(braziersLit, "At night, all braziers must burn");
@@ -187,6 +196,7 @@ public final class VillageStructureGameTests {
         List<BlockPos> validPosts = heart.getLayout().validPosts();
         boolean valid = archers.stream().allMatch(archer -> validPosts.contains(archer.getPostPos()));
         heart.getUnits().forEach(Entity::discard);
+        heart.getCats().forEach(Entity::discard);
         helper.assertTrue(archers.size() >= 2, "The garrison must have 2 archers or more");
         helper.assertTrue(distinct == archers.size(), "Each archer must have its own tower");
         helper.assertTrue(valid, "Each archer must have a valid tower");
@@ -211,6 +221,7 @@ public final class VillageStructureGameTests {
         }
         long distinct = after.stream().distinct().count();
         heart.getUnits().forEach(Entity::discard);
+        heart.getCats().forEach(Entity::discard);
         helper.assertTrue(moved, "Each archer must move to another tower: " + before + " -> " + after);
         helper.assertTrue(distinct == archers.size(), "Two archers must not share a tower");
         helper.succeed();
@@ -222,6 +233,7 @@ public final class VillageStructureGameTests {
         VillageHeartBlockEntity heart = findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
+        heart.getCats().forEach(Entity::discard);
         List<BlockPos> bells = heart.getLayout().bells();
 
         heart.reportThreat(null);
@@ -230,6 +242,35 @@ public final class VillageStructureGameTests {
                 helper.getLevel().getBlockEntity(pos) instanceof BellBlockEntity bell && bell.shaking);
         helper.assertTrue(bells.size() == 1, "Expected 1 bell, found " + bells.size());
         helper.assertTrue(rang, "The bell must ring");
+        helper.succeed();
+    }
+
+    /** The village has a cat for each gate, near the gate. The player cannot tame a village cat with fish. */
+    @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_cats")
+    public static void villageHasCatsAtTheGates(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = findHeart(helper);
+        heart.ensureGarrison(helper.getLevel().getGameTime());
+        heart.getUnits().forEach(Entity::discard);
+        List<VillageCat> cats = heart.getCats();
+        List<BlockPos> anchors = heart.catAnchors();
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setGameMode(GameType.SURVIVAL);
+        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COD, 64));
+        boolean tamed = false;
+        for (VillageCat cat : cats) {
+            cat.mobInteract(player, InteractionHand.MAIN_HAND);
+            tamed |= cat.isTame();
+        }
+        boolean anchored = cats.stream().allMatch(cat -> anchors.contains(cat.getAnchorPos()));
+        int expected = heart.catCount();
+        cats.forEach(Entity::discard);
+        helper.getLevel().getServer().getPlayerList().remove(player);
+
+        helper.assertTrue(anchors.size() == 3, "Expected 2 gate anchors and 1 center anchor, found " + anchors.size());
+        helper.assertTrue(cats.size() == expected && expected >= 2,
+                "Expected " + expected + " cats (2 or more), found " + cats.size());
+        helper.assertTrue(anchored, "Each cat must have an anchor of the village");
+        helper.assertTrue(!tamed, "The player must not tame a village cat");
         helper.succeed();
     }
 }

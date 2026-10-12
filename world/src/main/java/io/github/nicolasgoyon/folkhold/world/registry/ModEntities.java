@@ -4,9 +4,11 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.animal.Cat;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -35,6 +37,13 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .build("captain"));
 
+    public static final DeferredHolder<EntityType<?>, EntityType<VillageCat>> VILLAGE_CAT =
+            ENTITY_TYPES.register("village_cat", () -> EntityType.Builder.<VillageCat>of(VillageCat::new,
+                            MobCategory.CREATURE)
+                    .sized(0.6F, 0.7F)
+                    .clientTrackingRange(8)
+                    .build("village_cat"));
+
     private ModEntities() {
     }
 
@@ -47,5 +56,6 @@ public final class ModEntities {
         event.put(GUARD.get(), GuardEntity.createAttributes().build());
         event.put(ARCHER.get(), ArcherEntity.createAttributes().build());
         event.put(CAPTAIN.get(), CaptainEntity.createAttributes().build());
+        event.put(VILLAGE_CAT.get(), Cat.createAttributes().build());
     }
 }

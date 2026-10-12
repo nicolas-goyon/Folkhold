@@ -7,10 +7,13 @@ import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
+import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
+import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
@@ -35,6 +38,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BellBlock;
@@ -79,6 +83,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private final VillageLayout layout = new VillageLayout();
     private static final String LAYOUT_TAG = "Layout";
     private static final String NIGHT_TAG = "NightMode";
+    private static final String CATS_TAG = "CatsSpawned";
+    private static final String CAT_SPAWN_TAG = "LastCatSpawn";
     private static final String FACTION_TAG = "Faction";
     private static final String NAME_TAG = "Name";
     /** Name of the village, or null before the village has a faction. */
@@ -91,6 +97,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final int GATE_WATCH_DISTANCE = 2;
     /** True after the heart closed the gates and lit the braziers for the night. */
     private boolean nightMode;
+    /** True after the first cats of the village appeared. */
+    private boolean catsSpawned;
+    /** Game time of the last creation of cats. */
+    private long lastCatSpawn;
     /** Game time of the last ring of the bells. Not saved. */
     private long lastBellTick = Long.MIN_VALUE / 2;
     /** Game time of the last shared target. Not saved. */
@@ -443,10 +453,89 @@ public class VillageHeartBlockEntity extends BlockEntity {
             paintBanners();
             setChanged();
         }
+        if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
+            setChanged();
+        }
         if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
                 layout.validPosts())) {
             setChanged();
         }
+    }
+
+    /** The loaded cats of this village. */
+    public List<VillageCat> getCats() {
+        if (level == null) {
+            return List.of();
+        }
+        double radius = WorldConfig.VILLAGE_RADIUS.get();
+        AABB area = new AABB(worldPosition).inflate(radius, 32.0, radius);
+        return level.getEntitiesOfClass(VillageCat.class, area, cat -> worldPosition.equals(cat.getVillagePos()));
+    }
+
+    /**
+     * Number of cats of the village: the number of the level (see {@code cats} in the level table), and at least
+     * one cat for each gate.
+     */
+    public int catCount() {
+        int fromLevel = 1;
+        if (level != null && level.getServer() != null) {
+            fromLevel = Settlements.of(level.getServer(), this)
+                    .map(settlement -> LevelTables.get().traits(settlement.level()).cats())
+                    .orElse(1);
+        }
+        return Math.max(fromLevel, catAnchors().size() - 1);
+    }
+
+    /**
+     * The anchors of the cats: one position inside each gate, then the position next to the heart. The gate
+     * blocks of one gate are side by side, so the method keeps one block for each group of gate blocks.
+     */
+    public List<BlockPos> catAnchors() {
+        List<BlockPos> anchors = new ArrayList<>();
+        List<BlockPos> seen = new ArrayList<>();
+        for (BlockPos gate : layout.gates()) {
+            boolean sameGate = seen.stream().anyMatch(other -> other.distManhattan(gate) <= 2);
+            seen.add(gate);
+            if (!sameGate) {
+                anchors.add(gateWatchPosition(gate));
+            }
+        }
+        anchors.add(worldPosition.offset(2, 0, 2));
+        return anchors;
+    }
+
+    /**
+     * Creates the missing cats of the village. The first cats appear at once. A dead cat comes back after the
+     * refill delay of the garrison.
+     *
+     * @param serverLevel the level
+     * @param now         the current game time
+     * @return true if the heart must save
+     */
+    private boolean ensureCats(ServerLevel serverLevel, long now) {
+        List<VillageCat> cats = getCats();
+        int missing = catCount() - cats.size();
+        long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
+        if (missing <= 0 || catsSpawned && now - lastCatSpawn < refill) {
+            return false;
+        }
+        List<BlockPos> anchors = catAnchors();
+        for (int i = 0; i < missing; i++) {
+            BlockPos anchor = anchors.get((cats.size() + i) % anchors.size());
+            VillageCat cat = ModEntities.VILLAGE_CAT.get().create(serverLevel);
+            if (cat == null) {
+                continue;
+            }
+            cat.moveTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5,
+                    serverLevel.random.nextFloat() * 360.0F, 0.0F);
+            cat.setAnchorPos(anchor);
+            cat.setVillagePos(worldPosition);
+            cat.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(anchor), MobSpawnType.STRUCTURE, null);
+            serverLevel.addFreshEntity(cat);
+        }
+        catsSpawned = true;
+        lastCatSpawn = now;
+        return true;
     }
 
     /** Gives the banner of the faction to the banners of the village. */
@@ -645,6 +734,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.put(GARRISON_TAG, garrison.save());
         tag.put(LAYOUT_TAG, layout.save());
         tag.putBoolean(NIGHT_TAG, nightMode);
+        tag.putBoolean(CATS_TAG, catsSpawned);
+        tag.putLong(CAT_SPAWN_TAG, lastCatSpawn);
         if (factionId != null) {
             tag.putString(FACTION_TAG, factionId);
         }
@@ -664,6 +755,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
         layout.load(tag.getCompound(LAYOUT_TAG));
         nightMode = tag.getBoolean(NIGHT_TAG);
+        catsSpawned = tag.getBoolean(CATS_TAG);
+        lastCatSpawn = tag.getLong(CAT_SPAWN_TAG);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
         villageName = tag.contains(NAME_TAG) ? tag.getString(NAME_TAG) : null;
     }

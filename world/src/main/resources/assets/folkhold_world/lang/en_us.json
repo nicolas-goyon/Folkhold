@@ -180,5 +180,8 @@
   "screen.folkhold_world.village_heart.emeralds": "%s emeralds",
   "screen.folkhold_world.village_heart.stock_value": "%s (sells at %s)",
   "screen.folkhold_world.village_heart.territory": "Territory",
-  "screen.folkhold_world.village_heart.claimed_cells": "Claimed cells"
+  "screen.folkhold_world.village_heart.claimed_cells": "Claimed cells",
+  "entity.folkhold_world.village_cat": "Village Cat",
+  "folkhold_world.configuration.reputationHitCat": "Hit a village cat",
+  "folkhold_world.configuration.reputationKillCat": "Kill a village cat"
 }
