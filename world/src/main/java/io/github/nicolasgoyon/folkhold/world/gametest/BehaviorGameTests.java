@@ -5,7 +5,10 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
+import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
+import io.github.nicolasgoyon.folkhold.world.village.VillageInfo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -138,6 +141,21 @@ public final class BehaviorGameTests {
 
         helper.assertTrue(first != null && !first.isEmpty(), "A village with a faction must have a name");
         helper.assertTrue(first.equals(second), "The village name must not change");
+        helper.succeed();
+    }
+
+    /** The village heart screen has the village, garrison and reputation sections, with the village name. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "behavior_village_info")
+    public static void villageInfoHasAllSections(GameTestHelper helper) {
+        Scene scene = scene(helper, 0);
+        VillageInfoPayload info = VillageInfo.build(scene.heart(), scene.player());
+        String name = scene.heart().getVillageName();
+        scene.remove(helper);
+
+        helper.assertTrue(info.title().getString().equals(name), "The title must be the village name");
+        helper.assertTrue(info.sections().size() == 3, "Expected 3 sections, found " + info.sections().size());
+        helper.assertTrue(info.sections().get(1).rows().size() == GarrisonRole.values().length,
+                "The garrison section must have one row for each role");
         helper.succeed();
     }
 }
