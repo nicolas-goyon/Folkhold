@@ -1,10 +1,11 @@
 package io.github.nicolasgoyon.folkhold.world.entity;
 
-import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
-import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
@@ -31,6 +32,7 @@ import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.ItemStack;
@@ -116,6 +118,12 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     protected FactionUnit(EntityType<? extends FactionUnit> type, Level level) {
         super(type, level);
         setPersistenceRequired();
+    }
+
+    /** Ground navigation that goes through fence gates and wooden doors (see {@link UnitNavigation}). */
+    @Override
+    protected PathNavigation createNavigation(Level level) {
+        return new UnitNavigation(this, level);
     }
 
     /** The configured values of this unit type. */
