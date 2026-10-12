@@ -102,7 +102,10 @@ Each faction has 3 to 8 villages, spread across the territory cells.
 | Spawn cell | Square of 4×4 chunks. Unit of the spawn budget (balance mod). |
 | Abstract tick | One step of the abstract simulation: every 2,400 game ticks (2 minutes). |
 | Cycle | One game day (24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle. |
-| Development | Continuous value (0 to 100) that measures the growth of a settlement. |
+| Level | Integer value (1 to 20) that measures the growth of a settlement. It sets the traits of the settlement. |
+| Tier | Name for a range of levels: Hamlet, Village, Town, City, Capital. |
+| Job | Economic activity of a settlement. A job has one recipe for each cycle. |
+| Bank | Building of a village. Its chests contain the stocks of the village and a part of the treasury. |
 
 ### Data model
 
@@ -111,16 +114,24 @@ Each faction has 3 to 8 villages, spread across the territory cells.
 | `Faction` | id, name, culture (village style, units), color and banner, treasury, military power, base attitude to the player, traits (expansionist, merchant, isolationist) |
 | `Relation` | pair of factions, value from -100 to +100, state (alliance, peace, tension, war), date of the last change |
 | `Territory` | territory cell, owner faction, linked village, current contest |
-| `Settlement` | id, faction, position, development (0 to 100), tier (from the development), population, garrison, stocks, buildings, construction queue |
+| `Settlement` | id, faction, position, state (active or ruins), level, experience, tier (from the level), population, jobs, stocks, garrison |
 
 The mod stores all of this in a `SavedData` of the Overworld level. `Codec` objects serialize it to NBT.
 
 ### Simulation rules (abstract tick every 2,400 ticks = 2 minutes)
 
-**Phase 1: living territories, no wars between NPCs.** Territories change mostly because of the player and because of the slow growth of the factions. The only military content is the defense of the villages. There are no patrols, no bandits and no armies.
+**Phase 1: living territories, no wars between NPCs.** Territories change mostly because of the player and because of the growth of the villages. The only military content is the defense of the villages. There are no patrols, no bandits and no armies.
 
-- **Claim**: each village claims the territory cells around it. The number depends on its tier: 1 cell for a hamlet, up to 9 for a city.
-- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory cells become **unclaimed**.
+Rules of J3:
+
+- **Claim**: each village claims the territory cells around it. The claim radius comes from the level of the village: 1 cell for a hamlet, up to 9 cells for a city. A cell that two villages claim belongs to the nearest village. At equal distance, the village with the higher level gets the cell.
+- **Unclaimed cell**: a cell that no village claims.
+- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory cells become unclaimed. The ruins stay in the world.
+
+The faction of a new village is the faction with the nearest territory center.
+
+Rules of later milestones:
+
 - **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in an unclaimed territory cell.
 - **Rally a village**: with sufficient reputation and a quest, a village can change its banner and join a different faction.
 - **Natural growth**: a prosperous faction slowly founds a hamlet in an adjacent unclaimed territory cell (maximum one each game week).
@@ -161,22 +172,28 @@ Each faction village has fortifications and guards. A player in iron armor with 
 
 ### Village growth
 
-Growth is gradual. Each settlement has a **development** value (0 to 100) that changes slowly with prosperity. Each building, wall section and defense has its own development threshold. When the development reaches a threshold, this element is added. The village changes step by step, not in one jump.
+Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are names for ranges of levels. The level sets the traits of the settlement: claim radius, maximum population, job slots, stock capacity, number of trade offers, number of village cats. A data file holds the level table, the tier table and the traits. More levels and tiers can exist later.
 
-The tiers are names for ranges of development. They set the trades, the claimed territory and the quests. The tier list is configurable, so more tiers can exist later.
+| Levels | Tier | Trades |
+| --- | --- | --- |
+| 1–4 | Hamlet | Basic offers |
+| 5–8 | Village | More offers, better prices |
+| 9–12 | Town | Specialized craftsmen |
+| 13–16 | City | Rare offers, inn, advanced quests |
+| 17–20 | Capital | All offers |
 
-| Tier | Defenses | Trades | Condition to go up |
-| --- | --- | --- | --- |
-| Hamlet | Wood palisade, 2 guards | Basic offers | Population and stocks above the threshold for 5 game days |
-| Village | Palisade and watchtowers, archers | More offers, better prices | Same, with higher thresholds |
-| Town | Stone wall, gates, riders | Specialized craftsmen | Same, plus one active trade route |
-| City | Large wall, keep, golems | Rare offers, inn, advanced quests | Same, plus 2 linked villages of the same faction |
+- **Start level**: when the mod creates a settlement, the settlement gets a random start level from 1 to 16 (configurable chances). Only growth makes a Capital. A settlement with a higher start level also starts with more stocks.
+- **Experience**: at each cycle, the settlement gets experience from its prosperity: food need covered, inputs of the jobs available, treasury above a minimum. The experience for each level increases with the level.
+- **Loss**: a shortage of food, a pillage of the bank or the death of the captain removes experience. A settlement can go down one level.
+- **Level event**: the mod sends an event when the level changes. Other systems use it: the garrison from the level, the physical growth.
 
-A village that loses its prosperity (raided, isolated) loses development and can go down one tier.
+In J3, the level does not change the blocks of the village. The variants of the village are simple and do not change the structure.
+
+**Physical growth (later milestone)**: the village grows in the world. New buildings, larger walls, farms, mills, fields, a forge. Each building, wall section and defense has a minimum level. This milestone also contains the construction and the repair of the village.
 
 ### Construction
 
-New elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
+This section describes the physical growth (later milestone). New elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
 
 - **Chunks not loaded**: the construction progresses in the abstract simulation. The mod cannot change blocks in a chunk that is not loaded. It applies the finished elements when the chunk loads, before the player can see them.
 - **Chunks loaded** (planned for a later milestone): builder villagers do the construction block by block. The player sees the village grow. This is useful when the player often comes back to the same village.
@@ -191,6 +208,7 @@ New elements go into the **construction queue** of the settlement. The mod never
   - Neutral: the guards watch and give a warning.
   - Friend: the guards greet the player and the gates stay open.
 - Two villages of the same faction trade together first (see the economy section).
+- **Pillage**: to open or to break a bank chest is a pillage. Before a player opens a bank chest, a screen asks for a confirmation. After a pillage, the village reputation and the faction reputation of the player go to a very negative value (default -800, sworn enemy). The village goes to the alert state. An explosion that a player caused is also a pillage.
 - Information for the player:
   - When the player enters the territory of a faction, a title shows the faction and the reputation tier. This is an early warning before the villages.
   - Near a village (50 blocks from the heart, configurable), the action bar shows the village name, the faction and the tier.
@@ -201,6 +219,7 @@ New elements go into the **construction queue** of the settlement. The mod never
 
 - At night, the guards light torches and braziers, close the gates and patrol the walls.
 - The village heart prevents monster spawns in its area.
+- Village cats stay near the gates and the center. The creepers run away from them. The player cannot tame them.
 - A neutral or friendly player can take shelter in the village. From the Town tier, the player can rent a bed at the inn for emeralds.
 
 ### NPC types
@@ -208,6 +227,7 @@ New elements go into the **construction queue** of the settlement. The mod never
 | NPC | Role | Key behavior |
 | --- | --- | --- |
 | Inhabitant | Population, economic job | Day/night routine, runs away from fights, takes shelter in buildings |
+| Merchant | Trade with the player | Sells the stocks of the village, buys the items of the player. Compatible with the vanilla villager systems (raids, Hero of the Village, zombie conversion, iron golems, gossip) |
 | Guard | Basic defense | Fixed patrol, sword and shield, chases in a limited radius |
 | Archer | Ranged defense | Takes position on towers and walls. Priority target: hostile players |
 | Rider | Interceptor | Patrols outside the walls, charges isolated threats |
@@ -218,7 +238,13 @@ New elements go into the **construction queue** of the settlement. The mod never
 ### AI
 
 - Based on the `Goal` system of `PathfinderMob` (simpler than the `Brain` system to start). Each village has a shared state: *calm*, *alert*, *assault*.
-- An alert spreads: an attack on a guard starts the alert, the archers go to their positions, the gates close.
+- An alert spreads. An attack on a guard starts the alert. Then:
+  - the bell of the village rings;
+  - all units of the village get the position of the threat;
+  - the archers go to their positions;
+  - the gates close;
+  - the inhabitants hide.
+- Archers: when the village is calm, each archer moves between the towers at random intervals. A tower with a large view to the outside has a higher chance. When the village is in alert, each archer goes to the nearest free tower: one archer on each tower, if possible. A tower with no view is not used.
 - Aggression depends on reputation. Below the hostile threshold, the guards attack on sight. At neutral, they give a warning, then attack if the player breaks blocks or steals.
 
 ### Balancing
@@ -231,19 +257,44 @@ All values are configurable (health, damage, armor, garrison size for each type)
 
 Each village has real stocks. It produces and consumes according to its jobs. It sets its prices from the difference between stock and need. Villages trade together. The player is one more customer.
 
-### Producers and recipes
+### Jobs and recipes
 
-Each job has one recipe for each cycle (1 game day = 24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle, not on each abstract tick. The recipes are data files.
+Each job has one recipe for each cycle (1 game day = 24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle, not on each abstract tick. The jobs and the recipes are data files (`data/folkhold_world/folkhold/jobs/<id>.json`). The culture and the biome select the jobs and the materials (spruce in the taiga, sandstone in the desert). The level of the settlement sets the number of job slots and the minimum level of some jobs.
 
-| Job | Consumes | Produces |
-| --- | --- | --- |
-| Miner | 1 tool (wear) | 6 iron ore, 4 coal, 1 diamond (5 %) |
-| Farmer | — | 12 wheat, 6 carrots |
-| Blacksmith | 3 iron ingots, 1 coal | 1 weapon or armor piece |
-| Smelter | 6 ore, 3 coal | 6 ingots |
-| Butcher | 2 livestock (breeding stock) | 8 meat |
+The jobs cover most of the base items of the Overworld. The player crafts the other items. The jobs do not produce:
+
+- rare items: netherite, elytra, totems, tridents, heads, enchanted books, enchanted golden apples;
+- items of the Nether or the End;
+- items of ancient cities, trial chambers, ocean monuments, strongholds or similar structures.
+
+| Family | Job | Consumes | Produces |
+| --- | --- | --- | --- |
+| Food | Farmer | — | wheat, carrots, potatoes, beetroots, seeds |
+| Food | Gardener | — | pumpkins, melons, sugar cane, sweet berries, cocoa beans |
+| Food | Baker | wheat, sugar, eggs, milk | bread, cookies, cakes, pumpkin pies |
+| Food | Rancher | wheat, seeds | eggs, milk, feathers, livestock |
+| Food | Butcher | livestock, coal | raw and cooked meat, leather |
+| Food | Fisher | string | cod, salmon, ink sacs |
+| Food | Beekeeper | — | honey bottles, honeycombs |
+| Raw materials | Lumberjack | — | logs, planks, sticks, saplings, apples |
+| Raw materials | Miner | tools (wear) | cobblestone, raw iron, raw copper, coal, flint, redstone, lapis lazuli, raw gold (small), diamonds (very small) |
+| Raw materials | Digger | tools (wear) | sand, gravel, clay, dirt |
+| Raw materials | Shepherd | wheat | wool, mutton |
+| Raw materials | Forager | — | mushrooms, flowers, bamboo, kelp, vines, cactus |
+| Processing | Smelter | raw metal, sand, coal | ingots, glass, charcoal |
+| Processing | Mason | cobblestone, clay, sand | stone, stone bricks, bricks, terracotta, sandstone, smooth stone |
+| Processing | Dyer | flowers, ink sacs, cocoa beans | dyes, dyed wool |
+| Processing | Papermaker | sugar cane, leather | paper, books |
+| Crafted goods | Blacksmith | iron ingots, coal | iron tools, weapons, armor, shields |
+| Crafted goods | Fletcher | sticks, flint, feathers, string | arrows, bows, crossbows |
+| Crafted goods | Carpenter | planks | chests, barrels, doors, fences, boats, crafting tables |
+| Crafted goods | Tanner | leather | leather armor, saddles, bundles |
+| Crafted goods | Weaver | wool, planks | beds, carpets, banners |
+| Crafted goods | Tinker | iron ingots, copper ingots, redstone | buckets, shears, rails, minecarts, lanterns, lightning rods |
 
 A recipe with no inputs produces nothing. The job goes into "need" state and buys.
+
+The population consumes food at each cycle.
 
 ### Price formula
 
@@ -261,14 +312,22 @@ A surplus lowers the price down to ×0.5. A shortage raises the price up to ×3.
 
 - On each abstract tick, each village makes a list of its surpluses (`S > 1.5 × S_target`) and its needs (`S < 0.5 × S_target`).
 - A greedy match links one seller and one buyer from factions that are not hostile. Distance is a weight.
+- The trade between villages comes with the caravans (J4).
 - The trade creates a **caravan** (next section). The goods arrive after a delay that is proportional to the distance. If the caravan is raided (by the player in phase 1, also by bandits in phase 2), the goods are lost.
 - Expected result: prices converge between connected villages. A war that cuts a route makes prices go up on one side.
 
 ### Trade with the player
 
-- NPCs sell **only what they have in stock**. There is no magic restock and no "fast reset".
+- The **merchant** of the village sells **only what the village has in stock**. There is no magic restock and no "fast reset". The number of offers comes from the level.
+- No trade below the neutral tier. Friends and allies get a discount.
 - The player can sell surplus items (ore, crops). This lowers their local price. To get the best price, the player must sell in different places.
 - The currency stays the emerald. The treasury of each faction is finite. Its sales fill it.
+
+### Bank
+
+- Each village has a bank with bank chests. The bank chests show the stocks of the village and 40 % of the treasury that belongs to the village (configurable). When a player takes items, the mod removes them from the stocks and from the treasury.
+- To open or break a bank chest is a pillage (see "Reputation and welcome").
+- The bank chests and the walls of the bank resist explosions. A creeper or TNT does not break them by accident.
 
 ### Professions and offers
 
@@ -488,7 +547,7 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J0 · Foundations | Mono-repo, NeoForge 1.21.1 project, CI, packwiz modpack | The pack starts with the empty mods |
 | J1 · Guard and village | One NPC guard with AI, one jigsaw village and its garrison | An attack on a village in iron armor fails |
 | J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
-| J3 · Abstract simulation | `SavedData`, abstract tick, economy, village growth | Villages grow, territories change owner |
+| J3 · Abstract simulation | `SavedData`, abstract tick, village level, territory claims, economy, bank, merchant | Villages grow, territories change owner |
 | J4 · Caravans, quests | Mobile groups, materialization, generated quests | The player meets convoys and can escort them |
 | J5 · Additional mods | Balance mod (possible from J2): farms, trades, anvil. Earthquakes and collapses | Farms have limits, the anvil has no cap, first earthquakes |
 | J6 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment from the village level, healer | Villages repair and improve themselves |
