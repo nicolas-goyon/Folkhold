@@ -17,12 +17,13 @@ import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
 
 /**
- * Opens a closed fence gate on the path of the unit, and closes it again when the unit is on the other side.
- * A gate that was open stays open. See {@link UnitNavigation}.
+ * Opens a closed fence gate on the path of the unit, and closes it again when the goal stops: when the unit is on
+ * the other side, or after {@link #MAX_TICKS}. An entity in the gate keeps it open. A gate that was open stays
+ * open, because the goal starts only for a closed gate. See {@link UnitNavigation}.
  */
 public class UseFenceGateGoal extends Goal {
     /** The unit opens a gate at this horizontal distance (squared), in blocks. */
-    private static final double REACH_SQR = 2.25;
+    private static final double REACH_SQR = 4.0;
     /** The goal stops after this time, in ticks, also if the unit did not pass the gate. */
     private static final int MAX_TICKS = 100;
 
@@ -91,7 +92,7 @@ public class UseFenceGateGoal extends Goal {
 
     @Override
     public void stop() {
-        if (passed && !isOccupied()) {
+        if (!isOccupied()) {
             setOpen(false);
         }
         gatePos = null;

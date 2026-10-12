@@ -355,18 +355,15 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * True if the unit cannot reach its target: no line of sight, and the path does not go to the target (or
-     * the unit has no path and is not near the target).
+     * True if the unit cannot reach its target: no line of sight, and no path that goes to the target. The attack
+     * goal stops its path at the end of a partial path, so "no path" also counts.
      */
     private boolean isUnreachable(LivingEntity target) {
         if (getSensing().hasLineOfSight(target)) {
             return false;
         }
         Path path = getNavigation().getPath();
-        if (path != null) {
-            return !path.canReach();
-        }
-        return getNavigation().isDone() && distanceToSqr(target) > 9.0;
+        return path == null || !path.canReach();
     }
 
     /** Stops the chase: the unit drops its target and ignores all targets for {@link #GIVE_UP_TICKS}. */
