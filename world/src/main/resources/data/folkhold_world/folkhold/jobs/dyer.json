@@ -1,0 +1,19 @@
+{
+  "inputs": [
+    {"item": "minecraft:dandelion", "count": 2},
+    {"item": "minecraft:poppy", "count": 2},
+    {"item": "minecraft:cornflower", "count": 2},
+    {"item": "minecraft:ink_sac", "count": 1},
+    {"item": "minecraft:white_wool", "count": 4}
+  ],
+  "outputs": [
+    {"item": "minecraft:yellow_dye", "count": 2},
+    {"item": "minecraft:red_dye", "count": 2},
+    {"item": "minecraft:blue_dye", "count": 2},
+    {"item": "minecraft:black_dye", "count": 1},
+    {"item": "minecraft:red_wool", "count": 2},
+    {"item": "minecraft:blue_wool", "count": 2}
+  ],
+  "min_level": 5,
+  "weight": 4
+}

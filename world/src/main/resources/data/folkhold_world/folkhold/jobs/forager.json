@@ -1,0 +1,16 @@
+{
+  "outputs": [
+    {"item": "minecraft:brown_mushroom", "count": 3},
+    {"item": "minecraft:red_mushroom", "count": 3},
+    {"item": "minecraft:dandelion", "count": 3},
+    {"item": "minecraft:poppy", "count": 3},
+    {"item": "minecraft:cornflower", "count": 2},
+    {"item": "minecraft:vine", "count": 4},
+    {"item": "minecraft:kelp", "count": 4},
+    {"item": "minecraft:bamboo", "count": 4, "chance": 0.5},
+    {"item": "minecraft:cactus", "count": 3, "chance": 0.5},
+    {"item": "minecraft:string", "count": 2, "chance": 0.5}
+  ],
+  "min_level": 1,
+  "weight": 8
+}

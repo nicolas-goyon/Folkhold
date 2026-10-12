@@ -1,0 +1,11 @@
+{
+  "inputs": [
+    {"item": "minecraft:spruce_log", "count": 4}
+  ],
+  "outputs": [
+    {"item": "minecraft:spruce_planks", "count": 16}
+  ],
+  "min_level": 1,
+  "weight": 10,
+  "biomes": ["#minecraft:is_taiga"]
+}

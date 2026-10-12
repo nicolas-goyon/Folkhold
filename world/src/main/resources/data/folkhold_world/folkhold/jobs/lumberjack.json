@@ -1,0 +1,13 @@
+{
+  "inputs": [
+    {"item": "minecraft:stone_axe", "count": 1, "chance": 0.1}
+  ],
+  "outputs": [
+    {"item": "minecraft:oak_log", "count": 12},
+    {"item": "minecraft:stick", "count": 8},
+    {"item": "minecraft:oak_sapling", "count": 2},
+    {"item": "minecraft:apple", "count": 2, "chance": 0.5}
+  ],
+  "min_level": 1,
+  "weight": 15
+}

@@ -1,0 +1,22 @@
+{
+  "inputs": [
+    {"item": "minecraft:cobblestone", "count": 16},
+    {"item": "minecraft:clay_ball", "count": 8},
+    {"item": "minecraft:sand", "count": 4},
+    {"item": "minecraft:coal", "count": 2},
+    {"item": "minecraft:stick", "count": 2}
+  ],
+  "outputs": [
+    {"item": "minecraft:stone", "count": 8},
+    {"item": "minecraft:stone_bricks", "count": 8},
+    {"item": "minecraft:bricks", "count": 8},
+    {"item": "minecraft:terracotta", "count": 4},
+    {"item": "minecraft:sandstone", "count": 4},
+    {"item": "minecraft:smooth_stone", "count": 4},
+    {"item": "minecraft:stone_pickaxe", "count": 1, "chance": 0.5},
+    {"item": "minecraft:stone_axe", "count": 1, "chance": 0.5},
+    {"item": "minecraft:stone_shovel", "count": 1, "chance": 0.5}
+  ],
+  "min_level": 1,
+  "weight": 10
+}

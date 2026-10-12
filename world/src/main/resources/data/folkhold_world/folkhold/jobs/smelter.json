@@ -1,0 +1,16 @@
+{
+  "inputs": [
+    {"item": "minecraft:raw_iron", "count": 6},
+    {"item": "minecraft:raw_copper", "count": 4},
+    {"item": "minecraft:sand", "count": 6},
+    {"item": "minecraft:coal", "count": 4}
+  ],
+  "outputs": [
+    {"item": "minecraft:iron_ingot", "count": 6},
+    {"item": "minecraft:copper_ingot", "count": 4},
+    {"item": "minecraft:glass", "count": 6},
+    {"item": "minecraft:charcoal", "count": 2}
+  ],
+  "min_level": 3,
+  "weight": 10
+}

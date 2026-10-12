@@ -1,0 +1,13 @@
+{
+  "inputs": [
+    {"item": "minecraft:stone_shovel", "count": 1, "chance": 0.1}
+  ],
+  "outputs": [
+    {"item": "minecraft:sand", "count": 12},
+    {"item": "minecraft:gravel", "count": 8},
+    {"item": "minecraft:clay_ball", "count": 8},
+    {"item": "minecraft:dirt", "count": 8}
+  ],
+  "min_level": 1,
+  "weight": 8
+}

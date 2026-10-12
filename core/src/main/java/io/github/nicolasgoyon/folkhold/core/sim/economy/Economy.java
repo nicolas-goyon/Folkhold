@@ -15,7 +15,8 @@ import java.util.random.RandomGenerator;
  * <ol>
  *   <li><b>Production</b>: the number of active jobs is {@code population / workersPerJob}, with a maximum of the
  *       number of jobs. Each active job consumes its inputs and produces its outputs. A job with a missing input
- *       produces nothing, and the input goes into the needs.</li>
+ *       produces nothing, and the input goes into the needs. An input with a chance below 1 (a tool) must be in the
+ *       stock, and the job consumes each unit with this chance.</li>
  *   <li><b>Consumption</b>: the population eats {@code foodPerInhabitant} food points for each inhabitant. It
  *       eats the food with the largest stock first.</li>
  *   <li><b>Decay</b>: each stock loses {@code decayRate} of its quantity (rounded).</li>
@@ -70,7 +71,10 @@ public final class Economy {
             }
             working++;
             for (Recipe.Input input : recipe.inputs()) {
-                consumed.merge(input.item(), stock.remove(input.item(), input.count()), Integer::sum);
+                int used = roll(input.count(), input.chance(), random);
+                if (used > 0) {
+                    consumed.merge(input.item(), stock.remove(input.item(), used), Integer::sum);
+                }
             }
             for (Recipe.Output output : recipe.outputs()) {
                 int count = roll(output, random);
@@ -95,16 +99,21 @@ public final class Economy {
 
     /** Number of units of an output: each unit has the chance of the output. */
     static int roll(Recipe.Output output, RandomGenerator random) {
-        if (output.chance() >= 1.0) {
-            return output.count();
+        return roll(output.count(), output.chance(), random);
+    }
+
+    /** Number of units from {@code count} units with each a chance. */
+    static int roll(int count, double chance, RandomGenerator random) {
+        if (chance >= 1.0) {
+            return count;
         }
-        int count = 0;
-        for (int i = 0; i < output.count(); i++) {
-            if (random.nextDouble() < output.chance()) {
-                count++;
+        int result = 0;
+        for (int i = 0; i < count; i++) {
+            if (random.nextDouble() < chance) {
+                result++;
             }
         }
-        return count;
+        return result;
     }
 
     /** The population eats. Returns the share of the need that it ate. */

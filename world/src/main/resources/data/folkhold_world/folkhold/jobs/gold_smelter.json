@@ -1,0 +1,11 @@
+{
+  "inputs": [
+    {"item": "minecraft:raw_gold", "count": 2},
+    {"item": "minecraft:coal", "count": 1}
+  ],
+  "outputs": [
+    {"item": "minecraft:gold_ingot", "count": 2}
+  ],
+  "min_level": 9,
+  "weight": 2
+}
