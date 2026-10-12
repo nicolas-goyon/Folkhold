@@ -2,8 +2,8 @@
 # The Gradle wrapper downloads Gradle into the Gradle cache volume (/home/dev/.gradle).
 
 FROM golang:1.27-bookworm AS packwiz
-# packwiz has no releases. Set a commit hash here to get a reproducible build.
-ARG PACKWIZ_VERSION=latest
+# packwiz has no releases. The commit hash gives a reproducible build. The CI uses the same commit.
+ARG PACKWIZ_VERSION=ef87d964f8cbd52b3b13ea42453ef322290e2b9e
 RUN CGO_ENABLED=0 go install github.com/packwiz/packwiz@${PACKWIZ_VERSION}
 
 FROM eclipse-temurin:21-jdk-noble
