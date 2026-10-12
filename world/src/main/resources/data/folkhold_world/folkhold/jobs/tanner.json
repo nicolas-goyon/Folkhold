@@ -12,5 +12,6 @@
     {"item": "minecraft:bundle", "count": 1, "chance": 0.3}
   ],
   "min_level": 3,
-  "weight": 5
+  "weight": 5,
+  "profession": "minecraft:leatherworker"
 }

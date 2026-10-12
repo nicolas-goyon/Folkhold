@@ -60,6 +60,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(BankChests::onLeftClickBlock);
         NeoForge.EVENT_BUS.addListener(BankChests::onExplosion);
         NeoForge.EVENT_BUS.addListener(Merchants::onEntityInteract);
+        NeoForge.EVENT_BUS.addListener(VillageFolk::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(Merchants::onTrade);
         NeoForge.EVENT_BUS.addListener(VillageFolk::onDeath);
         NeoForge.EVENT_BUS.addListener(VillageFolk::onBabySpawn);

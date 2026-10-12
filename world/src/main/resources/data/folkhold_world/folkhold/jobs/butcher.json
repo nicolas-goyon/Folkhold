@@ -11,5 +11,6 @@
     {"item": "minecraft:cooked_chicken", "count": 3}
   ],
   "min_level": 3,
-  "weight": 8
+  "weight": 8,
+  "profession": "minecraft:butcher"
 }

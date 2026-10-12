@@ -11,6 +11,8 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -18,13 +20,16 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -35,6 +40,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class MerchantGameTests {
     private static final BlockPos HEART = new BlockPos(8, 1, 8);
+
+    private static final Comparator<VillagerProfession> BY_ID =
+            Comparator.comparing(profession -> BuiltInRegistries.VILLAGER_PROFESSION.getKey(profession).toString());
 
     private MerchantGameTests() {
     }
@@ -62,9 +70,12 @@ public final class MerchantGameTests {
         boolean professions = merchants.stream()
                 .allMatch(villager -> villager.getVillagerData().getProfession() == ModProfessions.MERCHANT.get());
         int expected = Merchants.merchantCount(village.settlement());
-        List<Villager> inhabitants = VillageFolk.of(helper.getLevel(), village.heart().getBlockPos(),
-                ModProfessions.INHABITANT.get());
+        List<Villager> inhabitants = VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos());
         int expectedInhabitants = VillageFolk.inhabitantCount(village.settlement());
+        List<VillagerProfession> found = inhabitants.stream()
+                .map(villager -> villager.getVillagerData().getProfession()).sorted(BY_ID).toList();
+        List<VillagerProfession> wanted = VillageFolk.professions(village.settlement(), expectedInhabitants).stream()
+                .sorted(BY_ID).toList();
         village.heart().getUnits().forEach(Entity::discard);
         village.heart().getCats().forEach(Entity::discard);
         merchants.forEach(Entity::discard);
@@ -74,6 +85,7 @@ public final class MerchantGameTests {
         helper.assertTrue(professions, "Each merchant must have the merchant profession");
         helper.assertTrue(inhabitants.size() == expectedInhabitants && expectedInhabitants > 0,
                 "Expected " + expectedInhabitants + " inhabitants, found " + inhabitants.size());
+        helper.assertTrue(found.equals(wanted), "Expected the professions " + wanted + ", found " + found);
         helper.succeed();
     }
 
@@ -171,6 +183,79 @@ public final class MerchantGameTests {
         a.discard();
         b.discard();
         helper.assertTrue(event.isCanceled(), "The birth must be canceled");
+        helper.succeed();
+    }
+
+    /** The inhabitants show the jobs in proportion to the workers, the jobs with the most workers first. */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "village_folk_jobs")
+    public static void inhabitantsShowTheJobsInProportion(GameTestHelper helper) {
+        List<String> jobs = List.of("folkhold_world:miner", "folkhold_world:farmer", "folkhold_world:farmer",
+                "folkhold_world:farmer");
+
+        List<String> two = VillageFolk.pickJobs(jobs, 2);
+        List<String> four = VillageFolk.pickJobs(jobs, 4);
+
+        helper.assertTrue(two.equals(List.of("folkhold_world:farmer", "folkhold_world:miner")),
+                "Expected 1 farmer and 1 miner, found " + two);
+        helper.assertTrue(four.equals(List.of("folkhold_world:farmer", "folkhold_world:farmer",
+                "folkhold_world:farmer", "folkhold_world:miner")), "Expected 3 farmers and 1 miner, found " + four);
+        helper.assertTrue(VillageFolk.pickJobs(List.of(), 3).isEmpty(), "No workers must give no jobs");
+        helper.assertTrue(VillageFolk.professionOf("folkhold_world:farmer") == VillagerProfession.FARMER,
+                "The farmer job must show the farmer profession");
+        helper.assertTrue(VillageFolk.professionOf("folkhold_world:lumberjack") == ModProfessions.LUMBERJACK.get(),
+                "The lumberjack job must show the lumberjack profession");
+        helper.assertTrue(VillageFolk.professionOf("unknown:job") == ModProfessions.INHABITANT.get(),
+                "An unknown job must show the inhabitant profession");
+        helper.succeed();
+    }
+
+    /** When the jobs of the settlement change, the heart gives the new professions to the inhabitants. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "village_folk_reassign")
+    public static void heartGivesTheJobProfessions(GameTestHelper helper) {
+        Village village = village(helper);
+        village.settlement().economy().setJobs(Collections.nCopies(10, "folkhold_world:farmer"));
+        Villager inhabitant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
+                ModProfessions.INHABITANT.get());
+
+        village.heart().ensureGarrison(helper.getLevel().getGameTime());
+
+        VillagerProfession profession = inhabitant.getVillagerData().getProfession();
+        List<Villager> inhabitants = VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos());
+        boolean allFarmers = inhabitants.stream()
+                .allMatch(villager -> villager.getVillagerData().getProfession() == VillagerProfession.FARMER);
+        village.heart().getUnits().forEach(Entity::discard);
+        village.heart().getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(helper.getLevel(), village.heart().getBlockPos()).forEach(Entity::discard);
+        inhabitants.forEach(Entity::discard);
+
+        helper.assertTrue(profession == VillagerProfession.FARMER,
+                "The inhabitant must become a farmer, not " + profession);
+        helper.assertTrue(allFarmers, "Each inhabitant must be a farmer");
+        helper.succeed();
+    }
+
+    /** A player cannot trade with an inhabitant. A player can trade with a merchant. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_folk_trade")
+    public static void inhabitantDoesNotTrade(GameTestHelper helper) {
+        Village village = village(helper);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        Villager inhabitant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
+                VillagerProfession.FARMER);
+        Villager merchant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
+                ModProfessions.MERCHANT.get());
+
+        PlayerInteractEvent.EntityInteract withInhabitant =
+                new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, inhabitant);
+        PlayerInteractEvent.EntityInteract withMerchant =
+                new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, merchant);
+        NeoForge.EVENT_BUS.post(withInhabitant);
+        NeoForge.EVENT_BUS.post(withMerchant);
+
+        inhabitant.discard();
+        merchant.discard();
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.assertTrue(withInhabitant.isCanceled(), "The interaction with an inhabitant must be canceled");
+        helper.assertTrue(!withMerchant.isCanceled(), "The interaction with a merchant must not be canceled");
         helper.succeed();
     }
 }

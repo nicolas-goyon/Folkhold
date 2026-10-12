@@ -9,5 +9,6 @@
     {"item": "minecraft:apple", "count": 2, "chance": 0.5}
   ],
   "min_level": 1,
-  "weight": 15
+  "weight": 15,
+  "profession": "folkhold_world:lumberjack"
 }

@@ -6,5 +6,6 @@
     {"item": "minecraft:sweet_berries", "count": 6}
   ],
   "min_level": 1,
-  "weight": 10
+  "weight": 10,
+  "profession": "minecraft:farmer"
 }

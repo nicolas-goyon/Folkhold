@@ -17,6 +17,7 @@ villager model. The areas that a profession does not paint stay transparent:
 
 Requires Pillow.
 """
+import json
 import os
 
 from PIL import Image
@@ -28,6 +29,7 @@ SIZE = 64
 BODY = (16, 20, 44, 38)
 BODY_FRONT_X = 22
 ROBE = (0, 38, 28, 64)
+ROBE_FRONT_X = 6
 HAT_BRIM = (30, 47, 62, 63)
 
 
@@ -75,9 +77,68 @@ def inhabitant():
     return image
 
 
+def lumberjack():
+    """Red and black plaid shirt, brown trousers part of the robe, a leather belt."""
+    red = (168, 40, 36, 255)
+    black = (40, 30, 30, 255)
+    dark_red = (110, 28, 26, 255)
+    leather = (92, 60, 32, 255)
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+
+    def plaid(x, y):
+        stripe_x = (x // 2) % 2 == 0
+        stripe_y = (y // 2) % 2 == 0
+        if stripe_x and stripe_y:
+            return black
+        if stripe_x or stripe_y:
+            return dark_red
+        return red
+
+    x1, y1, x2, y2 = BODY
+    for x in range(x1, x2):
+        for y in range(y1, y2):
+            image.putpixel((x, y), plaid(x, y))
+    x1, y1, x2, y2 = ROBE
+    for x in range(x1, x2):
+        for y in range(y1, y2):
+            image.putpixel((x, y), plaid(x, y) if y < 52 else leather)
+    for x in range(x1, x2):
+        image.putpixel((x, 47), leather)
+    return image
+
+
+def baker():
+    """White apron on the front, flour-white cap on the head."""
+    white = (236, 232, 222, 255)
+    shade = (206, 200, 188, 255)
+    cream = (214, 186, 140, 255)
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    fill(image, BODY, cream)
+    # Apron: the front faces of the body and of the robe.
+    for x in range(BODY_FRONT_X, BODY_FRONT_X + 8):
+        for y in range(28, BODY[3]):
+            image.putpixel((x, y), white)
+    for x in range(ROBE_FRONT_X, ROBE_FRONT_X + 8):
+        for y in range(44, ROBE[3]):
+            image.putpixel((x, y), white if (x + y) % 9 else shade)
+    # Cap: the top face of the hat and the two top rows of its four sides.
+    fill(image, (40, 0, 48, 8), white)
+    fill(image, (32, 8, 64, 10), white)
+    for x in range(32, 64, 4):
+        image.putpixel((x, 9), shade)
+    return image
+
+
 PROFESSIONS = {
     "merchant": merchant,
     "inhabitant": inhabitant,
+    "lumberjack": lumberjack,
+    "baker": baker,
+}
+
+# The hat of a profession: "partial" hides the hat of the villager type (biome) under the profession hat.
+HATS = {
+    "baker": "partial",
 }
 
 
@@ -96,6 +157,13 @@ def main():
         check(name, image)
         path = os.path.join(OUT, name + ".png")
         image.save(path)
+        meta = path + ".mcmeta"
+        if name in HATS:
+            with open(meta, "w", encoding="utf-8") as file:
+                json.dump({"villager": {"hat": HATS[name]}}, file, indent=2)
+                file.write("\n")
+        elif os.path.exists(meta):
+            os.remove(meta)
         print("wrote", os.path.normpath(path))
 
 
