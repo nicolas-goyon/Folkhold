@@ -46,6 +46,31 @@ def wall_torch(facing):
     return "minecraft:wall_torch", {"facing": facing}
 
 
+# Blocks that connect to their neighbors. A template stores the block state, and the game does not update the
+# shape of a block from a template. connect_panes sets the connection properties from the neighbors.
+PANES = ("minecraft:glass_pane", "minecraft:iron_bars")
+# Blocks that are not full. A pane does not connect to them.
+NOT_FULL = ("air", "torch", "lantern", "ladder", "door", "stairs", "slab", "carpet", "bed", "fence", "banner",
+            "flower_pot", "campfire", "jigsaw", "composter", "anvil", "grindstone", "cauldron", "chest")
+SIDES = {"north": (0, -1), "south": (0, 1), "west": (-1, 0), "east": (1, 0)}
+
+
+def is_full(name):
+    return name is not None and not any(part in name for part in NOT_FULL)
+
+
+def connect_panes(t):
+    """Sets the north, south, east and west properties of each pane from its neighbors in the template."""
+    for (x, y, z), ((name, _props), nbt) in list(t.blocks.items()):
+        if name not in PANES:
+            continue
+        props = {"waterlogged": "false"}
+        for side, (dx, dz) in SIDES.items():
+            neighbor = t.get(x + dx, y, z + dz) if t.inside(x + dx, y, z + dz) else None
+            props[side] = "true" if neighbor in PANES or is_full(neighbor) else "false"
+        t.set(x, y, z, name, props, nbt)
+
+
 def cobble(rng):
     return "minecraft:mossy_cobblestone" if rng.random() < 0.2 else "minecraft:cobblestone"
 
@@ -396,7 +421,9 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     for name, build in PIECES.items():
         path = os.path.join(OUT, name + ".nbt")
-        build().write(path)
+        template = build()
+        connect_panes(template)
+        template.write(path)
         print("wrote", os.path.normpath(path))
 
 
