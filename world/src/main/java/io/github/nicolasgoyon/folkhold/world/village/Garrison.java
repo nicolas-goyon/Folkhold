@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
@@ -16,7 +17,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.level.levelgen.Heightmap;
 
 /**
  * Garrison of a village: the list of its units, with a stable id for each unit.
@@ -28,7 +28,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  *   <li>An entry becomes dead when its unit dies (the unit reports its death), or when the unit is missing
  *       for {@link #MISSING_TIMEOUT_TICKS} while the chunk of its last known position is loaded.</li>
  *   <li>The garrison replaces a dead unit after the refill delay, only when the village is calm.</li>
- *   <li>Archers get a free post of the village (see {@link VillageLayout}), if there is one. They spawn on it.</li>
+ *   <li>Archers get a free post of the village (see {@link VillageLayout}), if there is one. They spawn on it.
+ *       The other units spawn on the ground near the heart (see {@link #groundSpawnPos}).</li>
  * </ul>
  */
 public final class Garrison {
@@ -37,6 +38,10 @@ public final class Garrison {
     /** Units spawn at this distance from the heart, in blocks. */
     private static final int SPAWN_MIN_DISTANCE = 3;
     private static final int SPAWN_MAX_DISTANCE = 7;
+    /** Number of random columns to try for a spawn position. */
+    private static final int SPAWN_ATTEMPTS = 24;
+    /** A spawn position is at most this number of blocks above or below the heart. */
+    private static final int SPAWN_MAX_HEIGHT = 2;
 
     private final List<Entry> entries = new ArrayList<>();
 
@@ -210,16 +215,47 @@ public final class Garrison {
             level.addFreshEntity(unit);
             return unit;
         }
-        float angle = level.random.nextFloat() * (float) (Math.PI * 2.0);
-        int distance = Mth.nextInt(level.random, SPAWN_MIN_DISTANCE, SPAWN_MAX_DISTANCE);
-        BlockPos column = heartPos.offset(Math.round(Mth.cos(angle) * distance), 0, Math.round(Mth.sin(angle) * distance));
-        BlockPos pos = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, column);
+        BlockPos pos = groundSpawnPos(level, heartPos);
         unit.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, level.random.nextFloat() * 360.0F, 0.0F);
         unit.setHomePos(pos);
         unit.setVillagePos(heartPos);
         unit.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
         level.addFreshEntity(unit);
         return unit;
+    }
+
+    /**
+     * A spawn position on the ground of the village, near the heart. The position is under the open sky (not in a
+     * house, not on a roof), at most {@link #SPAWN_MAX_HEIGHT} blocks above or below the heart, on a solid block,
+     * with space for a unit.
+     *
+     * @param level    the level
+     * @param heartPos the position of the heart
+     * @return the spawn position, or a position next to the heart if there is no good position
+     */
+    static BlockPos groundSpawnPos(ServerLevel level, BlockPos heartPos) {
+        for (int attempt = 0; attempt < SPAWN_ATTEMPTS; attempt++) {
+            float angle = level.random.nextFloat() * (float) (Math.PI * 2.0);
+            int distance = Mth.nextInt(level.random, SPAWN_MIN_DISTANCE, SPAWN_MAX_DISTANCE);
+            int dx = Math.round(Mth.cos(angle) * distance);
+            int dz = Math.round(Mth.sin(angle) * distance);
+            for (int dy = SPAWN_MAX_HEIGHT; dy >= -SPAWN_MAX_HEIGHT; dy--) {
+                BlockPos pos = heartPos.offset(dx, dy, dz);
+                if (isGoodSpawnPos(level, pos)) {
+                    return pos;
+                }
+            }
+        }
+        return heartPos.east(2);
+    }
+
+    private static boolean isGoodSpawnPos(ServerLevel level, BlockPos pos) {
+        BlockPos below = pos.below();
+        return level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)
+                && level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()
+                && level.getBlockState(pos.above()).getCollisionShape(level, pos.above()).isEmpty()
+                && level.getFluidState(pos).isEmpty()
+                && level.canSeeSky(pos);
     }
 
     public ListTag save() {
