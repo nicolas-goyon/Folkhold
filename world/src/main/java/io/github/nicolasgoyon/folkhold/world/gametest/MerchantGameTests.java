@@ -119,7 +119,7 @@ public final class MerchantGameTests {
     public static void hostilePlayerCannotTrade(GameTestHelper helper) {
         Village village = village(helper);
         MinecraftServer server = helper.getLevel().getServer();
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
         ReputationData reputation = ReputationData.get(server);
         reputation.get(player.getUUID()).setFaction(village.settlement().factionId(), 0);
         reputation.get(player.getUUID()).setVillage(village.settlement().id(), 0);
