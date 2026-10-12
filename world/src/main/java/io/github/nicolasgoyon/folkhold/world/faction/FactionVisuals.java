@@ -3,7 +3,9 @@ package io.github.nicolasgoyon.folkhold.world.faction;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import java.util.Optional;
 import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -12,9 +14,16 @@ import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.BannerBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.WallBannerBlock;
+import net.minecraft.world.level.block.entity.BannerBlockEntity;
 import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Visual elements of a faction: color, banner, name.
@@ -57,5 +66,46 @@ public final class FactionVisuals {
         }
         banner.set(DataComponents.BANNER_PATTERNS, layers.build());
         return banner;
+    }
+
+    /**
+     * Gives the banner of a faction to a banner block. The block keeps its kind (standing or on a wall) and its
+     * direction.
+     *
+     * @param level   the level
+     * @param pos     the position of the banner block
+     * @param faction the faction
+     * @return true if the block is a banner
+     */
+    public static boolean paintBanner(Level level, BlockPos pos, FactionSpec faction) {
+        BlockState state = level.getBlockState(pos);
+        Optional<Culture> culture = Cultures.byId(faction.cultureId());
+        if (!(state.getBlock() instanceof AbstractBannerBlock) || culture.isEmpty()) {
+            return false;
+        }
+        DyeColor color = culture.get().bannerBase();
+        BlockState painted;
+        if (state.getBlock() instanceof WallBannerBlock) {
+            painted = wallBanner(color).defaultBlockState()
+                    .setValue(WallBannerBlock.FACING, state.getValue(WallBannerBlock.FACING));
+        } else {
+            painted = BannerBlock.byColor(color).defaultBlockState()
+                    .setValue(BannerBlock.ROTATION, state.getValue(BannerBlock.ROTATION));
+        }
+        level.setBlock(pos, painted, Block.UPDATE_ALL);
+        if (level.getBlockEntity(pos) instanceof BannerBlockEntity entity) {
+            entity.fromItem(banner(level, faction), color);
+            entity.setChanged();
+            level.sendBlockUpdated(pos, painted, painted, Block.UPDATE_CLIENTS);
+        }
+        return true;
+    }
+
+    /** The wall banner block of a color. */
+    private static Block wallBanner(DyeColor color) {
+        return BuiltInRegistries.BLOCK.stream()
+                .filter(block -> block instanceof WallBannerBlock wall && wall.getColor() == color)
+                .findFirst()
+                .orElse(Blocks.WHITE_WALL_BANNER);
     }
 }

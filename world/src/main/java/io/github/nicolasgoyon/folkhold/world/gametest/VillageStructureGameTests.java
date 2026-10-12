@@ -6,6 +6,9 @@ import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.faction.Culture;
+import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -13,6 +16,8 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.phys.AABB;
@@ -29,6 +34,8 @@ public final class VillageStructureGameTests {
     private static final int TOWERS = 4;
     private static final int GATE_BLOCKS = 6;
     private static final int BRAZIERS = 4;
+    /** 4 banners on the north and south walls, 3 banners on the west and east walls. */
+    private static final int BANNERS = 14;
 
     private VillageStructureGameTests() {
     }
@@ -68,6 +75,25 @@ public final class VillageStructureGameTests {
         helper.assertTrue(layout.braziers().size() == BRAZIERS,
                 "Expected " + BRAZIERS + " braziers, found " + layout.braziers().size());
         helper.assertTrue(archersOnPosts, "Each archer must spawn on a post of the village");
+        helper.succeed();
+    }
+
+    /** The heart gives the banner color of the faction culture to the banners of the village. */
+    @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_banners")
+    public static void heartPaintsBanners(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = findHeart(helper);
+        heart.ensureGarrison(helper.getLevel().getGameTime());
+        heart.getUnits().forEach(Entity::discard);
+        List<BlockPos> banners = heart.getLayout().banners();
+        DyeColor expected = FactionVisuals.faction(helper.getLevel().getServer(), heart.getFactionId())
+                .flatMap(faction -> Cultures.byId(faction.cultureId()))
+                .map(Culture::bannerBase)
+                .orElseThrow(() -> new GameTestAssertException("The village has no faction culture"));
+        boolean painted = banners.stream().allMatch(pos -> helper.getLevel().getBlockState(pos).getBlock()
+                instanceof AbstractBannerBlock banner && banner.getColor() == expected);
+
+        helper.assertTrue(banners.size() == BANNERS, "Expected " + BANNERS + " banners, found " + banners.size());
+        helper.assertTrue(painted, "Each banner must have the color " + expected + " of the faction culture");
         helper.succeed();
     }
 
