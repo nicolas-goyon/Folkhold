@@ -10,6 +10,8 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
+apply from: rootProject.file('gradle/repositories.gradle')
+
 def modProjects = [':core', ':world', ':balance', ':events']
 modProjects.each { evaluationDependsOn(it) }
 
