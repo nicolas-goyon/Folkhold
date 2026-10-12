@@ -138,7 +138,7 @@ public final class WorldConfig {
         GARRISON_GUARDS = builder
                 .comment("Number of guards in a full garrison.")
                 .translation(KEY_PREFIX + "garrisonGuards")
-                .defineInRange("guards", 4, 0, 32);
+                .defineInRange("guards", 2, 0, 32);
         GARRISON_ARCHERS = builder
                 .comment("Number of archers in a full garrison.")
                 .translation(KEY_PREFIX + "garrisonArchers")
