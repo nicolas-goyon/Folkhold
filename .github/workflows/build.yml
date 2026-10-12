@@ -9,14 +9,15 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:
-    name: Build and test
+    name: Build and test ${{ matrix.run }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7
