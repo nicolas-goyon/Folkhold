@@ -70,6 +70,8 @@ Without VS Code, use the scripts from a terminal on the host:
 .\scripts\dev.ps1 ./gradlew build       # one command in the container
 ```
 
+The scripts check that Docker runs. On Windows, if Docker Desktop is installed but does not run, `dev.ps1` starts it, runs the command, then stops Docker Desktop again. To keep it running, set `$env:FOLKHOLD_KEEP_DOCKER = '1'` before the command.
+
 ## Project layout
 
 | Folder | Content |
