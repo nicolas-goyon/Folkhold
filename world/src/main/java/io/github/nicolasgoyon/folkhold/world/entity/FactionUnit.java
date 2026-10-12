@@ -96,6 +96,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     static final int GIVE_UP_TICKS = 100;
     /** A unit stops the chase after this time with no path to its target and no line of sight to it. */
     static final int UNREACHABLE_TICKS = 200;
+    /** A path goes to the target when its end is nearer than this distance to the target, in blocks. */
+    private static final double PATH_TARGET_DISTANCE = 3.0;
     /** A unit at the foot of the tower of its post climbs after this time. */
     static final int CLIMB_TICKS = 40;
     /** A unit on the way to its post moves to it after this time. */
@@ -355,15 +357,17 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * True if the unit cannot reach its target: no line of sight, and no path that goes to the target. The attack
-     * goal stops its path at the end of a partial path, so "no path" also counts.
+     * True if the unit cannot reach its target: no line of sight, and no complete path to the target. These count
+     * as "no complete path to the target": no path (the attack goal stops its path at the end of a partial path),
+     * a partial path, and a path to another position (for example a stroll near the home).
      */
     private boolean isUnreachable(LivingEntity target) {
         if (getSensing().hasLineOfSight(target)) {
             return false;
         }
         Path path = getNavigation().getPath();
-        return path == null || !path.canReach();
+        boolean toTarget = path != null && path.getTarget().closerThan(target.blockPosition(), PATH_TARGET_DISTANCE);
+        return !toTarget || !path.canReach();
     }
 
     /** Stops the chase: the unit drops its target and ignores all targets for {@link #GIVE_UP_TICKS}. */
