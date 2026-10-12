@@ -31,11 +31,20 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import software.bernie.geckolib.animatable.GeoEntity;
+import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.animation.AnimatableManager;
+import software.bernie.geckolib.animation.AnimationController;
+import software.bernie.geckolib.animation.PlayState;
+import software.bernie.geckolib.animation.RawAnimation;
+import software.bernie.geckolib.constant.DefaultAnimations;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
 /**
  * Base class of the faction units (guard, archer, captain).
@@ -53,7 +62,14 @@ import net.minecraft.world.level.ServerLevelAccessor;
  *
  * <p>The attributes come from the config of the unit type when the unit spawns.
  */
-public abstract class FactionUnit extends PathfinderMob {
+public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
+    private static final RawAnimation SWING = RawAnimation.begin().thenPlay("attack.swing");
+    private static final RawAnimation BLOCK = RawAnimation.begin().thenPlay("attack.block");
+    private static final RawAnimation DRAW_BOW = RawAnimation.begin().thenPlay("attack.charge");
+    private static final RawAnimation HURT = RawAnimation.begin().thenPlay("misc.hurt");
+
+    private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
+
     /** Color of the tabard (dyed leather chestplate) of a unit without a faction. */
     public static final int DEFAULT_TABARD_COLOR = 0x3C5A9A;
 
@@ -249,6 +265,49 @@ public abstract class FactionUnit extends PathfinderMob {
     }
 
     /**
+     * Animation controllers (GeckoLib). The animations are in
+     * {@code assets/folkhold_world/animations/entity/faction_unit.animation.json}.
+     * <ul>
+     *   <li>movement: walk or idle;</li>
+     *   <li>attack: wind-up and swing of the weapon arm, when the unit swings;</li>
+     *   <li>hold: shield up while the unit blocks, bow drawn while an archer has a target;</li>
+     *   <li>hurt: short step back when the unit takes damage.</li>
+     * </ul>
+     */
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(DefaultAnimations.genericWalkIdleController(this));
+        controllers.add(new AnimationController<>(this, "attack", 2, state -> {
+            if (swinging) {
+                return state.setAndContinue(SWING);
+            }
+            state.getController().forceAnimationReset();
+            return PlayState.STOP;
+        }));
+        controllers.add(new AnimationController<>(this, "hold", 3, state -> {
+            if (isBlocking()) {
+                return state.setAndContinue(BLOCK);
+            }
+            if (isAggressive() && getMainHandItem().getItem() instanceof BowItem) {
+                return state.setAndContinue(DRAW_BOW);
+            }
+            return PlayState.STOP;
+        }));
+        controllers.add(new AnimationController<>(this, "hurt", 0, state -> {
+            if (hurtTime > 0) {
+                return state.setAndContinue(HURT);
+            }
+            state.getController().forceAnimationReset();
+            return PlayState.STOP;
+        }));
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return animationCache;
+    }
+
+    /**
      * Advances the swing time of the arm. {@code Monster} does this in {@code aiStep}, {@code PathfinderMob}
      * does not. Without it, the attack swing does not play.
      */
@@ -331,6 +390,8 @@ public abstract class FactionUnit extends PathfinderMob {
             });
         }
         applyConfiguredAttributes(stats());
+        // The animations use the right arm for the weapon.
+        setLeftHanded(false);
         equip();
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             setDropChance(slot, 0.0F);

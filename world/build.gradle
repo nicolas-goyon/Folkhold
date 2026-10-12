@@ -9,8 +9,19 @@ evaluationDependsOn(':core')
 
 apply from: rootProject.file('gradle/mod-common.gradle')
 
+repositories {
+    maven {
+        name = 'GeckoLib'
+        url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        content {
+            includeGroup 'software.bernie.geckolib'
+        }
+    }
+}
+
 dependencies {
     api project(':core')
+    implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
 }
 
 neoForge {
