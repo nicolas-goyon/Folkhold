@@ -94,7 +94,7 @@
   "message.folkhold_world.village_entry": "Village de %s, %s (%s)",
   "folkhold_world.configuration.showTerritoryHud": "Affichage du territoire",
   "folkhold_world.configuration.villageMessageRadius": "Distance du message de village",
-  "message.folkhold_world.territory_entry": "Territoire de faction · votre réputation : %s",
+  "message.folkhold_world.territory_entry": "Territoire de faction · ta réputation : %s",
   "message.folkhold_world.village_entry_no_name": "Village de %s (%s)",
   "hud.folkhold_world.territory": "%s · %s",
   "hud.folkhold_world.village": "Village : %s"
