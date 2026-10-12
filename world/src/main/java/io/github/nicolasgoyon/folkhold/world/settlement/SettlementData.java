@@ -3,7 +3,11 @@ package io.github.nicolasgoyon.folkhold.world.settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementRegistry;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
+import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
+import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -15,6 +19,9 @@ import net.minecraft.world.level.saveddata.SavedData;
 /**
  * The settlements of a world and the placement regions that the discovery checked. Saved in the Overworld data
  * ({@code folkhold_settlements.dat}).
+ *
+ * <p>The territory claims come from the settlements (position, level, state). The data calculates them again
+ * after each change ({@link #setDirty()}), when the next call needs them.
  */
 public final class SettlementData extends SavedData {
     private static final String FILE_ID = "folkhold_settlements";
@@ -23,6 +30,7 @@ public final class SettlementData extends SavedData {
     private final Set<Long> checkedRegions = new HashSet<>();
     private long tickNumber;
     private long nextTickAt = -1;
+    private TerritoryClaims claims;
 
     private SettlementData() {
     }
@@ -39,6 +47,28 @@ public final class SettlementData extends SavedData {
      */
     public SettlementRegistry registry() {
         return registry;
+    }
+
+    /** The territory cells that the active settlements claim. */
+    public TerritoryClaims claims() {
+        if (claims == null) {
+            List<Claimant> claimants = new ArrayList<>();
+            for (Settlement settlement : registry.all()) {
+                if (settlement.isActive()) {
+                    claimants.add(new Claimant(settlement.id(), settlement.x(), settlement.z(), settlement.level(),
+                            LevelTables.get().traits(settlement.level()).claimCells()));
+                }
+            }
+            claims = TerritoryClaims.compute(claimants);
+        }
+        return claims;
+    }
+
+    /** Marks the data as changed. The territory claims are calculated again at the next call. */
+    @Override
+    public void setDirty() {
+        super.setDirty();
+        claims = null;
     }
 
     /** True if the discovery checked this placement region. */

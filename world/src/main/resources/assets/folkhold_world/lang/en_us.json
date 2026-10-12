@@ -102,6 +102,7 @@
   "folkhold_world.configuration.levelMaxGainPerCycle": "Maximum experience for each cycle",
   "folkhold_world.configuration.levelCaptainDeathLoss": "Experience loss at the death of the captain",
   "message.folkhold_world.territory_entry": "Faction territory · your reputation: %s",
+  "message.folkhold_world.unclaimed_territory": "Unclaimed territory",
   "message.folkhold_world.village_entry_no_name": "Village of %s · %s (%s)",
   "message.folkhold_world.village_level": "%s, level %s",
   "hud.folkhold_world.territory": "%s · %s",
