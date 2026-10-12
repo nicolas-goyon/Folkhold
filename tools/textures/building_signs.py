@@ -9,8 +9,8 @@ with an icon. Each kind of building has its own sign: icon, plaque colors and po
 Output (world/src/main/resources):
 - assets/folkhold_world/textures/block/building_sign/<kind>.png: the plaque (16 x 16, the model uses x 2..13 and
   y 2..13: a dark outline, a trim ring and the icon on the background, 8 x 8);
-- assets/folkhold_world/models/block/building_sign.json: the shape of the sign stand (1.5 blocks high);
-- assets/folkhold_world/models/block/building_sign_<kind>.json and models/item/building_sign_<kind>.json;
+- assets/folkhold_world/models/block/building_sign_<kind>.json: the sign stand (1.5 blocks high) and the relief of
+  the plaque; models/item/building_sign_<kind>.json;
 - assets/folkhold_world/blockstates/building_sign_<kind>.json: 4 facings (the plaque faces the facing);
 - data/folkhold_world/loot_table/blocks/building_sign_<kind>.json;
 - the block ids in data/minecraft/tags/block/mineable/axe.json;
@@ -220,8 +220,78 @@ def box(start, end, texture, faces=("north", "south", "east", "west", "up", "dow
     return element
 
 
-def stand_model():
-    """The sign stand, facing north: the plaque front is the north face."""
+# The plaque element: x 2..14, y 6..18, z 7.5..8.5. Texture pixel (u, v) of the plaque area (2..13) is at
+# x = 15 - u on the north face and x = u on the south face, and at y = 19 - v.
+PLAQUE_FRONT = 7.5
+PLAQUE_BACK = 8.5
+RELIEF = 1.0
+
+
+def relief_mask(kind):
+    """The raised pixels of the plaque: the frame (outline and trim ring) and the pixels of the icon."""
+    mask = set()
+    for u in range(2, 14):
+        for v in range(2, 14):
+            if u in (2, 3, 12, 13) or v in (2, 3, 12, 13):
+                mask.add((u, v))
+    for y, row in enumerate(ICONS[kind]):
+        for x, key in enumerate(row):
+            if key != ".":
+                mask.add((4 + x, 4 + y))
+    return mask
+
+
+def rectangles(mask):
+    """Splits the pixels into rectangles (u0, v0, u1, v1), with u1 and v1 exclusive."""
+    left = set(mask)
+    result = []
+    for v in range(16):
+        for u in range(16):
+            if (u, v) not in left:
+                continue
+            u1 = u
+            while (u1, v) in left:
+                u1 += 1
+            v1 = v + 1
+            while all((x, v1) in left for x in range(u, u1)):
+                v1 += 1
+            for x in range(u, u1):
+                for y in range(v, v1):
+                    left.discard((x, y))
+            result.append((u, v, u1, v1))
+    return result
+
+
+def relief_elements(kind):
+    """The raised parts on the two faces of the plaque. The faces show the plaque texture at the same pixels."""
+    elements = []
+    for (u0, v0, u1, v1) in rectangles(relief_mask(kind)):
+        y0, y1 = 20 - v1, 20 - v0
+        top = [u0, v0, u1, v0 + 1]
+        bottom = [u0, v1 - 1, u1, v1]
+        # Front: the north face. The pixel u is at x = 15 - u.
+        elements.append(box([16 - u1, y0, PLAQUE_FRONT - RELIEF], [16 - u0, y1, PLAQUE_FRONT], "#plaque",
+                            faces=("north", "east", "west", "up", "down"), uv={
+                                "north": [u0, v0, u1, v1],
+                                "east": [u0, v0, u0 + 1, v1],
+                                "west": [u1 - 1, v0, u1, v1],
+                                "up": top,
+                                "down": bottom,
+                            }))
+        # Back: the south face. The pixel u is at x = u.
+        elements.append(box([u0, y0, PLAQUE_BACK], [u1, y1, PLAQUE_BACK + RELIEF], "#plaque",
+                            faces=("south", "east", "west", "up", "down"), uv={
+                                "south": [u0, v0, u1, v1],
+                                "east": [u1 - 1, v0, u1, v1],
+                                "west": [u0, v0, u0 + 1, v1],
+                                "up": top,
+                                "down": bottom,
+                            }))
+    return elements
+
+
+def stand_model(kind):
+    """The sign stand of a kind, facing north: the plaque front is the north face."""
     elements = [
         # Feet and posts.
         box([0, 0, 5], [3, 1, 11], "#post"),
@@ -237,7 +307,7 @@ def stand_model():
         box([4, 18, 7.5], [5, 20, 8.5], "#cap"),
         box([11, 18, 7.5], [12, 20, 8.5], "#cap"),
         # Plaque: the icon on the two large faces, the outline color on the edges.
-        box([2, 6, 7.5], [14, 18, 8.5], "#plaque", uv={
+        box([2, 6, PLAQUE_FRONT], [14, 18, PLAQUE_BACK], "#plaque", uv={
             "north": [2, 2, 14, 14],
             "south": [2, 2, 14, 14],
             "east": [2, 2, 3, 14],
@@ -245,11 +315,10 @@ def stand_model():
             "up": [2, 2, 14, 3],
             "down": [2, 13, 14, 14],
         }),
-    ]
+    ] + relief_elements(kind)
     return {
         "parent": "minecraft:block/block",
         "ambientocclusion": False,
-        "textures": {"particle": "#post"},
         "elements": elements,
     }
 
@@ -271,21 +340,23 @@ def update_lang(path, names):
 
 
 def main():
-    write_json(os.path.join(ASSETS, "models", "block", "building_sign.json"), stand_model())
+    base = os.path.join(ASSETS, "models", "block", "building_sign.json")
+    if os.path.exists(base):
+        os.remove(base)
     for kind, spec in KINDS.items():
         name = block_id(kind)
         texture_dir = os.path.join(ASSETS, "textures", "block", "building_sign")
         os.makedirs(texture_dir, exist_ok=True)
         plaque(kind, spec).save(os.path.join(texture_dir, kind + ".png"))
-        write_json(os.path.join(ASSETS, "models", "block", name + ".json"), {
-            "parent": f"{NS}:block/building_sign",
-            "textures": {
-                "post": spec["post"],
-                "cap": spec["cap"],
-                "bar": spec["bar"],
-                "plaque": f"{NS}:block/building_sign/{kind}",
-            },
-        })
+        model = stand_model(kind)
+        model["textures"] = {
+            "particle": spec["post"],
+            "post": spec["post"],
+            "cap": spec["cap"],
+            "bar": spec["bar"],
+            "plaque": f"{NS}:block/building_sign/{kind}",
+        }
+        write_json(os.path.join(ASSETS, "models", "block", name + ".json"), model)
         write_json(os.path.join(ASSETS, "models", "item", name + ".json"), {"parent": f"{NS}:block/{name}"})
         write_json(os.path.join(ASSETS, "blockstates", name + ".json"), {
             "variants": {
