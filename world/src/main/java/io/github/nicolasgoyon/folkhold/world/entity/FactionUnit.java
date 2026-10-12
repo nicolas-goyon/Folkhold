@@ -35,6 +35,7 @@ import net.minecraft.world.level.ServerLevelAccessor;
  * <p>A unit has:
  * <ul>
  *   <li>a <b>home position</b>: center of the patrol and of the chase limit;</li>
+ *   <li>a <b>faction</b>: the faction of its village, or none;</li>
  *   <li>a <b>village</b>: the position of its village heart, or none. The unit reports threats to the heart,
  *       and the heart alerts all units of the village;</li>
  *   <li>a <b>post</b> (optional): a tower or wall position. A unit with a post stays at its post;</li>
@@ -55,6 +56,7 @@ public abstract class FactionUnit extends PathfinderMob {
     private static final String POST_TAG = "PostPos";
     private static final String ROUTED_TAG = "RoutedUntil";
     private static final String NIGHT_TAG = "NightPos";
+    private static final String FACTION_TAG = "Faction";
     /** Speed of a routed unit that runs back home. */
     private static final double ROUT_SPEED = 1.3;
     /** Radius around the post while the village is not calm, in blocks. */
@@ -66,6 +68,9 @@ public abstract class FactionUnit extends PathfinderMob {
     private BlockPos villagePos;
     @Nullable
     private BlockPos postPos;
+    /** Id of the faction of the unit, or null. */
+    @Nullable
+    private String factionId;
     /** Position of the night watch (near a gate), or null. The village heart sets it. */
     @Nullable
     private BlockPos nightPos;
@@ -176,6 +181,16 @@ public abstract class FactionUnit extends PathfinderMob {
         return getVillageHeart().map(heart -> heart.getAlertState() != AlertState.CALM).orElse(false);
     }
 
+    /** The id of the faction of the unit, or null if the unit has no faction. */
+    @Nullable
+    public String getFactionId() {
+        return factionId;
+    }
+
+    public void setFactionId(@Nullable String id) {
+        factionId = id;
+    }
+
     /** The heart of the village of this unit, if the unit has a village and the heart is loaded. */
     public Optional<VillageHeartBlockEntity> getVillageHeart() {
         if (villagePos == null || !level().isLoaded(villagePos)) {
@@ -243,6 +258,12 @@ public abstract class FactionUnit extends PathfinderMob {
         if (villagePos == null) {
             VillageHearts.findNearest(level.getLevel(), blockPosition(), WorldConfig.VILLAGE_RADIUS.get())
                     .ifPresent(this::setVillagePos);
+        }
+        if (factionId == null) {
+            getVillageHeart().ifPresent(heart -> {
+                heart.ensureFaction();
+                setFactionId(heart.getFactionId());
+            });
         }
         applyConfiguredAttributes(stats());
         equip();
@@ -315,6 +336,9 @@ public abstract class FactionUnit extends PathfinderMob {
         if (nightPos != null) {
             tag.put(NIGHT_TAG, NbtUtils.writeBlockPos(nightPos));
         }
+        if (factionId != null) {
+            tag.putString(FACTION_TAG, factionId);
+        }
     }
 
     @Override
@@ -325,5 +349,6 @@ public abstract class FactionUnit extends PathfinderMob {
         NbtUtils.readBlockPos(tag, POST_TAG).ifPresent(this::setPostPos);
         routedUntil = tag.getLong(ROUTED_TAG);
         NbtUtils.readBlockPos(tag, NIGHT_TAG).ifPresent(this::setNightPos);
+        factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
     }
 }

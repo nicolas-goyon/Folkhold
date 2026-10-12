@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
@@ -28,7 +29,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 /**
- * State of a village: id, alert state and garrison. The units of the village keep the position of this block.
+ * State of a village: id, faction, alert state and garrison. The units of the village keep the position of this block.
  *
  * <p>When a player is in the activation radius, the heart creates the missing units of its garrison.
  */
@@ -49,6 +50,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private final VillageLayout layout = new VillageLayout();
     private static final String LAYOUT_TAG = "Layout";
     private static final String NIGHT_TAG = "NightMode";
+    private static final String FACTION_TAG = "Faction";
+    /** Id of the faction that owns the village, or null before the first activation. */
+    @Nullable
+    private String factionId;
     /** A guard on night watch stays at this distance from the gate, toward the heart. */
     private static final int GATE_WATCH_DISTANCE = 2;
     /** True after the heart closed the gates and lit the braziers for the night. */
@@ -111,6 +116,20 @@ public class VillageHeartBlockEntity extends BlockEntity {
         return garrison;
     }
 
+    /** The id of the faction that owns the village, or null before the first activation. */
+    @Nullable
+    public String getFactionId() {
+        return factionId;
+    }
+
+    /** Gives the village to the faction that owns its position, if the village has no faction. */
+    public void ensureFaction() {
+        if (factionId == null && level instanceof ServerLevel serverLevel) {
+            factionId = FactionData.get(serverLevel.getServer()).ownerAt(worldPosition).id();
+            setChanged();
+        }
+    }
+
     /** The posts, gates and braziers of the village. The heart scans them before the first garrison. */
     public VillageLayout getLayout() {
         return layout;
@@ -125,11 +144,13 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (!(level instanceof ServerLevel serverLevel)) {
             return;
         }
+        ensureFaction();
         if (!layout.isScanned()) {
             layout.scan(serverLevel, worldPosition);
             setChanged();
         }
-        if (garrison.ensure(serverLevel, worldPosition, alertState == AlertState.CALM, now, layout.posts())) {
+        if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
+                layout.posts())) {
             setChanged();
         }
     }
@@ -275,6 +296,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.put(GARRISON_TAG, garrison.save());
         tag.put(LAYOUT_TAG, layout.save());
         tag.putBoolean(NIGHT_TAG, nightMode);
+        if (factionId != null) {
+            tag.putString(FACTION_TAG, factionId);
+        }
     }
 
     @Override
@@ -288,5 +312,6 @@ public class VillageHeartBlockEntity extends BlockEntity {
         garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
         layout.load(tag.getCompound(LAYOUT_TAG));
         nightMode = tag.getBoolean(NIGHT_TAG);
+        factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
     }
 }

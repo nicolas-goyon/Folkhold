@@ -53,5 +53,8 @@
   "folkhold_world.configuration.unit.captain.armor": "Armure",
   "folkhold_world.configuration.unit.captain.movementSpeed": "Vitesse de déplacement",
   "folkhold_world.configuration.unit.captain.followRange": "Distance de détection",
-  "block.folkhold_world.watch_post": "Poste de guet"
+  "block.folkhold_world.watch_post": "Poste de guet",
+  "folkhold_world.culture.valeholm": "Valeholm",
+  "folkhold_world.culture.ashmark": "Ashmark",
+  "folkhold_world.culture.sunreach": "Sunreach"
 }
