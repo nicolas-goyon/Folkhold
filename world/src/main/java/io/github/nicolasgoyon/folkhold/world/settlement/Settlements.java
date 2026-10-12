@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
@@ -29,7 +30,8 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 
 /**
- * Link between the settlements (abstract state) and the village hearts (concrete state).
+ * Link between the settlements (abstract state) and the village hearts (concrete state). A new settlement starts
+ * its economy at once.
  */
 public final class Settlements {
     /** The structure of the faction villages. */
@@ -55,7 +57,21 @@ public final class Settlements {
                 name(faction, id), pos.getX(), pos.getZ());
         settlement.setProgress(startLevel(settlement.id()), 0);
         settlement.setBiome(Economies.biomeAt(server.overworld(), pos.getX(), pos.getY(), pos.getZ()));
+        startEconomy(server, settlement);
         return settlement;
+    }
+
+    /**
+     * Starts the economy of a settlement (population, jobs, start stock) if it did not start and if the data packs
+     * give jobs.
+     *
+     * @param server     the server
+     * @param settlement the settlement
+     */
+    public static void startEconomy(MinecraftServer server, Settlement settlement) {
+        if (EconomyData.isActive() && !settlement.economy().isInitialized()) {
+            Economies.initialize(server, settlement);
+        }
     }
 
     /**
@@ -172,6 +188,7 @@ public final class Settlements {
             }
         }
         settlement.setHeart(pos.getX(), pos.getY(), pos.getZ());
+        startEconomy(server, settlement);
         heart.adoptSettlement(UUID.fromString(settlement.id()), settlement.factionId(), settlement.name());
         data.setDirty();
         return settlement;
