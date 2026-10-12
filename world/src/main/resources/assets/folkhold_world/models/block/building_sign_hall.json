@@ -1,0 +1,9 @@
+{
+  "parent": "folkhold_world:block/building_sign",
+  "textures": {
+    "post": "minecraft:block/stone_bricks",
+    "cap": "minecraft:block/gold_block",
+    "bar": "minecraft:block/spruce_planks",
+    "plaque": "folkhold_world:block/building_sign/hall"
+  }
+}

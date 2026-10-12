@@ -1,0 +1,9 @@
+{
+  "parent": "folkhold_world:block/building_sign",
+  "textures": {
+    "post": "minecraft:block/bricks",
+    "cap": "minecraft:block/stone",
+    "bar": "minecraft:block/dark_oak_planks",
+    "plaque": "folkhold_world:block/building_sign/forge"
+  }
+}

@@ -1,5 +1,13 @@
 {
   "values": [
-    "folkhold_world:watch_post"
+    "folkhold_world:watch_post",
+    "folkhold_world:building_sign_house",
+    "folkhold_world:building_sign_barracks",
+    "folkhold_world:building_sign_forge",
+    "folkhold_world:building_sign_storehouse",
+    "folkhold_world:building_sign_bank",
+    "folkhold_world:building_sign_hall",
+    "folkhold_world:building_sign_farm",
+    "folkhold_world:building_sign_market"
   ]
 }

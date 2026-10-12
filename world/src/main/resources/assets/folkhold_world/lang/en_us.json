@@ -193,5 +193,13 @@
   "folkhold_world.configuration.merchantAllyFactor": "Price factor for an ally",
   "entity.minecraft.villager.inhabitant": "Inhabitant",
   "entity.minecraft.villager.folkhold_world.inhabitant": "Inhabitant",
-  "folkhold_world.configuration.maxInhabitants": "Maximum inhabitants for each village"
+  "folkhold_world.configuration.maxInhabitants": "Maximum inhabitants for each village",
+  "block.folkhold_world.building_sign_house": "House Sign",
+  "block.folkhold_world.building_sign_barracks": "Barracks Sign",
+  "block.folkhold_world.building_sign_forge": "Forge Sign",
+  "block.folkhold_world.building_sign_storehouse": "Storehouse Sign",
+  "block.folkhold_world.building_sign_bank": "Bank Sign",
+  "block.folkhold_world.building_sign_hall": "Village Hall Sign",
+  "block.folkhold_world.building_sign_farm": "Farm Sign",
+  "block.folkhold_world.building_sign_market": "Market Sign"
 }

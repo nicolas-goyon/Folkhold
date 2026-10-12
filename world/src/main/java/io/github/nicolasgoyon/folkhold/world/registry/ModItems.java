@@ -1,6 +1,10 @@
 package io.github.nicolasgoyon.folkhold.world.registry;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
@@ -31,7 +35,16 @@ public final class ModItems {
 
     public static final DeferredItem<BlockItem> BANK_WALL = ITEMS.registerSimpleBlockItem(ModBlocks.BANK_WALL);
 
+    /** The items of the building signs, one for each kind. */
+    public static final Map<BuildingSignKind, DeferredItem<BlockItem>> BUILDING_SIGNS = buildingSigns();
+
     private ModItems() {
+    }
+
+    private static Map<BuildingSignKind, DeferredItem<BlockItem>> buildingSigns() {
+        Map<BuildingSignKind, DeferredItem<BlockItem>> items = new EnumMap<>(BuildingSignKind.class);
+        ModBlocks.BUILDING_SIGNS.forEach((kind, block) -> items.put(kind, ITEMS.registerSimpleBlockItem(block)));
+        return Collections.unmodifiableMap(items);
     }
 
     public static void register(IEventBus modEventBus) {
@@ -49,6 +62,7 @@ public final class ModItems {
             event.accept(WATCH_POST.get());
             event.accept(BANK_CHEST.get());
             event.accept(BANK_WALL.get());
+            BUILDING_SIGNS.values().forEach(item -> event.accept(item.get()));
         }
     }
 }

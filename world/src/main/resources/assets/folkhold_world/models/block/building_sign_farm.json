@@ -1,0 +1,9 @@
+{
+  "parent": "folkhold_world:block/building_sign",
+  "textures": {
+    "post": "minecraft:block/oak_log",
+    "cap": "minecraft:block/stripped_oak_log",
+    "bar": "minecraft:block/oak_planks",
+    "plaque": "folkhold_world:block/building_sign/farm"
+  }
+}
