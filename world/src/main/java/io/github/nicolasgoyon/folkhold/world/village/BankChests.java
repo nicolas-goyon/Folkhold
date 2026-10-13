@@ -3,12 +3,16 @@ package io.github.nicolasgoyon.folkhold.world.village;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Stock;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.PlayerReputation;
+import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationSettings;
+import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
+import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -116,9 +120,50 @@ public final class BankChests {
             if (bank.settlement() == null || isExempt(player) || bank.heart().hasPillaged(player)) {
                 open(player, bank);
             } else {
-                PacketDistributor.sendToPlayer(player, new BankPillageRequestPayload(pos));
+                PacketDistributor.sendToPlayer(player, request(player, pos, bank.heart(), bank.settlement()));
             }
         });
+    }
+
+    /**
+     * The confirmation request of a pillage: the village, the faction, the reputation of the player before and after
+     * the pillage, and the garrison that goes to the alert state.
+     *
+     * @param player     the player
+     * @param pos        the position of the bank chest
+     * @param heart      the heart of the village
+     * @param settlement the settlement of the village
+     * @return the payload
+     */
+    public static BankPillageRequestPayload request(ServerPlayer player, BlockPos pos, VillageHeartBlockEntity heart,
+            Settlement settlement) {
+        MinecraftServer server = player.server;
+        Optional<FactionSpec> faction = FactionData.get(server).byId(settlement.factionId());
+        int before = 0;
+        int after = WorldConfig.BANK_PILLAGE_VALUE.get();
+        if (faction.isPresent()) {
+            PlayerReputation reputation = ReputationData.get(server).get(player.getUUID());
+            ReputationSettings settings = Reputations.settings();
+            before = reputation.effective(faction.get(), settlement.id(), settings);
+            int value = WorldConfig.BANK_PILLAGE_VALUE.get();
+            int villageAfter = Math.min(reputation.village(faction.get(), settlement.id()), value);
+            int factionAfter = Math.min(reputation.faction(faction.get()), value);
+            after = (int) Math.round(settings.villageWeight() * villageAfter
+                    + (1.0 - settings.villageWeight()) * factionAfter);
+        }
+        int guards = 0;
+        int archers = 0;
+        for (Garrison.Entry entry : heart.getGarrison().entries()) {
+            if (!entry.isDead()) {
+                guards += entry.role() == GarrisonRole.GUARD ? 1 : 0;
+                archers += entry.role() == GarrisonRole.ARCHER ? 1 : 0;
+            }
+        }
+        Component factionName = faction.<Component>map(FactionVisuals::name)
+                .orElse(Component.literal(settlement.factionId()));
+        return new BankPillageRequestPayload(pos, Component.literal(settlement.name()), factionName,
+                ReputationTier.of(before).serializedName(), before, ReputationTier.of(after).serializedName(), after,
+                guards, archers);
     }
 
     /**

@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.PlayerReputation;
+import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
@@ -9,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
+import io.github.nicolasgoyon.folkhold.world.network.BankPillageRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
@@ -92,6 +94,33 @@ public final class BankGameTests {
         helper.assertTrue(pillaged, "The heart must record the pillager");
         helper.assertTrue(hasBread, "The chest must show the 10 bread of the stock");
         helper.assertTrue(hasEmeralds, "The chest must show the emerald share of the treasury");
+        helper.succeed();
+    }
+
+    /**
+     * The confirmation request shows the village, the reputation of the player before and after the pillage, and
+     * the garrison.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "bank_request")
+    public static void requestShowsTheReputationBeforeAndAfter(GameTestHelper helper) {
+        Scene scene = scene(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        FactionSpec faction = FactionData.get(server).byId(scene.settlement().factionId()).orElseThrow();
+        ReputationData.get(server).get(scene.player().getUUID()).setFaction(faction.id(), 300);
+        ReputationData.get(server).get(scene.player().getUUID()).setVillage(scene.settlement().id(), 300);
+
+        BankPillageRequestPayload request = BankChests.request(scene.player(), helper.absolutePos(CHEST),
+                scene.heart(), scene.settlement());
+
+        scene.remove(helper);
+        helper.assertTrue(request.village().getString().equals(scene.settlement().name()),
+                "The request must name the village");
+        helper.assertTrue(request.valueBefore() == 300 && request.tierBefore().equals("friend"),
+                "The reputation before must be the reputation now: " + request.valueBefore());
+        helper.assertTrue(request.valueAfter() == WorldConfig.BANK_PILLAGE_VALUE.get()
+                && request.tierAfter().equals(ReputationTier.of(WorldConfig.BANK_PILLAGE_VALUE.get()).serializedName()),
+                "The reputation after must be the pillage value: " + request.valueAfter());
+        helper.assertTrue(request.guards() >= 0 && request.archers() >= 0, "The garrison counts are not negative");
         helper.succeed();
     }
 

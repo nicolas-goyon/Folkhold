@@ -166,7 +166,6 @@
   "block.folkhold_world.bank_wall": "Mur de banque",
   "container.folkhold_world.bank_chest": "Coffre de banque",
   "screen.folkhold_world.bank_pillage.title": "Piller la banque ?",
-  "screen.folkhold_world.bank_pillage.message": "C'est un pillage. Ta réputation avec ce village et avec sa faction devient très négative.",
   "message.folkhold_world.bank_pillaged": "Tu as pillé la banque de %s.",
   "message.folkhold_world.bank_warning": "C'est le coffre de la banque du village. Le casser est un pillage.",
   "folkhold_world.configuration.bank": "Banque",
@@ -443,5 +442,12 @@
   "screen.folkhold_world.quest_board.footer": "Offres : expirent en %s min · Échap fermer",
   "screen.folkhold_world.quest_board.abandon.title": "Abandonner la quête ?",
   "screen.folkhold_world.quest_board.abandon.message": "« %s » échoue. Pas de récompense. La réputation ne change pas.",
-  "screen.folkhold_world.quest_board.abandon.keep": "Garder"
+  "screen.folkhold_world.quest_board.abandon.keep": "Garder",
+  "screen.folkhold_world.bank_pillage.bank": "Banque de %s · %s",
+  "screen.folkhold_world.bank_pillage.before": "Avant",
+  "screen.folkhold_world.bank_pillage.after": "Après",
+  "screen.folkhold_world.bank_pillage.faction": "Vaut aussi pour toute la faction %s.",
+  "screen.folkhold_world.bank_pillage.garrison": "La garnison passe en Assaut : %s gardes, %s archers.",
+  "screen.folkhold_world.bank_pillage.attack": "Les gardes vous attaqueront à vue, partout.",
+  "screen.folkhold_world.bank_pillage.confirm": "Maintenir pour piller"
 }
