@@ -24,7 +24,8 @@ import net.minecraft.world.entity.animal.horse.Mule;
  * <ul>
  *   <li>Merchant: a {@link CaravanMerchant}. It walks on the route. Its name is "Caravan of" and the name of the
  *       origin settlement.</li>
- *   <li>Pack animal: a vanilla mule with a chest. It follows the merchant (see {@link FollowEntityGoal}).</li>
+ *   <li>Pack animal: a tamed vanilla mule with a chest. It follows the merchant (see {@link FollowEntityGoal}).
+ *       Its chest holds a part of the cargo (see {@link CaravanCargo}).</li>
  *   <li>Guard: a faction guard of the faction of the group, with no village. Its home position follows the
  *       merchant (see {@link GroupMaterializer}), so the guard stays near the caravan, and its chase area has its
  *       center on the merchant.</li>
@@ -70,7 +71,8 @@ public final class GroupEntities {
             origin.ifPresent(settlement -> merchant.setCustomName(
                     Component.translatable("entity.folkhold_world.caravan_merchant.of", settlement.name())));
         } else if (mob instanceof Mule mule) {
-            mule.setChest(true);
+            CaravanCargo.equipChest(mule);
+            mule.setTamed(true);
             group.merchant().ifPresent(leader ->
                     mule.goalSelector.addGoal(2, new FollowEntityGoal(mule, leader.id(), MULE_SPEED)));
         }

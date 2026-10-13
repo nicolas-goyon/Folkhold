@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationEvents;
 import io.github.nicolasgoyon.folkhold.world.faction.TerritoryMessages;
 import io.github.nicolasgoyon.folkhold.world.faction.VillageRules;
+import io.github.nicolasgoyon.folkhold.world.group.CaravanInteractions;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupSystem;
 import io.github.nicolasgoyon.folkhold.world.group.VillageTrade;
@@ -83,6 +84,9 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onDeath);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onServerStopping);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(CaravanInteractions::onEntityInteract);
+        NeoForge.EVENT_BUS.addListener(CaravanInteractions::onTrade);
+        NeoForge.EVENT_BUS.addListener(CaravanInteractions::onDamage);
         NeoForge.EVENT_BUS.addListener(LevelTables::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(EconomyData::onAddReloadListener);
         SimulationTicker.addSystem(Economies::tick);

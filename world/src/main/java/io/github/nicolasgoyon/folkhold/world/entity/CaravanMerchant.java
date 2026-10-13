@@ -12,6 +12,7 @@ import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.TradeWithPlayerGoal;
 import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.level.Level;
 
 /**
@@ -52,6 +53,15 @@ public class CaravanMerchant extends WanderingTrader {
     /** No offers of the wandering trader. */
     @Override
     protected void updateTrades() {
+    }
+
+    /**
+     * Sets the offers. The offers of a caravan merchant come from the cargo of its caravan.
+     *
+     * @param offers the offers
+     */
+    public void setOffers(MerchantOffers offers) {
+        this.offers = offers;
     }
 
     @Override
