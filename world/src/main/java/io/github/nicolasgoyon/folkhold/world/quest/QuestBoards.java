@@ -101,9 +101,11 @@ public final class QuestBoards {
         open(player, village.get());
     }
 
-    /** Opens the quest screen of a village. */
+    /** Opens the quest screen of a village. A client with no channel for the screen gets nothing. */
     public static void open(ServerPlayer player, Settlement settlement) {
-        PacketDistributor.sendToPlayer(player, board(player, settlement));
+        if (player.connection.hasChannel(QuestBoardPayload.TYPE)) {
+            PacketDistributor.sendToPlayer(player, board(player, settlement));
+        }
     }
 
     /** A click on a captain opens the quest screen of its village. */
@@ -257,8 +259,11 @@ public final class QuestBoards {
         }
     }
 
-    /** Sends the active quests of a player to the quest HUD. */
+    /** Sends the active quests of a player to the quest HUD. A client with no channel for the HUD gets nothing. */
     public static void sendLog(ServerPlayer player) {
+        if (!player.connection.hasChannel(QuestLogPayload.TYPE)) {
+            return;
+        }
         MinecraftServer server = player.server;
         List<Component> lines = new ArrayList<>();
         for (Quest quest : QuestData.get(server).quests().active(player.getUUID())) {
