@@ -123,7 +123,10 @@ public final class DeliveryGameTests {
         helper.succeed();
     }
 
-    /** The screen of the village of the quest shows the deliver button. */
+    /**
+     * The screen of the village of the quest shows the deliver button. With missing items, the button gives the
+     * reason. With all the items, the quest is ready.
+     */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "delivery_button")
     public static void screenShowsTheDeliverButton(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -131,13 +134,19 @@ public final class DeliveryGameTests {
         ServerPlayer player = TestSupport.mockPlayer(helper);
         Quest quest = acceptedDelivery(server, village, player, 0);
 
-        QuestBoardPayload board = QuestBoards.board(player, village);
+        QuestBoardPayload.Active missing = QuestBoards.board(player, village).active().stream()
+                .filter(entry -> entry.questId().equals(quest.id())).findFirst().orElse(null);
+        player.getInventory().add(new ItemStack(Items.BREAD, 8));
+        QuestBoardPayload.Active ready = QuestBoards.board(player, village).active().stream()
+                .filter(entry -> entry.questId().equals(quest.id())).findFirst().orElse(null);
 
         server.getPlayerList().remove(player);
         clear(server, quest);
-        helper.assertTrue(board.active().stream().anyMatch(entry -> entry.questId().equals(quest.id())
-                && entry.action() == QuestBoardPayload.ACTION_DELIVER && entry.abandon()),
-                "The active delivery must have the deliver and abandon buttons");
+        helper.assertTrue(missing != null && missing.action() == QuestBoardPayload.ACTION_DELIVER
+                && !missing.ready() && missing.blocked().isPresent(),
+                "With no bread, the delivery must show the reason: the missing items");
+        helper.assertTrue(ready != null && ready.ready() && ready.blocked().isEmpty() && ready.secondsLeft() > 0,
+                "With all the bread, the delivery must be ready");
         helper.succeed();
     }
 }

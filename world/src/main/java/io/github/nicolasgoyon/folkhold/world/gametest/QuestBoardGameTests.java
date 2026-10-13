@@ -28,6 +28,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -231,8 +233,8 @@ public final class QuestBoardGameTests {
                             "The board must find its village");
                     helper.assertTrue(board.settlementId().equals(village.id())
                             && board.offers().stream().anyMatch(entry -> entry.questId().equals(quest.id())
-                                    && entry.action() == QuestBoardPayload.ACTION_ACCEPT),
-                            "The screen must show the offer with an accept button");
+                                    && entry.blocked().isEmpty()),
+                            "The screen must show the offer, with no reason to refuse it");
                 })
                 .thenSucceed();
     }
@@ -272,6 +274,51 @@ public final class QuestBoardGameTests {
                 "The player accepts quests up to the maximum: " + results);
         helper.assertTrue(abandoned == QuestState.FAILED, "An abandoned quest fails");
         helper.assertTrue(active == WorldConfig.QUEST_MAX_ACTIVE.get() - 1, "One active quest less: " + active);
+        helper.succeed();
+    }
+
+    /**
+     * The offers give the reason why the player cannot accept them: a tier too low, or too many active quests. A
+     * delivery shows the items of the player.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "quest_board_blocked")
+    public static void offersShowWhyThePlayerCannotAccept(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement village = village(helper);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        ReputationData reputation = ReputationData.get(server);
+        reputation.get(player.getUUID()).setFaction(village.factionId(), 0);
+        reputation.get(player.getUUID()).setVillage(village.id(), 0);
+        player.getInventory().clearContent();
+        player.getInventory().add(new ItemStack(Items.BREAD, 3));
+        List<Quest> created = new ArrayList<>();
+        Quest friends = offer(server, village, ReputationTier.FRIEND);
+        Quest neutral = offer(server, village, ReputationTier.NEUTRAL);
+        created.add(friends);
+        created.add(neutral);
+
+        QuestBoardPayload first = QuestBoards.board(player, village);
+        for (int i = 0; i < WorldConfig.QUEST_MAX_ACTIVE.get(); i++) {
+            Quest filler = offer(server, village, ReputationTier.NEUTRAL);
+            created.add(filler);
+            QuestBoards.give(player, filler.id());
+        }
+        QuestBoardPayload full = QuestBoards.board(player, village);
+
+        server.getPlayerList().remove(player);
+        clear(server, created);
+        QuestBoardPayload.Offer friendOffer = first.offers().stream()
+                .filter(offer -> offer.questId().equals(friends.id())).findFirst().orElseThrow();
+        QuestBoardPayload.Offer neutralOffer = first.offers().stream()
+                .filter(offer -> offer.questId().equals(neutral.id())).findFirst().orElseThrow();
+        helper.assertTrue(friendOffer.blocked().isPresent(), "A neutral player cannot accept a quest of friends");
+        helper.assertTrue(neutralOffer.blocked().isEmpty() && neutralOffer.itemId().equals("minecraft:bread")
+                && neutralOffer.progress().getString().contains("3"),
+                "A delivery shows its item and the items of the player: " + neutralOffer.progress().getString());
+        helper.assertTrue(full.offers().stream().filter(offer -> offer.questId().equals(neutral.id()))
+                .allMatch(offer -> offer.blocked().isPresent()), "With too many quests, the player cannot accept");
+        helper.assertTrue(first.tier().equals("neutral") && first.maxActive() == WorldConfig.QUEST_MAX_ACTIVE.get(),
+                "The board gives the tier of the player and the maximum of active quests");
         helper.succeed();
     }
 }
