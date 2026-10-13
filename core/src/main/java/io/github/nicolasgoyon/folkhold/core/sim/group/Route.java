@@ -1,14 +1,20 @@
 package io.github.nicolasgoyon.folkhold.core.sim.group;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * A list of points between two villages. A mobile group follows the route from the first point to the last point.
  *
- * <p>The progress on a route is a distance in blocks from the first point, from 0 to {@link #length()}.
+ * <ul>
+ *   <li>The progress on a route is a distance in blocks from the first point, from 0 to {@link #length()}.</li>
+ *   <li>Each segment (from point i to point i + 1) has a {@link Surface}: land, ford or water.</li>
+ * </ul>
  */
 public final class Route {
     private final List<Point> points;
+    private final List<Surface> surfaces;
     /** Distance from the first point to each point, in blocks. */
     private final double[] distances;
 
@@ -30,16 +36,66 @@ public final class Route {
     public record Position(double x, double z) {
     }
 
+    /** The surface of a segment of a route. */
+    public enum Surface {
+        /** Dry ground: the group walks. */
+        LAND(0),
+        /** Shallow water: the group walks in the water. */
+        FORD(1),
+        /** Deep water: the group crosses in boats. */
+        WATER(2);
+
+        private final int code;
+
+        Surface(int code) {
+            this.code = code;
+        }
+
+        /** The code of the surface in the saved data. */
+        public int code() {
+            return code;
+        }
+
+        /**
+         * The surface with a code.
+         *
+         * @param code the code
+         * @return the surface, or {@link #LAND} for an unknown code
+         */
+        public static Surface fromCode(int code) {
+            for (Surface surface : values()) {
+                if (surface.code == code) {
+                    return surface;
+                }
+            }
+            return LAND;
+        }
+    }
+
     /**
-     * Makes a route.
+     * Makes a route on land.
      *
      * @param points the points, from the origin to the destination (2 or more)
      */
     public Route(List<Point> points) {
+        this(points, Collections.nCopies(Math.max(0, points.size() - 1), Surface.LAND));
+    }
+
+    /**
+     * Makes a route.
+     *
+     * @param points   the points, from the origin to the destination (2 or more)
+     * @param surfaces the surface of each segment: one less than the points
+     */
+    public Route(List<Point> points, List<Surface> surfaces) {
         if (points.size() < 2) {
             throw new IllegalArgumentException("A route needs 2 or more points: " + points.size());
         }
+        if (surfaces.size() != points.size() - 1) {
+            throw new IllegalArgumentException("A route needs one surface for each segment: " + surfaces.size());
+        }
         this.points = List.copyOf(points);
+        this.surfaces = List.copyOf(surfaces);
         this.distances = new double[points.size()];
         for (int i = 1; i < points.size(); i++) {
             distances[i] = distances[i - 1] + distance(points.get(i - 1), points.get(i));
@@ -51,9 +107,24 @@ public final class Route {
         return points;
     }
 
+    /** The surface of each segment. Segment i goes from point i to point i + 1. */
+    public List<Surface> surfaces() {
+        return surfaces;
+    }
+
     /** The length of the route, in blocks. */
     public double length() {
         return distances[distances.length - 1];
+    }
+
+    /**
+     * The distance from the first point to a point.
+     *
+     * @param index the index of the point
+     * @return the progress of the point, in blocks
+     */
+    public double progressOf(int index) {
+        return distances[index];
     }
 
     /**
@@ -73,6 +144,32 @@ public final class Route {
     }
 
     /**
+     * The surface at a progress. The progress is clamped to the route.
+     *
+     * @param progress the distance from the first point, in blocks
+     * @return the surface of the segment at this progress
+     */
+    public Surface surfaceAt(double progress) {
+        return surfaces.get(segmentAt(Math.max(0.0, Math.min(progress, length()))));
+    }
+
+    /**
+     * The index of the segment that contains a progress. Segment i goes from point i to point i + 1. The progress of
+     * a point is in the segment that ends at this point.
+     *
+     * @param progress the distance from the first point, in blocks
+     * @return the index of the segment
+     */
+    public int segmentAt(double progress) {
+        for (int i = 1; i < distances.length; i++) {
+            if (progress <= distances[i]) {
+                return i - 1;
+            }
+        }
+        return distances.length - 2;
+    }
+
+    /**
      * The progress of the point of the route that is nearest to a position.
      *
      * @param x block X
@@ -80,6 +177,31 @@ public final class Route {
      * @return the distance from the first point, in blocks
      */
     public double progressNear(double x, double z) {
+        return nearest(x, z)[0];
+    }
+
+    /**
+     * The horizontal distance from a position to the route.
+     *
+     * @param x block X
+     * @param z block Z
+     * @return the distance to the nearest point of the route, in blocks
+     */
+    public double distanceTo(double x, double z) {
+        return Math.sqrt(nearest(x, z)[1]);
+    }
+
+    /** The same route in the other direction. */
+    public Route reversed() {
+        List<Point> reversedPoints = new ArrayList<>(points);
+        Collections.reverse(reversedPoints);
+        List<Surface> reversedSurfaces = new ArrayList<>(surfaces);
+        Collections.reverse(reversedSurfaces);
+        return new Route(reversedPoints, reversedSurfaces);
+    }
+
+    /** The progress and the squared distance of the point of the route that is nearest to a position. */
+    private double[] nearest(double x, double z) {
         double best = 0.0;
         double bestDistance = Double.MAX_VALUE;
         for (int i = 0; i < points.size() - 1; i++) {
@@ -98,17 +220,7 @@ public final class Route {
                 best = distances[i] + Math.sqrt(lengthSquared) * t;
             }
         }
-        return best;
-    }
-
-    /** The index of the segment that contains a progress. Segment i goes from point i to point i + 1. */
-    private int segmentAt(double progress) {
-        for (int i = 1; i < distances.length; i++) {
-            if (progress <= distances[i]) {
-                return i - 1;
-            }
-        }
-        return distances.length - 2;
+        return new double[] {best, bestDistance};
     }
 
     private static double distance(Point a, Point b) {

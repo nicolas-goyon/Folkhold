@@ -73,8 +73,12 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue GROUP_DEMATERIALIZE_MARGIN;
     public static final ModConfigSpec.IntValue ROUTE_STEP;
     public static final ModConfigSpec.IntValue ROUTE_MAX_LENGTH;
-    public static final ModConfigSpec.IntValue ROUTE_MAX_WATER_DEPTH;
     public static final ModConfigSpec.IntValue ROUTE_MAX_NODES;
+    public static final ModConfigSpec.BooleanValue ROUTE_BOATS;
+    public static final ModConfigSpec.IntValue ROUTE_DETAIL_STEP;
+    public static final ModConfigSpec.IntValue ROUTE_MAX_RISE;
+    public static final ModConfigSpec.IntValue ROUTE_CORRIDOR;
+    public static final ModConfigSpec.IntValue ROUTE_DETAIL_MAX_NODES;
     public static final ModConfigSpec.IntValue TRADE_CARAVANS_PER_TICK;
     public static final ModConfigSpec.IntValue TRADE_CARAVAN_CAPACITY;
     public static final ModConfigSpec.IntValue TRADE_ROUTES_PER_TICK;
@@ -385,15 +389,35 @@ public final class WorldConfig {
                 .comment("Maximum length of a route in blocks. Two villages with no shorter route do not trade.")
                 .translation(KEY_PREFIX + "routeMaxLength")
                 .defineInRange("routeMaxLength", 3000, 100, 20000);
-        ROUTE_MAX_WATER_DEPTH = builder
-                .comment("Maximum depth of water on a route, in blocks. A river is shallow. An ocean is deep.")
-                .translation(KEY_PREFIX + "routeMaxWaterDepth")
-                .defineInRange("routeMaxWaterDepth", 5, 0, 64);
         ROUTE_MAX_NODES = builder
                 .comment("Maximum number of grid cells that the calculation of one route examines. Each cell reads 2",
                         "heights from the terrain noise on the route worker thread.")
                 .translation(KEY_PREFIX + "routeMaxNodes")
                 .defineInRange("routeMaxNodes", 1500, 100, 100000);
+        ROUTE_BOATS = builder
+                .comment("True if the caravans cross deep water in boats. Else a route does not go into deep water.")
+                .translation(KEY_PREFIX + "routeBoats")
+                .define("routeBoats", true);
+        ROUTE_DETAIL_STEP = builder
+                .comment("Size in blocks of a grid cell for the detailed route of a group. The group calculates its",
+                        "detailed route near the coarse route while it waits at its village.")
+                .translation(KEY_PREFIX + "routeDetailStep")
+                .defineInRange("routeDetailStep", 4, 2, 16);
+        ROUTE_MAX_RISE = builder
+                .comment("Maximum height change between two cells of a detailed route, in blocks. A higher step is a",
+                        "cliff, and the route goes around it.")
+                .translation(KEY_PREFIX + "routeMaxRise")
+                .defineInRange("routeMaxRise", 3, 1, 32);
+        ROUTE_CORRIDOR = builder
+                .comment("Maximum distance in blocks from a detailed route to the coarse route. If no detailed route",
+                        "is in this corridor, the calculation tries again with a corridor two times wider.")
+                .translation(KEY_PREFIX + "routeCorridor")
+                .defineInRange("routeCorridor", 48, 8, 512);
+        ROUTE_DETAIL_MAX_NODES = builder
+                .comment("Maximum number of grid cells that the calculation of one detailed route examines, for each",
+                        "corridor.")
+                .translation(KEY_PREFIX + "routeDetailMaxNodes")
+                .defineInRange("routeDetailMaxNodes", 60000, 1000, 2000000);
         TRADE_CARAVANS_PER_TICK = builder
                 .comment("Maximum number of new caravans of the trade between villages on each abstract tick.")
                 .translation(KEY_PREFIX + "tradeCaravansPerTick")

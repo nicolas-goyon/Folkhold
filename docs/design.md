@@ -385,13 +385,16 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 
 - The mod calculates the route once, before the first caravan between two villages leaves. It keeps the route in the world data.
 - The heights come from the chunk generator, as the settlement discovery does. The calculation does not generate chunks.
-- The search uses a coarse grid. Slopes have a cost. The route does not cross deep water. A route has a maximum length.
-- When there is no route, the two villages do not trade. The mod keeps this result too.
+- Two levels of routes:
+  - The **coarse route** uses a grid of 32 blocks. Slopes have a cost. A route has a maximum length. The trade uses the coarse routes to find the partners. When there is no route, the two villages do not trade. The mod keeps this result too.
+  - The **detailed route** uses a grid of 4 blocks, in a corridor of 48 blocks around the coarse route. A height step of more than 3 blocks between two cells is a cliff: the route goes around it. If the corridor has no route, the search tries again with a corridor two times wider. If there is still no route, the group uses the coarse route.
+- Each segment of a route has a surface: land, ford (water of 2 blocks or less) or water. On water, the group crosses in boats. Getting into and out of the boats has a cost, so a route goes around a small lake.
+- A new group waits at its village until its detailed route is ready, also after its departure time. The escort offer stays open. The mod keeps the detailed route for the next groups between the same villages.
 - One height costs a calculation of the terrain noise, and a search reads thousands of heights. A worker thread calculates the routes. The simulation uses only the routes that are in the world data, and a group or a trade waits for its route. The search uses a weighted heuristic: it examines fewer cells, and a route can be a little longer than the best route.
 
 ### Benchmarks
 
-- Each system of the simulation records the time of its calls: number, average, maximum, last call, total. The routes record the time of their calculation on the worker thread.
+- Each system of the simulation records the time of its calls: number, average, maximum, last call, total. The coarse and the detailed routes record the time of their calculation on the worker thread.
 - `/folkhold sim profile` shows the measurements and the routes on the way. `/folkhold sim profile reset` clears them.
 - A system call that takes more than 50 ms writes a warning in the log.
 - Spark gives the complete profile of the server.

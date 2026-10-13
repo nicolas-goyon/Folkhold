@@ -269,7 +269,7 @@ public final class SettlementCommands {
         CommandSourceStack source = context.getSource();
         List<SimulationProfiler.Entry> entries = SimulationProfiler.entries();
         source.sendSuccess(() -> Component.translatable(KEY + "sim.profile.header", entries.size(),
-                CaravanRoutes.pending()), false);
+                CaravanRoutes.pending(), CaravanRoutes.pendingDetails()), false);
         for (SimulationProfiler.Entry entry : entries) {
             source.sendSuccess(() -> Component.translatable(KEY + "sim.profile.entry", entry.name(), entry.calls(),
                     millis(entry.averageNanos()), millis(entry.maxNanos()), millis(entry.lastNanos()),

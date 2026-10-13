@@ -9,8 +9,13 @@ import org.junit.jupiter.api.Test;
 class RouteFinderTest {
     private static final int SEA_LEVEL = 62;
     private static final int GROUND = 70;
-    private static final RouteFinder.Settings SETTINGS =
-            new RouteFinder.Settings(16, 2, 2.0, 1.0, 3000.0, 20_000, 1.0);
+    private static final RouteFinder.Settings SETTINGS = settings(16, RouteFinder.NO_RISE_LIMIT, false, 3000.0, 1.0);
+
+    /** Settings with a slope cost of 2, a ford cost of 1, a boat cost of 0.5 and an embark cost of 40. */
+    private static RouteFinder.Settings settings(int step, int maxRise, boolean boats, double maxLength,
+            double weight) {
+        return new RouteFinder.Settings(step, 2, maxRise, 2.0, 1.0, boats, 0.5, 40.0, maxLength, 20_000, weight);
+    }
 
     /** Gives the floor height at a position. */
     @FunctionalInterface
@@ -72,7 +77,10 @@ class RouteFinderTest {
 
         Route route = RouteFinder.find(0, 0, 1000, 0, ford, SETTINGS).route().orElseThrow();
 
-        assertEquals(2, route.points().size(), "The route crosses the ford in a straight line");
+        assertTrue(route.points().stream().allMatch(point -> point.z() == 0),
+                "The route crosses the ford in a straight line: " + route.points());
+        assertEquals(Route.Surface.FORD, route.surfaceAt(500.0));
+        assertEquals(Route.Surface.LAND, route.surfaceAt(100.0));
     }
 
     @Test
@@ -89,7 +97,7 @@ class RouteFinderTest {
     void routeLongerThanTheMaximumIsNotValid() {
         assertTrue(RouteFinder.find(0, 0, 3500, 0, FLAT, SETTINGS).route().isEmpty(),
                 "The direct line is longer than the maximum");
-        RouteFinder.Settings shortMax = new RouteFinder.Settings(16, 2, 2.0, 1.0, 1100.0, 20_000, 1.0);
+        RouteFinder.Settings shortMax = settings(16, RouteFinder.NO_RISE_LIMIT, false, 1100.0, 1.0);
         assertTrue(RouteFinder.find(0, 0, 1000, 0, LAKE, shortMax).route().isEmpty(),
                 "The way around the lake is longer than the maximum");
     }
@@ -112,7 +120,7 @@ class RouteFinderTest {
         // Rolling hills: the slope cost makes the plain search examine many cells.
         RouteFinder.HeightSource hills =
                 withSea((x, z) -> GROUND + (int) (20 * Math.sin(x / 40.0) * Math.cos(z / 40.0)));
-        RouteFinder.Settings weighted = new RouteFinder.Settings(16, 2, 2.0, 1.0, 3000.0, 20_000, 1.5);
+        RouteFinder.Settings weighted = settings(16, RouteFinder.NO_RISE_LIMIT, false, 3000.0, 1.5);
 
         RouteFinder.Result plain = RouteFinder.find(0, 0, 2000, 300, hills, SETTINGS);
         RouteFinder.Result fast = RouteFinder.find(0, 0, 2000, 300, hills, weighted);
@@ -132,5 +140,99 @@ class RouteFinderTest {
 
         Route.Position atRidge = route.positionAt(route.progressNear(500, 160));
         assertTrue(Math.abs(atRidge.z() - 160) <= 32, "The route must use the pass: " + atRidge);
+    }
+
+    @Test
+    void boatsCrossTheSea() {
+        RouteFinder.HeightSource sea = withSea((x, z) -> x > 300 && x < 700 ? 30 : GROUND);
+
+        Route route = RouteFinder.find(0, 0, 1000, 0, sea, settings(16, RouteFinder.NO_RISE_LIMIT, true, 3000.0, 1.0))
+                .route().orElseThrow();
+
+        assertEquals(Route.Surface.WATER, route.surfaceAt(route.progressNear(500, 0)),
+                "The route must cross the sea in boats: " + route.points());
+        assertEquals(Route.Surface.LAND, route.surfaceAt(100.0));
+        assertEquals(Route.Surface.LAND, route.surfaceAt(route.length() - 100.0));
+        assertTrue(route.length() < 1050.0, "The route goes across the sea: " + route.length());
+    }
+
+    @Test
+    void boatsGoAroundASmallLake() {
+        Route route = RouteFinder.find(0, 0, 1000, 0, LAKE, settings(16, RouteFinder.NO_RISE_LIMIT, true, 3000.0, 1.0))
+                .route().orElseThrow();
+
+        assertTrue(route.surfaces().stream().noneMatch(surface -> surface == Route.Surface.WATER),
+                "The way around the lake costs less than the boats: " + route.surfaces());
+    }
+
+    @Test
+    void cliffIsNotPassable() {
+        // A cliff of 20 blocks at x = 200, with a ramp between z = 100 and z = 140.
+        RouteFinder.HeightSource cliff = withSea((x, z) -> {
+            if (Math.abs(z - 120) <= 20) {
+                return GROUND + Math.max(0, Math.min(20, (x - 180) / 4));
+            }
+            return x < 200 ? GROUND : GROUND + 20;
+        });
+
+        Route free = RouteFinder.find(0, 0, 400, 0, cliff, settings(4, RouteFinder.NO_RISE_LIMIT, false, 3000.0, 1.0))
+                .route().orElseThrow();
+        Route limited = RouteFinder.find(0, 0, 400, 0, cliff, settings(4, 3, false, 3000.0, 1.0))
+                .route().orElseThrow();
+
+        Route.Position freeAtCliff = free.positionAt(free.progressNear(200, 0));
+        assertTrue(Math.abs(freeAtCliff.z()) < 20, "With no limit, the route climbs the cliff: " + freeAtCliff);
+        double atCliff = 0.0;
+        for (double progress = 0.0; progress <= limited.length(); progress += 1.0) {
+            Route.Position position = limited.positionAt(progress);
+            if (Math.abs(position.x() - 200) < 2.0) {
+                atCliff = position.z();
+            }
+        }
+        assertTrue(atCliff >= 96 && atCliff <= 144, "The route must use the ramp, not the cliff: z = " + atCliff);
+    }
+
+    @Test
+    void corridorKeepsTheRouteNearTheCoarseRoute() {
+        Route coarse = new Route(List.of(new Route.Point(0, 0), new Route.Point(200, 200), new Route.Point(400, 0)));
+        RouteFinder.Settings fine = settings(4, 3, false, 3000.0, 1.0);
+
+        RouteFinder.Result result = RouteFinder.find(0, 0, 400, 0, FLAT, fine, new RouteFinder.Corridor(coarse, 24));
+
+        Route route = result.route().orElseThrow();
+        for (double progress = 0.0; progress <= route.length(); progress += 2.0) {
+            Route.Position position = route.positionAt(progress);
+            assertTrue(coarse.distanceTo(position.x(), position.z()) <= 24 + 4,
+                    "The route must stay in the corridor at " + position);
+        }
+    }
+
+    @Test
+    void refineFindsAFineRouteAroundTheLake() {
+        Route coarse = RouteFinder.find(0, 0, 1000, 0, LAKE, SETTINGS).route().orElseThrow();
+        RouteFinder.Settings fine = settings(4, 3, false, 3000.0, 1.2);
+
+        RouteFinder.Result result = RouteFinder.refine(0, 0, 1000, 0, coarse, 32, LAKE, fine);
+
+        Route route = result.route().orElseThrow();
+        assertEquals(new Route.Point(1000, 0), route.points().get(route.points().size() - 1));
+        for (double progress = 0.0; progress <= route.length(); progress += 4.0) {
+            Route.Position position = route.positionAt(progress);
+            double dx = position.x() - 500;
+            assertTrue(dx * dx + position.z() * position.z() >= 145 * 145,
+                    "The fine route must not cross the lake at " + position);
+        }
+    }
+
+    @Test
+    void refineWithNoWayGivesNoRoute() {
+        RouteFinder.HeightSource wall = withSea((x, z) -> x > 300 && x < 320 ? GROUND + 50 : GROUND);
+        Route coarse = new Route(List.of(new Route.Point(0, 0), new Route.Point(1000, 0)));
+
+        RouteFinder.Result result = RouteFinder.refine(0, 0, 1000, 0, coarse, 32, wall,
+                settings(4, 3, false, 3000.0, 1.0));
+
+        assertTrue(result.route().isEmpty(), "A wall across the corridor gives no route");
+        assertTrue(result.examined() > 0);
     }
 }

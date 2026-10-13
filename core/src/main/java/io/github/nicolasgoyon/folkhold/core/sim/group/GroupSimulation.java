@@ -8,7 +8,8 @@ import java.util.function.Predicate;
  * Moves the mobile groups on each abstract tick.
  *
  * <ul>
- *   <li>A waiting group starts to travel at its departure tick.</li>
+ *   <li>A waiting group starts to travel at its departure tick, if its route is ready. Else it waits for its
+ *       route.</li>
  *   <li>A traveling group moves a fixed distance on its route. At the end of the route, it arrives, or the
  *       listener keeps it (for example a traveling merchant that stays at a village).</li>
  *   <li>A stopped group does not move.</li>
@@ -122,9 +123,9 @@ public final class GroupSimulation {
         return true;
     }
 
-    /** A waiting group starts to travel at its departure tick. */
+    /** A waiting group starts to travel at its departure tick, if its route is ready. */
     private static void depart(MobileGroup group, long tickNumber) {
-        if (group.state() == GroupState.WAITING && tickNumber >= group.departureTick()) {
+        if (group.state() == GroupState.WAITING && tickNumber >= group.departureTick() && group.isRouteReady()) {
             group.setState(GroupState.TRAVELING);
         }
     }

@@ -27,6 +27,7 @@ import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestSystem;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -128,6 +129,18 @@ public final class GroupCommands {
         return SettlementData.get(server).registry().byId(id).map(Settlement::name).orElse(id);
     }
 
+    /** The length of a route on each surface, in blocks. */
+    static Map<Route.Surface, Double> surfaceLengths(Route route) {
+        Map<Route.Surface, Double> lengths = new EnumMap<>(Route.Surface.class);
+        for (Route.Surface surface : Route.Surface.values()) {
+            lengths.put(surface, 0.0);
+        }
+        for (int i = 0; i < route.surfaces().size(); i++) {
+            lengths.merge(route.surfaces().get(i), route.progressOf(i + 1) - route.progressOf(i), Double::sum);
+        }
+        return lengths;
+    }
+
     /** The first characters of an id. */
     static String shortId(String id) {
         return id.length() <= SHORT_ID ? id : id.substring(0, SHORT_ID);
@@ -166,6 +179,12 @@ public final class GroupCommands {
                 settlementName(server, group.originId()), settlementName(server, group.destinationId()),
                 Math.round(group.progress()), Math.round(group.route().length()), group.departureTick(),
                 GroupMaterializer.isMaterialized(group), GroupMaterializer.isKept(group.id())), false);
+        Map<Route.Surface, Double> lengths = surfaceLengths(group.route());
+        source.sendSuccess(() -> Component.translatable(KEY + "caravan.info.route", group.route().points().size(),
+                Component.translatable(KEY + (group.isRouteReady() ? "caravan.route.ready"
+                        : "caravan.route.pending")),
+                Math.round(lengths.get(Route.Surface.LAND)), Math.round(lengths.get(Route.Surface.FORD)),
+                Math.round(lengths.get(Route.Surface.WATER))), false);
         for (GroupMember member : group.members()) {
             source.sendSuccess(() -> Component.translatable(KEY + "caravan.info.member",
                     Component.translatable(KEY + "caravan.role." + member.role().serializedName()),
@@ -199,7 +218,9 @@ public final class GroupCommands {
     }
 
     /**
-     * Makes a caravan that leaves now, with up to 32 items of the largest stock of the origin.
+     * Makes a caravan with up to 32 items of the largest stock of the origin. The caravan leaves now if its detailed
+     * route is in the data. Else it leaves when the worker thread has calculated its detailed route (see
+     * {@link CaravanRoutes#prepare}).
      *
      * @param server the server
      * @param from   the origin
@@ -226,7 +247,10 @@ public final class GroupCommands {
         }
         long tick = SettlementData.get(server).tickNumber();
         MobileGroup caravan = Caravans.create(from, to, route.get(), cargo, payment, tick);
-        caravan.setState(GroupState.TRAVELING);
+        CaravanRoutes.prepare(server, caravan);
+        if (caravan.isRouteReady()) {
+            caravan.setState(GroupState.TRAVELING);
+        }
         MobileGroupData data = MobileGroupData.get(server);
         data.groups().add(caravan);
         data.setDirty();

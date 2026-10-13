@@ -137,6 +137,7 @@ public final class VillageTrade {
                 continue;
             }
             MobileGroup caravan = Caravans.create(seller, buyer, route.get(), cargo, payment, tickNumber + 1);
+            CaravanRoutes.prepare(server, caravan);
             groups.add(caravan);
             Escorts.offer(server, caravan, seller, tickNumber);
             created.add(caravan);
