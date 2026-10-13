@@ -9,6 +9,7 @@ public final class ClientConfig {
     public static final ModConfigSpec SPEC;
 
     public static final ModConfigSpec.BooleanValue SHOW_TERRITORY_HUD;
+    public static final ModConfigSpec.BooleanValue SHOW_QUEST_HUD;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -17,6 +18,11 @@ public final class ClientConfig {
                         "territory, your reputation tier and the village near you.")
                 .translation(WorldConfig.KEY_PREFIX + "showTerritoryHud")
                 .define("showTerritoryHud", false);
+        SHOW_QUEST_HUD = builder
+                .comment("Show the quest HUD at the top left of the screen: your active quests and the minutes",
+                        "before their deadline.")
+                .translation(WorldConfig.KEY_PREFIX + "showQuestHud")
+                .define("showQuestHud", false);
         SPEC = builder.build();
     }
 

@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import net.minecraft.server.MinecraftServer;
 
@@ -37,7 +37,7 @@ import net.minecraft.server.MinecraftServer;
  */
 public final class QuestSystem {
     private static final long TICKS_PER_MINUTE = 1200L;
-    private static final List<Consumer<Quest>> LISTENERS = new ArrayList<>();
+    private static final List<BiConsumer<MinecraftServer, Quest>> LISTENERS = new ArrayList<>();
 
     private QuestSystem() {
     }
@@ -47,7 +47,7 @@ public final class QuestSystem {
      *
      * @param listener the listener
      */
-    public static void addListener(Consumer<Quest> listener) {
+    public static void addListener(BiConsumer<MinecraftServer, Quest> listener) {
         LISTENERS.add(listener);
     }
 
@@ -72,7 +72,7 @@ public final class QuestSystem {
                 quests.withdraw(quest.id());
             }
         }
-        changed.forEach(quest -> LISTENERS.forEach(listener -> listener.accept(quest)));
+        changed.forEach(quest -> LISTENERS.forEach(listener -> listener.accept(server, quest)));
         quests.removeFinished();
         if (tick.cycle()) {
             for (Settlement settlement : settlements.registry().all()) {

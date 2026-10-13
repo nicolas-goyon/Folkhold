@@ -3,8 +3,11 @@ package io.github.nicolasgoyon.folkhold.world.network;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
 import io.github.nicolasgoyon.folkhold.world.client.AdminScreen;
 import io.github.nicolasgoyon.folkhold.world.client.BankPillageScreen;
+import io.github.nicolasgoyon.folkhold.world.client.ClientQuestLog;
 import io.github.nicolasgoyon.folkhold.world.client.ClientTerritory;
+import io.github.nicolasgoyon.folkhold.world.client.QuestBoardScreen;
 import io.github.nicolasgoyon.folkhold.world.client.VillageHeartScreen;
+import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -32,6 +35,16 @@ public final class ModNetwork {
                 (payload, context) -> {
                     if (context.player() instanceof ServerPlayer player) {
                         BankChests.onConfirm(player, payload.pos());
+                    }
+                });
+        registrar.playToClient(QuestBoardPayload.TYPE, QuestBoardPayload.STREAM_CODEC,
+                (payload, context) -> QuestBoardScreen.open(payload));
+        registrar.playToClient(QuestLogPayload.TYPE, QuestLogPayload.STREAM_CODEC,
+                (payload, context) -> ClientQuestLog.set(payload));
+        registrar.playToServer(QuestActionPayload.TYPE, QuestActionPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    if (context.player() instanceof ServerPlayer player) {
+                        QuestBoards.handle(player, payload);
                     }
                 });
         registrar.playToClient(AdminListPayload.TYPE, AdminListPayload.STREAM_CODEC,

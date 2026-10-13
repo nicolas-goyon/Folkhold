@@ -7,9 +7,9 @@ Output: world/src/main/resources/data/folkhold_world/structure/village/*.nbt
 
 Pieces:
 - center.nbt: the walled compound. Palisade, 4 corner towers with an archer post and a low parapet, 2 gates, paths,
-  a plaza with the village heart, 4 braziers and the alarm bell. 4 jigsaw connectors for the house plots. A margin of 1 block around
-  the compound holds the banners on the outer face of the palisade. The other margin positions are empty: the
-  terrain stays.
+  a plaza with the village heart, 4 braziers, the alarm bell, the hall sign and the quest board. 4 jigsaw connectors
+  for the house plots. A margin of 1 block around the compound holds the banners on the outer face of the palisade.
+  The other margin positions are empty: the terrain stays.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
 - bank.nbt: the village bank. Its walls and its chests resist explosions. The first plot of the center piece
   always gets the bank (pool village/bank). The other plots get houses.
@@ -315,6 +315,8 @@ def center():
 
     # Village hall sign on the plaza, between the heart and the north gate, out of the paths.
     building_sign(t, MID + 2, 1, MID - 4, "hall")
+    # Quest board on the plaza, between the heart and the south gate, out of the paths.
+    t.set(MID - 2, 1, MID + 4, f"{NS}:quest_board", {"facing": "south"})
     for (x, z) in ((MID - 2, 7), (MID + 2, 7), (MID - 2, SIZE - 8), (MID + 2, SIZE - 8),
                    (7, MID - 2), (7, MID + 2), (SIZE - 8, MID - 2), (SIZE - 8, MID + 2)):
         lamp_post(t, x, z)

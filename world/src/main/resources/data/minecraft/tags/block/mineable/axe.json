@@ -8,6 +8,7 @@
     "folkhold_world:building_sign_bank",
     "folkhold_world:building_sign_hall",
     "folkhold_world:building_sign_farm",
-    "folkhold_world:building_sign_market"
+    "folkhold_world:building_sign_market",
+    "folkhold_world:quest_board"
   ]
 }
