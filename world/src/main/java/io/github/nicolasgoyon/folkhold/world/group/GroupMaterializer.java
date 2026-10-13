@@ -92,6 +92,11 @@ public final class GroupMaterializer {
         }
     }
 
+    /** True if the group keeps its entities with no player near. */
+    public static boolean isKept(String groupId) {
+        return KEPT.contains(groupId);
+    }
+
     /** True if the group has entities now. */
     public static boolean isMaterialized(MobileGroup group) {
         return MATERIALIZED.containsKey(group.id());

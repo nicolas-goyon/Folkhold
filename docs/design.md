@@ -487,6 +487,9 @@ A quest has a giver, a success condition that the mod checks on the state of the
 - **Success**: the caravan arrives and its merchant is alive. The reward comes from the value of the cargo.
 - **Failure**: the merchant dies, the player stays away too long, or the deadline ends.
 
+- Defaults: the caravan waits 6 minutes for an escort, the escort distance is 48 blocks, the player can stay away 2 minutes, the deadline is 40 minutes, the reward is 50 % of the value of the cargo and +30 reputation.
+- An ambush has 2 monsters, plus 1 for each 500 blocks of route and for each 5 levels of the origin village, up to 8. The monsters (zombies, skeletons and spiders, with a helmet against the sun) appear 16 blocks in front of the merchant and attack it.
+
 All distances, delays and rewards are configurable.
 
 ### Lore

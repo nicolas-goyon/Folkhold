@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Map;
@@ -24,7 +25,8 @@ import net.minecraft.server.MinecraftServer;
  *       of the settlement. A destination that is not active gets nothing.</li>
  *   <li>When a caravan arrives, the destination pays the origin (see {@link VillageTrade#onArrival}).</li>
  *   <li>The cargo of a lost group does not arrive.</li>
- *   <li>The entities of an arrived or lost group disappear.</li>
+ *   <li>The entities of an arrived or lost group disappear. Its escort quest ends (see
+ *       {@link Escorts#onGroupFinished}).</li>
  * </ul>
  */
 public final class MobileGroupSystem {
@@ -48,6 +50,7 @@ public final class MobileGroupSystem {
 
                     @Override
                     public void onArrival(MobileGroup group) {
+                        Escorts.onGroupFinished(server, group);
                         GroupMaterializer.dematerialize(server.overworld(), group, false);
                         deliver(server, group);
                         if (group.kind() == GroupKind.CARAVAN) {
@@ -57,6 +60,7 @@ public final class MobileGroupSystem {
 
                     @Override
                     public void onLost(MobileGroup group) {
+                        Escorts.onGroupFinished(server, group);
                         GroupMaterializer.dematerialize(server.overworld(), group, false);
                         FolkholdWorld.LOGGER.debug("Mobile group lost: {}", group);
                     }

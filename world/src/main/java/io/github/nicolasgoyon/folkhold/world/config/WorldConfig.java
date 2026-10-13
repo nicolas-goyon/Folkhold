@@ -89,6 +89,13 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue QUEST_DELIVERY_MAX_COUNT;
     public static final ModConfigSpec.IntValue QUEST_FRIEND_REWARD;
     public static final ModConfigSpec.IntValue QUEST_MAX_ACTIVE;
+    public static final ModConfigSpec.BooleanValue QUEST_ESCORT_OFFERS;
+    public static final ModConfigSpec.IntValue QUEST_ESCORT_WAIT_TICKS;
+    public static final ModConfigSpec.IntValue QUEST_ESCORT_DISTANCE;
+    public static final ModConfigSpec.IntValue QUEST_ESCORT_AWAY_SECONDS;
+    public static final ModConfigSpec.IntValue QUEST_ESCORT_MINUTES;
+    public static final ModConfigSpec.DoubleValue QUEST_ESCORT_REWARD_SHARE;
+    public static final ModConfigSpec.IntValue QUEST_ESCORT_REPUTATION;
 
     public static final ModConfigSpec.DoubleValue MERCHANT_FRIEND_FACTOR;
     public static final ModConfigSpec.DoubleValue MERCHANT_ALLY_FACTOR;
@@ -443,6 +450,36 @@ public final class WorldConfig {
                 .comment("Maximum number of active quests of a player.")
                 .translation(KEY_PREFIX + "questMaxActive")
                 .defineInRange("maxActive", 3, 1, 20);
+        QUEST_ESCORT_OFFERS = builder
+                .comment("Each new trade caravan offers an escort quest and waits at its village.")
+                .translation(KEY_PREFIX + "questEscortOffers")
+                .define("escortOffers", true);
+        QUEST_ESCORT_WAIT_TICKS = builder
+                .comment("Abstract ticks that a caravan waits for an escort before it leaves (3 = 6 minutes).")
+                .translation(KEY_PREFIX + "questEscortWaitTicks")
+                .defineInRange("escortWaitTicks", 3, 1, 100);
+        QUEST_ESCORT_DISTANCE = builder
+                .comment("Horizontal distance in blocks from the player to the escorted caravan. Farther, the",
+                        "caravan stops.")
+                .translation(KEY_PREFIX + "questEscortDistance")
+                .defineInRange("escortDistance", 48, 8, 256);
+        QUEST_ESCORT_AWAY_SECONDS = builder
+                .comment("Seconds that the player can stay farther than the escort distance. After that, the quest",
+                        "fails and the caravan continues with no escort.")
+                .translation(KEY_PREFIX + "questEscortAwaySeconds")
+                .defineInRange("escortAwaySeconds", 120, 10, 3600);
+        QUEST_ESCORT_MINUTES = builder
+                .comment("Minutes from the acceptance of an escort quest to its deadline.")
+                .translation(KEY_PREFIX + "questEscortMinutes")
+                .defineInRange("escortMinutes", 40, 1, 10000);
+        QUEST_ESCORT_REWARD_SHARE = builder
+                .comment("Share of the value of the cargo that the player gets for an escort, in emeralds.")
+                .translation(KEY_PREFIX + "questEscortRewardShare")
+                .defineInRange("escortRewardShare", 0.5, 0.0, 10.0);
+        QUEST_ESCORT_REPUTATION = builder
+                .comment("Reputation reward of an escort quest.")
+                .translation(KEY_PREFIX + "questEscortReputation")
+                .defineInRange("escortReputation", 30, 0, 1000);
         builder.pop();
 
         builder.comment("Merchants of the faction villages.")

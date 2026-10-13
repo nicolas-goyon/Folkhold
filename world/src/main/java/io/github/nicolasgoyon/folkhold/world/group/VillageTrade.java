@@ -19,6 +19,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -44,7 +45,7 @@ import net.minecraft.server.MinecraftServer;
  *   <li>Two settlements can trade if their factions are not at war, if a route connects them, and if no caravan of
  *       the seller is on the way to the buyer.</li>
  *   <li>Each order becomes a caravan. The goods leave the stock of the seller. The caravan leaves at the next
- *       abstract tick.</li>
+ *       abstract tick, or later if it waits for an escort (see {@link Escorts#offer}).</li>
  *   <li>At the arrival, the buyer pays the value of the goods to the treasury of the seller, and the relation
  *       between the two factions goes up (see {@link #onArrival(MinecraftServer, MobileGroup)}).</li>
  * </ol>
@@ -136,6 +137,7 @@ public final class VillageTrade {
             }
             MobileGroup caravan = Caravans.create(seller, buyer, route.get(), cargo, payment, tickNumber + 1);
             groups.add(caravan);
+            Escorts.offer(server, caravan, seller, tickNumber);
             created.add(caravan);
         }
         if (!created.isEmpty()) {
