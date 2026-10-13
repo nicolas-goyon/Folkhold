@@ -79,6 +79,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue TRADE_CARAVAN_CAPACITY;
     public static final ModConfigSpec.IntValue TRADE_ROUTES_PER_TICK;
     public static final ModConfigSpec.IntValue TRADE_RELATION_GAIN;
+    public static final ModConfigSpec.IntValue TRAVELING_MERCHANTS;
+    public static final ModConfigSpec.IntValue TRAVELING_STAY_TICKS;
 
     public static final ModConfigSpec.DoubleValue MERCHANT_FRIEND_FACTOR;
     public static final ModConfigSpec.DoubleValue MERCHANT_ALLY_FACTOR;
@@ -392,6 +394,14 @@ public final class WorldConfig {
                 .comment("Relation gain between two factions when a caravan of one arrives at a village of the other.")
                 .translation(KEY_PREFIX + "tradeRelationGain")
                 .defineInRange("tradeRelationGain", 1, 0, 100);
+        TRAVELING_MERCHANTS = builder
+                .comment("Number of traveling merchants of the neutral faction in the world.")
+                .translation(KEY_PREFIX + "travelingMerchants")
+                .defineInRange("travelingMerchants", 2, 0, 16);
+        TRAVELING_STAY_TICKS = builder
+                .comment("Abstract ticks that a traveling merchant stays near a village (5 = 10 minutes).")
+                .translation(KEY_PREFIX + "travelingStayTicks")
+                .defineInRange("travelingStayTicks", 5, 1, 1000);
         builder.pop();
 
         builder.comment("Merchants of the faction villages.")

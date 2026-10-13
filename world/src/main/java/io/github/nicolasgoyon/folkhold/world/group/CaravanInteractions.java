@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.group;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomySettings;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemInfo;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupMember;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
@@ -165,7 +166,8 @@ public final class CaravanInteractions {
     }
 
     /**
-     * The offers of a caravan merchant for a player: the items of the cargo with the most value first.
+     * The offers of a caravan merchant for a player: the items of the cargo with the most value first. A traveling
+     * merchant has its own offers (see {@link TravelingMerchants#offers(MobileGroup, ReputationTier)}).
      *
      * @param server the server
      * @param group  the caravan
@@ -173,6 +175,9 @@ public final class CaravanInteractions {
      * @return the offers
      */
     public static MerchantOffers offers(MinecraftServer server, MobileGroup group, ReputationTier tier) {
+        if (group.kind() == GroupKind.TRAVELING_MERCHANT) {
+            return TravelingMerchants.offers(group, tier);
+        }
         MerchantOffers offers = new MerchantOffers();
         Optional<Settlement> origin = SettlementData.get(server).registry().byId(group.originId());
         EconomySettings settings = Economies.settings();

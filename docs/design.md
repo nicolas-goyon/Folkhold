@@ -409,6 +409,29 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 
 - The neutral faction has traveling merchants: 1 merchant and 1 pack animal. A traveling merchant goes from village to village and stays near each village for some time.
 - It sells rare items: very expensive, small quantities, slow restock, as the wandering trader. No overpowered enchanted books.
+- Each traveling merchant sells 6 items of this list. At each cycle, it gets back one item of one offer.
+
+| Item | Price (emeralds) | Maximum |
+| --- | --- | --- |
+| Name tag | 12 | 2 |
+| Saddle | 10 | 1 |
+| Ender pearl | 6 | 4 |
+| Blaze rod | 8 | 2 |
+| Nautilus shell | 16 | 1 |
+| Golden apple | 14 | 1 |
+| Diamond | 12 | 2 |
+| Slime ball | 4 | 4 |
+| Glow ink sac | 4 | 4 |
+| Amethyst shard | 3 | 8 |
+| Spyglass | 12 | 1 |
+| Music disc "cat" | 20 | 1 |
+| Cherry sapling | 5 | 2 |
+| Mangrove propagule | 5 | 2 |
+| Sea pickle | 3 | 4 |
+| Pointed dripstone | 3 | 4 |
+
+- At the end of its route, a traveling merchant stays near the village (10 minutes by default). Then it goes to one of the 5 villages nearest to it.
+- The world has 2 traveling merchants by default. With no neutral faction, it has none.
 
 ### Synergy with the pack mods
 

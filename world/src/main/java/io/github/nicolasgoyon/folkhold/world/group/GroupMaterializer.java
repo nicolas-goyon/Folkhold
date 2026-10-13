@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -46,7 +47,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *       its member and the id of its group ({@link #GROUP_TAG}).</li>
  *   <li>While a group has entities, the simulation does not move it. The position of its merchant sets its progress,
  *       and the health of the entities sets the health of the members. When the merchant is at the end of the
- *       route, the group arrives.</li>
+ *       route, the group arrives (see {@link MobileGroupSystem#onEndOfRoute(MobileGroup, long)}).</li>
  *   <li>Each second, the home position of the guards of a group goes to the position of its merchant.</li>
  *   <li>When no player is in the materialization distance plus a margin, the mod writes back the state of the
  *       members and removes the entities (except for a kept group, see {@link #keep(String, boolean)}). It also
@@ -280,7 +281,9 @@ public final class GroupMaterializer {
                 merchant = living;
                 group.setProgress(group.route().progressNear(living.getX(), living.getZ()));
                 if (group.state() == GroupState.TRAVELING
-                        && group.progress() >= group.route().length() - ARRIVAL_DISTANCE) {
+                        && group.progress() >= group.route().length() - ARRIVAL_DISTANCE
+                        && MobileGroupSystem.onEndOfRoute(group,
+                                SettlementData.get(level.getServer()).tickNumber())) {
                     group.setState(GroupState.ARRIVED);
                 }
             }
