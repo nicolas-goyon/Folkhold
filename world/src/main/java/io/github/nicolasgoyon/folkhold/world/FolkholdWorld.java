@@ -17,6 +17,7 @@ import io.github.nicolasgoyon.folkhold.world.group.MobileGroupSystem;
 import io.github.nicolasgoyon.folkhold.world.group.TravelingMerchants;
 import io.github.nicolasgoyon.folkhold.world.group.VillageTrade;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
+import io.github.nicolasgoyon.folkhold.world.quest.QuestSystem;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
@@ -95,6 +96,7 @@ public final class FolkholdWorld {
         SimulationTicker.addWorldSystem(MobileGroupSystem::tick);
         SimulationTicker.addWorldSystem(VillageTrade::tick);
         SimulationTicker.addWorldSystem(TravelingMerchants::tick);
+        SimulationTicker.addWorldSystem(QuestSystem::tick);
         SettlementLevels.addProsperitySource(Economies::prosperity);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
