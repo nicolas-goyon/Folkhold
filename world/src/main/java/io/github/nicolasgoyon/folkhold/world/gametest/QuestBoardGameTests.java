@@ -339,37 +339,43 @@ public final class QuestBoardGameTests {
         helper.succeed();
     }
 
-    /** The papers of the board follow the number of offers of the village, up to the maximum. */
-    @GameTest(template = "arena", timeoutTicks = 20, batch = "quest_board_papers")
+    /**
+     * The papers of the board follow the number of offers of the village, up to the maximum. The test waits 2 ticks:
+     * the heart registers itself at its first tick.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "quest_board_papers")
     public static void papersFollowTheOffers(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement village = village(helper);
         QuestBoardBlock block = ModBlocks.QUEST_BOARD.get();
         BlockPos middle = QuestBoardBlock.partPos(helper.absolutePos(BOARD), Direction.SOUTH, 1, 1);
         Quests registry = QuestData.get(server).quests();
-        List<Quest> existing = List.copyOf(registry.offers(village.id()));
-        clear(server, existing);
+        clear(server, List.copyOf(registry.offers(village.id())));
+        helper.startSequence()
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    List<Quest> offers = new ArrayList<>();
+                    offers.add(offer(server, village, ReputationTier.NEUTRAL));
+                    offers.add(offer(server, village, ReputationTier.NEUTRAL));
+                    update(helper, middle);
+                    int two = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
+                    for (int i = 0; i < QuestBoardBlock.MAX_PAPERS + 3; i++) {
+                        offers.add(offer(server, village, ReputationTier.NEUTRAL));
+                    }
+                    update(helper, middle);
+                    int many = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
+                    clear(server, offers);
+                    update(helper, middle);
+                    int none = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
 
-        List<Quest> offers = new ArrayList<>();
-        offers.add(offer(server, village, ReputationTier.NEUTRAL));
-        offers.add(offer(server, village, ReputationTier.NEUTRAL));
-        update(helper, middle);
-        int two = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
-        for (int i = 0; i < QuestBoardBlock.MAX_PAPERS + 3; i++) {
-            offers.add(offer(server, village, ReputationTier.NEUTRAL));
-        }
-        update(helper, middle);
-        int many = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
-        clear(server, offers);
-        update(helper, middle);
-        int none = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
-
-        helper.assertTrue(two == 2, "Two offers must give two papers, not " + two);
-        helper.assertTrue(many == QuestBoardBlock.MAX_PAPERS, "Many offers must give the maximum, not " + many);
-        helper.assertTrue(none == 0, "No offer must give no paper, not " + none);
-        helper.assertTrue(block.isPart(helper.getLevel().getBlockState(middle), Direction.SOUTH, 1, 1),
-                "The board must stay complete");
-        helper.succeed();
+                    helper.assertTrue(two == 2, "Two offers must give two papers, not " + two);
+                    helper.assertTrue(many == QuestBoardBlock.MAX_PAPERS,
+                            "Many offers must give the maximum, not " + many);
+                    helper.assertTrue(none == 0, "No offer must give no paper, not " + none);
+                    helper.assertTrue(block.isPart(helper.getLevel().getBlockState(middle), Direction.SOUTH, 1, 1),
+                            "The board must stay complete");
+                })
+                .thenSucceed();
     }
 
     /** Runs the scheduled tick of the middle part of a board now. */
