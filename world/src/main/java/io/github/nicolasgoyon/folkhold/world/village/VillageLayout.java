@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.world.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,7 +27,8 @@ import net.minecraft.world.phys.Vec3;
  *   <li><b>braziers</b>: the campfires;</li>
  *   <li><b>banners</b>: the banners (standing and on walls). The heart gives them the banner of the faction;</li>
  *   <li><b>bank chests</b>: the chests of the village bank, in the scan order;</li>
- *   <li><b>bells</b>: the alarm bells. The heart rings them in an alert.</li>
+ *   <li><b>bells</b>: the alarm bells. The heart rings them in an alert;</li>
+ *   <li><b>quest boards</b>: the middle part of each quest board. The heart starts the updates of their papers.</li>
  * </ul>
  *
  * <p>A saved layout with an other {@link #VERSION} is not valid: the heart scans the village again.
@@ -37,7 +39,7 @@ public final class VillageLayout {
     private static final int SCAN_BELOW = 6;
     private static final int SCAN_ABOVE = 14;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 5;
+    static final int VERSION = 6;
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -56,6 +58,7 @@ public final class VillageLayout {
     private final List<BlockPos> banners = new ArrayList<>();
     private final List<BlockPos> bankChests = new ArrayList<>();
     private final List<BlockPos> bells = new ArrayList<>();
+    private final List<BlockPos> questBoards = new ArrayList<>();
 
     public boolean isScanned() {
         return scanned;
@@ -138,6 +141,11 @@ public final class VillageLayout {
         return Collections.unmodifiableList(bankChests);
     }
 
+    /** The middle part of each quest board. */
+    public List<BlockPos> questBoards() {
+        return Collections.unmodifiableList(questBoards);
+    }
+
     /**
      * Scans the blocks around the heart and replaces the lists.
      *
@@ -152,6 +160,7 @@ public final class VillageLayout {
         banners.clear();
         bankChests.clear();
         bells.clear();
+        questBoards.clear();
         BlockPos min = heartPos.offset(-SCAN_RADIUS, -SCAN_BELOW, -SCAN_RADIUS);
         BlockPos max = heartPos.offset(SCAN_RADIUS, SCAN_ABOVE, SCAN_RADIUS);
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
@@ -168,6 +177,8 @@ public final class VillageLayout {
                 bankChests.add(pos.immutable());
             } else if (state.getBlock() instanceof BellBlock) {
                 bells.add(pos.immutable());
+            } else if (state.getBlock() instanceof QuestBoardBlock && QuestBoardBlock.isRenderPart(state)) {
+                questBoards.add(pos.immutable());
             }
         }
         for (BlockPos post : posts) {
@@ -187,6 +198,7 @@ public final class VillageLayout {
         tag.put("Banners", savePositions(banners));
         tag.put("BankChests", savePositions(bankChests));
         tag.put("Bells", savePositions(bells));
+        tag.put("QuestBoards", savePositions(questBoards));
         return tag;
     }
 
@@ -202,6 +214,7 @@ public final class VillageLayout {
         loadPositions(tag, "Banners", banners);
         loadPositions(tag, "BankChests", bankChests);
         loadPositions(tag, "Bells", bells);
+        loadPositions(tag, "QuestBoards", questBoards);
     }
 
     private static ListTag savePositions(List<BlockPos> positions) {

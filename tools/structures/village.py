@@ -7,7 +7,8 @@ Output: world/src/main/resources/data/folkhold_world/structure/village/*.nbt
 
 Pieces:
 - center.nbt: the walled compound. Palisade, 4 corner towers with an archer post and a low parapet, 2 gates, paths,
-  a plaza with the village heart, 4 braziers, the alarm bell, the hall sign and the quest board (3 x 3 blocks).
+  a plaza with the village heart, 4 braziers, the alarm bell and the hall sign. The quest board (3 x 3 blocks) is at
+  the west end of the east-west path.
   4 jigsaw connectors for the house plots. A margin of 1 block around the compound holds the banners on the outer face of the palisade.
   The other margin positions are empty: the terrain stays.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
@@ -315,12 +316,12 @@ def center():
 
     # Village hall sign on the plaza, between the heart and the north gate, out of the paths.
     building_sign(t, MID + 2, 1, MID - 4, "hall")
-    # Quest board on the plaza, between the heart and the south gate, out of the paths: 3 columns x 3 rows,
-    # facing the south gate. The columns go in the clockwise direction of the facing (west for south).
+    # Quest board at the west end of the east-west path, facing east to the plaza: 3 columns x 3 rows across the
+    # path. The columns go in the clockwise direction of the facing (south for east).
     for column in range(3):
         for row in range(3):
-            t.set(MID - 3 + 1 - column, 1 + row, MID + 4, f"{NS}:quest_board",
-                  {"facing": "south", "column": str(column), "row": str(row)})
+            t.set(TOWER - 1, 1 + row, MID - 1 + column, f"{NS}:quest_board",
+                  {"facing": "east", "column": str(column), "row": str(row), "papers": "0"})
     for (x, z) in ((MID - 2, 7), (MID + 2, 7), (MID - 2, SIZE - 8), (MID + 2, SIZE - 8),
                    (7, MID - 2), (7, MID + 2), (SIZE - 8, MID - 2), (SIZE - 8, MID + 2)):
         lamp_post(t, x, z)
