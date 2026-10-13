@@ -150,6 +150,24 @@ public final class AdminGameTests {
         helper.succeed();
     }
 
+    /** The teleport target is a free position on the floor near the heart, not the bottom of the world. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "admin_teleport")
+    public static void teleportTargetIsAFreePositionNearTheHeart(GameTestHelper helper) {
+        Settlement settlement = settlementOf(helper, newHeart(helper));
+        BlockPos heart = helper.absolutePos(HEART);
+
+        BlockPos target = AdminActions.teleportTarget(helper.getLevel(), settlement);
+
+        helper.assertTrue(target.getY() == heart.getY(), "The target must be at the level of the heart, not at "
+                + target);
+        helper.assertTrue(Math.abs(target.getX() - heart.getX()) <= 8 && Math.abs(target.getZ() - heart.getZ()) <= 8,
+                "The target must be near the heart, not at " + target);
+        helper.assertTrue(!target.equals(heart) && helper.getLevel().getBlockState(target).isAir()
+                && helper.getLevel().getBlockState(target.above()).isAir(), "The target must be free, not " + target);
+        retire(helper, settlement);
+        helper.succeed();
+    }
+
     /** An action on an unknown settlement does nothing and gives a message. */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "admin_unknown")
     public static void unknownSettlementGivesAMessage(GameTestHelper helper) {

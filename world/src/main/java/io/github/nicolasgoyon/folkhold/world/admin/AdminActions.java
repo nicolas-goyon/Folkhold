@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -68,6 +69,8 @@ public final class AdminActions {
 
     private static final String KEY = "screen.folkhold_world.admin.";
     private static final int DETAIL_STOCKS = 8;
+    /** The maximum distance from the heart to the target of the teleport action, in blocks. */
+    private static final int TELEPORT_RADIUS = 8;
 
     private AdminActions() {
     }
@@ -299,11 +302,71 @@ public final class AdminActions {
                 ? Optional.of(heart) : Optional.empty();
     }
 
-    /** A free position near the village heart: the top of the terrain, 2 blocks from the heart. */
-    private static BlockPos teleportTarget(ServerLevel level, Settlement settlement) {
-        int x = settlement.x() + 2;
-        int z = settlement.z() + 2;
-        return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
+    /**
+     * A safe position near the village heart, for the teleport action.
+     *
+     * <ul>
+     *   <li>The method loads the chunks first. The height of a chunk that is not loaded is the bottom of the
+     *       world.</li>
+     *   <li>If the heart position is known, the method finds the nearest free position at the level of the heart:
+     *       a solid floor and two free blocks above it, at most {@link #TELEPORT_RADIUS} blocks from the heart.</li>
+     *   <li>If there is no such position, the target is the top of the terrain, 2 blocks from the heart.</li>
+     * </ul>
+     *
+     * @param level      the level
+     * @param settlement the settlement
+     * @return the position of the feet of the player
+     */
+    public static BlockPos teleportTarget(ServerLevel level, Settlement settlement) {
+        int x = settlement.x();
+        int z = settlement.z();
+        for (int chunkX = (x - TELEPORT_RADIUS) >> 4; chunkX <= (x + TELEPORT_RADIUS) >> 4; chunkX++) {
+            for (int chunkZ = (z - TELEPORT_RADIUS) >> 4; chunkZ <= (z + TELEPORT_RADIUS) >> 4; chunkZ++) {
+                level.getChunk(chunkX, chunkZ);
+            }
+        }
+        if (settlement.hasHeart()) {
+            Optional<BlockPos> free = freePositionNear(level, new BlockPos(x, settlement.heartY(), z));
+            if (free.isPresent()) {
+                return free.get();
+            }
+        }
+        int targetX = x + 2;
+        int targetZ = z + 2;
+        return new BlockPos(targetX, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, targetX, targetZ),
+                targetZ);
+    }
+
+    /** The nearest free position around the heart, by rings of growing distance. */
+    private static Optional<BlockPos> freePositionNear(ServerLevel level, BlockPos heart) {
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int radius = 1; radius <= TELEPORT_RADIUS; radius++) {
+            for (int dy : new int[] {0, 1, -1, 2, -2, 3}) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                            continue;
+                        }
+                        pos.set(heart.getX() + dx, heart.getY() + dy, heart.getZ() + dz);
+                        if (canStand(level, pos)) {
+                            return Optional.of(pos.immutable());
+                        }
+                    }
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** True if a player can stand at the position: a solid floor below, two free blocks, no liquid. */
+    private static boolean canStand(ServerLevel level, BlockPos feet) {
+        BlockPos below = feet.below();
+        BlockPos head = feet.above();
+        return level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)
+                && level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                && level.getBlockState(head).getCollisionShape(level, head).isEmpty()
+                && level.getFluidState(feet).isEmpty()
+                && level.getFluidState(head).isEmpty();
     }
 
     private static Component factionName(MinecraftServer server, String factionId) {
