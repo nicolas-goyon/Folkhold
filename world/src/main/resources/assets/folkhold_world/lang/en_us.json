@@ -402,5 +402,8 @@
   "screen.folkhold_world.admin.groups.state.accepted": "accepted",
   "screen.folkhold_world.admin.groups.state.completed": "completed",
   "screen.folkhold_world.admin.groups.state.failed": "failed",
-  "screen.folkhold_world.admin.groups.state.expired": "expired"
+  "screen.folkhold_world.admin.groups.state.expired": "expired",
+  "commands.folkhold_world.sim.profile.header": "Simulation: %s measured systems, %s routes on the way",
+  "commands.folkhold_world.sim.profile.entry": "%s: %s calls, average %s ms, max %s ms, last %s ms, total %s ms",
+  "commands.folkhold_world.sim.profile.reset": "Simulation measurements cleared."
 }

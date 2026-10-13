@@ -387,6 +387,14 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - The heights come from the chunk generator, as the settlement discovery does. The calculation does not generate chunks.
 - The search uses a coarse grid. Slopes have a cost. The route does not cross deep water. A route has a maximum length.
 - When there is no route, the two villages do not trade. The mod keeps this result too.
+- One height costs a calculation of the terrain noise, and a search reads thousands of heights. A worker thread calculates the routes. The simulation uses only the routes that are in the world data, and a group or a trade waits for its route. The search uses a weighted heuristic: it examines fewer cells, and a route can be a little longer than the best route.
+
+### Benchmarks
+
+- Each system of the simulation records the time of its calls: number, average, maximum, last call, total. The routes record the time of their calculation on the worker thread.
+- `/folkhold sim profile` shows the measurements and the routes on the way. `/folkhold sim profile reset` clears them.
+- A system call that takes more than 50 ms writes a warning in the log.
+- Spark gives the complete profile of the server.
 
 ### Materialization
 

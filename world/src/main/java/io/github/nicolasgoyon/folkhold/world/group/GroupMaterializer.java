@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -105,7 +106,7 @@ public final class GroupMaterializer {
     public static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
         if (server.overworld().getGameTime() % CHECK_INTERVAL == 0) {
-            update(server);
+            SimulationProfiler.time("materialization (each second)", () -> update(server));
         }
     }
 
@@ -152,8 +153,13 @@ public final class GroupMaterializer {
             return true;
         }
         Route.Position position = group.position();
-        BlockPos center = ground(level, (int) Math.floor(position.x()), (int) Math.floor(position.z()));
-        if (!level.isLoaded(center) || !level.isPositionEntityTicking(center)) {
+        int centerX = (int) Math.floor(position.x());
+        int centerZ = (int) Math.floor(position.z());
+        if (!level.hasChunk(centerX >> 4, centerZ >> 4)) {
+            return false;
+        }
+        BlockPos center = ground(level, centerX, centerZ);
+        if (!level.isPositionEntityTicking(center)) {
             return false;
         }
         Set<UUID> ids = new LinkedHashSet<>();
@@ -423,6 +429,7 @@ public final class GroupMaterializer {
         return nearest;
     }
 
+    /** The ground at a position. The chunk must be loaded: a height in a chunk that is not loaded loads it. */
     private static BlockPos ground(ServerLevel level, int x, int z) {
         return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
     }
@@ -436,7 +443,6 @@ public final class GroupMaterializer {
         double radius = SPACING * Math.sqrt(index);
         int x = center.getX() + (int) Math.round(Math.cos(angle) * radius);
         int z = center.getZ() + (int) Math.round(Math.sin(angle) * radius);
-        BlockPos pos = ground(level, x, z);
-        return level.isLoaded(pos) ? pos : center;
+        return level.hasChunk(x >> 4, z >> 4) ? ground(level, x, z) : center;
     }
 }

@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupSystem;
 import io.github.nicolasgoyon.folkhold.world.group.VillageTrade;
@@ -80,6 +81,8 @@ public final class VillageTradeGameTests {
         relations.set(sellerFaction, buyerFaction, 0);
         Settlement seller = settlement(server, sellerFaction, FAR_X, 0, 500);
         Settlement buyer = settlement(server, buyerFaction, FAR_X + 600, 200, 0);
+        // The trade uses only the routes in the data: the worker thread calculates them in the game.
+        CaravanRoutes.calculate(server, seller, buyer);
 
         List<MobileGroup> created = VillageTrade.trade(server, settlements.tickNumber(), List.of(seller, buyer));
 

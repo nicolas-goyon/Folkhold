@@ -380,7 +380,7 @@ public final class WorldConfig {
         ROUTE_STEP = builder
                 .comment("Size in blocks of a grid cell for the calculation of the routes between the villages.")
                 .translation(KEY_PREFIX + "routeStep")
-                .defineInRange("routeStep", 16, 4, 64);
+                .defineInRange("routeStep", 32, 4, 64);
         ROUTE_MAX_LENGTH = builder
                 .comment("Maximum length of a route in blocks. Two villages with no shorter route do not trade.")
                 .translation(KEY_PREFIX + "routeMaxLength")
@@ -390,9 +390,10 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "routeMaxWaterDepth")
                 .defineInRange("routeMaxWaterDepth", 5, 0, 64);
         ROUTE_MAX_NODES = builder
-                .comment("Maximum number of grid cells that the calculation of one route examines.")
+                .comment("Maximum number of grid cells that the calculation of one route examines. Each cell reads 2",
+                        "heights from the terrain noise on the route worker thread.")
                 .translation(KEY_PREFIX + "routeMaxNodes")
-                .defineInRange("routeMaxNodes", 6000, 100, 100000);
+                .defineInRange("routeMaxNodes", 1500, 100, 100000);
         TRADE_CARAVANS_PER_TICK = builder
                 .comment("Maximum number of new caravans of the trade between villages on each abstract tick.")
                 .translation(KEY_PREFIX + "tradeCaravansPerTick")
@@ -402,7 +403,7 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "tradeCaravanCapacity")
                 .defineInRange("tradeCaravanCapacity", 256, 1, 2880);
         TRADE_ROUTES_PER_TICK = builder
-                .comment("Maximum number of new routes that the trade calculates on each abstract tick.")
+                .comment("Maximum number of routes that the trade has on the way to the route worker thread.")
                 .translation(KEY_PREFIX + "tradeRoutesPerTick")
                 .defineInRange("tradeRoutesPerTick", 2, 0, 64);
         TRADE_RELATION_GAIN = builder
