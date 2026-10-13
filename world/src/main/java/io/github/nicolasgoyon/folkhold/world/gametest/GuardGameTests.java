@@ -190,6 +190,8 @@ public final class GuardGameTests {
             guard.setVillagePos(null);
             guard.setFactionId(null);
             guard.setNightPos(null);
+            // The home position is behind the door, so the anchor goals do not pull the guard back.
+            guard.setHomePos(goal);
         }
         helper.startSequence()
                 .thenWaitUntil(() -> {
