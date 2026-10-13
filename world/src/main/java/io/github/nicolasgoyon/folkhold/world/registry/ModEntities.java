@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.registry;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import net.minecraft.core.registries.Registries;
@@ -44,6 +45,13 @@ public final class ModEntities {
                     .clientTrackingRange(8)
                     .build("village_cat"));
 
+    public static final DeferredHolder<EntityType<?>, EntityType<CaravanMerchant>> CARAVAN_MERCHANT =
+            ENTITY_TYPES.register("caravan_merchant", () -> EntityType.Builder.<CaravanMerchant>of(
+                            CaravanMerchant::new, MobCategory.MISC)
+                    .sized(0.6F, 1.95F)
+                    .clientTrackingRange(10)
+                    .build("caravan_merchant"));
+
     private ModEntities() {
     }
 
@@ -57,5 +65,6 @@ public final class ModEntities {
         event.put(ARCHER.get(), ArcherEntity.createAttributes().build());
         event.put(CAPTAIN.get(), CaptainEntity.createAttributes().build());
         event.put(VILLAGE_CAT.get(), Cat.createAttributes().build());
+        event.put(CARAVAN_MERCHANT.get(), CaravanMerchant.createAttributes().build());
     }
 }
