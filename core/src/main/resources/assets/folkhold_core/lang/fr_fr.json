@@ -1,3 +1,13 @@
 {
-  "fml.menu.mods.info.description.folkhold_core": "Bibliothèque partagée de Folkhold : simulation abstraite, régions et planificateur."
+  "fml.menu.mods.info.description.folkhold_core": "Bibliothèque partagée de Folkhold : simulation abstraite, régions et planificateur.",
+  "ui.folkhold_core.waiting": "Envoi…",
+  "ui.folkhold_core.close": "Fermer",
+  "ui.folkhold_core.cancel": "Annuler",
+  "ui.folkhold_core.cancel_key": "Annuler (Échap)",
+  "ui.folkhold_core.ok": "OK",
+  "ui.folkhold_core.empty": "Aucune information",
+  "ui.folkhold_core.hint.close": "Échap fermer",
+  "ui.folkhold_core.hint.sections": "Échap fermer · ← → sections",
+  "ui.folkhold_core.hold_hint": "Maintenez le bouton 1 s. Le focus est sur Annuler.",
+  "ui.folkhold_core.type_name": "Tapez le nom pour confirmer"
 }
