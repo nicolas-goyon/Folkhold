@@ -14,7 +14,8 @@ import net.minecraft.util.Mth;
  * A screen of information that the server sent (see {@link VillageInfoPayload}): one tab for each section, and the
  * label-value rows of the selected section. For example the caravans and quests overview of the admin screen.
  *
- * <p>The screen keeps the last tab for the next opening.
+ * <p>The screen keeps the last tab for the next opening. When it opens from another Folkhold screen (the admin
+ * screen), its back button opens this screen again.
  */
 public class InfoScreen extends UiScreen {
     private static int lastTab;
@@ -30,7 +31,12 @@ public class InfoScreen extends UiScreen {
 
     /** Opens the screen. Called by the network handler on the client thread. */
     public static void open(VillageInfoPayload info) {
-        Minecraft.getInstance().setScreen(new InfoScreen(info));
+        Minecraft minecraft = Minecraft.getInstance();
+        InfoScreen screen = new InfoScreen(info);
+        if (minecraft.screen instanceof UiScreen current && !(current instanceof InfoScreen)) {
+            screen.setPrevious(current);
+        }
+        minecraft.setScreen(screen);
     }
 
     @Override
