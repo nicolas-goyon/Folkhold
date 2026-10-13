@@ -133,6 +133,31 @@ public final class QuestBoards {
         }
     }
 
+    /**
+     * The player opens the quest screen of a village from the village heart screen. The player must be in the
+     * village radius, and the village must give quests to the player (not hostile).
+     *
+     * @param player       the player
+     * @param settlementId the id of the village
+     */
+    public static void request(ServerPlayer player, String settlementId) {
+        MinecraftServer server = player.server;
+        Optional<Settlement> village = SettlementData.get(server).registry().byId(settlementId)
+                .filter(Settlement::isActive);
+        if (village.isEmpty()) {
+            return;
+        }
+        double radius = WorldConfig.VILLAGE_RADIUS.get();
+        if (village.get().distanceSquared(player.getBlockX(), player.getBlockZ()) > radius * radius) {
+            return;
+        }
+        boolean hostile = Reputations.effective(server, player, village.get().factionId(), settlementId)
+                .map(ReputationTier::of).map(ReputationTier::isHostile).orElse(false);
+        if (!hostile) {
+            open(player, village.get());
+        }
+    }
+
     /** A click on a captain opens the quest screen of its village. */
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
         if (event.getHand() != InteractionHand.MAIN_HAND || !(event.getEntity() instanceof ServerPlayer player)

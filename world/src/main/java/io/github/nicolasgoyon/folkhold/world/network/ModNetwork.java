@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.client.AdminScreen;
 import io.github.nicolasgoyon.folkhold.world.client.BankPillageScreen;
 import io.github.nicolasgoyon.folkhold.world.client.ClientQuestLog;
 import io.github.nicolasgoyon.folkhold.world.client.ClientTerritory;
+import io.github.nicolasgoyon.folkhold.world.client.InfoScreen;
 import io.github.nicolasgoyon.folkhold.world.client.QuestBoardScreen;
 import io.github.nicolasgoyon.folkhold.world.client.VillageHeartScreen;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
@@ -28,7 +29,15 @@ public final class ModNetwork {
         registrar.playToClient(TerritoryStatusPayload.TYPE, TerritoryStatusPayload.STREAM_CODEC,
                 (payload, context) -> ClientTerritory.set(payload));
         registrar.playToClient(VillageInfoPayload.TYPE, VillageInfoPayload.STREAM_CODEC,
+                (payload, context) -> InfoScreen.open(payload));
+        registrar.playToClient(VillageHeartPayload.TYPE, VillageHeartPayload.STREAM_CODEC,
                 (payload, context) -> VillageHeartScreen.open(payload));
+        registrar.playToServer(QuestBoardRequestPayload.TYPE, QuestBoardRequestPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    if (context.player() instanceof ServerPlayer player) {
+                        QuestBoards.request(player, payload.settlementId());
+                    }
+                });
         registrar.playToClient(BankPillageRequestPayload.TYPE, BankPillageRequestPayload.STREAM_CODEC,
                 (payload, context) -> BankPillageScreen.open(payload));
         registrar.playToServer(BankPillageConfirmPayload.TYPE, BankPillageConfirmPayload.STREAM_CODEC,
