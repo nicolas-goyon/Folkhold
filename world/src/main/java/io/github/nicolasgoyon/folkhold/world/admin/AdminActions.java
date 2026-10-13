@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.admin;
 
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
+import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
@@ -8,10 +9,13 @@ import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
+import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload.Stock;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload.Summary;
+import io.github.nicolasgoyon.folkhold.world.network.AdminResultPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
+import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
@@ -61,18 +65,37 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li>{@code groups}: sends the caravans, the traveling merchants and the quests (see {@link GroupOverview}).
  *       The client shows them in a tabbed screen.</li>
  * </ul>
- * After an action, the server sends the list and the details of the settlement again.
+ * After an action, the server sends the result ({@link AdminResultPayload}), the list and the details of the
+ * settlement again.
  */
 public final class AdminActions {
     /** The permission level of the admin screen and of its actions. */
     public static final int PERMISSION_LEVEL = 2;
 
     private static final String KEY = "screen.folkhold_world.admin.";
-    private static final int DETAIL_STOCKS = 8;
+    /** The number of stock items that the details show. */
+    private static final int DETAIL_STOCKS = 5;
     /** The maximum distance from the heart to the target of the teleport action, in blocks. */
     private static final int TELEPORT_RADIUS = 8;
 
     private AdminActions() {
+    }
+
+    /**
+     * The result of an action.
+     *
+     * @param message the text for the player
+     * @param success true if the action occurred
+     */
+    public record Result(Component message, boolean success) {
+
+        static Result done(String key, Object... args) {
+            return new Result(Component.translatable(KEY + "done." + key, args), true);
+        }
+
+        static Result refused(String key, Object... args) {
+            return new Result(Component.translatable(KEY + key, args), false);
+        }
     }
 
     /**
@@ -108,8 +131,13 @@ public final class AdminActions {
             }
             return;
         }
-        Optional<Component> message = perform(player.server, player, payload);
-        message.ifPresent(player::sendSystemMessage);
+        perform(player.server, player, payload).ifPresent(result -> {
+            if (player.connection.hasChannel(AdminResultPayload.TYPE)) {
+                PacketDistributor.sendToPlayer(player, new AdminResultPayload(result.message(), result.success()));
+            } else {
+                player.sendSystemMessage(result.message());
+            }
+        });
         sendList(player);
         if (!payload.settlementId().isEmpty()) {
             details(player.server, payload.settlementId())
@@ -123,9 +151,9 @@ public final class AdminActions {
      * @param server  the server
      * @param player  the player for the teleport action, or null
      * @param payload the action
-     * @return a message for the player, if the action gives one
+     * @return the result for the player, if the action gives one
      */
-    public static Optional<Component> perform(MinecraftServer server, @Nullable ServerPlayer player,
+    public static Optional<Result> perform(MinecraftServer server, @Nullable ServerPlayer player,
             AdminActionPayload payload) {
         SettlementData data = SettlementData.get(server);
         String action = payload.action();
@@ -139,7 +167,7 @@ public final class AdminActions {
                 List<Settlement> active = data.registry().all().stream().filter(Settlement::isActive).toList();
                 active.forEach(settlement -> SimulationTicker.runSystems(server, settlement, tick));
                 SimulationTicker.runWorldSystems(server, tick);
-                return Optional.of(Component.translatable(KEY + "done." + action, active.size()));
+                return Optional.of(Result.done(action, active.size()));
             }
             default -> {
                 // The other actions need a settlement.
@@ -147,7 +175,7 @@ public final class AdminActions {
         }
         Optional<Settlement> found = data.registry().byId(payload.settlementId());
         if (found.isEmpty()) {
-            return Optional.of(Component.translatable(KEY + "unknown"));
+            return Optional.of(Result.refused("unknown"));
         }
         Settlement settlement = found.get();
         Component name = Component.literal(settlement.name());
@@ -160,21 +188,21 @@ public final class AdminActions {
                 BlockPos target = teleportTarget(level, settlement);
                 player.teleportTo(level, target.getX() + 0.5, target.getY(), target.getZ() + 0.5, player.getYRot(),
                         player.getXRot());
-                return Optional.of(Component.translatable(KEY + "done.teleport", name));
+                return Optional.of(Result.done("teleport", name));
             }
             case "level_set" -> {
                 int level = LevelTables.get().clamp(payload.value());
                 SettlementLevels.setProgress(server, settlement, level, 0);
-                return Optional.of(Component.translatable(KEY + "done.level_set", name, level,
+                return Optional.of(Result.done("level_set", name, level,
                         SettlementLevels.tierName(level)));
             }
             case "experience_add" -> {
                 SettlementLevels.addExperience(server, settlement, payload.value());
-                return Optional.of(Component.translatable(KEY + "done.experience_add", name, payload.value()));
+                return Optional.of(Result.done("experience_add", name, payload.value()));
             }
             case "cycle" -> {
                 SimulationTicker.runSystems(server, settlement, new TickInfo(data.tickNumber() + 1, true));
-                return Optional.of(Component.translatable(KEY + "done.cycle", name));
+                return Optional.of(Result.done("cycle", name));
             }
             case "economy_reset" -> {
                 EconomyState economy = settlement.economy();
@@ -182,33 +210,39 @@ public final class AdminActions {
                 economy.setInitialized(false);
                 Settlements.startEconomy(server, settlement);
                 data.setDirty();
-                return Optional.of(Component.translatable(KEY + "done.economy_reset", name));
+                return Optional.of(Result.done("economy_reset", name));
             }
             case "ruin" -> {
+                if (!settlement.isActive()) {
+                    return Optional.of(Result.refused("already_ruins", name));
+                }
                 Settlements.ruin(server.overworld(), settlement.id(),
                         new BlockPos(settlement.x(), settlement.heartY(), settlement.z()), null);
-                return Optional.of(Component.translatable(KEY + "done.ruin", name));
+                return Optional.of(Result.done("ruin", name));
             }
             case "restore" -> {
+                if (settlement.isActive()) {
+                    return Optional.of(Result.refused("already_active", name));
+                }
                 Settlements.restore(server.overworld(), settlement);
-                return Optional.of(Component.translatable(KEY + "done.restore", name));
+                return Optional.of(Result.done("restore", name));
             }
             case "alert", "bells" -> {
                 Optional<VillageHeartBlockEntity> heart = loadedHeart(server, settlement);
                 if (heart.isEmpty()) {
-                    return Optional.of(Component.translatable(KEY + "heart_not_loaded", name));
+                    return Optional.of(Result.refused("heart_not_loaded", name));
                 }
                 if (action.equals("bells")) {
                     heart.get().ringBells();
-                    return Optional.of(Component.translatable(KEY + "done.bells", name));
+                    return Optional.of(Result.done("bells", name));
                 }
                 AlertState[] states = AlertState.values();
                 AlertState state = states[Math.floorMod(payload.value(), states.length)];
                 heart.get().setAlertState(state);
-                return Optional.of(Component.translatable(KEY + "done.alert", name, alertName(state)));
+                return Optional.of(Result.done("alert", name, alertName(state)));
             }
             default -> {
-                return Optional.of(Component.translatable(KEY + "unknown_action", action));
+                return Optional.of(Result.refused("unknown_action", action));
             }
         }
     }
@@ -233,7 +267,7 @@ public final class AdminActions {
     }
 
     /**
-     * The details of a settlement.
+     * The details of a settlement: the village, economy and jobs sections, and the largest stocks.
      *
      * @param server       the server
      * @param settlementId the settlement id
@@ -243,48 +277,60 @@ public final class AdminActions {
         SettlementData data = SettlementData.get(server);
         return data.registry().byId(settlementId).map(settlement -> {
             EconomyState economy = settlement.economy();
-            List<Row> rows = new ArrayList<>();
-            rows.add(row("id", Component.literal(settlement.id())));
-            rows.add(row("faction", factionName(server, settlement.factionId())));
-            rows.add(row("state", Component.translatable(KEY + "state." + settlement.state().serializedName())));
-            rows.add(row("level", Component.translatable(KEY + "level_value", settlement.level(),
-                    SettlementLevels.tierName(settlement.level()))));
-            rows.add(row("experience", Component.translatable(KEY + "fraction", settlement.experience(),
-                    LevelTables.get().traits(settlement.level()).experience())));
-            rows.add(row("position", settlement.hasHeart()
+            LevelTraits traits = LevelTables.get().traits(settlement.level());
+            Optional<VillageHeartBlockEntity> heart = loadedHeart(server, settlement);
+
+            List<Row> village = new ArrayList<>();
+            village.add(Row.bar(label("experience"), fraction(settlement.experience(), traits.experience()),
+                    settlement.experience(), traits.experience()));
+            village.add(new Row(label("position"), settlement.hasHeart()
                     ? Component.translatable(KEY + "position", settlement.x(), settlement.heartY(), settlement.z())
                     : Component.translatable(KEY + "position_unknown_y", settlement.x(), settlement.z())));
-            rows.add(row("heart", Component.translatable(KEY + (loadedHeart(server, settlement).isPresent()
-                    ? "heart.loaded" : "heart.unloaded"))));
-            loadedHeart(server, settlement).ifPresent(heart ->
-                    rows.add(row("alert", alertName(heart.getAlertState()))));
-            rows.add(row("biome", Component.literal(settlement.biome().isEmpty() ? "-" : settlement.biome())));
-            rows.add(row("claimed_cells", Component.literal(String.valueOf(data.claims().cellCount(
-                    settlement.id())))));
-            rows.add(row("population", Component.translatable(KEY + "fraction", economy.population(),
-                    LevelTables.get().traits(settlement.level()).maxPopulation())));
-            rows.add(row("inhabitants", Component.literal(String.valueOf(
-                    VillageFolk.inhabitantCount(settlement)))));
-            rows.add(row("food", Component.translatable(KEY + "percent", Math.round(economy.foodCovered() * 100))));
-            rows.add(row("jobs_working", Component.translatable(KEY + "percent",
-                    Math.round(economy.jobsWorking() * 100))));
+            village.add(new Row(label("heart"),
+                    Component.translatable(KEY + (heart.isPresent() ? "heart.loaded" : "heart.unloaded"))));
+            village.add(new Row(label("claimed_cells"),
+                    Component.literal(String.valueOf(data.claims().cellCount(settlement.id())))));
+            village.add(Row.bar(label("population"), Component.translatable(KEY + "population_value",
+                    economy.population(), traits.maxPopulation(), VillageFolk.inhabitantCount(settlement)),
+                    economy.population(), traits.maxPopulation()));
+
             Map<String, Integer> jobs = new TreeMap<>();
             economy.jobs().forEach(job -> jobs.merge(job, 1, Integer::sum));
-            jobs.forEach((job, count) -> rows.add(new Row(Component.translatable(KEY + "job", job),
-                    Component.literal(String.valueOf(count)))));
-            rows.add(row("treasury", Component.literal(String.valueOf(data.treasury(settlement.factionId())))));
-            rows.add(row("stock_total", Component.translatable(KEY + "fraction", economy.stock().total(),
-                    LevelTables.get().traits(settlement.level()).stockCapacity())));
-            economy.stock().asMap().entrySet().stream()
-                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                    .limit(DETAIL_STOCKS)
-                    .forEach(entry -> rows.add(new Row(Component.literal(entry.getKey()),
-                            Component.literal(String.valueOf(entry.getValue())))));
+            List<Row> economyRows = new ArrayList<>();
+            int food = (int) Math.round(economy.foodCovered() * 100);
+            economyRows.add(Row.bar(label("food"), Component.translatable(KEY + "percent", food), food, 100));
+            economyRows.add(new Row(label("jobs_working"), Component.translatable(KEY + "jobs_value",
+                    Math.round(economy.jobsWorking() * 100), jobs.size())));
+            economyRows.add(new Row(label("treasury"),
+                    Component.literal(String.valueOf(data.treasury(settlement.factionId())))));
+            economyRows.add(Row.bar(label("stock_total"), fraction(economy.stock().total(), traits.stockCapacity()),
+                    economy.stock().total(), traits.stockCapacity()));
             if (!EconomyData.isActive()) {
-                rows.add(row("economy", Component.translatable(KEY + "economy.inactive")));
+                economyRows.add(new Row(label("economy"), Component.translatable(KEY + "economy.inactive")));
             }
+
+            List<Section> sections = new ArrayList<>();
+            sections.add(new Section(Component.translatable(KEY + "section.village"), village));
+            sections.add(new Section(Component.translatable(KEY + "section.economy"), economyRows));
+            if (!jobs.isEmpty()) {
+                List<Row> jobRows = new ArrayList<>();
+                jobs.forEach((job, count) -> jobRows.add(new Row(Component.literal(job),
+                        Component.literal(String.valueOf(count)))));
+                sections.add(new Section(Component.translatable(KEY + "section.jobs"), jobRows));
+            }
+
+            List<Stock> stocks = economy.stock().asMap().entrySet().stream()
+                    .filter(entry -> entry.getValue() > 0)
+                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                    .map(entry -> new Stock(entry.getKey(), entry.getValue()))
+                    .toList();
+            int alert = heart.map(found -> found.getAlertState().ordinal()).orElse(AdminDetailsPayload.NO_ALERT);
             return new AdminDetailsPayload(settlement.id(), Component.literal(settlement.name()),
-                    settlement.isActive(), rows);
+                    settlement.isActive(), factionName(server, settlement.factionId()), settlement.biome(),
+                    settlement.level(), SettlementLevels.tierName(settlement.level()), alert, settlement.x(),
+                    settlement.hasHeart() ? settlement.heartY() : AdminDetailsPayload.NO_Y, settlement.z(),
+                    sections, stocks.subList(0, Math.min(DETAIL_STOCKS, stocks.size())),
+                    Math.max(0, stocks.size() - DETAIL_STOCKS));
         });
     }
 
@@ -378,7 +424,11 @@ public final class AdminActions {
         return Component.translatable(KEY + "alert." + state.name().toLowerCase(Locale.ROOT));
     }
 
-    private static Row row(String labelKey, Component value) {
-        return new Row(Component.translatable(KEY + "row." + labelKey), value);
+    private static Component label(String key) {
+        return Component.translatable(KEY + "row." + key);
+    }
+
+    private static Component fraction(int value, int max) {
+        return Component.translatable(KEY + "fraction", value, max);
     }
 }

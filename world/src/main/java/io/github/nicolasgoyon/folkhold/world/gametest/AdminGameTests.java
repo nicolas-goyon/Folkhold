@@ -18,7 +18,6 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -49,7 +48,8 @@ public final class AdminGameTests {
         return Settlements.of(helper.getLevel().getServer(), heart).orElseThrow();
     }
 
-    private static Optional<Component> act(GameTestHelper helper, String action, Settlement settlement, int value) {
+    private static Optional<AdminActions.Result> act(GameTestHelper helper, String action, Settlement settlement,
+            int value) {
         return AdminActions.perform(helper.getLevel().getServer(), null,
                 new AdminActionPayload(action, settlement.id(), value));
     }
@@ -59,7 +59,10 @@ public final class AdminGameTests {
         SettlementData.get(helper.getLevel().getServer()).setDirty();
     }
 
-    /** The list contains each settlement, with its level and its distance, and the details describe it. */
+    /**
+     * The list contains each settlement, with its level and its distance. The details describe it: the level, the
+     * state of the loaded heart, the position and the sections.
+     */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "admin_list")
     public static void listAndDetailsDescribeTheSettlement(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -75,8 +78,14 @@ public final class AdminGameTests {
         helper.assertTrue(summary.get().level() == settlement.level(), "The summary must give the level");
         helper.assertTrue(summary.get().distance() <= 16, "The settlement must be near the player, not at "
                 + summary.get().distance());
-        helper.assertTrue(details.isPresent() && !details.get().rows().isEmpty(),
-                "The details of the settlement must have rows");
+        helper.assertTrue(details.isPresent() && details.get().sections().size() >= 2,
+                "The details of the settlement must have the village and economy sections");
+        helper.assertTrue(details.get().level() == settlement.level() && details.get().active(),
+                "The details must give the level and the state");
+        helper.assertTrue(details.get().heartLoaded() && details.get().alert() == AlertState.CALM.ordinal(),
+                "The details must give the alert state of the loaded heart");
+        helper.assertTrue(details.get().hasY() && details.get().x() == helper.absolutePos(HEART).getX(),
+                "The details must give the position of the heart");
         helper.assertTrue(AdminActions.details(server, "unknown-settlement").isEmpty(),
                 "An unknown settlement must have no details");
         retire(helper, settlement);
@@ -103,16 +112,23 @@ public final class AdminGameTests {
         helper.succeed();
     }
 
-    /** The ruin and restore actions change the state of the settlement. */
+    /**
+     * The ruin and restore actions change the state of the settlement. The ruin of ruins and the restore of an active
+     * settlement are refused.
+     */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "admin_state")
     public static void ruinAndRestoreChangeTheState(GameTestHelper helper) {
         Settlement settlement = settlementOf(helper, newHeart(helper));
 
+        boolean restoreRefused = act(helper, "restore", settlement, 0).map(result -> !result.success()).orElse(false);
         act(helper, "ruin", settlement, 0);
         boolean ruined = settlement.state() == SettlementState.RUINS;
+        boolean ruinRefused = act(helper, "ruin", settlement, 0).map(result -> !result.success()).orElse(false);
         act(helper, "restore", settlement, 0);
 
+        helper.assertTrue(restoreRefused, "The restore of an active settlement must be refused");
         helper.assertTrue(ruined, "The ruin action must put the settlement in ruins");
+        helper.assertTrue(ruinRefused, "The ruin of ruins must be refused");
         helper.assertTrue(settlement.isActive(), "The restore action must make the settlement active");
         retire(helper, settlement);
         helper.succeed();
@@ -168,12 +184,13 @@ public final class AdminGameTests {
         helper.succeed();
     }
 
-    /** An action on an unknown settlement does nothing and gives a message. */
+    /** An action on an unknown settlement does nothing and gives a refusal. */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "admin_unknown")
     public static void unknownSettlementGivesAMessage(GameTestHelper helper) {
-        Optional<Component> message = AdminActions.perform(helper.getLevel().getServer(), null,
+        Optional<AdminActions.Result> result = AdminActions.perform(helper.getLevel().getServer(), null,
                 new AdminActionPayload("level_set", "unknown-settlement", 3));
-        helper.assertTrue(message.isPresent(), "An action on an unknown settlement must give a message");
+        helper.assertTrue(result.isPresent() && !result.get().success(),
+                "An action on an unknown settlement must give a refusal");
         helper.succeed();
     }
 }

@@ -1,26 +1,38 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiButton;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiDialog;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiKeyValueList;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiList;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiMenu;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiOverlay;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiRow;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiScreen;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTextField;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
+import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload.Stock;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload.Summary;
-import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
+import io.github.nicolasgoyon.folkhold.world.network.AdminResultPayload;
+import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.locale.Language;
-import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
-import net.minecraft.util.FormattedCharSequence;
-import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
@@ -28,45 +40,29 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * {@link io.github.nicolasgoyon.folkhold.world.admin.AdminActions}). The command {@code /folkhold admin} opens it.
  *
  * <ul>
- *   <li>Left: the settlements. A text filter (name, id or faction), a level range, a state filter and a sort order
- *       select the settlements. A click on a settlement shows its details.</li>
- *   <li>Right: the details of the selected settlement and the actions on it. The value box gives the value of the
- *       level and experience actions.</li>
- *   <li>Bottom: the global actions.</li>
+ *   <li>Header: refresh, the simulation menu (one tick or one cycle for all settlements), and the caravans and
+ *       quests screen.</li>
+ *   <li>Left: the settlements. A text filter (name, id or faction) and three chips (state, level range, sort order)
+ *       select them. A click on a settlement shows its details.</li>
+ *   <li>Right: the selected settlement. Its badges (level, state, alert), the action menus (village, economy,
+ *       garrison, world), the teleport button, and its rows in two columns with the largest stocks.</li>
+ *   <li>The status line shows the result of each action.</li>
+ *   <li>A dangerous action opens a confirmation dialog: to ruin a settlement, the operator types its name.</li>
  * </ul>
- * The screen keeps the filters and the selection for the next opening.
+ * In the compact layout, the screen shows the list or the details, with a back button. The screen keeps the filters
+ * and the selection for the next opening.
  */
-public class AdminScreen extends Screen {
+public class AdminScreen extends UiScreen {
     private static final String KEY = "screen.folkhold_world.admin.";
-    private static final int MAX_PANEL_WIDTH = 420;
-    private static final int MAX_PANEL_HEIGHT = 260;
-    private static final int MARGIN = 6;
-    private static final int PADDING = 6;
-    private static final int HEADER_HEIGHT = 18;
-    private static final int FOOTER_HEIGHT = 24;
-    private static final int GAP = 2;
-    private static final int CONTROL_HEIGHT = 14;
-    private static final int ROW_HEIGHT = 11;
-    private static final int SCROLL_STEP = ROW_HEIGHT * 2;
-    private static final int SCROLL_BAR_WIDTH = 3;
-    private static final int ACTION_COLUMNS = 4;
-    private static final int ACTION_ROWS = 3;
-
-    private static final int FRAME_OUTER = 0xFF2B1F12;
-    private static final int FRAME_GOLD = 0xFFB8913F;
-    private static final int PANEL_COLOR = 0xF0211B14;
-    private static final int HEADER_COLOR = 0xF0302619;
-    private static final int LIST_COLOR = 0xFF1A1510;
-    private static final int ROW_STRIPE_COLOR = 0x14FFFFFF;
-    private static final int ROW_HOVER_COLOR = 0x30FFFFFF;
-    private static final int ROW_SELECTED_COLOR = 0xFF3A2F21;
-    private static final int SCROLL_TRACK_COLOR = 0x40FFFFFF;
-    private static final int TITLE_COLOR = 0xFFFFFF;
-    private static final int LABEL_COLOR = 0xA89F8C;
-    private static final int VALUE_COLOR = 0xFFFFFF;
-    private static final int RUINS_COLOR = 0x8A6F5A;
-    private static final int ACCENT_COLOR = 0xFFD37F;
-    private static final int EMPTY_COLOR = 0x7A7262;
+    private static final int LIST_MIN = 140;
+    private static final int LIST_MAX = 172;
+    private static final int CHIP = 14;
+    private static final int LIST_ROW = 14;
+    private static final int DETAILS_HEADER = 24;
+    private static final int HEADER_BUTTON = 14;
+    private static final int SLOT = 18;
+    private static final String MENU_CLOSED = " ▾";
+    private static final String MENU_OPEN = " ▴";
 
     /** Filter on the state of the settlements. */
     private enum StateFilter {
@@ -94,7 +90,6 @@ public class AdminScreen extends Screen {
     private static String lastText = "";
     private static String lastMinLevel = "";
     private static String lastMaxLevel = "";
-    private static String lastValue = "1";
     private static StateFilter lastState = StateFilter.ALL;
     private static Sort lastSort = Sort.DISTANCE;
     @Nullable
@@ -104,47 +99,73 @@ public class AdminScreen extends Screen {
     private List<Summary> visible = List.of();
     @Nullable
     private AdminDetailsPayload details;
+    /** In the compact layout: true to show the details, false to show the list. */
+    private boolean compactDetails;
     private int listScroll;
-    private int detailsScroll;
 
-    private EditBox textBox;
-    private EditBox minLevelBox;
-    private EditBox maxLevelBox;
-    private EditBox valueBox;
-
-    private int left;
-    private int top;
-    private int panelWidth;
-    private int panelHeight;
+    @Nullable
+    private SettlementList list;
+    private UiRect listArea = new UiRect(0, 0, 0, 0);
+    private UiRect searchRow = listArea;
+    private UiRect detailsArea = listArea;
+    private UiRect stockStrip = listArea;
 
     public AdminScreen(List<Summary> settlements) {
         super(Component.translatable(KEY + "title"));
         this.settlements = settlements;
     }
 
+    // ------------------------------------------------------------------ network
+
     /** Opens the screen, or updates the list of the open screen. Called by the network handler. */
     public static void open(AdminListPayload payload) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen instanceof AdminScreen screen) {
+        AdminScreen screen = current();
+        if (screen != null) {
             screen.settlements = payload.settlements();
             screen.applyFilters();
-        } else {
-            minecraft.setScreen(new AdminScreen(payload.settlements()));
-            if (lastSelected != null) {
-                send("details", lastSelected, 0);
-            }
+            return;
+        }
+        Minecraft.getInstance().setScreen(new AdminScreen(payload.settlements()));
+        if (lastSelected != null) {
+            send("details", lastSelected, 0);
         }
     }
 
     /** Shows the details of a settlement in the open screen. Called by the network handler. */
     public static void showDetails(AdminDetailsPayload payload) {
-        if (Minecraft.getInstance().screen instanceof AdminScreen screen) {
-            boolean same = screen.details != null && screen.details.id().equals(payload.id());
+        AdminScreen screen = current();
+        if (screen != null && payload.id().equals(lastSelected)) {
             screen.details = payload;
-            if (!same) {
-                screen.detailsScroll = 0;
-            }
-            screen.detailsScroll = Mth.clamp(screen.detailsScroll, 0, screen.maxDetailsScroll());
+            screen.rebuild();
+        }
+    }
+
+    /** Shows the result of an action: in the status line of the open screen, else in the chat. */
+    public static void showResult(AdminResultPayload payload) {
+        AdminScreen screen = current();
+        if (screen != null) {
+            screen.showStatus(payload.message(), payload.success() ? UiTone.GOOD : UiTone.BAD);
+        } else {
+            Minecraft.getInstance().gui.getChat().addMessage(payload.message());
+        }
+    }
+
+    /** The open admin screen, also behind a menu or a dialog, or null. */
+    @Nullable
+    private static AdminScreen current() {
+        Screen screen = Minecraft.getInstance().screen;
+        while (screen instanceof UiOverlay overlay) {
+            screen = overlay.parent();
+        }
+        return screen instanceof AdminScreen admin ? admin : null;
+    }
+
+    /** Makes the widgets again from the state. The list keeps its scroll and its keyboard focus. */
+    private void rebuild() {
+        boolean listFocused = list != null && getFocused() == list;
+        rebuildWidgets();
+        if (listFocused && list != null) {
+            setFocused(list);
         }
     }
 
@@ -152,184 +173,167 @@ public class AdminScreen extends Screen {
         PacketDistributor.sendToServer(new AdminActionPayload(action, settlementId, value));
     }
 
+    private void sendSelected(String action, int value) {
+        if (details != null) {
+            send(action, details.id(), value);
+        }
+    }
+
     // ------------------------------------------------------------------ layout
 
-    private int columnWidth() {
-        return (panelWidth - 2 * PADDING - PADDING) / 2;
+    @Override
+    @Nullable
+    protected Component footerHint() {
+        return null;
     }
 
-    private int listLeft() {
-        return left + PADDING;
+    private boolean showsList() {
+        return !isCompact() || !compactDetails || details == null;
     }
 
-    private int detailsLeft() {
-        return listLeft() + columnWidth() + PADDING;
-    }
-
-    private int bodyTop() {
-        return top + HEADER_HEIGHT + 4;
-    }
-
-    private int bodyBottom() {
-        return top + panelHeight - FOOTER_HEIGHT;
-    }
-
-    private int listTop() {
-        return bodyTop() + 2 * (CONTROL_HEIGHT + GAP);
-    }
-
-    private int actionsTop() {
-        return bodyBottom() - ACTION_ROWS * (CONTROL_HEIGHT + GAP);
-    }
-
-    private int detailsTop() {
-        return bodyTop() + ROW_HEIGHT + GAP;
-    }
-
-    private int detailsBottom() {
-        return actionsTop() - GAP;
-    }
-
-    private int maxListScroll() {
-        return Math.max(0, visible.size() * ROW_HEIGHT - (bodyBottom() - listTop()));
-    }
-
-    private int maxDetailsScroll() {
-        int rows = details == null ? 0 : details.rows().size();
-        return Math.max(0, rows * ROW_HEIGHT - (detailsBottom() - detailsTop()));
+    private boolean showsDetails() {
+        return !isCompact() || (compactDetails && details != null);
     }
 
     @Override
-    protected void init() {
-        panelWidth = Math.min(MAX_PANEL_WIDTH, width - 2 * MARGIN);
-        panelHeight = Math.min(MAX_PANEL_HEIGHT, height - 2 * MARGIN);
-        left = (width - panelWidth) / 2;
-        top = (height - panelHeight) / 2;
-        int column = columnWidth();
+    protected void initBody(UiRect body) {
+        if (list != null) {
+            listScroll = list.scroll();
+        }
+        list = null;
+        initHeaderButtons();
+        UiRect left;
+        UiRect right;
+        if (!isCompact()) {
+            int listWidth = Math.max(LIST_MIN, Math.min(LIST_MAX, body.width() * 32 / 100));
+            left = body.left(listWidth);
+            right = body.afterLeft(listWidth, 1);
+        } else {
+            left = body;
+            right = body;
+        }
+        listArea = showsList() ? left : new UiRect(0, 0, 0, 0);
+        detailsArea = showsDetails() ? right.inset(UiTheme.PADDING) : new UiRect(0, 0, 0, 0);
+        stockStrip = new UiRect(0, 0, 0, 0);
+        if (showsList()) {
+            initList(left);
+        }
+        if (showsDetails() && details != null) {
+            initDetails(detailsArea, details);
+        }
+    }
 
-        // Filters, line 1: text. Line 2: level range, state, sort.
-        int x = listLeft();
-        int y = bodyTop();
-        textBox = addRenderableWidget(new EditBox(font, x, y, column, CONTROL_HEIGHT,
-                Component.translatable(KEY + "filter")));
-        textBox.setHint(Component.translatable(KEY + "filter"));
-        textBox.setValue(lastText);
-        textBox.setResponder(value -> {
-            lastText = value;
+    private void initHeaderButtons() {
+        UiRect header = panel().top(HEADER);
+        int y = header.y() + (header.height() - HEADER_BUTTON) / 2;
+        int x = header.right() - UiTheme.PADDING - 14 - UiTheme.GAP;
+        boolean compact = isCompact();
+        Component groups = Component.translatable(KEY + (compact ? "action.groups_short" : "action.groups"));
+        x -= headerButton(x, y, groups, button -> send("groups", "", 0)).getWidth() + UiTheme.GAP;
+        Component simulation = Component.translatable(KEY + "menu.simulation").append(MENU_CLOSED);
+        UiButton simulationButton = headerButton(x, y, simulation, button -> {
+            button.setMessage(Component.translatable(KEY + "menu.simulation").append(MENU_OPEN));
+            UiMenu.open(this, rectOf(button), simulation, List.of(
+                    UiMenu.Action.of(Component.translatable(KEY + "action.tick_all"), () -> send("tick_all", "", 0)),
+                    UiMenu.Action.of(Component.translatable(KEY + "action.cycle_all"),
+                            () -> send("cycle_all", "", 0))));
+        });
+        x -= simulationButton.getWidth() + UiTheme.GAP;
+        Component refresh = compact ? Component.literal("⟳") : Component.translatable(KEY + "action.refresh");
+        headerButton(x, y, refresh, button -> send("refresh", "", 0))
+                .setDetails(Component.translatable(KEY + "action.refresh"));
+    }
+
+    /** Adds a header button that ends at the x position. */
+    private UiButton headerButton(int right, int y, Component label, Consumer<UiButton> action) {
+        int w = font.width(label) + 10;
+        return addRenderableWidget(UiButton.normal(new UiRect(right - w, y, w, HEADER_BUTTON), label, action));
+    }
+
+    private static UiRect rectOf(UiButton button) {
+        return new UiRect(button.getX(), button.getY(), button.getWidth(), button.getHeight());
+    }
+
+    // ------------------------------------------------------------------ list
+
+    private void initList(UiRect area) {
+        UiRect inner = area.inset(UiTheme.PADDING);
+        int countWidth = font.width(Component.translatable(KEY + "count", 999, 999)) + UiTheme.GAP;
+        searchRow = inner.top(UiTheme.CONTROL);
+        UiTextField search = new UiTextField(searchRow.beforeRight(countWidth, 0), Component.translatable(KEY
+                + "filter"), Component.translatable(KEY + "filter"));
+        search.setValue(lastText);
+        search.setResponder(text -> {
+            lastText = text;
             applyFilters();
         });
-        y += CONTROL_HEIGHT + GAP;
-        int small = (column - 3 * GAP) / 4;
-        minLevelBox = addRenderableWidget(levelBox(x, y, small, "min_level", lastMinLevel));
-        minLevelBox.setResponder(value -> {
-            lastMinLevel = value;
-            applyFilters();
-        });
-        maxLevelBox = addRenderableWidget(levelBox(x + small + GAP, y, small, "max_level", lastMaxLevel));
-        maxLevelBox.setResponder(value -> {
-            lastMaxLevel = value;
-            applyFilters();
-        });
-        addRenderableWidget(Button.builder(stateLabel(), button -> {
+        addRenderableWidget(search);
+
+        int chipY = searchRow.bottom() + UiTheme.GAP;
+        int x = inner.x();
+        Component state = Component.translatable(KEY + "state_filter." + lastState.name().toLowerCase(Locale.ROOT));
+        x += chip(x, chipY, state, lastState != StateFilter.ALL, button -> {
             lastState = StateFilter.values()[(lastState.ordinal() + 1) % StateFilter.values().length];
-            button.setMessage(stateLabel());
-            applyFilters();
-        }).bounds(x + 2 * (small + GAP), y, small, CONTROL_HEIGHT).build());
-        addRenderableWidget(Button.builder(sortLabel(), button -> {
+            rebuild();
+        }) + UiTheme.GAP;
+        boolean levelFilter = !lastMinLevel.isEmpty() || !lastMaxLevel.isEmpty();
+        x += chip(x, chipY, levelLabel(), levelFilter, this::openLevelMenu) + UiTheme.GAP;
+        Component sort = Component.translatable(KEY + "sort." + lastSort.name().toLowerCase(Locale.ROOT));
+        chip(x, chipY, sort, false, button -> {
             lastSort = Sort.values()[(lastSort.ordinal() + 1) % Sort.values().length];
-            button.setMessage(sortLabel());
-            applyFilters();
-        }).bounds(x + 3 * (small + GAP), y, column - 3 * (small + GAP), CONTROL_HEIGHT).build());
-
-        // Actions on the selected settlement.
-        int dx = detailsLeft();
-        int cell = (column - (ACTION_COLUMNS - 1) * GAP) / ACTION_COLUMNS;
-        int ay = actionsTop();
-        valueBox = addRenderableWidget(new EditBox(font, dx + 1, ay + 1, cell - 2, CONTROL_HEIGHT - 2,
-                Component.translatable(KEY + "value")));
-        valueBox.setFilter(value -> value.isEmpty() || value.equals("-") || value.matches("-?\\d{1,7}"));
-        valueBox.setValue(lastValue);
-        valueBox.setResponder(value -> lastValue = value);
-        valueBox.setTooltip(Tooltip.create(
-                Component.translatable(KEY + "value.tooltip")));
-        actionButton(1, 0, "level_set", () -> selectedAction("level_set", parse(valueBox.getValue(), 1)));
-        actionButton(2, 0, "experience_add",
-                () -> selectedAction("experience_add", parse(valueBox.getValue(), 0)));
-        actionButton(3, 0, "cycle", () -> selectedAction("cycle", 0));
-        actionButton(0, 1, "teleport", () -> {
-            selectedAction("teleport", 0);
-            onClose();
+            rebuild();
         });
-        actionButton(1, 1, "economy_reset", () -> selectedAction("economy_reset", 0));
-        actionButton(2, 1, "ruin", () -> selectedAction("ruin", 0));
-        actionButton(3, 1, "restore", () -> selectedAction("restore", 0));
-        actionButton(0, 2, "calm", () -> selectedAction("alert", 0));
-        actionButton(1, 2, "alert", () -> selectedAction("alert", 1));
-        actionButton(2, 2, "assault", () -> selectedAction("alert", 2));
-        actionButton(3, 2, "bells", () -> selectedAction("bells", 0));
 
-        // Global actions.
-        int footerButtons = 5;
-        int buttonWidth = Math.min(90, (panelWidth - 2 * PADDING - (footerButtons - 1) * GAP) / footerButtons);
-        int fx = left + (panelWidth - footerButtons * buttonWidth - (footerButtons - 1) * GAP) / 2;
-        int fy = top + panelHeight - FOOTER_HEIGHT + (FOOTER_HEIGHT - CONTROL_HEIGHT - 2) / 2 + 1;
-        addRenderableWidget(Button.builder(Component.translatable(KEY + "action.refresh"),
-                button -> send("refresh", "", 0)).bounds(fx, fy, buttonWidth, CONTROL_HEIGHT + 2).build());
-        addRenderableWidget(Button.builder(Component.translatable(KEY + "action.tick_all"),
-                button -> send("tick_all", "", 0))
-                .bounds(fx + (buttonWidth + GAP), fy, buttonWidth, CONTROL_HEIGHT + 2).build());
-        addRenderableWidget(Button.builder(Component.translatable(KEY + "action.cycle_all"),
-                button -> send("cycle_all", "", 0))
-                .bounds(fx + 2 * (buttonWidth + GAP), fy, buttonWidth, CONTROL_HEIGHT + 2).build());
-        addRenderableWidget(Button.builder(Component.translatable(KEY + "action.groups"),
-                button -> send("groups", "", 0))
-                .bounds(fx + 3 * (buttonWidth + GAP), fy, buttonWidth, CONTROL_HEIGHT + 2).build());
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
-                .bounds(fx + 4 * (buttonWidth + GAP), fy, buttonWidth, CONTROL_HEIGHT + 2).build());
-
+        int listTop = chipY + CHIP + UiTheme.PADDING;
+        list = addRenderableWidget(new SettlementList(new UiRect(area.x() + 1, listTop,
+                area.width() - (isCompact() ? 2 : 1), area.bottom() - listTop - 1)));
+        list.setSelectable(true);
+        list.setEmptyText(Component.translatable(KEY + "empty"));
         applyFilters();
+        list.setScroll(listScroll);
     }
 
-    private EditBox levelBox(int x, int y, int w, String hintKey, String value) {
-        EditBox box = new EditBox(font, x + 1, y + 1, w - 2, CONTROL_HEIGHT - 2, Component.translatable(KEY + hintKey));
-        box.setHint(Component.translatable(KEY + hintKey));
-        box.setFilter(text -> text.matches("\\d{0,3}"));
-        box.setValue(value);
-        return box;
+    /** Adds a filter chip. Returns its width. */
+    private int chip(int x, int y, Component label, boolean selected, Consumer<UiButton> action) {
+        int w = font.width(label) + 10;
+        addRenderableWidget(new UiButton(new UiRect(x, y, w, CHIP), label,
+                selected ? UiButton.Style.CHIP_SELECTED : UiButton.Style.CHIP, action));
+        return w;
     }
 
-    private void actionButton(int column, int row, String name, Runnable action) {
-        int cell = (columnWidth() - (ACTION_COLUMNS - 1) * GAP) / ACTION_COLUMNS;
-        int x = detailsLeft() + column * (cell + GAP);
-        int y = actionsTop() + row * (CONTROL_HEIGHT + GAP);
-        Button button = Button.builder(Component.translatable(KEY + "action." + name), b -> action.run())
-                .bounds(x, y, cell, CONTROL_HEIGHT)
-                .tooltip(Tooltip.create(
-                        Component.translatable(KEY + "action." + name + ".tooltip")))
-                .build();
-        addRenderableWidget(button);
-    }
-
-    private void selectedAction(String action, int value) {
-        if (lastSelected != null) {
-            send(action, lastSelected, value);
+    private static Component levelLabel() {
+        if (lastMinLevel.isEmpty() && lastMaxLevel.isEmpty()) {
+            return Component.translatable(KEY + "levels.all");
         }
-    }
-
-    private static int parse(String text, int fallback) {
-        try {
-            return Integer.parseInt(text);
-        } catch (NumberFormatException e) {
-            return fallback;
+        if (lastMaxLevel.isEmpty()) {
+            return Component.translatable(KEY + "levels.min", lastMinLevel);
         }
+        if (lastMinLevel.isEmpty()) {
+            return Component.translatable(KEY + "levels.max", lastMaxLevel);
+        }
+        return Component.translatable(KEY + "levels.range", lastMinLevel, lastMaxLevel);
     }
 
-    private static Component stateLabel() {
-        return Component.translatable(KEY + "state_filter." + lastState.name().toLowerCase(Locale.ROOT));
-    }
-
-    private static Component sortLabel() {
-        return Component.translatable(KEY + "sort." + lastSort.name().toLowerCase(Locale.ROOT));
+    private void openLevelMenu(UiButton button) {
+        List<UiMenu.Item> items = new ArrayList<>();
+        items.add(new UiMenu.Value(Component.translatable(KEY + "min_level"), lastMinLevel,
+                text -> text.matches("\\d{0,3}"), text -> {
+                    lastMinLevel = text;
+                    rebuild();
+                }));
+        items.add(new UiMenu.Value(Component.translatable(KEY + "max_level"), lastMaxLevel,
+                text -> text.matches("\\d{0,3}"), text -> {
+                    lastMaxLevel = text;
+                    rebuild();
+                }));
+        items.add(new UiMenu.Separator());
+        UiMenu.Action clear = UiMenu.Action.of(Component.translatable(KEY + "levels.all"), () -> {
+            lastMinLevel = "";
+            lastMaxLevel = "";
+            rebuild();
+        });
+        items.add(lastMinLevel.isEmpty() && lastMaxLevel.isEmpty() ? clear.disabled(Component.empty()) : clear);
+        UiMenu.open(this, rectOf(button), Component.translatable(KEY + "levels.menu"), items);
     }
 
     private void applyFilters() {
@@ -345,168 +349,357 @@ public class AdminScreen extends Screen {
                         || summary.faction().getString().toLowerCase(Locale.ROOT).contains(text))
                 .sorted(lastSort.comparator)
                 .toList();
-        listScroll = Mth.clamp(listScroll, 0, maxListScroll());
-    }
-
-    // ------------------------------------------------------------------ input
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        int x = listLeft();
-        if (button == 0 && mouseX >= x && mouseX < x + columnWidth() && mouseY >= listTop()
-                && mouseY < bodyBottom()) {
-            int index = ((int) mouseY - listTop() + listScroll) / ROW_HEIGHT;
-            if (index >= 0 && index < visible.size()) {
-                lastSelected = visible.get(index).id();
-                send("details", lastSelected, 0);
-                return true;
+        if (list != null) {
+            list.setItems(visible);
+            int index = -1;
+            for (int i = 0; i < visible.size(); i++) {
+                if (visible.get(i).id().equals(lastSelected)) {
+                    index = i;
+                }
             }
+            list.setSelectedIndex(index);
         }
-        return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        int step = (int) Math.round(scrollY * SCROLL_STEP);
-        if (mouseX < detailsLeft()) {
-            listScroll = Mth.clamp(listScroll - step, 0, maxListScroll());
-        } else {
-            detailsScroll = Mth.clamp(detailsScroll - step, 0, maxDetailsScroll());
+    private static int parse(String text, int fallback) {
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (NumberFormatException e) {
+            return fallback;
         }
-        return true;
+    }
+
+    private void select(Summary summary) {
+        if (!summary.id().equals(lastSelected)) {
+            details = null;
+        }
+        lastSelected = summary.id();
+        send("details", summary.id(), 0);
+        if (isCompact()) {
+            compactDetails = true;
+        }
+        rebuild();
+    }
+
+    /** The distance in blocks, or in kilometers with one decimal. */
+    private static Component distance(int blocks) {
+        if (blocks < 1000) {
+            return Component.translatable(KEY + "distance.m", blocks);
+        }
+        return Component.translatable(KEY + "distance.km", blocks / 1000, blocks % 1000 / 100);
+    }
+
+    /** The list of the settlements. */
+    private final class SettlementList extends UiList<Summary> {
+        SettlementList(UiRect rect) {
+            super(rect);
+        }
+
+        @Override
+        protected int rowHeight(Summary item, int index) {
+            return LIST_ROW;
+        }
+
+        @Override
+        protected void renderRow(GuiGraphics graphics, Summary item, int index, UiRect rect, boolean hovered,
+                boolean selected, int mouseX, int mouseY) {
+            if (selected) {
+                UiDraw.fill(graphics, rect, UiTheme.WOOD_RAISED);
+                UiDraw.fill(graphics, rect.left(2), UiTheme.GILT);
+            } else if (hovered) {
+                UiDraw.fill(graphics, rect, UiTheme.WOOD_HOVER);
+            } else if (index % 2 == 0) {
+                UiDraw.fill(graphics, rect, UiTheme.WOOD_ROW);
+            }
+            UiRect text = rect.inset(UiTheme.PADDING, 0);
+            int y = UiText.textY(text);
+            Component info = Component.translatable(KEY + "entry", item.level(), distance(item.distance()));
+            int infoWidth = UiText.drawRight(graphics, font, info, text.right(), y, text.width() / 2,
+                    UiTheme.TEXT_MUTED);
+            Component name = item.active() ? Component.literal(item.name())
+                    : Component.translatable(KEY + "ruins_suffix", item.name());
+            int color = !item.active() ? UiTheme.TEXT_FAINT : selected ? UiTheme.GOLD : UiTheme.TEXT;
+            UiText.draw(graphics, font, name, text.x(), y, text.width() - infoWidth - UiTheme.PADDING, color);
+        }
+
+        @Override
+        protected void onSelect(Summary item, int index) {
+            select(item);
+        }
+
+        @Override
+        protected Component narration(Summary item) {
+            return Component.literal(item.name());
+        }
+    }
+
+    // ------------------------------------------------------------------ details
+
+    private void initDetails(UiRect area, AdminDetailsPayload shown) {
+        UiRect menuRow = new UiRect(area.x(), area.y() + DETAILS_HEADER + UiTheme.PADDING, area.width(),
+                UiTheme.CONTROL);
+        int x = menuRow.x();
+        if (isCompact()) {
+            UiRect back = new UiRect(x, menuRow.y(), UiTheme.CONTROL, UiTheme.CONTROL);
+            addRenderableWidget(UiButton.normal(back, Component.literal("←"), button -> {
+                compactDetails = false;
+                rebuild();
+            }).setDetails(Component.translatable(KEY + "back")));
+            x = back.right() + UiTheme.GAP;
+        }
+        x += menuButton(x, menuRow.y(), "village", villageItems(shown)) + UiTheme.GAP;
+        x += menuButton(x, menuRow.y(), "economy", economyItems(shown)) + UiTheme.GAP;
+        x += menuButton(x, menuRow.y(), "garrison", garrisonItems(shown)) + UiTheme.GAP;
+        x += menuButton(x, menuRow.y(), "world", worldItems(shown));
+        // The teleport button shows if it fits: the village menu also has the teleport action.
+        Component teleport = Component.translatable(KEY + "action.teleport");
+        int teleportWidth = font.width(teleport) + 12;
+        if (x + UiTheme.PADDING + teleportWidth <= menuRow.right()) {
+            addRenderableWidget(UiButton.primary(menuRow.rightPart(teleportWidth), teleport, button -> teleport()));
+        }
+
+        UiRect content = area.belowTop(menuRow.bottom() - area.y(), UiTheme.PADDING);
+        List<UiRow> left = new ArrayList<>();
+        List<UiRow> right = new ArrayList<>();
+        List<Section> sections = shown.sections();
+        for (int i = 0; i < sections.size(); i++) {
+            List<UiRow> column = isCompact() || i % 2 == 0 ? left : right;
+            if (!column.isEmpty()) {
+                column.add(UiRow.heading(Component.empty()));
+            }
+            column.add(UiRow.heading(sections.get(i).heading()));
+            column.addAll(InfoRows.of(sections.get(i).rows()));
+        }
+        int stockHeight = shown.stocks().isEmpty() ? 0 : SLOT + UiTheme.PADDING;
+        UiKeyValueList stockColumn;
+        if (isCompact()) {
+            stockColumn = addColumn(content, left, stockHeight);
+        } else {
+            addColumn(content.column(0, 2, UiTheme.PADDING), left, 0);
+            stockColumn = addColumn(content.column(1, 2, UiTheme.PADDING), right, stockHeight);
+        }
+        if (stockHeight > 0) {
+            stockStrip = new UiRect(stockColumn.getX(), stockColumn.getY() + stockColumn.getHeight()
+                    + UiTheme.PADDING, stockColumn.getWidth(), SLOT);
+        }
+    }
+
+    /** Adds a column of rows. The column is as high as its rows, and leaves the reserved height below it. */
+    private UiKeyValueList addColumn(UiRect rect, List<UiRow> rows, int reserved) {
+        UiKeyValueList column = new UiKeyValueList(rect);
+        column.setItems(rows);
+        int height = Math.min(column.contentHeight(), rect.height() - reserved);
+        column = new UiKeyValueList(rect.top(Math.max(0, height)));
+        column.setItems(rows);
+        return addRenderableWidget(column);
+    }
+
+    /** Adds a menu button. Returns its width. */
+    private int menuButton(int x, int y, String name, List<UiMenu.Item> items) {
+        Component label = Component.translatable(KEY + "menu." + name);
+        Component closed = label.copy().append(MENU_CLOSED);
+        int w = font.width(closed) + 10;
+        addRenderableWidget(UiButton.normal(new UiRect(x, y, w, UiTheme.CONTROL), closed, button -> {
+            button.setMessage(label.copy().append(MENU_OPEN));
+            UiMenu.open(this, rectOf(button), label, items);
+        }));
+        return w;
+    }
+
+    private List<UiMenu.Item> villageItems(AdminDetailsPayload shown) {
+        List<UiMenu.Item> items = new ArrayList<>();
+        items.add(UiMenu.Action.of(Component.translatable(KEY + "action.teleport_heart"), this::teleport));
+        items.add(new UiMenu.Value(Component.translatable(KEY + "action.level_set"),
+                String.valueOf(shown.level() + 1), text -> text.matches("\\d{0,4}"),
+                text -> number(text, value -> sendSelected("level_set", value))));
+        items.add(new UiMenu.Value(Component.translatable(KEY + "action.experience_add"), "",
+                text -> text.matches("-?\\d{0,7}"), text -> number(text, value -> sendSelected("experience_add",
+                        value))));
+        items.add(new UiMenu.Separator());
+        UiMenu.Action restore = UiMenu.Action.of(Component.translatable(KEY + "action.restore"),
+                () -> sendSelected("restore", 0));
+        items.add(shown.active() ? restore.disabled(Component.translatable(KEY + "menu.only_ruins")) : restore);
+        UiMenu.Action ruin = UiMenu.Action.danger(Component.translatable(KEY + "action.ruin"),
+                () -> confirmRuin(shown));
+        items.add(shown.active() ? ruin : ruin.disabled(Component.translatable(KEY + "menu.already_ruins")));
+        return items;
+    }
+
+    private List<UiMenu.Item> economyItems(AdminDetailsPayload shown) {
+        return List.of(
+                UiMenu.Action.of(Component.translatable(KEY + "action.cycle"), () -> sendSelected("cycle", 0)),
+                new UiMenu.Separator(),
+                UiMenu.Action.danger(Component.translatable(KEY + "action.economy_reset"),
+                        () -> confirmEconomyReset(shown)));
+    }
+
+    private List<UiMenu.Item> garrisonItems(AdminDetailsPayload shown) {
+        List<UiMenu.Item> items = new ArrayList<>();
+        String[] states = {"calm", "alert", "assault"};
+        for (int i = 0; i < states.length; i++) {
+            int value = i;
+            UiMenu.Action action = UiMenu.Action.of(Component.translatable(KEY + "action." + states[i]),
+                    () -> sendSelected("alert", value));
+            if (!shown.heartLoaded()) {
+                action = action.disabled(Component.translatable(KEY + "menu.heart_unloaded"));
+            } else if (shown.alert() == i) {
+                action = action.disabled(Component.translatable(KEY + "menu.current"));
+            }
+            items.add(action);
+        }
+        items.add(new UiMenu.Separator());
+        UiMenu.Action bells = UiMenu.Action.of(Component.translatable(KEY + "action.bells"),
+                () -> sendSelected("bells", 0));
+        items.add(shown.heartLoaded() ? bells : bells.disabled(Component.translatable(KEY + "menu.heart_unloaded")));
+        return items;
+    }
+
+    private List<UiMenu.Item> worldItems(AdminDetailsPayload shown) {
+        String y = shown.hasY() ? String.valueOf(shown.y()) : "~";
+        String position = shown.x() + " " + y + " " + shown.z();
+        return List.of(
+                UiMenu.Action.of(Component.translatable(KEY + "action.copy_position"), () -> copy(position)),
+                UiMenu.Action.of(Component.translatable(KEY + "action.copy_id"), () -> copy(shown.id())),
+                UiMenu.Action.of(Component.translatable(KEY + "action.copy_teleport"),
+                        () -> copy("/tp @s " + position)));
+    }
+
+    private void teleport() {
+        sendSelected("teleport", 0);
+        onClose();
+    }
+
+    private void copy(String text) {
+        Minecraft.getInstance().keyboardHandler.setClipboard(text);
+        showStatus(Component.translatable(KEY + "copied", text), UiTone.GOOD);
+    }
+
+    private void number(String text, IntConsumer action) {
+        try {
+            action.accept(Integer.parseInt(text.trim()));
+        } catch (NumberFormatException e) {
+            showStatus(Component.translatable(KEY + "invalid_number"), UiTone.BAD);
+        }
+    }
+
+    private void confirmRuin(AdminDetailsPayload shown) {
+        String id = shown.id();
+        UiDialog.builder(this, Component.translatable(KEY + "ruin.title", shown.title()))
+                .message(Component.translatable(KEY + "ruin.message"))
+                .bullet(Component.translatable(KEY + "ruin.stock"))
+                .bullet(Component.translatable(KEY + "ruin.restore"))
+                .danger()
+                .typeToConfirm(shown.title().getString())
+                .confirm(Component.translatable(KEY + "ruin.confirm"), () -> send("ruin", id, 0))
+                .open();
+    }
+
+    private void confirmEconomyReset(AdminDetailsPayload shown) {
+        String id = shown.id();
+        UiDialog.builder(this, Component.translatable(KEY + "economy_reset.title", shown.title()))
+                .message(Component.translatable(KEY + "economy_reset.message"))
+                .danger()
+                .confirm(Component.translatable(KEY + "economy_reset.confirm"), () -> send("economy_reset", id, 0))
+                .open();
     }
 
     // ------------------------------------------------------------------ rendering
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.renderBackground(graphics, mouseX, mouseY, partialTick);
-        int right = left + panelWidth;
-        int bottom = top + panelHeight;
-        graphics.fill(left - 2, top - 2, right + 2, bottom + 2, FRAME_OUTER);
-        graphics.fill(left - 1, top - 1, right + 1, bottom + 1, FRAME_GOLD);
-        graphics.fill(left, top, right, bottom, PANEL_COLOR);
-        graphics.fill(left, top, right, top + HEADER_HEIGHT, HEADER_COLOR);
-        graphics.fill(left + PADDING, top + HEADER_HEIGHT - 1, right - PADDING, top + HEADER_HEIGHT, FRAME_GOLD);
-        graphics.fill(left + PADDING, bodyBottom() + 1, right - PADDING, bodyBottom() + 2, FRAME_GOLD);
-        graphics.fill(listLeft(), listTop(), listLeft() + columnWidth(), bodyBottom() - 1, LIST_COLOR);
-        int separator = detailsLeft() - PADDING / 2 - 1;
-        graphics.fill(separator, bodyTop(), separator + 1, bodyBottom() - 2, FRAME_GOLD);
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-        Component header = Component.translatable(KEY + "header", visible.size(), settlements.size());
-        graphics.drawString(font, title, left + PADDING, top + (HEADER_HEIGHT - font.lineHeight) / 2 + 1,
-                TITLE_COLOR, false);
-        graphics.drawString(font, header, left + panelWidth - PADDING - font.width(header),
-                top + (HEADER_HEIGHT - font.lineHeight) / 2 + 1, LABEL_COLOR, false);
-        renderList(graphics, mouseX, mouseY);
-        renderDetails(graphics);
-    }
-
-    private void renderList(GuiGraphics graphics, int mouseX, int mouseY) {
-        int x = listLeft();
-        int right = x + columnWidth() - SCROLL_BAR_WIDTH - 1;
-        int listTop = listTop();
-        int listBottom = bodyBottom() - 1;
-        if (visible.isEmpty()) {
-            Component empty = Component.translatable(KEY + "empty");
-            graphics.drawString(font, empty, x + (right - x - font.width(empty)) / 2, listTop + 4, EMPTY_COLOR,
-                    false);
+    protected void renderBody(GuiGraphics graphics, UiRect body, int mouseX, int mouseY, float partialTick) {
+        if (showsList()) {
+            Component count = Component.translatable(KEY + "count", visible.size(), settlements.size());
+            UiText.drawRight(graphics, font, count, searchRow.right(), UiText.textY(searchRow), searchRow.width() / 3,
+                    UiTheme.TEXT_MUTED);
+        }
+        if (!isCompact()) {
+            UiDraw.vLine(graphics, listArea.right(), body.y(), body.height() - 1, UiTheme.GILT);
+        }
+        if (!showsDetails()) {
             return;
         }
-        graphics.enableScissor(x, listTop, right, listBottom);
-        int y = listTop - listScroll;
-        for (int i = 0; i < visible.size(); i++) {
-            if (y + ROW_HEIGHT >= listTop && y <= listBottom) {
-                Summary summary = visible.get(i);
-                boolean selected = summary.id().equals(lastSelected);
-                boolean hover = mouseX >= x && mouseX < right && mouseY >= y && mouseY < y + ROW_HEIGHT
-                        && mouseY >= listTop && mouseY < listBottom;
-                if (selected) {
-                    graphics.fill(x, y, right, y + ROW_HEIGHT, ROW_SELECTED_COLOR);
-                } else if (hover) {
-                    graphics.fill(x, y, right, y + ROW_HEIGHT, ROW_HOVER_COLOR);
-                } else if (i % 2 == 0) {
-                    graphics.fill(x, y, right, y + ROW_HEIGHT, ROW_STRIPE_COLOR);
-                }
-                int textY = y + (ROW_HEIGHT - font.lineHeight) / 2 + 1;
-                Component info = Component.translatable(KEY + "entry", summary.level(), summary.distance());
-                int infoWidth = font.width(info);
-                FormattedCharSequence name = ellipsize(Component.literal(summary.name()),
-                        right - x - infoWidth - 10);
-                graphics.drawString(font, name, x + 3, textY,
-                        summary.active() ? (selected ? ACCENT_COLOR : VALUE_COLOR) : RUINS_COLOR, false);
-                graphics.drawString(font, info, right - 3 - infoWidth, textY, LABEL_COLOR, false);
-            }
-            y += ROW_HEIGHT;
-        }
-        graphics.disableScissor();
-        renderScrollBar(graphics, x + columnWidth() - SCROLL_BAR_WIDTH, listTop, listBottom - listTop,
-                visible.size() * ROW_HEIGHT, listScroll, maxListScroll());
-    }
-
-    private void renderDetails(GuiGraphics graphics) {
-        int x = detailsLeft();
-        int right = x + columnWidth() - SCROLL_BAR_WIDTH - 1;
-        int titleY = bodyTop() + (ROW_HEIGHT - font.lineHeight) / 2 + 1;
         if (details == null) {
-            graphics.drawString(font, Component.translatable(KEY + "no_selection"), x + 3, titleY, EMPTY_COLOR,
-                    false);
+            Component text = Component.translatable(KEY + (lastSelected == null ? "no_selection" : "loading"));
+            UiText.drawCentered(graphics, font, text, detailsArea.top(UiTheme.CONTROL), UiTheme.TEXT_MUTED);
             return;
         }
-        graphics.drawString(font, ellipsize(details.title(), right - x - 3), x + 3, titleY,
-                details.active() ? ACCENT_COLOR : RUINS_COLOR, false);
-        int contentTop = detailsTop();
-        int contentBottom = detailsBottom();
-        graphics.enableScissor(x, contentTop, right, contentBottom);
-        int y = contentTop - detailsScroll;
-        List<Row> rows = details.rows();
-        for (int i = 0; i < rows.size(); i++) {
-            if (y + ROW_HEIGHT >= contentTop && y <= contentBottom) {
-                Row row = rows.get(i);
-                if (i % 2 == 0) {
-                    graphics.fill(x, y, right, y + ROW_HEIGHT, ROW_STRIPE_COLOR);
-                }
-                int textY = y + (ROW_HEIGHT - font.lineHeight) / 2 + 1;
-                int available = right - x - 6;
-                FormattedCharSequence label = ellipsize(row.label(), available / 2);
-                FormattedCharSequence value = ellipsize(row.value(), available - font.width(label) - 6);
-                graphics.drawString(font, label, x + 3, textY, LABEL_COLOR, false);
-                graphics.drawString(font, value, right - 3 - font.width(value), textY, VALUE_COLOR, false);
+        renderDetailsHeader(graphics, detailsArea.top(DETAILS_HEADER), details);
+        UiDraw.hLine(graphics, detailsArea.x() - UiTheme.PADDING + 1,
+                detailsArea.y() + DETAILS_HEADER + UiTheme.PADDING / 2 - 1,
+                detailsArea.width() + 2 * UiTheme.PADDING - 2, UiTheme.WOOD_EDGE);
+        renderStocks(graphics, details);
+    }
+
+    private void renderDetailsHeader(GuiGraphics graphics, UiRect header, AdminDetailsPayload shown) {
+        List<Component> texts = new ArrayList<>();
+        List<UiTone> tones = new ArrayList<>();
+        texts.add(Component.translatable(KEY + "badge.level", shown.level(), shown.tier()));
+        tones.add(UiTone.GOLD);
+        texts.add(Component.translatable(KEY + "state." + (shown.active() ? "active" : "ruins")));
+        tones.add(shown.active() ? UiTone.GOOD : UiTone.MUTED);
+        if (shown.heartLoaded()) {
+            String[] states = {"calm", "alert", "assault"};
+            int alert = Math.max(0, Math.min(states.length - 1, shown.alert()));
+            texts.add(Component.translatable(KEY + "badge.alert",
+                    Component.translatable(KEY + "alert." + states[alert])));
+            tones.add(alert == 0 ? UiTone.GOOD : alert == 1 ? UiTone.WARN : UiTone.BAD);
+        }
+        int right = header.right();
+        for (int i = texts.size() - 1; i >= 0; i--) {
+            int w = UiDraw.badgeWidth(font, texts.get(i));
+            if (right - w < header.x() + header.width() / 3) {
+                break;
             }
-            y += ROW_HEIGHT;
+            right -= w;
+            UiDraw.badge(graphics, font, right, header.y() + 1, texts.get(i), tones.get(i));
+            right -= UiTheme.GAP;
         }
-        graphics.disableScissor();
-        renderScrollBar(graphics, x + columnWidth() - SCROLL_BAR_WIDTH, contentTop, contentBottom - contentTop,
-                rows.size() * ROW_HEIGHT, detailsScroll, maxDetailsScroll());
+        UiText.draw(graphics, font, shown.title(), header.x(), header.y() + 2, right - header.x() - UiTheme.GAP,
+                shown.active() ? UiTheme.TEXT : UiTheme.TEXT_FAINT);
+        String id = shown.id().length() > 6 ? shown.id().substring(0, 6) + "…" : shown.id();
+        Component subtitle = Component.translatable(KEY + "subtitle", shown.faction(), id,
+                shown.biome().isEmpty() ? "-" : shown.biome());
+        UiText.draw(graphics, font, subtitle, header.x(), header.y() + 14, header.width(), UiTheme.TEXT_MUTED);
     }
 
-    private static void renderScrollBar(GuiGraphics graphics, int x, int trackTop, int trackHeight,
-            int contentHeight, int scroll, int max) {
-        if (max <= 0 || contentHeight <= 0) {
+    private void renderStocks(GuiGraphics graphics, AdminDetailsPayload shown) {
+        if (stockStrip.width() <= 0) {
             return;
         }
-        int thumbHeight = Math.max(8, trackHeight * trackHeight / contentHeight);
-        int thumbTop = trackTop + (trackHeight - thumbHeight) * scroll / max;
-        graphics.fill(x, trackTop, x + SCROLL_BAR_WIDTH, trackTop + trackHeight, SCROLL_TRACK_COLOR);
-        graphics.fill(x, thumbTop, x + SCROLL_BAR_WIDTH, thumbTop + thumbHeight, FRAME_GOLD);
-    }
-
-    /** The text, cut with "…" at the end if it is wider than the maximum width. */
-    private FormattedCharSequence ellipsize(Component text, int maxWidth) {
-        if (font.width(text) <= maxWidth) {
-            return text.getVisualOrderText();
+        int x = stockStrip.x();
+        for (Stock stock : shown.stocks()) {
+            if (x + SLOT > stockStrip.right()) {
+                break;
+            }
+            UiDraw.itemSlot(graphics, UiDraw.stack(stock.itemId()), x, stockStrip.y());
+            String count = stock.count() >= 1000 ? stock.count() / 1000 + "k" : String.valueOf(stock.count());
+            graphics.pose().pushPose();
+            graphics.pose().translate(0.0F, 0.0F, 200.0F);
+            graphics.drawString(font, count, x + SLOT - 1 - font.width(count), stockStrip.y() + SLOT - 8,
+                    0xFFFFFFFF, true);
+            graphics.pose().popPose();
+            x += SLOT + UiTheme.GAP;
         }
-        String ellipsis = "…";
-        FormattedText cut = font.substrByWidth(text, Math.max(0, maxWidth - font.width(ellipsis)));
-        return Language.getInstance().getVisualOrder(FormattedText.composite(cut, FormattedText.of(ellipsis)));
+        if (shown.moreStocks() > 0) {
+            Component more = Component.translatable(KEY + "stock.more", shown.moreStocks());
+            graphics.drawString(font, more, x + 1, UiText.textY(stockStrip), UiTheme.TEXT_MUTED, false);
+        }
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
+    protected void renderOverlay(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (details == null || stockStrip.width() <= 0 || !stockStrip.contains(mouseX, mouseY)) {
+            return;
+        }
+        int index = (mouseX - stockStrip.x()) / (SLOT + UiTheme.GAP);
+        if (index < 0 || index >= details.stocks().size()
+                || mouseX - stockStrip.x() - index * (SLOT + UiTheme.GAP) >= SLOT) {
+            return;
+        }
+        Stock stock = details.stocks().get(index);
+        ItemStack item = UiDraw.stack(stock.itemId());
+        Component name = item.isEmpty() ? Component.literal(stock.itemId()) : item.getHoverName();
+        graphics.renderComponentTooltip(font, List.of(name,
+                Component.translatable(KEY + "stock.count", stock.count())), mouseX, mouseY);
     }
 }

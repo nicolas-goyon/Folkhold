@@ -453,7 +453,9 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - `/folkhold caravan list|info|spawn|tp|remove`: follow, make, find and remove the mobile groups.
 - `/folkhold quest list|give|complete|fail`: the quests of a player. `give` makes a delivery or an escort of the village nearest to the player.
 - `/folkhold settlement route <from> <to>`: calculates a route again and shows its time.
-- The admin screen has a button "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
+- `/folkhold admin` opens the admin screen (operators only). Left: all settlements of the world, with a text filter and chips for the state, the level range and the sort order. Right: the selected settlement, with its badges (level, state, alert), its rows and its largest stocks.
+- The actions of the admin screen are in menus: Village (teleport, set the level, add experience, restore, ruin), Economy (one cycle, reset), Garrison (alert state, bells, if the heart is loaded) and World (copy the position, the id or a `/tp` command). The header has Refresh, Simulation (one tick or one cycle for all settlements) and "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
+- The result of an action shows in the status line of the screen. To ruin a settlement, the operator types its name. To reset an economy, the operator confirms.
 
 ### Synergy with the pack mods
 
