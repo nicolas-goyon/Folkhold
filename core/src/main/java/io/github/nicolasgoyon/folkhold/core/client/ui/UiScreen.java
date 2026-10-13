@@ -14,7 +14,9 @@ import org.lwjgl.glfw.GLFW;
  *   <li>The panel has its preferred size ({@link #preferredWidth()}, {@link #preferredHeight()}), less if the screen
  *       is smaller. A screen must work at the minimum size: 320 × 240 GUI pixels, so a panel of 308 × 228 pixels.
  *       {@link #isCompact()} tells the subclass to use its short layout.</li>
- *   <li>Header: an optional banner, the title, an optional subtitle, the badges and the close button.</li>
+ *   <li>Header: an optional back button, an optional banner, the title, an optional subtitle, the badges and the
+ *       close button. The back button shows when the screen has a previous screen ({@link #setPrevious}), for
+ *       example a sub-screen of the admin screen.</li>
  *   <li>Footer: an optional hint line, for example the keys.</li>
  *   <li>A status line above the footer shows the result of the last action for some seconds
  *       ({@link #showStatus}). It covers the bottom of the body, above the widgets.</li>
@@ -76,6 +78,8 @@ public abstract class UiScreen extends Screen {
     private Component status;
     private UiTone statusTone = UiTone.GOOD;
     private long statusUntil;
+    @Nullable
+    private Screen previous;
 
     protected UiScreen(Component title) {
         super(title);
@@ -143,6 +147,23 @@ public abstract class UiScreen extends Screen {
         return panel.width() < COMPACT_WIDTH || panel.height() < COMPACT_HEIGHT;
     }
 
+    /**
+     * Sets the screen that the back button opens again. The previous screen keeps its state: the game calls its
+     * {@code init} again.
+     *
+     * @param screen the previous screen, or null for no back button
+     */
+    public void setPrevious(@Nullable Screen screen) {
+        this.previous = screen;
+    }
+
+    /** Opens the previous screen again, if there is one. */
+    protected void back() {
+        if (previous != null && minecraft != null) {
+            minecraft.setScreen(previous);
+        }
+    }
+
     /** The tabs that the left and right arrow keys change. */
     protected void setSectionTabs(@Nullable UiTabs tabs) {
         this.sectionTabs = tabs;
@@ -161,6 +182,11 @@ public abstract class UiScreen extends Screen {
                 header.y() + (header.height() - closeSize) / 2, closeSize, closeSize);
         addRenderableWidget(UiButton.normal(close, Component.literal("✕"), button -> onClose())
                 .setDetails(UiStrings.CLOSE));
+        if (previous != null) {
+            UiRect backRect = new UiRect(header.x() + UiTheme.PADDING, close.y(), closeSize, closeSize);
+            addRenderableWidget(UiButton.normal(backRect, Component.literal("←"), button -> back())
+                    .setDetails(UiStrings.BACK));
+        }
         initBody(body);
     }
 
@@ -207,6 +233,9 @@ public abstract class UiScreen extends Screen {
 
     private void renderHeader(GuiGraphics graphics) {
         int left = header.x() + UiTheme.PADDING;
+        if (previous != null) {
+            left += (header.height() >= HEADER_TALL ? 16 : 14) + UiTheme.GAP + 1;
+        }
         int banner = bannerColor();
         if (banner >= 0) {
             UiDraw.banner(graphics, left, header.y() + (header.height() - 14) / 2, banner);

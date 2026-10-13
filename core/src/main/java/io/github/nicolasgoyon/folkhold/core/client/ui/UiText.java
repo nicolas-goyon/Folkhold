@@ -13,13 +13,23 @@ import net.minecraft.util.FormattedCharSequence;
 
 /**
  * Text helpers. The texts of the mods are translated, and a French text is often 15 % to 30 % longer than the
- * English text: a text that does not fit ends with "…", or wraps on more lines.
+ * English text.
+ *
+ * <ul>
+ *   <li>A line of text that is a little too wide is drawn smaller, down to {@link #MIN_SCALE} of its size.</li>
+ *   <li>A line that does not fit at this size ends with "…".</li>
+ *   <li>A long text can also wrap on more lines ({@link #wrap}, {@link #drawWrapped}).</li>
+ * </ul>
  *
  * <p>All texts are drawn with no shadow.
  */
 public final class UiText {
     /** The end of a text that does not fit. */
     public static final String ELLIPSIS = "…";
+    /** The smallest size of a line of text that does not fit, as a part of the normal size. */
+    public static final float MIN_SCALE = 0.75F;
+    /** The height of the letters of the font, in pixels. */
+    private static final int GLYPH_HEIGHT = 8;
 
     private UiText() {
     }
@@ -78,38 +88,66 @@ public final class UiText {
     }
 
     /**
-     * Draws a text at a position, cut with "…" to a maximum width.
+     * Draws a line of text from a left edge: at its size if it fits, smaller if it fits at {@link #MIN_SCALE}, else
+     * smaller and cut with "…".
+     *
+     * @return the width of the drawn text
+     */
+    private static int drawFitted(GuiGraphics graphics, Font font, Component text, float left, int y, int maxWidth,
+            int color) {
+        int width = font.width(text);
+        if (width <= maxWidth) {
+            graphics.drawString(font, text, Math.round(left), y, color, false);
+            return width;
+        }
+        float scale = Math.max(MIN_SCALE, (float) maxWidth / width);
+        FormattedCharSequence line = ellipsize(font, text, (int) Math.floor(maxWidth / scale));
+        graphics.pose().pushPose();
+        graphics.pose().translate(left, y + GLYPH_HEIGHT * (1.0F - scale) / 2.0F, 0.0F);
+        graphics.pose().scale(scale, scale, 1.0F);
+        graphics.drawString(font, line, 0, 0, color, false);
+        graphics.pose().popPose();
+        return (int) Math.ceil(font.width(line) * scale);
+    }
+
+    /** The width of a line of text when {@link #drawFitted} draws it in a maximum width. */
+    private static float fittedWidth(Font font, Component text, int maxWidth) {
+        int width = font.width(text);
+        if (width <= maxWidth) {
+            return width;
+        }
+        float scale = Math.max(MIN_SCALE, (float) maxWidth / width);
+        return font.width(ellipsize(font, text, (int) Math.floor(maxWidth / scale))) * scale;
+    }
+
+    /**
+     * Draws a text at a position, in a maximum width (see {@link UiText}).
      *
      * @return the width of the drawn text
      */
     public static int draw(GuiGraphics graphics, Font font, Component text, int x, int y, int maxWidth, int color) {
-        FormattedCharSequence line = ellipsize(font, text, maxWidth);
-        graphics.drawString(font, line, x, y, color, false);
-        return font.width(line);
+        return drawFitted(graphics, font, text, x, y, maxWidth, color);
     }
 
     /**
-     * Draws a text that ends at a right edge, cut with "…" to a maximum width.
+     * Draws a text that ends at a right edge, in a maximum width (see {@link UiText}).
      *
      * @return the width of the drawn text
      */
     public static int drawRight(GuiGraphics graphics, Font font, Component text, int right, int y, int maxWidth,
             int color) {
-        FormattedCharSequence line = ellipsize(font, text, maxWidth);
-        int width = font.width(line);
-        graphics.drawString(font, line, right - width, y, color, false);
-        return width;
+        return drawFitted(graphics, font, text, right - fittedWidth(font, text, maxWidth), y, maxWidth, color);
     }
 
-    /** Draws a text at the center of a rectangle, cut with "…" to the width of the rectangle. */
+    /** Draws a text at the center of a rectangle, in the width of the rectangle (see {@link UiText}). */
     public static void drawCentered(GuiGraphics graphics, Font font, Component text, UiRect rect, int color) {
-        FormattedCharSequence line = ellipsize(font, text, rect.width());
-        graphics.drawString(font, line, rect.x() + (rect.width() - font.width(line)) / 2, textY(rect), color, false);
+        float width = fittedWidth(font, text, rect.width());
+        drawFitted(graphics, font, text, rect.x() + (rect.width() - width) / 2.0F, textY(rect), rect.width(), color);
     }
 
-    /** Draws a text at the left of a rectangle, centered vertically, cut with "…" to the width of the rectangle. */
+    /** Draws a text at the left of a rectangle, centered vertically, in the width of the rectangle. */
     public static void drawLeft(GuiGraphics graphics, Font font, Component text, UiRect rect, int color) {
-        graphics.drawString(font, ellipsize(font, text, rect.width()), rect.x(), textY(rect), color, false);
+        drawFitted(graphics, font, text, rect.x(), textY(rect), rect.width(), color);
     }
 
     /**

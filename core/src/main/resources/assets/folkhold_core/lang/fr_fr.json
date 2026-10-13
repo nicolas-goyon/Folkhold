@@ -9,5 +9,6 @@
   "ui.folkhold_core.hint.close": "Échap fermer",
   "ui.folkhold_core.hint.sections": "Échap fermer · ← → sections",
   "ui.folkhold_core.hold_hint": "Maintenez le bouton 1 s. Le focus est sur Annuler.",
-  "ui.folkhold_core.type_name": "Tapez le nom pour confirmer"
+  "ui.folkhold_core.type_name": "Tapez le nom pour confirmer",
+  "ui.folkhold_core.back": "Retour"
 }

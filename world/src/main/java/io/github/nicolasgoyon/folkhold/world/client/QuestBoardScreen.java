@@ -109,6 +109,10 @@ public class QuestBoardScreen extends UiScreen {
             return;
         }
         QuestBoardScreen screen = new QuestBoardScreen(board);
+        if (minecraft.screen instanceof VillageHeartScreen heart) {
+            // Opened from the heart screen: the back button opens it again.
+            screen.setPrevious(heart);
+        }
         minecraft.setScreen(screen);
         screen.showResult(board);
     }

@@ -19,15 +19,22 @@ import net.minecraft.util.FormattedCharSequence;
  *   <li>Three ways to confirm: a click, a hold of the button ({@link Builder#hold}), or the name of the target in a
  *       text field ({@link Builder#typeToConfirm}).</li>
  *   <li>Two looks: wood (default) or parchment ({@link Builder#parchment}). A dangerous dialog has a red frame.</li>
+ *   <li>The dialog is as wide as its texts need, from {@link #MIN_WIDTH} to {@link #MAX_WIDTH} pixels. The
+ *       message, the consequences and the note go on more lines when they are longer. A value of the comparison
+ *       goes on two lines.</li>
  * </ul>
  *
  * <p>Use {@link #builder(Screen, Component)}, then {@link Builder#open()}.
  */
 public final class UiDialog extends UiOverlay {
-    private static final int MAX_WIDTH = 248;
+    private static final int MIN_WIDTH = 220;
+    private static final int MAX_WIDTH = 320;
     private static final int PAD = 8;
     private static final int BAND = 22;
-    private static final int COMPARISON = 32;
+    private static final int CHIP_CAPTION = 16;
+    private static final int CHIP_PAD = 6;
+    private static final int ARROW = 20;
+    private static final int BULLET_INDENT = 8;
     private static final int BUTTON = 18;
 
     /**
@@ -72,28 +79,77 @@ public final class UiDialog extends UiOverlay {
         return spec.message == null ? List.of() : UiText.wrap(font, spec.message, width, 6);
     }
 
+    private List<FormattedCharSequence> bulletLines(Component bullet, int width) {
+        return UiText.wrap(font, bullet, width - BULLET_INDENT, 3);
+    }
+
+    private List<FormattedCharSequence> noteLines(int width) {
+        return spec.note == null ? List.of() : UiText.wrap(font, spec.note, width, 2);
+    }
+
+    /** The width of one side of the comparison. */
+    private int chipWidth(int inner) {
+        return (inner - ARROW) / 2;
+    }
+
+    private List<FormattedCharSequence> chipLines(Chip chip, int inner) {
+        return UiText.wrap(font, chip.value(), chipWidth(inner) - 2 * CHIP_PAD, 2);
+    }
+
+    /** The height of the comparison: the caption and one or two lines for the values. */
+    private int comparisonHeight(int inner) {
+        if (spec.before == null || spec.after == null) {
+            return 0;
+        }
+        int lines = Math.max(chipLines(spec.before, inner).size(), chipLines(spec.after, inner).size());
+        return CHIP_CAPTION + lines * UiTheme.LINE + 6;
+    }
+
+    /** The width that shows the texts on one line, if the screen and {@link #MAX_WIDTH} allow it. */
+    private int preferredWidth() {
+        int widest = font.width(spec.title) + (spec.parchment && spec.danger ? 28 : 0)
+                + (spec.tag != null ? UiDraw.badgeWidth(font, spec.tag) + 4 : 0);
+        for (Component bullet : spec.bullets) {
+            widest = Math.max(widest, font.width(bullet) + BULLET_INDENT);
+        }
+        if (spec.note != null) {
+            widest = Math.max(widest, font.width(spec.note));
+        }
+        if (spec.before != null && spec.after != null) {
+            int chip = Math.max(font.width(spec.before.value()), font.width(spec.after.value())) + 2 * CHIP_PAD;
+            widest = Math.max(widest, 2 * chip + ARROW);
+        }
+        return widest + 2 * PAD;
+    }
+
     @Override
     protected void initOverlay() {
-        int w = Math.min(MAX_WIDTH, width - 2 * UiTheme.SCREEN_MARGIN);
+        int w = Math.min(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, preferredWidth())),
+                width - 2 * UiTheme.SCREEN_MARGIN);
         int inner = w - 2 * PAD;
         int h = PAD + (spec.parchment && spec.danger ? BAND + PAD : UiTheme.LINE + 6);
         if (spec.message != null) {
             h += messageLines(inner).size() * UiTheme.LINE + 6;
         }
-        if (spec.before != null && spec.after != null) {
-            h += COMPARISON + 6;
+        int comparison = comparisonHeight(inner);
+        if (comparison > 0) {
+            h += comparison + 6;
         }
-        h += spec.bullets.size() * UiTheme.LINE + (spec.bullets.isEmpty() ? 0 : 6);
+        for (Component bullet : spec.bullets) {
+            h += bulletLines(bullet, inner).size() * UiTheme.LINE;
+        }
+        h += spec.bullets.isEmpty() ? 0 : 6;
         if (spec.expectedName != null) {
             h += UiTheme.LINE + 2 + UiTheme.CONTROL + 6;
         }
         h += BUTTON + PAD;
         if (spec.note != null) {
-            h += UiTheme.LINE + 2;
+            h += noteLines(inner).size() * UiTheme.LINE + 2;
         }
         box = new UiRect(0, 0, width, height).centered(w, Math.min(h, height - 2 * UiTheme.SCREEN_MARGIN));
 
-        int buttonsTop = box.bottom() - PAD - BUTTON - (spec.note != null ? UiTheme.LINE + 2 : 0);
+        int buttonsTop = box.bottom() - PAD - BUTTON
+                - (spec.note != null ? noteLines(inner).size() * UiTheme.LINE + 2 : 0);
         UiRect row = new UiRect(box.x() + PAD, buttonsTop, inner, BUTTON);
         UiRect cancelRect = row.column(0, 2, UiTheme.GAP);
         UiRect confirmRect = row.column(1, 2, UiTheme.GAP);
@@ -180,26 +236,32 @@ public final class UiDialog extends UiOverlay {
             }
             y += 6;
         }
-        if (spec.before != null && spec.after != null) {
-            UiRect row = new UiRect(x, y, innerWidth(), COMPARISON);
-            int side = (row.width() - 20) / 2;
+        int comparison = comparisonHeight(innerWidth());
+        if (comparison > 0) {
+            UiRect row = new UiRect(x, y, innerWidth(), comparison);
+            int side = chipWidth(innerWidth());
             renderChip(graphics, spec.before, row.left(side));
-            UiText.drawCentered(graphics, font, Component.literal("→"), new UiRect(row.x() + side, row.y(), 20,
-                    COMPARISON), UiTheme.WAX);
+            UiText.drawCentered(graphics, font, Component.literal("→"), new UiRect(row.x() + side, row.y(), ARROW,
+                    comparison), UiTheme.WAX);
             renderChip(graphics, spec.after, row.rightPart(side));
-            y += COMPARISON + 6;
+            y += comparison + 6;
         }
         for (Component bullet : spec.bullets) {
-            UiText.draw(graphics, font, Component.literal("• ").append(bullet), x, y, innerWidth(), soft);
-            y += UiTheme.LINE;
+            graphics.drawString(font, "•", x, y, soft, false);
+            for (FormattedCharSequence line : bulletLines(bullet, innerWidth())) {
+                graphics.drawString(font, line, x + BULLET_INDENT, y, soft, false);
+                y += UiTheme.LINE;
+            }
         }
         if (spec.expectedName != null && nameField != null) {
             graphics.drawString(font, UiStrings.TYPE_NAME, x, nameField.frame().y() - UiTheme.LINE - 2,
                     parchment ? UiTheme.INK_MUTED : UiTheme.TEXT_MUTED, false);
         }
-        if (spec.note != null) {
-            UiText.draw(graphics, font, spec.note, x, box.bottom() - PAD - UiTheme.LINE + 1, innerWidth(),
-                    parchment ? UiTheme.INK_MUTED : UiTheme.TEXT_MUTED);
+        List<FormattedCharSequence> note = noteLines(innerWidth());
+        int noteY = box.bottom() - PAD - note.size() * UiTheme.LINE + 1;
+        for (FormattedCharSequence line : note) {
+            graphics.drawString(font, line, x, noteY, parchment ? UiTheme.INK_MUTED : UiTheme.TEXT_MUTED, false);
+            noteY += UiTheme.LINE;
         }
     }
 
@@ -207,8 +269,12 @@ public final class UiDialog extends UiOverlay {
         UiDraw.fill(graphics, rect, chip.background());
         UiText.drawCentered(graphics, font, chip.caption(), new UiRect(rect.x(), rect.y() + 3, rect.width(),
                 UiTheme.LINE), chip.text());
-        UiText.drawCentered(graphics, font, chip.value(), new UiRect(rect.x(), rect.y() + 16, rect.width(),
-                UiTheme.LINE), chip.text());
+        int y = rect.y() + CHIP_CAPTION;
+        for (FormattedCharSequence line : chipLines(chip, rect.width() * 2 + ARROW)) {
+            graphics.drawString(font, line, rect.x() + (rect.width() - font.width(line)) / 2, y, chip.text(),
+                    false);
+            y += UiTheme.LINE;
+        }
     }
 
     /** The settings of a dialog. */
