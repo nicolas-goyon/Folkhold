@@ -154,6 +154,7 @@ public final class MobileGroupData extends SavedData {
         tag.putDouble("Progress", group.progress());
         tag.putString("State", group.state().serializedName());
         tag.putLong("DepartureTick", group.departureTick());
+        tag.putLong("Payment", group.payment());
         CompoundTag cargo = new CompoundTag();
         group.cargo().asMap().forEach(cargo::putInt);
         tag.put("Cargo", cargo);
@@ -200,6 +201,7 @@ public final class MobileGroupData extends SavedData {
         group.setProgress(tag.getDouble("Progress"));
         group.setState(GroupState.fromSerializedName(tag.getString("State")));
         group.setDepartureTick(tag.getLong("DepartureTick"));
+        group.setPayment(tag.getLong("Payment"));
         CompoundTag cargo = tag.getCompound("Cargo");
         for (String item : cargo.getAllKeys()) {
             group.cargo().set(item, cargo.getInt(item));

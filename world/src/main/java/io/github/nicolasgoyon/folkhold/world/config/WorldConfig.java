@@ -72,6 +72,10 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue ROUTE_MAX_LENGTH;
     public static final ModConfigSpec.IntValue ROUTE_MAX_WATER_DEPTH;
     public static final ModConfigSpec.IntValue ROUTE_MAX_NODES;
+    public static final ModConfigSpec.IntValue TRADE_CARAVANS_PER_TICK;
+    public static final ModConfigSpec.IntValue TRADE_CARAVAN_CAPACITY;
+    public static final ModConfigSpec.IntValue TRADE_ROUTES_PER_TICK;
+    public static final ModConfigSpec.IntValue TRADE_RELATION_GAIN;
 
     public static final ModConfigSpec.DoubleValue MERCHANT_FRIEND_FACTOR;
     public static final ModConfigSpec.DoubleValue MERCHANT_ALLY_FACTOR;
@@ -355,6 +359,22 @@ public final class WorldConfig {
                 .comment("Maximum number of grid cells that the calculation of one route examines.")
                 .translation(KEY_PREFIX + "routeMaxNodes")
                 .defineInRange("routeMaxNodes", 6000, 100, 100000);
+        TRADE_CARAVANS_PER_TICK = builder
+                .comment("Maximum number of new caravans of the trade between villages on each abstract tick.")
+                .translation(KEY_PREFIX + "tradeCaravansPerTick")
+                .defineInRange("tradeCaravansPerTick", 2, 0, 64);
+        TRADE_CARAVAN_CAPACITY = builder
+                .comment("Maximum number of items in one caravan.")
+                .translation(KEY_PREFIX + "tradeCaravanCapacity")
+                .defineInRange("tradeCaravanCapacity", 256, 1, 2880);
+        TRADE_ROUTES_PER_TICK = builder
+                .comment("Maximum number of new routes that the trade calculates on each abstract tick.")
+                .translation(KEY_PREFIX + "tradeRoutesPerTick")
+                .defineInRange("tradeRoutesPerTick", 2, 0, 64);
+        TRADE_RELATION_GAIN = builder
+                .comment("Relation gain between two factions when a caravan of one arrives at a village of the other.")
+                .translation(KEY_PREFIX + "tradeRelationGain")
+                .defineInRange("tradeRelationGain", 1, 0, 100);
         builder.pop();
 
         builder.comment("Merchants of the faction villages.")

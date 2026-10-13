@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.group;
 
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupSimulation;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -19,6 +20,7 @@ import net.minecraft.server.MinecraftServer;
  * <ul>
  *   <li>When a group arrives, its cargo goes into the stock of the destination settlement, up to the stock capacity
  *       of the settlement. A destination that is not active gets nothing.</li>
+ *   <li>When a caravan arrives, the destination pays the origin (see {@link VillageTrade#onArrival}).</li>
  *   <li>The cargo of a lost group does not arrive.</li>
  * </ul>
  */
@@ -38,6 +40,9 @@ public final class MobileGroupSystem {
                     @Override
                     public void onArrival(MobileGroup group) {
                         deliver(server, group);
+                        if (group.kind() == GroupKind.CARAVAN) {
+                            VillageTrade.onArrival(server, group);
+                        }
                     }
 
                     @Override

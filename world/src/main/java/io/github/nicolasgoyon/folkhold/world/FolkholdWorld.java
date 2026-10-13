@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.ReputationEvents;
 import io.github.nicolasgoyon.folkhold.world.faction.TerritoryMessages;
 import io.github.nicolasgoyon.folkhold.world.faction.VillageRules;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupSystem;
+import io.github.nicolasgoyon.folkhold.world.group.VillageTrade;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
@@ -80,6 +81,7 @@ public final class FolkholdWorld {
         SimulationTicker.addSystem(Economies::tick);
         SimulationTicker.addSystem(SettlementLevels::tick);
         SimulationTicker.addWorldSystem(MobileGroupSystem::tick);
+        SimulationTicker.addWorldSystem(VillageTrade::tick);
         SettlementLevels.addProsperitySource(Economies::prosperity);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }

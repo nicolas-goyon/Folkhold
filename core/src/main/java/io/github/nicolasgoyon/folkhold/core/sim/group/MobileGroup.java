@@ -24,6 +24,7 @@ public final class MobileGroup {
     private double progress;
     private GroupState state = GroupState.WAITING;
     private long departureTick;
+    private long payment;
     private final Stock cargo = new Stock();
     private final List<GroupMember> members = new ArrayList<>();
 
@@ -119,6 +120,15 @@ public final class MobileGroup {
 
     public void setDepartureTick(long departureTick) {
         this.departureTick = departureTick;
+    }
+
+    /** The emeralds that the destination pays to the origin when the group arrives. */
+    public long payment() {
+        return payment;
+    }
+
+    public void setPayment(long payment) {
+        this.payment = Math.max(0, payment);
     }
 
     /** The goods that the group carries. */
