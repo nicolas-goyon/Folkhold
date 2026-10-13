@@ -54,7 +54,8 @@ public final class RouteGameTests {
 
         FolkholdWorld.LOGGER.info("Route test: {} cells examined in {} ms", calculation.examined(),
                 String.format("%.2f", calculation.nanos() / 1_000_000.0));
-        helper.assertTrue(calculation.route().isPresent(), "The flat test world must have a route");
+        helper.assertTrue(calculation.route().isPresent(),
+                "The flat test world must have a route: " + calculation.examined() + " cells examined");
         Route route = calculation.route().get();
         List<Route.Point> points = route.points();
         helper.assertTrue(points.get(0).equals(new Route.Point(FAR_X, 0)), "The route must start at the origin");

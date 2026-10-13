@@ -10,16 +10,30 @@ class RouteFinderTest {
     private static final int SEA_LEVEL = 62;
     private static final int GROUND = 70;
     private static final RouteFinder.Settings SETTINGS =
-            new RouteFinder.Settings(16, SEA_LEVEL, 2, 2.0, 1.0, 3000.0, 20_000);
+            new RouteFinder.Settings(16, 2, 2.0, 1.0, 3000.0, 20_000);
+
+    /** Gives the floor height at a position. */
+    @FunctionalInterface
+    private interface Floor {
+        int at(int x, int z);
+    }
+
+    /** A height source with water up to the sea level. */
+    private static RouteFinder.HeightSource withSea(Floor floor) {
+        return (x, z) -> {
+            int height = floor.at(x, z);
+            return new RouteFinder.Column(height, Math.max(0, SEA_LEVEL - height));
+        };
+    }
 
     /** Flat ground everywhere. */
-    private static final RouteFinder.HeightSource FLAT = (x, z) -> GROUND;
+    private static final RouteFinder.HeightSource FLAT = withSea((x, z) -> GROUND);
 
     /** A deep lake: a disk with a radius of 150 blocks around (500, 0). */
-    private static final RouteFinder.HeightSource LAKE = (x, z) -> {
+    private static final RouteFinder.HeightSource LAKE = withSea((x, z) -> {
         double dx = x - 500;
         return dx * dx + (double) z * z < 150 * 150 ? 40 : GROUND;
-    };
+    });
 
     @Test
     void flatGroundGivesAStraightRoute() {
@@ -54,7 +68,7 @@ class RouteFinderTest {
 
     @Test
     void shallowWaterIsAllowed() {
-        RouteFinder.HeightSource ford = (x, z) -> x > 400 && x < 600 ? SEA_LEVEL - 1 : GROUND;
+        RouteFinder.HeightSource ford = withSea((x, z) -> x > 400 && x < 600 ? SEA_LEVEL - 1 : GROUND);
 
         Route route = RouteFinder.find(0, 0, 1000, 0, ford, SETTINGS).route().orElseThrow();
 
@@ -63,7 +77,7 @@ class RouteFinderTest {
 
     @Test
     void waterEverywhereGivesNoRoute() {
-        RouteFinder.HeightSource sea = (x, z) -> x > 300 && x < 700 ? 30 : GROUND;
+        RouteFinder.HeightSource sea = withSea((x, z) -> x > 300 && x < 700 ? 30 : GROUND);
 
         RouteFinder.Result result = RouteFinder.find(0, 0, 1000, 0, sea, SETTINGS);
 
@@ -75,15 +89,29 @@ class RouteFinderTest {
     void routeLongerThanTheMaximumIsNotValid() {
         assertTrue(RouteFinder.find(0, 0, 3500, 0, FLAT, SETTINGS).route().isEmpty(),
                 "The direct line is longer than the maximum");
-        RouteFinder.Settings shortMax = new RouteFinder.Settings(16, SEA_LEVEL, 2, 2.0, 1.0, 1100.0, 20_000);
+        RouteFinder.Settings shortMax = new RouteFinder.Settings(16, 2, 2.0, 1.0, 1100.0, 20_000);
         assertTrue(RouteFinder.find(0, 0, 1000, 0, LAKE, shortMax).route().isEmpty(),
                 "The way around the lake is longer than the maximum");
     }
 
     @Test
+    void lakeAboveTheSeaLevelIsWater() {
+        RouteFinder.HeightSource highLake = (x, z) -> {
+            double dx = x - 500;
+            boolean lake = dx * dx + (double) z * z < 150 * 150;
+            return new RouteFinder.Column(lake ? 90 : 100, lake ? 10 : 0);
+        };
+
+        Route route = RouteFinder.find(0, 0, 1000, 0, highLake, SETTINGS).route().orElseThrow();
+
+        assertTrue(route.length() > 1000.0, "The route must go around the lake");
+    }
+
+    @Test
     void routeAvoidsAHillWhenTheValleyIsShort() {
         // A high ridge across the direct line, with a pass at z = 160.
-        RouteFinder.HeightSource ridge = (x, z) -> x > 450 && x < 550 && Math.abs(z - 160) > 32 ? 130 : GROUND;
+        RouteFinder.HeightSource ridge =
+                withSea((x, z) -> x > 450 && x < 550 && Math.abs(z - 160) > 32 ? 130 : GROUND);
 
         Route route = RouteFinder.find(0, 0, 1000, 0, ridge, SETTINGS).route().orElseThrow();
 
