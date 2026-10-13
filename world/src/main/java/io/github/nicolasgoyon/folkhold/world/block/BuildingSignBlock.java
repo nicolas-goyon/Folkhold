@@ -9,6 +9,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -16,6 +17,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * A sign stand in front of a building of the village: two posts, a cross bar and a hanging plaque with the icon of
  * the building (see {@link BuildingSignKind}). The plaque faces the {@link #FACING} direction. The stand is
  * 1.5 blocks high, as a fence.
+ *
+ * <p>The path finders do not go through the stand. A mob cannot jump over it.
  */
 public class BuildingSignBlock extends HorizontalDirectionalBlock {
     public static final MapCodec<BuildingSignBlock> CODEC = simpleCodec(BuildingSignBlock::new);
@@ -42,6 +45,15 @@ public class BuildingSignBlock extends HorizontalDirectionalBlock {
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+    }
+
+    /**
+     * Not passable. The collision box is not a full block, so the vanilla value lets the path go through the stand,
+     * and a mob jumps against it again and again.
+     */
+    @Override
+    protected boolean isPathfindable(BlockState state, PathComputationType type) {
+        return false;
     }
 
     @Override

@@ -1,8 +1,11 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.BuildingSignBlock;
+import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -19,6 +22,7 @@ import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -186,6 +190,8 @@ public final class GuardGameTests {
             guard.setVillagePos(null);
             guard.setFactionId(null);
             guard.setNightPos(null);
+            // The home position is behind the door, so the anchor goals do not pull the guard back.
+            guard.setHomePos(goal);
         }
         helper.startSequence()
                 .thenWaitUntil(() -> {
@@ -200,6 +206,40 @@ public final class GuardGameTests {
                 })
                 .thenExecute(first::discard)
                 .thenExecute(second::discard)
+                .thenSucceed();
+    }
+
+    /**
+     * A building sign is not passable for the path finder. A guard goes through the gap of a line of signs, and does
+     * not jump against a sign.
+     */
+    @GameTest(template = "arena", timeoutTicks = 500, batch = "guard_signs")
+    public static void guardGoesAroundBuildingSigns(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockState sign = ModBlocks.buildingSign(BuildingSignKind.values()[0]).defaultBlockState()
+                .setValue(BuildingSignBlock.FACING, Direction.NORTH);
+        for (int x = 0; x < TestSupport.ARENA_SIZE; x++) {
+            if (x != 13) {
+                helper.setBlock(new BlockPos(x, 1, 8), sign);
+            }
+        }
+        helper.assertTrue(!sign.isPathfindable(PathComputationType.LAND), "A building sign must not be passable");
+        GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(4, 1, 4));
+        guard.setVillagePos(null);
+        guard.setFactionId(null);
+        guard.setNightPos(null);
+        BlockPos goal = helper.absolutePos(new BlockPos(4, 1, 13));
+        // The home position is behind the signs too, so the anchor goals do not pull the guard back.
+        guard.setHomePos(goal);
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    if (guard.getNavigation().isDone() && guard.blockPosition().getZ() < goal.getZ() - 2) {
+                        guard.getNavigation().moveTo(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0);
+                    }
+                    helper.assertTrue(guard.blockPosition().getZ() >= goal.getZ() - 2,
+                            "The guard must go through the gap of the signs. Guard at " + guard.blockPosition());
+                })
+                .thenExecute(guard::discard)
                 .thenSucceed();
     }
 }
