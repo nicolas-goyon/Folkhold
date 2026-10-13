@@ -110,9 +110,10 @@ public final class EscortGameTests {
         Quest quest = Escorts.offer(helper.getLevel().getServer(), caravan, origin, 100).orElse(null);
 
         long departure = caravan.departureTick();
+        QuestState state = quest == null ? null : quest.state();
         clear(helper, caravan, quest);
         helper.assertTrue(quest != null && quest.kind() == QuestKind.ESCORT && quest.target().equals(caravan.id())
-                && quest.settlementId().equals(origin.id()) && quest.state() == QuestState.OFFERED,
+                && quest.settlementId().equals(origin.id()) && state == QuestState.OFFERED,
                 "The village must offer an escort of its caravan");
         helper.assertTrue(departure == 100 + WorldConfig.QUEST_ESCORT_WAIT_TICKS.get(),
                 "The caravan must wait for an escort: " + departure);
