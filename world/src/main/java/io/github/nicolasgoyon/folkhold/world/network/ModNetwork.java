@@ -53,7 +53,7 @@ public final class ModNetwork {
         registrar.playToClient(QuestBoardPayload.TYPE, QuestBoardPayload.STREAM_CODEC,
                 (payload, context) -> QuestBoardScreen.open(payload));
         registrar.playToClient(QuestLogPayload.TYPE, QuestLogPayload.STREAM_CODEC,
-                (payload, context) -> ClientQuestLog.set(payload));
+                (payload, context) -> ClientQuestLog.set(payload, context.player().level().getGameTime()));
         registrar.playToClient(NoticePayload.TYPE, NoticePayload.STREAM_CODEC,
                 (payload, context) -> NoticeToasts.show(payload));
         registrar.playToServer(QuestActionPayload.TYPE, QuestActionPayload.STREAM_CODEC,

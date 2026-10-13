@@ -33,6 +33,7 @@ public final class FolkholdWorldClient {
         modEventBus.addListener(FolkholdWorldClient::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientTerritory.clear());
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientQuestLog.clear());
+        NeoForge.EVENT_BUS.addListener(QuestTargetMarker::onRenderLiving);
     }
 
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {

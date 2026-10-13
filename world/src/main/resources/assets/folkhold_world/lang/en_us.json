@@ -216,7 +216,7 @@
   "folkhold_world.configuration.questEscortWaitTicks": "Wait of a caravan for an escort (abstract ticks)",
   "folkhold_world.configuration.questEscortDistance": "Escort distance (blocks)",
   "folkhold_world.configuration.questEscortAwaySeconds": "Time away from an escort (seconds)",
-  "folkhold_world.configuration.questEscortMinutes": "Time for an escort (minutes)",
+  "folkhold_world.configuration.questEscortMinutes": "Minimum time for an escort (minutes)",
   "folkhold_world.configuration.questEscortRewardShare": "Reward share of an escort",
   "folkhold_world.configuration.questEscortReputation": "Reputation reward of an escort",
   "folkhold_world.configuration.merchant": "Merchants",
@@ -510,8 +510,6 @@
   "hud.folkhold_world.quests.merchant": "Merchant %s",
   "hud.folkhold_world.quests.too_far": "▲ Too far: %s m (max %s) · come back %s",
   "hud.folkhold_world.territory.village": "%s · %s %s",
-  "hud.folkhold_world.territory.distance.m": "%s m",
-  "hud.folkhold_world.territory.distance.km": "%s.%s km",
   "message.folkhold_world.warning.details": "This is your only warning. The next time, the guards attack.",
   "message.folkhold_world.bank_warning.details": "To break it is a pillage.",
   "message.folkhold_world.caravan_mule.details": "To open its chest is a raid. Sneak to open it.",
@@ -527,5 +525,8 @@
   "screen.folkhold_world.admin.action.discover": "Discover the villages around me",
   "screen.folkhold_world.admin.done.discover": "%s villages within %s blocks (%s new)",
   "screen.folkhold_world.admin.state_filter.not_generated": "Not generated",
-  "screen.folkhold_world.admin.badge.not_generated": "Not generated"
+  "screen.folkhold_world.admin.badge.not_generated": "Not generated",
+  "folkhold_world.configuration.questEscortBlocksPerMinute": "Caravan speed for the escort time (blocks per minute)",
+  "hud.folkhold_world.distance.m": "%s m",
+  "hud.folkhold_world.distance.km": "%s.%s km"
 }

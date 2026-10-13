@@ -152,7 +152,10 @@ public final class DeliveryGameTests {
         helper.succeed();
     }
 
-    /** The quest HUD gets the delivery: the item, the number of items and the time before the deadline. */
+    /**
+     * The quest HUD gets the delivery: the item, the number of items, the time before the deadline and the village
+     * as the target.
+     */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "delivery_hud")
     public static void questLogGivesTheDelivery(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -171,6 +174,8 @@ public final class DeliveryGameTests {
         helper.assertTrue(entry.escort().isEmpty() && entry.secondsLeft() > 0,
                 "A delivery has a time and no escort state");
         helper.assertTrue(log.maxActive() == WorldConfig.QUEST_MAX_ACTIVE.get(), "The log must give the maximum");
+        helper.assertTrue(entry.target().isPresent() && entry.target().get().getX() == village.x()
+                && entry.target().get().getZ() == village.z(), "The target of a delivery must be its village");
         helper.succeed();
     }
 }

@@ -216,7 +216,7 @@
   "folkhold_world.configuration.questEscortWaitTicks": "Attente d'une caravane pour une escorte (ticks abstraits)",
   "folkhold_world.configuration.questEscortDistance": "Distance d'escorte (blocs)",
   "folkhold_world.configuration.questEscortAwaySeconds": "Temps loin d'une escorte (secondes)",
-  "folkhold_world.configuration.questEscortMinutes": "Temps pour une escorte (minutes)",
+  "folkhold_world.configuration.questEscortMinutes": "Temps minimum pour une escorte (minutes)",
   "folkhold_world.configuration.questEscortRewardShare": "Part de récompense d'une escorte",
   "folkhold_world.configuration.questEscortReputation": "Réputation gagnée pour une escorte",
   "folkhold_world.configuration.merchant": "Marchands",
@@ -510,8 +510,6 @@
   "hud.folkhold_world.quests.merchant": "Marchand %s",
   "hud.folkhold_world.quests.too_far": "▲ Trop loin : %s m (max %s) · revenez %s",
   "hud.folkhold_world.territory.village": "%s · %s %s",
-  "hud.folkhold_world.territory.distance.m": "%s m",
-  "hud.folkhold_world.territory.distance.km": "%s,%s km",
   "message.folkhold_world.warning.details": "C'est ton seul avertissement. La prochaine fois, les gardes attaquent.",
   "message.folkhold_world.bank_warning.details": "Le casser est un pillage.",
   "message.folkhold_world.caravan_mule.details": "Ouvrir son coffre est un pillage. Accroupis-toi pour l'ouvrir.",
@@ -527,5 +525,8 @@
   "screen.folkhold_world.admin.action.discover": "Découvrir les villages autour de moi",
   "screen.folkhold_world.admin.done.discover": "%s villages à moins de %s blocs (%s nouveaux)",
   "screen.folkhold_world.admin.state_filter.not_generated": "Non générés",
-  "screen.folkhold_world.admin.badge.not_generated": "Non généré"
+  "screen.folkhold_world.admin.badge.not_generated": "Non généré",
+  "folkhold_world.configuration.questEscortBlocksPerMinute": "Vitesse des caravanes pour le temps d'escorte (blocs par minute)",
+  "hud.folkhold_world.distance.m": "%s m",
+  "hud.folkhold_world.distance.km": "%s,%s km"
 }

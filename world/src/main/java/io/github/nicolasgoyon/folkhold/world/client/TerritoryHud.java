@@ -17,7 +17,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 
 /**
@@ -38,7 +37,6 @@ public final class TerritoryHud {
     private static final int BANNER_WIDTH = 10;
     /** The height of a row of vanilla effect icons, with its gap. */
     private static final int EFFECT_ROW = 26;
-    private static final String[] ARROWS = {"↑", "↗", "→", "↘", "↓", "↙", "←", "↖"};
 
     private TerritoryHud() {
     }
@@ -99,21 +97,10 @@ public final class TerritoryHud {
             return village;
         }
         BlockPos pos = status.villagePos().get();
-        double dx = pos.getX() + 0.5 - player.getX();
-        double dz = pos.getZ() + 0.5 - player.getZ();
-        int distance = (int) Math.round(Math.sqrt(dx * dx + dz * dz));
-        // The yaw of the direction to the village: 0 is south, 90 is west, as the yaw of an entity.
-        double yaw = Math.toDegrees(Math.atan2(-dx, dz));
-        double relative = Mth.wrapDegrees(yaw - player.getYRot());
-        String arrow = ARROWS[Math.floorMod((int) Math.round(relative / 45.0), ARROWS.length)];
-        return Component.translatable(KEY + "village", village, distance(distance), arrow);
-    }
-
-    private static Component distance(int blocks) {
-        if (blocks < 1000) {
-            return Component.translatable(KEY + "distance.m", blocks);
-        }
-        return Component.translatable(KEY + "distance.km", blocks / 1000, blocks % 1000 / 100);
+        double x = pos.getX() + 0.5;
+        double z = pos.getZ() + 0.5;
+        return Component.translatable(KEY + "village", village,
+                HudDirections.distanceText(HudDirections.distance(player, x, z)), HudDirections.arrow(player, x, z));
     }
 
     /** The height of the vanilla effect icons at the top right: one row for good effects, one for bad effects. */

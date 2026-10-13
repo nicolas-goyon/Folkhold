@@ -8,12 +8,15 @@ import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload.Entry;
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload.Escort;
+import java.util.Optional;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
@@ -22,11 +25,14 @@ import net.minecraft.world.item.ItemStack;
  *
  * <ul>
  *   <li>A header with the number of active quests and the maximum.</li>
- *   <li>A row for each delivery: the item icon, what to do, the items of the player, and the time before the
- *       deadline. Under 2 minutes, the time is on a red badge.</li>
- *   <li>A tracker for each escort: the destination and the time, a progress bar, the blocks, the hearts of the
- *       merchant, and a warning with the time to come back when the player is too far.</li>
+ *   <li>A row for each delivery: the item icon, what to do, the items of the player, the arrow and the distance
+ *       to the village of the quest, and the time before the deadline. Under 2 minutes, the time is on a red
+ *       badge.</li>
+ *   <li>A tracker for each escort: the destination and the time, a progress bar, the blocks, the arrow and the
+ *       distance to the merchant, the hearts of the merchant, and a warning with the time to come back when the
+ *       player is too far.</li>
  * </ul>
+ * The times go down with the game time, so they stop while the game is paused.
  * The panel shows nothing when the player has no active quest.
  */
 public final class QuestHud {
@@ -36,7 +42,7 @@ public final class QuestHud {
     private static final int ROW = 13;
     private static final int ICON = 10;
     private static final int MIN_WIDTH = 150;
-    private static final int MAX_WIDTH = 210;
+    private static final int MAX_WIDTH = 240;
     /** Under this time, the time of a quest is on a red badge. */
     private static final int URGENT_SECONDS = 120;
     private static final int HEARTS = 4;
@@ -55,11 +61,22 @@ public final class QuestHud {
             return;
         }
         Font font = minecraft.font;
-        Inventory inventory = minecraft.player.getInventory();
+        LocalPlayer player = minecraft.player;
+        Inventory inventory = player.getInventory();
+        long now = player.level().getGameTime();
         int width = MIN_WIDTH;
         for (Entry entry : log.quests()) {
-            width = Math.max(width, ICON + 4 + font.width(rowText(entry, inventory)) + 8 + font.width("00:00") + 2
-                    * PAD);
+            int toward = toward(player, entry).map(text -> font.width(text) + 6).orElse(0);
+            if (entry.escort().isPresent()) {
+                Escort escort = entry.escort().get();
+                int title = ICON + 4 + font.width(entry.name()) + 8 + font.width("00:00");
+                int blocks = font.width(blocks(escort)) + 8 + toward;
+                int merchant = escort.maxHealth() > 0 ? font.width(merchant(escort)) : 0;
+                width = Math.max(width, Math.max(title, Math.max(blocks, merchant)) + 8 + 2 * PAD);
+            } else {
+                width = Math.max(width, ICON + 4 + font.width(rowText(entry, inventory)) + 6 + toward
+                        + font.width("00:00") + 2 * PAD);
+            }
         }
         width = Math.min(width, Math.min(MAX_WIDTH, graphics.guiWidth() / 2 - MARGIN));
         int height = PAD + UiTheme.LINE + 3;
@@ -77,13 +94,36 @@ public final class QuestHud {
         for (Entry entry : log.quests()) {
             if (entry.escort().isPresent()) {
                 int h = escortHeight(entry.escort().get());
-                renderEscort(graphics, font, entry, entry.escort().get(), new UiRect(inner.x(), y, inner.width(), h));
+                renderEscort(graphics, font, player, entry, entry.escort().get(),
+                        new UiRect(inner.x(), y, inner.width(), h), now);
                 y += h + 2;
             } else {
-                renderDelivery(graphics, font, entry, inventory, new UiRect(inner.x(), y, inner.width(), ROW));
+                renderDelivery(graphics, font, player, entry, inventory, new UiRect(inner.x(), y, inner.width(), ROW),
+                        now);
                 y += ROW;
             }
         }
+    }
+
+    /**
+     * The arrow and the distance to the target of a quest: the merchant entity if the client has it, else the
+     * position that the server sent.
+     */
+    private static Optional<Component> toward(LocalPlayer player, Entry entry) {
+        Entity entity = entry.targetEntity() == QuestLogPayload.NO_ENTITY ? null
+                : player.level().getEntity(entry.targetEntity());
+        if (entity != null) {
+            return Optional.of(HudDirections.toward(player, entity.getX(), entity.getZ()));
+        }
+        return entry.target().map(pos -> HudDirections.toward(player, pos.getX() + 0.5, pos.getZ() + 0.5));
+    }
+
+    private static Component blocks(Escort escort) {
+        return Component.translatable(KEY + "blocks", Math.min(escort.progress(), escort.length()), escort.length());
+    }
+
+    private static Component merchant(Escort escort) {
+        return Component.translatable(KEY + "merchant", hearts(escort));
     }
 
     private static Component rowText(Entry entry, Inventory inventory) {
@@ -101,15 +141,21 @@ public final class QuestHud {
                 .append(progress.withColor(ready ? UiTheme.TEXT_GOOD : UiTheme.TEXT_MUTED));
     }
 
-    private static void renderDelivery(GuiGraphics graphics, Font font, Entry entry, Inventory inventory, UiRect row) {
+    private static void renderDelivery(GuiGraphics graphics, Font font, LocalPlayer player, Entry entry,
+            Inventory inventory, UiRect row, long now) {
         ItemStack stack = UiDraw.stack(entry.itemId());
         if (!stack.isEmpty()) {
             UiDraw.item(graphics, stack, row.x(), row.y() + (row.height() - ICON) / 2, ICON);
         }
-        int timeWidth = renderTime(graphics, font, ClientQuestLog.secondsNow(entry.secondsLeft()), row.right(), row);
+        int right = row.right() - renderTime(graphics, font, ClientQuestLog.secondsNow(entry.secondsLeft(), now),
+                row.right(), row) - 6;
+        Optional<Component> toward = toward(player, entry);
+        if (toward.isPresent()) {
+            right -= UiText.drawRight(graphics, font, toward.get(), right, UiText.textY(row), row.width() / 3,
+                    UiTheme.TEXT_MUTED) + 6;
+        }
         int x = row.x() + ICON + 4;
-        UiText.draw(graphics, font, rowText(entry, inventory), x, UiText.textY(row), row.right() - timeWidth - 4 - x,
-                UiTheme.TEXT);
+        UiText.draw(graphics, font, rowText(entry, inventory), x, UiText.textY(row), right - x, UiTheme.TEXT);
     }
 
     /** Draws a time at the right of a row. Returns its width. */
@@ -128,11 +174,13 @@ public final class QuestHud {
     }
 
     private static int escortHeight(Escort escort) {
-        // Padding, title, gap, bar, gap, blocks line, warning line, padding.
-        return 4 + ROW + 2 + 3 + 3 + UiTheme.LINE + (escort.away() ? 2 + UiTheme.LINE : 0) + 4;
+        // Padding, title, gap, bar, gap, blocks line, merchant line, warning line, padding.
+        return 4 + ROW + 2 + 3 + 3 + UiTheme.LINE + (escort.maxHealth() > 0 ? 2 + UiTheme.LINE : 0)
+                + (escort.away() ? 2 + UiTheme.LINE : 0) + 4;
     }
 
-    private static void renderEscort(GuiGraphics graphics, Font font, Entry entry, Escort escort, UiRect box) {
+    private static void renderEscort(GuiGraphics graphics, Font font, LocalPlayer player, Entry entry, Escort escort,
+            UiRect box, long now) {
         boolean warning = escort.away();
         UiDraw.box(graphics, box, warning ? 0x803A1814 : 0x60241C13, warning ? UiTheme.DANGER_EDGE
                 : UiTheme.WOOD_EDGE, false);
@@ -142,8 +190,8 @@ public final class QuestHud {
         if (!stack.isEmpty()) {
             UiDraw.item(graphics, stack, title.x(), title.y() + (ROW - ICON) / 2, ICON);
         }
-        int timeWidth = renderTime(graphics, font, ClientQuestLog.secondsNow(entry.secondsLeft()), title.right(),
-                title);
+        int timeWidth = renderTime(graphics, font, ClientQuestLog.secondsNow(entry.secondsLeft(), now),
+                title.right(), title);
         int x = title.x() + ICON + 4;
         UiText.draw(graphics, font, entry.name(), x, UiText.textY(title), title.right() - timeWidth - 4 - x,
                 UiTheme.TEXT);
@@ -153,19 +201,18 @@ public final class QuestHud {
         UiDraw.bar(graphics, new UiRect(inner.x(), y, inner.width(), 3), fraction, UiTheme.WOOD_INPUT,
                 UiTheme.GOLD);
         y += 3 + 3;
-        Component blocks = Component.translatable(KEY + "blocks", Math.min(escort.progress(), escort.length()),
-                escort.length());
-        int heartsWidth = 0;
+        int lineY = y;
+        int towardWidth = toward(player, entry).map(text -> UiText.drawRight(graphics, font, text, inner.right(),
+                lineY, inner.width() / 2, UiTheme.GOLD) + 6).orElse(0);
+        UiText.draw(graphics, font, blocks(escort), inner.x(), y, inner.width() - towardWidth, UiTheme.TEXT_MUTED);
         if (escort.maxHealth() > 0) {
-            Component hearts = Component.translatable(KEY + "merchant", hearts(escort));
-            heartsWidth = UiText.drawRight(graphics, font, hearts, inner.right(), y, inner.width() / 2,
-                    UiTheme.TEXT_MUTED);
+            y += UiTheme.LINE + 2;
+            UiText.draw(graphics, font, merchant(escort), inner.x(), y, inner.width(), UiTheme.TEXT_MUTED);
         }
-        UiText.draw(graphics, font, blocks, inner.x(), y, inner.width() - heartsWidth - 4, UiTheme.TEXT_MUTED);
         if (warning) {
             y += UiTheme.LINE + 2;
             Component text = Component.translatable(KEY + "too_far", escort.distance(), escort.maxDistance(),
-                    UiText.clock(ClientQuestLog.secondsNow(escort.awaySeconds())));
+                    UiText.clock(ClientQuestLog.secondsNow(escort.awaySeconds(), now)));
             UiText.draw(graphics, font, text, inner.x(), y, inner.width(), UiTheme.TEXT_URGENT);
         }
     }
