@@ -91,7 +91,7 @@ public class UiButton extends AbstractButton {
         return this;
     }
 
-    /** The button is on parchment: the primary style has a darker border. */
+    /** The button is on parchment: the primary style has a darker border, and a disabled button is lighter. */
     public UiButton onParchment() {
         this.parchment = true;
         return this;
@@ -179,9 +179,10 @@ public class UiButton extends AbstractButton {
         int text;
         if (!active) {
             if (style != Style.MENU) {
-                UiDraw.box(graphics, rect, UiTheme.DISABLED, UiTheme.DISABLED_EDGE, true);
+                UiDraw.box(graphics, rect, parchment ? UiTheme.PARCHMENT_OFF_EDGE : UiTheme.DISABLED,
+                        parchment ? 0xFF8A7A58 : UiTheme.DISABLED_EDGE, true);
             }
-            text = UiTheme.TEXT_FAINT;
+            text = parchment ? 0xFF5C4E38 : UiTheme.TEXT_FAINT;
         } else {
             text = switch (style) {
                 case NORMAL -> {
