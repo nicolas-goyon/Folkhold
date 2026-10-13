@@ -8,7 +8,10 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroups;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -17,13 +20,29 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 
 /**
- * The mobile groups of a world (caravans, traveling merchants). Saved in the Overworld data
- * ({@code folkhold_groups.dat}).
+ * The mobile groups of a world (caravans, traveling merchants) and the routes between the settlements. Saved in
+ * the Overworld data ({@code folkhold_groups.dat}).
  */
 public final class MobileGroupData extends SavedData {
     private static final String FILE_ID = "folkhold_groups";
 
     private final MobileGroups groups = new MobileGroups();
+    private final Map<String, RouteEntry> routes = new HashMap<>();
+
+    /**
+     * A calculated route between two settlements, or the result "no route".
+     *
+     * @param fromId the id of the settlement at the start of the route
+     * @param toId   the id of the settlement at the end of the route
+     * @param fromX  block X of the start settlement at the time of the calculation
+     * @param fromZ  block Z of the start settlement at the time of the calculation
+     * @param toX    block X of the end settlement at the time of the calculation
+     * @param toZ    block Z of the end settlement at the time of the calculation
+     * @param route  the route, or an empty value if there is no route
+     */
+    public record RouteEntry(String fromId, String toId, int fromX, int fromZ, int toX, int toZ,
+            Optional<Route> route) {
+    }
 
     private MobileGroupData() {
     }
@@ -42,6 +61,36 @@ public final class MobileGroupData extends SavedData {
         return groups;
     }
 
+    /**
+     * The calculated route between two settlements, in the two directions.
+     *
+     * @param firstId  the id of one settlement
+     * @param secondId the id of the other settlement
+     * @return the entry, or null if the route was not calculated
+     */
+    public RouteEntry routeEntry(String firstId, String secondId) {
+        return routes.get(routeKey(firstId, secondId));
+    }
+
+    /**
+     * Records a calculated route.
+     *
+     * @param entry the entry
+     */
+    public void putRoute(RouteEntry entry) {
+        routes.put(routeKey(entry.fromId(), entry.toId()), entry);
+        setDirty();
+    }
+
+    /** The number of calculated routes, with the results "no route". */
+    public int routeCount() {
+        return routes.size();
+    }
+
+    private static String routeKey(String firstId, String secondId) {
+        return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
@@ -49,6 +98,16 @@ public final class MobileGroupData extends SavedData {
             list.add(saveGroup(group));
         }
         tag.put("Groups", list);
+        ListTag routeList = new ListTag();
+        for (RouteEntry entry : routes.values()) {
+            CompoundTag routeTag = new CompoundTag();
+            routeTag.putString("From", entry.fromId());
+            routeTag.putString("To", entry.toId());
+            routeTag.putIntArray("Ends", new int[] {entry.fromX(), entry.fromZ(), entry.toX(), entry.toZ()});
+            entry.route().ifPresent(route -> routeTag.putIntArray("Points", savePoints(route)));
+            routeList.add(routeTag);
+        }
+        tag.put("Routes", routeList);
         return tag;
     }
 
@@ -68,6 +127,19 @@ public final class MobileGroupData extends SavedData {
                 data.groups.add(group);
             }
         }
+        ListTag routeList = tag.getList("Routes", Tag.TAG_COMPOUND);
+        for (int i = 0; i < routeList.size(); i++) {
+            CompoundTag routeTag = routeList.getCompound(i);
+            int[] ends = routeTag.getIntArray("Ends");
+            if (ends.length != 4) {
+                continue;
+            }
+            Optional<Route> route = routeTag.contains("Points")
+                    ? loadPoints(routeTag.getIntArray("Points")) : Optional.empty();
+            RouteEntry entry = new RouteEntry(routeTag.getString("From"), routeTag.getString("To"), ends[0], ends[1],
+                    ends[2], ends[3], route);
+            data.routes.put(routeKey(entry.fromId(), entry.toId()), entry);
+        }
         return data;
     }
 
@@ -78,13 +150,7 @@ public final class MobileGroupData extends SavedData {
         tag.putString("Faction", group.factionId());
         tag.putString("Origin", group.originId());
         tag.putString("Destination", group.destinationId());
-        List<Route.Point> points = group.route().points();
-        int[] coordinates = new int[points.size() * 2];
-        for (int i = 0; i < points.size(); i++) {
-            coordinates[i * 2] = points.get(i).x();
-            coordinates[i * 2 + 1] = points.get(i).z();
-        }
-        tag.putIntArray("Route", coordinates);
+        tag.putIntArray("Route", savePoints(group.route()));
         tag.putDouble("Progress", group.progress());
         tag.putString("State", group.state().serializedName());
         tag.putLong("DepartureTick", group.departureTick());
@@ -103,18 +169,34 @@ public final class MobileGroupData extends SavedData {
         return tag;
     }
 
-    /** Reads one group. A group with an invalid route gives null. */
-    private static MobileGroup loadGroup(CompoundTag tag) {
-        int[] coordinates = tag.getIntArray("Route");
+    /** The points of a route as X, Z pairs. */
+    private static int[] savePoints(Route route) {
+        List<Route.Point> points = route.points();
+        int[] coordinates = new int[points.size() * 2];
+        for (int i = 0; i < points.size(); i++) {
+            coordinates[i * 2] = points.get(i).x();
+            coordinates[i * 2 + 1] = points.get(i).z();
+        }
+        return coordinates;
+    }
+
+    /** Reads a route from X, Z pairs. Fewer than 2 points give an empty value. */
+    private static Optional<Route> loadPoints(int[] coordinates) {
         List<Route.Point> points = new ArrayList<>();
         for (int i = 0; i + 1 < coordinates.length; i += 2) {
             points.add(new Route.Point(coordinates[i], coordinates[i + 1]));
         }
-        if (points.size() < 2) {
+        return points.size() < 2 ? Optional.empty() : Optional.of(new Route(points));
+    }
+
+    /** Reads one group. A group with an invalid route gives null. */
+    private static MobileGroup loadGroup(CompoundTag tag) {
+        Optional<Route> route = loadPoints(tag.getIntArray("Route"));
+        if (route.isEmpty()) {
             return null;
         }
         MobileGroup group = new MobileGroup(tag.getString("Id"), GroupKind.fromSerializedName(tag.getString("Kind")),
-                tag.getString("Faction"), tag.getString("Origin"), tag.getString("Destination"), new Route(points));
+                tag.getString("Faction"), tag.getString("Origin"), tag.getString("Destination"), route.get());
         group.setProgress(tag.getDouble("Progress"));
         group.setState(GroupState.fromSerializedName(tag.getString("State")));
         group.setDepartureTick(tag.getLong("DepartureTick"));

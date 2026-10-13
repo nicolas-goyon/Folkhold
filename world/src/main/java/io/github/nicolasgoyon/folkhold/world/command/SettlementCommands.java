@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemInfo;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
+import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
@@ -18,12 +19,14 @@ import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -45,6 +48,8 @@ import net.minecraft.server.MinecraftServer;
  *       With no id: the nearest settlement.</li>
  *   <li>{@code /folkhold settlement level <id> <level>}: sets the level.</li>
  *   <li>{@code /folkhold settlement stock <id> <item> <count>}: sets a stock.</li>
+ *   <li>{@code /folkhold settlement route <from> <to>}: calculates the route between two settlements again and
+ *       shows its length and the time of the calculation (see {@link CaravanRoutes}).</li>
  *   <li>{@code /folkhold admin}: opens the admin screen (see {@link AdminActions}).</li>
  *   <li>{@code /folkhold sim tick [count]} and {@code /folkhold sim cycle [count]}: run the simulation now for all
  *       active settlements and for the world systems (for example the mobile groups).</li>
@@ -88,7 +93,12 @@ public final class SettlementCommands {
                                                 .suggests((context, builder) -> SharedSuggestionProvider
                                                         .suggestResource(BuiltInRegistries.ITEM.keySet(), builder))
                                                 .then(Commands.argument("count", IntegerArgumentType.integer(0))
-                                                        .executes(SettlementCommands::setStock))))))
+                                                        .executes(SettlementCommands::setStock)))))
+                        .then(Commands.literal("route")
+                                .then(Commands.argument("from", StringArgumentType.word()).suggests(SETTLEMENT_IDS)
+                                        .then(Commands.argument("to", StringArgumentType.word())
+                                                .suggests(SETTLEMENT_IDS)
+                                                .executes(SettlementCommands::route)))))
                 .then(Commands.literal("admin")
                         .requires(source -> source.hasPermission(AdminActions.PERMISSION_LEVEL))
                         .executes(context -> {
@@ -218,6 +228,30 @@ public final class SettlementCommands {
         source.sendSuccess(() -> Component.translatable(KEY + "settlement.stock.set", settlement.get().name(),
                 item.toString(), count), true);
         return count;
+    }
+
+    private static int route(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
+        SettlementData data = SettlementData.get(server);
+        Optional<Settlement> from = data.registry().byId(StringArgumentType.getString(context, "from"));
+        Optional<Settlement> to = data.registry().byId(StringArgumentType.getString(context, "to"));
+        if (from.isEmpty() || to.isEmpty()) {
+            source.sendFailure(Component.translatable(KEY + "settlement.unknown"));
+            return 0;
+        }
+        CaravanRoutes.Calculation calculation = CaravanRoutes.calculate(server, from.get(), to.get());
+        String millis = String.format(Locale.ROOT, "%.1f", calculation.nanos() / 1_000_000.0);
+        if (calculation.route().isEmpty()) {
+            source.sendSuccess(() -> Component.translatable(KEY + "settlement.route.none", from.get().name(),
+                    to.get().name(), calculation.examined(), millis), false);
+            return 0;
+        }
+        Route route = calculation.route().get();
+        source.sendSuccess(() -> Component.translatable(KEY + "settlement.route.found", from.get().name(),
+                to.get().name(), Math.round(route.length()), route.points().size(), calculation.examined(), millis),
+                false);
+        return 1;
     }
 
     private static int run(CommandContext<CommandSourceStack> context, boolean cycle, int count) {

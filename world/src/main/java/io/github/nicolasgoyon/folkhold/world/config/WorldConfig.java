@@ -68,6 +68,10 @@ public final class WorldConfig {
 
     public static final ModConfigSpec.IntValue GROUP_BLOCKS_PER_TICK;
     public static final ModConfigSpec.IntValue GROUP_MAX_GROUPS;
+    public static final ModConfigSpec.IntValue ROUTE_STEP;
+    public static final ModConfigSpec.IntValue ROUTE_MAX_LENGTH;
+    public static final ModConfigSpec.IntValue ROUTE_MAX_WATER_DEPTH;
+    public static final ModConfigSpec.IntValue ROUTE_MAX_NODES;
 
     public static final ModConfigSpec.DoubleValue MERCHANT_FRIEND_FACTOR;
     public static final ModConfigSpec.DoubleValue MERCHANT_ALLY_FACTOR;
@@ -335,6 +339,22 @@ public final class WorldConfig {
                         "the simulation makes no new group.")
                 .translation(KEY_PREFIX + "groupMaxGroups")
                 .defineInRange("maxGroups", 32, 0, 1024);
+        ROUTE_STEP = builder
+                .comment("Size in blocks of a grid cell for the calculation of the routes between the villages.")
+                .translation(KEY_PREFIX + "routeStep")
+                .defineInRange("routeStep", 16, 4, 64);
+        ROUTE_MAX_LENGTH = builder
+                .comment("Maximum length of a route in blocks. Two villages with no shorter route do not trade.")
+                .translation(KEY_PREFIX + "routeMaxLength")
+                .defineInRange("routeMaxLength", 3000, 100, 20000);
+        ROUTE_MAX_WATER_DEPTH = builder
+                .comment("Maximum depth of water on a route, in blocks. A river is shallow. An ocean is deep.")
+                .translation(KEY_PREFIX + "routeMaxWaterDepth")
+                .defineInRange("routeMaxWaterDepth", 5, 0, 64);
+        ROUTE_MAX_NODES = builder
+                .comment("Maximum number of grid cells that the calculation of one route examines.")
+                .translation(KEY_PREFIX + "routeMaxNodes")
+                .defineInRange("routeMaxNodes", 6000, 100, 100000);
         builder.pop();
 
         builder.comment("Merchants of the faction villages.")
