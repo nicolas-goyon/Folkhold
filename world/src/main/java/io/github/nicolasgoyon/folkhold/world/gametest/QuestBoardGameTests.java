@@ -83,25 +83,32 @@ public final class QuestBoardGameTests {
         helper.succeed();
     }
 
-    /** The board finds its village, and the screen shows the offers of the village. */
-    @GameTest(template = "arena", timeoutTicks = 20, batch = "quest_board_village")
+    /**
+     * The board finds its village, and the screen shows the offers of the village. The heart registers itself when
+     * its block entity loads, so the test waits 2 ticks.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "quest_board_village")
     public static void boardShowsTheOffersOfItsVillage(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement village = village(helper);
         Quest quest = offer(server, village, ReputationTier.NEUTRAL);
-        ServerPlayer player = TestSupport.mockPlayer(helper);
-
-        Settlement found = QuestBoards.villageAt(helper.getLevel(), helper.absolutePos(BOARD)).orElse(null);
-        QuestBoardPayload board = QuestBoards.board(player, village);
-
-        server.getPlayerList().remove(player);
-        clear(server, List.of(quest));
-        helper.assertTrue(found != null && found.id().equals(village.id()), "The board must find its village");
-        helper.assertTrue(board.settlementId().equals(village.id())
-                && board.offers().stream().anyMatch(entry -> entry.questId().equals(quest.id())
-                        && entry.action() == QuestBoardPayload.ACTION_ACCEPT),
-                "The screen must show the offer with an accept button");
-        helper.succeed();
+        helper.startSequence()
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    ServerPlayer player = TestSupport.mockPlayer(helper);
+                    Settlement found = QuestBoards.villageAt(helper.getLevel(), helper.absolutePos(BOARD))
+                            .orElse(null);
+                    QuestBoardPayload board = QuestBoards.board(player, village);
+                    server.getPlayerList().remove(player);
+                    clear(server, List.of(quest));
+                    helper.assertTrue(found != null && found.id().equals(village.id()),
+                            "The board must find its village");
+                    helper.assertTrue(board.settlementId().equals(village.id())
+                            && board.offers().stream().anyMatch(entry -> entry.questId().equals(quest.id())
+                                    && entry.action() == QuestBoardPayload.ACTION_ACCEPT),
+                            "The screen must show the offer with an accept button");
+                })
+                .thenSucceed();
     }
 
     /** A player accepts an offer, then abandons it. The tier and the maximum limit the acceptance. */
