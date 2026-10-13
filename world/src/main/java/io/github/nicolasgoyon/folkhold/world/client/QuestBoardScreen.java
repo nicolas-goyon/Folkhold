@@ -1,89 +1,100 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiButton;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiDialog;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiMenu;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiScreen;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTabs;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
+import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
-import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Entry;
+import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Active;
+import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Offer;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.IntConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.locale.Language;
-import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.neoforged.neoforge.network.PacketDistributor;
-import org.lwjgl.glfw.GLFW;
 
 /**
- * Screen of a quest board: the offers of the village and the active quests of the player (see
- * {@link QuestBoardPayload}).
+ * Screen of a quest board: the offers of the village as papers pinned on a wood board, and the active quests of the
+ * player in a column (see {@link QuestBoardPayload}).
  *
  * <ul>
- *   <li>Two tabs: the offers of the village, and the quests of the player. A click on a tab, or the left and right
- *       arrow keys, change the tab.</li>
- *   <li>Each quest has two lines (what to do, then the reward and the time) and its buttons on the right.</li>
- *   <li>A button sends the action to the server (see {@link QuestActionPayload}). The server answers with a new
- *       payload, and the screen shows it.</li>
- *   <li>The quests scroll with the mouse wheel.</li>
+ *   <li>Each offer has one button: accept, or the reason why the player cannot accept it.</li>
+ *   <li>Each active quest has the deliver button (or the reason why the player cannot deliver now) and the abandon
+ *       button. Abandon needs a confirmation.</li>
+ *   <li>The offers can be sorted by reward, time or kind. The board shows pages when the offers do not fit.</li>
+ *   <li>The times count down from the moment the payload comes.</li>
+ *   <li>A small panel shows tabs: the offers, or the active quests.</li>
+ *   <li>A button sends the action to the server (see {@link QuestActionPayload}) and waits for the answer. The
+ *       result shows in the status line.</li>
  * </ul>
  */
-public class QuestBoardScreen extends Screen {
-    private static final int PANEL_WIDTH = 300;
-    private static final int MAX_PANEL_HEIGHT = 210;
-    private static final int MARGIN = 10;
-    private static final int PADDING = 8;
-    private static final int HEADER_HEIGHT = 22;
-    private static final int TAB_HEIGHT = 14;
-    private static final int TAB_GAP = 2;
-    private static final int ENTRY_HEIGHT = 26;
-    private static final int FOOTER_HEIGHT = 26;
-    private static final int BUTTON_WIDTH = 80;
-    private static final int BUTTON_HEIGHT = 18;
-    private static final int ACTION_WIDTH = 56;
-    private static final int ACTION_HEIGHT = 12;
-    private static final int ACTION_GAP = 3;
-    private static final int SCROLL_BAR_WIDTH = 3;
+public class QuestBoardScreen extends UiScreen {
+    private static final String KEY = "screen.folkhold_world.quest_board.";
+    private static final int BOARD_COLOR = 0xFF6B4A2C;
+    private static final int BOARD_TEXT = 0xFFE5D5B5;
+    private static final int COLUMN_WIDTH = 150;
+    private static final int CARD_HEIGHT = 64;
+    private static final int ACTIVE_HEIGHT = 46;
+    private static final int URGENT_SECONDS = 120;
 
-    private static final int FRAME_OUTER = 0xFF2B1F12;
-    private static final int FRAME_GOLD = 0xFFB8913F;
-    private static final int PANEL_COLOR = 0xF0211B14;
-    private static final int HEADER_COLOR = 0xF0302619;
-    private static final int TAB_COLOR = 0xFF1A1510;
-    private static final int TAB_HOVER_COLOR = 0xFF2A2219;
-    private static final int TAB_ACTIVE_COLOR = 0xFF3A2F21;
-    private static final int ENTRY_STRIPE_COLOR = 0x14FFFFFF;
-    private static final int ACTION_COLOR = 0xFF3A2F21;
-    private static final int ACTION_HOVER_COLOR = 0xFF55452F;
-    private static final int SCROLL_TRACK_COLOR = 0x40FFFFFF;
-    private static final int SCROLL_THUMB_COLOR = 0xFFB8913F;
-    private static final int TITLE_COLOR = 0xFFFFFF;
-    private static final int TAB_TEXT_COLOR = 0x9A8F7A;
-    private static final int TAB_ACTIVE_TEXT_COLOR = 0xFFD37F;
-    private static final int NAME_COLOR = 0xFFFFFF;
-    private static final int DETAILS_COLOR = 0xA89F8C;
-    private static final int ACTION_TEXT_COLOR = 0xFFD37F;
-    private static final int EMPTY_COLOR = 0x7A7262;
+    /** The sort order of the offers. */
+    private enum Sort {
+        REWARD(Comparator.comparingInt(Offer::emeralds).reversed()),
+        TIME(Comparator.comparingInt(Offer::minutes).thenComparing(Comparator.comparingInt(Offer::emeralds)
+                .reversed())),
+        KIND(Comparator.comparing(Offer::kind).thenComparing(Comparator.comparingInt(Offer::emeralds).reversed()));
 
-    private static final Component[] TABS = {
-        Component.translatable("screen.folkhold_world.quest_board.offers"),
-        Component.translatable("screen.folkhold_world.quest_board.active")
-    };
+        private final Comparator<Offer> comparator;
+
+        Sort(Comparator<Offer> comparator) {
+            this.comparator = comparator;
+        }
+
+        Component label() {
+            return Component.translatable(KEY + "sort." + name().toLowerCase(Locale.ROOT));
+        }
+    }
+
+    /** One offer on the current page, with its rectangle. */
+    private record Card(Offer offer, UiRect rect) {
+    }
+
+    /** One active quest on the current page, with its rectangle. */
+    private record Entry(Active quest, UiRect rect) {
+    }
+
+    private static Sort lastSort = Sort.REWARD;
 
     private QuestBoardPayload board;
-    private int tab;
-    private int scroll;
-    private int left;
-    private int top;
-    private int panelHeight;
+    private long receivedAt;
+    private int compactTab;
+    private int offerPage;
+    private int activePage;
+    private final List<Card> cards = new ArrayList<>();
+    private final List<Entry> entries = new ArrayList<>();
+    private UiRect boardRect = new UiRect(0, 0, 0, 0);
+    private UiRect columnRect = new UiRect(0, 0, 0, 0);
+    private int offerPages = 1;
+    private int activePages = 1;
 
     public QuestBoardScreen(QuestBoardPayload board) {
-        super(board.title());
+        super(Component.translatable(KEY + "title", board.title()));
         this.board = board;
+        this.receivedAt = System.currentTimeMillis();
     }
 
     /**
@@ -94,279 +105,301 @@ public class QuestBoardScreen extends Screen {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.screen instanceof QuestBoardScreen screen
                 && screen.board.settlementId().equals(board.settlementId())) {
-            screen.board = board;
-            screen.setScroll(screen.scroll);
+            screen.update(board);
             return;
         }
-        minecraft.setScreen(new QuestBoardScreen(board));
+        QuestBoardScreen screen = new QuestBoardScreen(board);
+        minecraft.setScreen(screen);
+        screen.showResult(board);
     }
 
-    @Override
-    protected void init() {
-        panelHeight = Math.min(MAX_PANEL_HEIGHT, height - 2 * MARGIN);
-        left = (width - PANEL_WIDTH) / 2;
-        top = (height - panelHeight) / 2;
-        int buttonTop = top + panelHeight - FOOTER_HEIGHT + (FOOTER_HEIGHT - BUTTON_HEIGHT) / 2;
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
-                .bounds(width / 2 - BUTTON_WIDTH / 2, buttonTop, BUTTON_WIDTH, BUTTON_HEIGHT)
-                .build());
-        setScroll(scroll);
+    private void update(QuestBoardPayload payload) {
+        this.board = payload;
+        this.receivedAt = System.currentTimeMillis();
+        rebuildWidgets();
+        showResult(payload);
     }
 
-    // ------------------------------------------------------------------ layout
-
-    private int tabsTop() {
-        return top + HEADER_HEIGHT + 2;
+    private void showResult(QuestBoardPayload payload) {
+        payload.status().ifPresent(text -> showStatus(text, payload.statusGood() ? UiTone.GOOD : UiTone.BAD));
     }
 
-    private int contentLeft() {
-        return left + PADDING;
-    }
-
-    private int contentTop() {
-        return tabsTop() + TAB_HEIGHT + 4;
-    }
-
-    private int contentRight() {
-        return left + PANEL_WIDTH - PADDING - SCROLL_BAR_WIDTH - 2;
-    }
-
-    private int contentBottom() {
-        return top + panelHeight - FOOTER_HEIGHT;
-    }
-
-    private int tabWidth() {
-        return (PANEL_WIDTH - 2 * PADDING - (TABS.length - 1) * TAB_GAP) / TABS.length;
-    }
-
-    private int tabLeft(int index) {
-        return left + PADDING + index * (tabWidth() + TAB_GAP);
-    }
-
-    private List<Entry> entries() {
-        return tab == 0 ? board.offers() : board.active();
-    }
-
-    private int maxScroll() {
-        return Math.max(0, entries().size() * ENTRY_HEIGHT - (contentBottom() - contentTop()));
-    }
-
-    private void setScroll(int value) {
-        scroll = Mth.clamp(value, 0, maxScroll());
-    }
-
-    private void selectTab(int index) {
-        if (index >= 0 && index < TABS.length && index != tab) {
-            tab = index;
-            scroll = 0;
-        }
-    }
-
-    /** The label of the main button of an action, or null for no button. */
-    private static Component actionLabel(int action) {
-        return switch (action) {
-            case QuestBoardPayload.ACTION_ACCEPT -> Component.translatable("screen.folkhold_world.quest_board.accept");
-            case QuestBoardPayload.ACTION_DELIVER -> Component.translatable(
-                    "screen.folkhold_world.quest_board.deliver");
-            default -> null;
-        };
-    }
-
-    /** Left X of the main button of an entry. */
-    private int mainButtonLeft() {
-        return contentRight() - 3 - ACTION_WIDTH;
-    }
-
-    /** Top Y of the main button of an entry, and of the abandon button below it. */
-    private int buttonTop(int entryTop, boolean second) {
-        int top2 = entryTop + (ENTRY_HEIGHT - 2 * ACTION_HEIGHT - 1) / 2;
-        return second ? top2 + ACTION_HEIGHT + 1 : top2;
-    }
-
-    // ------------------------------------------------------------------ input
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0 && mouseY >= tabsTop() && mouseY < tabsTop() + TAB_HEIGHT) {
-            for (int i = 0; i < TABS.length; i++) {
-                if (mouseX >= tabLeft(i) && mouseX < tabLeft(i) + tabWidth()) {
-                    selectTab(i);
-                    return true;
-                }
+    private ReputationTier tier() {
+        for (ReputationTier tier : ReputationTier.values()) {
+            if (tier.serializedName().equals(board.tier())) {
+                return tier;
             }
         }
-        if (button == 0 && mouseY >= contentTop() && mouseY < contentBottom()) {
-            List<Entry> entries = entries();
-            int x = mainButtonLeft();
-            for (int i = 0; i < entries.size(); i++) {
-                int entryTop = contentTop() - scroll + i * ENTRY_HEIGHT;
-                Entry entry = entries.get(i);
-                boolean hasMain = actionLabel(entry.action()) != null;
-                if (hasMain && inside(mouseX, mouseY, x, buttonTop(entryTop, false))) {
-                    send(entry.action(), entry);
-                    return true;
-                }
-                if (entry.abandon() && inside(mouseX, mouseY, x, buttonTop(entryTop, hasMain))) {
-                    send(QuestBoardPayload.ACTION_ABANDON, entry);
-                    return true;
-                }
+        return ReputationTier.NEUTRAL;
+    }
+
+    @Override
+    protected List<Badge> badges() {
+        ReputationTier tier = tier();
+        Component text = Component.literal(UiReputation.glyph(tier) + " ")
+                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()));
+        return List.of(Badge.chip(text, UiReputation.background(tier), UiReputation.text(tier)));
+    }
+
+    @Override
+    protected Component footerHint() {
+        return Component.translatable(KEY + "footer", board.offerMinutes());
+    }
+
+    // ------------------------------------------------------------------ layout and widgets
+
+    @Override
+    protected void initBody(UiRect body) {
+        cards.clear();
+        entries.clear();
+        if (isCompact()) {
+            UiRect tabsRect = body.inset(UiTheme.PADDING, 4).top(UiTheme.CONTROL);
+            UiTabs tabs = addRenderableWidget(new UiTabs(tabsRect, List.of(
+                    Component.translatable(KEY + "offers_count", board.offers().size()),
+                    Component.translatable(KEY + "mine", board.active().size(), board.maxActive())),
+                    compactTab, index -> {
+                        compactTab = index;
+                        rebuildWidgets();
+                    }));
+            setSectionTabs(tabs);
+            UiRect content = body.belowTop(4 + UiTheme.CONTROL, 2);
+            if (compactTab == 0) {
+                boardRect = content;
+                columnRect = new UiRect(content.right(), content.y(), 0, 0);
+                initBoard();
+            } else {
+                boardRect = new UiRect(content.x(), content.y(), 0, 0);
+                columnRect = content;
+                initColumn();
             }
+            return;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        boardRect = body.inset(1, 0).beforeRight(COLUMN_WIDTH, 0);
+        columnRect = body.inset(1, 0).rightPart(COLUMN_WIDTH);
+        initBoard();
+        initColumn();
     }
 
-    private static boolean inside(double mouseX, double mouseY, int x, int y) {
-        return mouseX >= x && mouseX < x + ACTION_WIDTH && mouseY >= y && mouseY < y + ACTION_HEIGHT;
+    private UiRect boardHeader() {
+        return new UiRect(boardRect.x() + UiTheme.PADDING, boardRect.y() + 4, boardRect.width() - 2 * UiTheme.PADDING,
+                UiTheme.CONTROL - 2);
     }
 
-    private void send(int action, Entry entry) {
-        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-        PacketDistributor.sendToServer(new QuestActionPayload(action, entry.questId(), board.settlementId()));
+    private void initBoard() {
+        UiRect header = boardHeader();
+        List<Offer> offers = new ArrayList<>(board.offers());
+        offers.sort(lastSort.comparator);
+        UiRect grid = new UiRect(boardRect.x() + UiTheme.PADDING, header.bottom() + 6,
+                boardRect.width() - 2 * UiTheme.PADDING, boardRect.bottom() - header.bottom() - 10);
+        int columns = grid.width() >= 260 ? 2 : 1;
+        int rows = Math.max(1, (grid.height() + UiTheme.GAP + 2) / (CARD_HEIGHT + UiTheme.GAP + 2));
+        int perPage = columns * rows;
+        offerPages = Math.max(1, (offers.size() + perPage - 1) / perPage);
+        offerPage = Mth.clamp(offerPage, 0, offerPages - 1);
+
+        Component sortLabel = Component.translatable(KEY + "sort", lastSort.label());
+        int sortWidth = Math.min(font.width(sortLabel) + 10, header.width() / 2);
+        UiRect sortRect = header.rightPart(sortWidth);
+        addRenderableWidget(new UiButton(sortRect, sortLabel, UiButton.Style.MENU, button -> openSortMenu(sortRect))
+                .setTextColor(BOARD_TEXT));
+        if (offerPages > 1) {
+            UiRect pager = header.beforeRight(sortWidth, UiTheme.GAP).rightPart(56);
+            addPager(pager, offerPage, offerPages, delta -> {
+                offerPage += delta;
+                rebuildWidgets();
+            });
+        }
+
+        int first = offerPage * perPage;
+        for (int i = first; i < Math.min(offers.size(), first + perPage); i++) {
+            int index = i - first;
+            UiRect cell = grid.column(index % columns, columns, UiTheme.GAP + 2);
+            UiRect rect = new UiRect(cell.x(), grid.y() + (index / columns) * (CARD_HEIGHT + UiTheme.GAP + 2),
+                    cell.width(), CARD_HEIGHT);
+            Offer offer = offers.get(i);
+            cards.add(new Card(offer, rect));
+            UiRect buttonRect = new UiRect(rect.x() + 5, rect.bottom() - 5 - UiTheme.CONTROL, rect.width() - 10,
+                    UiTheme.CONTROL);
+            UiButton button;
+            if (offer.blocked().isPresent()) {
+                button = UiButton.normal(buttonRect, offer.blocked().get(), b -> {
+                }).onParchment().setDisabled(offer.blocked().get());
+            } else {
+                button = UiButton.primary(buttonRect, Component.translatable(KEY + "accept"),
+                        b -> send(b, QuestBoardPayload.ACTION_ACCEPT, offer.questId())).onParchment();
+            }
+            addRenderableWidget(button);
+        }
     }
 
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (maxScroll() > 0) {
-            setScroll(scroll - (int) Math.round(scrollY * ENTRY_HEIGHT));
-            return true;
+    private void initColumn() {
+        if (columnRect.width() <= 0) {
+            return;
         }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        UiRect inner = columnRect.inset(UiTheme.PADDING, 0);
+        UiRect header = new UiRect(inner.x(), columnRect.y() + 4, inner.width(), UiTheme.CONTROL - 2);
+        UiRect list = new UiRect(inner.x(), header.bottom() + 6, inner.width(), columnRect.bottom() - header.bottom()
+                - 10);
+        int perPage = Math.max(1, (list.height() + UiTheme.GAP) / (ACTIVE_HEIGHT + UiTheme.GAP));
+        List<Active> active = board.active();
+        activePages = Math.max(1, (active.size() + perPage - 1) / perPage);
+        activePage = Mth.clamp(activePage, 0, activePages - 1);
+        if (activePages > 1) {
+            addPager(header.rightPart(56), activePage, activePages, delta -> {
+                activePage += delta;
+                rebuildWidgets();
+            });
+        }
+        int first = activePage * perPage;
+        for (int i = first; i < Math.min(active.size(), first + perPage); i++) {
+            Active quest = active.get(i);
+            UiRect rect = new UiRect(list.x(), list.y() + (i - first) * (ACTIVE_HEIGHT + UiTheme.GAP), list.width(),
+                    ACTIVE_HEIGHT);
+            entries.add(new Entry(quest, rect));
+            UiRect row = new UiRect(rect.x() + 4, rect.bottom() - 4 - UiTheme.CONTROL, rect.width() - 8,
+                    UiTheme.CONTROL);
+            UiRect abandon = row.rightPart(UiTheme.CONTROL);
+            UiRect main = row.beforeRight(UiTheme.CONTROL, UiTheme.GAP);
+            if (quest.action() == QuestBoardPayload.ACTION_DELIVER && quest.ready()) {
+                addRenderableWidget(UiButton.primary(main, Component.translatable(KEY + "deliver"),
+                        b -> send(b, QuestBoardPayload.ACTION_DELIVER, quest.questId())));
+            } else if (quest.blocked().isPresent()) {
+                addRenderableWidget(UiButton.normal(main, quest.blocked().get(), b -> {
+                }).setDisabled(quest.blocked().get()));
+            }
+            addRenderableWidget(UiButton.normal(abandon, Component.literal("✕"), b -> confirmAbandon(quest))
+                    .setTextColor(UiTheme.TEXT_BAD)
+                    .setDetails(Component.translatable(KEY + "abandon")));
+        }
     }
 
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_LEFT) {
-            selectTab(tab - 1);
-            return true;
+    private void addPager(UiRect rect, int page, int pages, IntConsumer move) {
+        UiRect previous = rect.left(14);
+        UiRect next = rect.rightPart(14);
+        UiButton back = UiButton.normal(previous, Component.literal("◀"), b -> move.accept(-1));
+        UiButton forward = UiButton.normal(next, Component.literal("▶"), b -> move.accept(1));
+        if (page <= 0) {
+            back.disable();
         }
-        if (keyCode == GLFW.GLFW_KEY_RIGHT) {
-            selectTab(tab + 1);
-            return true;
+        if (page >= pages - 1) {
+            forward.disable();
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        addRenderableWidget(back);
+        addRenderableWidget(forward);
+    }
+
+    private void openSortMenu(UiRect anchor) {
+        List<UiMenu.Item> items = new ArrayList<>();
+        for (Sort sort : Sort.values()) {
+            items.add(UiMenu.Action.of(sort.label(), () -> {
+                lastSort = sort;
+                offerPage = 0;
+                rebuildWidgets();
+            }));
+        }
+        UiMenu.open(this, anchor, Component.translatable(KEY + "sort", lastSort.label()), items);
+    }
+
+    private void confirmAbandon(Active quest) {
+        UiDialog.builder(this, Component.translatable(KEY + "abandon.title"))
+                .danger()
+                .message(Component.translatable(KEY + "abandon.message", quest.name()))
+                .cancel(Component.translatable(KEY + "abandon.keep"))
+                .confirm(Component.translatable(KEY + "abandon"),
+                        () -> PacketDistributor.sendToServer(new QuestActionPayload(QuestBoardPayload.ACTION_ABANDON,
+                                quest.questId(), board.settlementId())))
+                .open();
+    }
+
+    private void send(UiButton button, int action, String questId) {
+        button.setPending(true);
+        PacketDistributor.sendToServer(new QuestActionPayload(action, questId, board.settlementId()));
+    }
+
+    private int secondsNow(int seconds) {
+        return (int) Math.max(0, seconds - (System.currentTimeMillis() - receivedAt) / 1000L);
     }
 
     // ------------------------------------------------------------------ rendering
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.renderBackground(graphics, mouseX, mouseY, partialTick);
-        int right = left + PANEL_WIDTH;
-        int bottom = top + panelHeight;
-        graphics.fill(left - 2, top - 2, right + 2, bottom + 2, FRAME_OUTER);
-        graphics.fill(left - 1, top - 1, right + 1, bottom + 1, FRAME_GOLD);
-        graphics.fill(left, top, right, bottom, PANEL_COLOR);
-        graphics.fill(left, top, right, top + HEADER_HEIGHT, HEADER_COLOR);
-        graphics.fill(left + PADDING, top + HEADER_HEIGHT - 1, right - PADDING, top + HEADER_HEIGHT, FRAME_GOLD);
-        graphics.fill(left + PADDING, contentBottom() + 2, right - PADDING, contentBottom() + 3, FRAME_GOLD);
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-        Component heading = Component.translatable("screen.folkhold_world.quest_board.title", title);
-        FormattedCharSequence titleText = ellipsize(heading, PANEL_WIDTH - 2 * PADDING);
-        graphics.drawString(font, titleText, width / 2 - font.width(titleText) / 2,
-                top + (HEADER_HEIGHT - font.lineHeight) / 2 + 1, TITLE_COLOR);
-        renderTabs(graphics, mouseX, mouseY);
-        renderEntries(graphics, mouseX, mouseY);
-        renderScrollBar(graphics);
-    }
-
-    private void renderTabs(GuiGraphics graphics, int mouseX, int mouseY) {
-        int tabTop = tabsTop();
-        for (int i = 0; i < TABS.length; i++) {
-            int x = tabLeft(i);
-            int w = tabWidth();
-            boolean active = i == tab;
-            boolean hover = mouseX >= x && mouseX < x + w && mouseY >= tabTop && mouseY < tabTop + TAB_HEIGHT;
-            graphics.fill(x, tabTop, x + w, tabTop + TAB_HEIGHT,
-                    active ? TAB_ACTIVE_COLOR : hover ? TAB_HOVER_COLOR : TAB_COLOR);
-            if (active) {
-                graphics.fill(x, tabTop, x + w, tabTop + 1, FRAME_GOLD);
-            }
-            int count = i == 0 ? board.offers().size() : board.active().size();
-            Component text = Component.translatable("screen.folkhold_world.quest_board.tab", TABS[i], count);
-            FormattedCharSequence label = ellipsize(text, w - 2);
-            graphics.drawString(font, label, x + (w - font.width(label)) / 2,
-                    tabTop + (TAB_HEIGHT - font.lineHeight) / 2 + 1,
-                    active ? TAB_ACTIVE_TEXT_COLOR : TAB_TEXT_COLOR, false);
+    protected void renderBody(GuiGraphics graphics, UiRect body, int mouseX, int mouseY, float partialTick) {
+        if (boardRect.width() > 0) {
+            renderBoard(graphics);
+        }
+        if (columnRect.width() > 0) {
+            renderColumn(graphics);
         }
     }
 
-    private void renderEntries(GuiGraphics graphics, int mouseX, int mouseY) {
-        List<Entry> entries = entries();
-        int x = contentLeft();
-        int right = contentRight();
+    private void renderBoard(GuiGraphics graphics) {
+        UiDraw.fill(graphics, boardRect, BOARD_COLOR);
+        UiRect header = boardHeader();
+        UiText.drawLeft(graphics, font, Component.translatable(KEY + "offers_count", board.offers().size()),
+                header.left(header.width() / 2), UiTheme.TEXT);
+        if (cards.isEmpty()) {
+            UiRect empty = new UiRect(header.x(), header.bottom() + 8, header.width(), UiTheme.CONTROL + 4);
+            UiDraw.dashedOutline(graphics, empty, BOARD_TEXT);
+            UiText.drawCentered(graphics, font, Component.translatable(KEY + "no_offers"), empty, BOARD_TEXT);
+            return;
+        }
+        for (Card card : cards) {
+            renderCard(graphics, card);
+        }
+    }
+
+    private void renderCard(GuiGraphics graphics, Card card) {
+        Offer offer = card.offer();
+        UiRect rect = card.rect();
+        boolean off = offer.blocked().isPresent();
+        UiDraw.fill(graphics, new UiRect(rect.x() + 2, rect.y() + 2, rect.width(), rect.height()), 0x50000000);
+        UiDraw.fill(graphics, rect, off ? UiTheme.PARCHMENT_EDGE : UiTheme.PARCHMENT);
+        UiDraw.mark(graphics, rect.centerX() - 2, rect.y() - 2, 5, off ? UiTheme.WOOD_EDGE : UiTheme.WAX);
+        UiDraw.itemSlot(graphics, UiDraw.stack(offer.itemId()), rect.x() + 5, rect.y() + 6);
+        int textX = rect.x() + 28;
+        int textWidth = rect.right() - 5 - textX;
+        UiText.draw(graphics, font, offer.name(), textX, rect.y() + 6, textWidth,
+                off ? UiTheme.INK_MUTED : UiTheme.INK);
+        UiText.draw(graphics, font, offer.info(), textX, rect.y() + 16, textWidth, UiTheme.INK_MUTED);
+        Component right = offer.progress();
+        if (offer.countdown() >= 0) {
+            right = Component.translatable(KEY + "leaves_in", UiText.clock(secondsNow(offer.countdown())))
+                    .withColor(UiTheme.WAX & 0xFFFFFF);
+        }
+        int rightWidth = font.width(right);
+        int y = rect.y() + 28;
+        UiText.draw(graphics, font, offer.reward(), rect.x() + 5, y, rect.width() - 14 - rightWidth,
+                off ? UiTheme.INK_MUTED : UiTheme.INK);
+        UiText.drawRight(graphics, font, right, rect.right() - 5, y, rect.width() / 2, UiTheme.INK_MUTED);
+    }
+
+    private void renderColumn(GuiGraphics graphics) {
+        UiRect inner = columnRect.inset(UiTheme.PADDING, 0);
+        UiText.drawLeft(graphics, font, Component.translatable(KEY + "mine", board.active().size(),
+                board.maxActive()), new UiRect(inner.x(), columnRect.y() + 4, inner.width() - 60, UiTheme.CONTROL - 2),
+                UiTheme.GOLD);
+        UiDraw.hLine(graphics, columnRect.x(), columnRect.y() + UiTheme.CONTROL + 6, columnRect.width(),
+                UiTheme.WOOD_RAISED);
         if (entries.isEmpty()) {
-            Component empty = Component.translatable(tab == 0 ? "screen.folkhold_world.quest_board.no_offers"
-                    : "screen.folkhold_world.quest_board.no_quests");
-            graphics.drawString(font, empty, x + (right - x - font.width(empty)) / 2, contentTop() + 4, EMPTY_COLOR,
-                    false);
+            UiRect empty = new UiRect(inner.x(), columnRect.y() + UiTheme.CONTROL + 12, inner.width(),
+                    UiTheme.CONTROL + 4);
+            UiDraw.dashedOutline(graphics, empty, UiTheme.WOOD_EDGE);
+            UiText.drawCentered(graphics, font, Component.translatable(KEY + "no_quests"), empty.inset(3, 0),
+                    UiTheme.TEXT_MUTED);
             return;
         }
-        graphics.enableScissor(x, contentTop(), right, contentBottom());
-        int buttonLeft = mainButtonLeft();
-        int textWidth = buttonLeft - ACTION_GAP - x - 3;
-        for (int i = 0; i < entries.size(); i++) {
-            int y = contentTop() - scroll + i * ENTRY_HEIGHT;
-            if (y + ENTRY_HEIGHT < contentTop() || y > contentBottom()) {
-                continue;
-            }
-            Entry entry = entries.get(i);
-            if (i % 2 == 0) {
-                graphics.fill(x, y, right, y + ENTRY_HEIGHT, ENTRY_STRIPE_COLOR);
-            }
-            graphics.drawString(font, ellipsize(entry.name(), textWidth), x + 3, y + 3, NAME_COLOR, false);
-            graphics.drawString(font, ellipsize(entry.details(), textWidth), x + 3, y + 14, DETAILS_COLOR, false);
-            Component main = actionLabel(entry.action());
-            if (main != null) {
-                renderAction(graphics, main, buttonLeft, buttonTop(y, false), mouseX, mouseY);
-            }
-            if (entry.abandon()) {
-                renderAction(graphics, Component.translatable("screen.folkhold_world.quest_board.abandon"),
-                        buttonLeft, buttonTop(y, main != null), mouseX, mouseY);
-            }
+        for (Entry entry : entries) {
+            Active quest = entry.quest();
+            UiRect rect = entry.rect();
+            UiDraw.box(graphics, rect, UiTheme.WOOD_ROW, quest.ready() ? 0xFF6E9C4A : UiTheme.WOOD_EDGE, false);
+            int seconds = secondsNow(quest.secondsLeft());
+            Component time = Component.literal(UiText.clock(seconds));
+            int timeWidth = UiText.drawRight(graphics, font, time, rect.right() - 4, rect.y() + 4, 40,
+                    seconds < URGENT_SECONDS ? UiTheme.TEXT_URGENT : UiTheme.TEXT);
+            UiText.draw(graphics, font, quest.name(), rect.x() + 4, rect.y() + 4, rect.width() - 12 - timeWidth,
+                    UiTheme.TEXT);
+            UiText.draw(graphics, font, quest.info(), rect.x() + 4, rect.y() + 14, rect.width() - 8,
+                    UiTheme.TEXT_MUTED);
         }
-        graphics.disableScissor();
-    }
-
-    private void renderAction(GuiGraphics graphics, Component label, int x, int y, int mouseX, int mouseY) {
-        boolean hover = inside(mouseX, mouseY, x, y) && mouseY >= contentTop() && mouseY < contentBottom();
-        graphics.fill(x, y, x + ACTION_WIDTH, y + ACTION_HEIGHT, hover ? ACTION_HOVER_COLOR : ACTION_COLOR);
-        graphics.fill(x, y + ACTION_HEIGHT - 1, x + ACTION_WIDTH, y + ACTION_HEIGHT, FRAME_GOLD);
-        FormattedCharSequence text = ellipsize(label, ACTION_WIDTH - 4);
-        graphics.drawString(font, text, x + (ACTION_WIDTH - font.width(text)) / 2,
-                y + (ACTION_HEIGHT - font.lineHeight) / 2 + 1, ACTION_TEXT_COLOR, false);
-    }
-
-    private void renderScrollBar(GuiGraphics graphics) {
-        int max = maxScroll();
-        if (max <= 0) {
-            return;
-        }
-        int x = left + PANEL_WIDTH - PADDING - SCROLL_BAR_WIDTH;
-        int trackTop = contentTop();
-        int trackHeight = contentBottom() - trackTop;
-        int contentHeight = entries().size() * ENTRY_HEIGHT;
-        int thumbHeight = Math.max(8, trackHeight * trackHeight / contentHeight);
-        int thumbTop = trackTop + (trackHeight - thumbHeight) * scroll / max;
-        graphics.fill(x, trackTop, x + SCROLL_BAR_WIDTH, trackTop + trackHeight, SCROLL_TRACK_COLOR);
-        graphics.fill(x, thumbTop, x + SCROLL_BAR_WIDTH, thumbTop + thumbHeight, SCROLL_THUMB_COLOR);
-    }
-
-    /** The text, cut with "…" at the end if it is wider than the maximum width. */
-    private FormattedCharSequence ellipsize(Component text, int maxWidth) {
-        if (font.width(text) <= maxWidth) {
-            return text.getVisualOrderText();
-        }
-        String ellipsis = "…";
-        FormattedText cut = font.substrByWidth(text, Math.max(0, maxWidth - font.width(ellipsis)));
-        return Language.getInstance().getVisualOrder(FormattedText.composite(cut, FormattedText.of(ellipsis)));
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return false;
     }
 }

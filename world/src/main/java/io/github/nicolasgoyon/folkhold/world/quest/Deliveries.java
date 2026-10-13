@@ -8,7 +8,6 @@ import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Optional;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -60,8 +59,8 @@ public final class Deliveries {
             return false;
         }
         if (count(player.getInventory(), item.get()) < quest.count()) {
-            player.displayClientMessage(Component.translatable("message.folkhold_world.quest_missing_items",
-                    quest.count(), new ItemStack(item.get()).getHoverName()), false);
+            QuestBoards.message(player, "quest_missing_items", quest.count(),
+                    new ItemStack(item.get()).getHoverName());
             return false;
         }
         remove(player.getInventory(), item.get(), quest.count());
