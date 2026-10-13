@@ -33,7 +33,8 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
  *   <li>{@code /folkhold reputation set <player> <faction> <value>}: sets a reputation (operators only).</li>
  * </ul>
  *
- * <p>{@link SettlementCommands} adds the commands of the abstract simulation.
+ * <p>{@link SettlementCommands} adds the commands of the abstract simulation. {@link GroupCommands} adds the
+ * commands of the caravans and the quests.
  */
 public final class FolkholdCommands {
     private static final String KEY = "commands.folkhold_world.";
@@ -45,6 +46,7 @@ public final class FolkholdCommands {
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         register(event.getDispatcher());
         SettlementCommands.register(event.getDispatcher());
+        GroupCommands.register(event.getDispatcher());
     }
 
     private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {

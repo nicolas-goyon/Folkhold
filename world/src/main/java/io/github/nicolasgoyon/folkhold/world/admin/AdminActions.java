@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload.Summary;
+import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -54,7 +55,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li>{@code alert}: sets the alert state of the village heart to the {@link AlertState} with the ordinal of the
  *       value. The heart must be loaded.</li>
  *   <li>{@code bells}: rings the bells of the village. The heart must be loaded.</li>
- *   <li>{@code tick_all} and {@code cycle_all}: run one abstract tick or one cycle of all active settlements.</li>
+ *   <li>{@code tick_all} and {@code cycle_all}: run one abstract tick or one cycle of all active settlements and
+ *       of the world systems (for example the caravans).</li>
+ *   <li>{@code groups}: sends the caravans, the traveling merchants and the quests (see {@link GroupOverview}).
+ *       The client shows them in a tabbed screen.</li>
  * </ul>
  * After an action, the server sends the list and the details of the settlement again.
  */
@@ -95,6 +99,12 @@ public final class AdminActions {
             player.sendSystemMessage(Component.translatable(KEY + "denied"));
             return;
         }
+        if (payload.action().equals("groups")) {
+            if (player.connection.hasChannel(VillageInfoPayload.TYPE)) {
+                PacketDistributor.sendToPlayer(player, GroupOverview.build(player.server));
+            }
+            return;
+        }
         Optional<Component> message = perform(player.server, player, payload);
         message.ifPresent(player::sendSystemMessage);
         sendList(player);
@@ -125,6 +135,7 @@ public final class AdminActions {
                 TickInfo tick = new TickInfo(data.tickNumber() + 1, cycle);
                 List<Settlement> active = data.registry().all().stream().filter(Settlement::isActive).toList();
                 active.forEach(settlement -> SimulationTicker.runSystems(server, settlement, tick));
+                SimulationTicker.runWorldSystems(server, tick);
                 return Optional.of(Component.translatable(KEY + "done." + action, active.size()));
             }
             default -> {

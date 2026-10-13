@@ -196,6 +196,30 @@ public final class QuestBoards {
     }
 
     /**
+     * Gives an offer to a player, with no check of the tier and of the maximum (for the commands of the
+     * operators).
+     *
+     * @param player  the player
+     * @param questId the id of the quest
+     * @return true if the player has the quest now
+     */
+    public static boolean give(ServerPlayer player, String questId) {
+        MinecraftServer server = player.server;
+        QuestData data = QuestData.get(server);
+        Optional<Quest> quest = data.quests().byId(questId);
+        Quests.AcceptResult result = data.quests().accept(questId, player.getUUID(), ReputationTier.ALLY,
+                server.overworld().getGameTime(), Integer.MAX_VALUE);
+        if (result != Quests.AcceptResult.ACCEPTED) {
+            return false;
+        }
+        message(player, "quest_accepted", name(server, quest.get()));
+        ACCEPT_LISTENERS.forEach(listener -> listener.accept(player, quest.get()));
+        data.setDirty();
+        sendLog(player);
+        return true;
+    }
+
+    /**
      * Completes an accepted quest: the player gets the emeralds (from the treasury of the faction of the village) and
      * the reputation.
      *

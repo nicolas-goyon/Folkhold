@@ -269,7 +269,7 @@ public class AdminScreen extends Screen {
         actionButton(3, 2, "bells", () -> selectedAction("bells", 0));
 
         // Global actions.
-        int footerButtons = 4;
+        int footerButtons = 5;
         int buttonWidth = Math.min(90, (panelWidth - 2 * PADDING - (footerButtons - 1) * GAP) / footerButtons);
         int fx = left + (panelWidth - footerButtons * buttonWidth - (footerButtons - 1) * GAP) / 2;
         int fy = top + panelHeight - FOOTER_HEIGHT + (FOOTER_HEIGHT - CONTROL_HEIGHT - 2) / 2 + 1;
@@ -281,8 +281,11 @@ public class AdminScreen extends Screen {
         addRenderableWidget(Button.builder(Component.translatable(KEY + "action.cycle_all"),
                 button -> send("cycle_all", "", 0))
                 .bounds(fx + 2 * (buttonWidth + GAP), fy, buttonWidth, CONTROL_HEIGHT + 2).build());
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
+        addRenderableWidget(Button.builder(Component.translatable(KEY + "action.groups"),
+                button -> send("groups", "", 0))
                 .bounds(fx + 3 * (buttonWidth + GAP), fy, buttonWidth, CONTROL_HEIGHT + 2).build());
+        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
+                .bounds(fx + 4 * (buttonWidth + GAP), fy, buttonWidth, CONTROL_HEIGHT + 2).build());
 
         applyFilters();
     }
