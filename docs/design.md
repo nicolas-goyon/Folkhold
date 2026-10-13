@@ -181,6 +181,7 @@ Each faction village has fortifications and guards. A player in iron armor with 
   - coast and river: docks, boats, fishing huts, bridges;
   - mountain and cliff: large houses against the cliff, terraces, walls that follow the terrain, or a village dug into the rock;
   - island: the wall follows the coast, piers are the access, stilt houses.
+  - gates: the compound is flat. When the terrain outside a gate is higher or lower, the heart builds cobblestone stairs once (at most 6 steps): down with a support under each step, or up with the terrain above each step removed.
 - A village is a group of pieces on the terrain (streets, houses, towers, walls), as the vanilla villages, not one large piece.
 
 ### Village growth

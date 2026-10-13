@@ -21,6 +21,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
+import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
@@ -89,6 +90,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private final Map<UUID, Long> hostilePlayers = new HashMap<>();
     private final VillageLayout layout = new VillageLayout();
     private static final String LAYOUT_TAG = "Layout";
+    private static final String EXITS_TAG = "ExitStairs";
     private static final String NIGHT_TAG = "NightMode";
     private static final String CATS_TAG = "CatsSpawned";
     private static final String CAT_SPAWN_TAG = "LastCatSpawn";
@@ -106,6 +108,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final int GATE_WATCH_DISTANCE = 2;
     /** True after the heart closed the gates and lit the braziers for the night. */
     private boolean nightMode;
+    /** True when the stairs of the gates are built (see {@link VillageExits}). */
+    private boolean exitStairs;
     /** True after the first cats of the village appeared. */
     private boolean catsSpawned;
     /** Game time of the last creation of cats. */
@@ -469,6 +473,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
             setChanged();
         }
         layout.questBoards().forEach(board -> QuestBoardBlock.startUpdates(serverLevel, board));
+        if (!exitStairs && VillageExits.build(serverLevel, worldPosition, layout.gates()) >= 0) {
+            exitStairs = true;
+            setChanged();
+        }
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }
@@ -791,6 +799,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.put(GARRISON_TAG, garrison.save());
         tag.put(LAYOUT_TAG, layout.save());
         tag.putBoolean(NIGHT_TAG, nightMode);
+        tag.putBoolean(EXITS_TAG, exitStairs);
         tag.putBoolean(CATS_TAG, catsSpawned);
         tag.putLong(CAT_SPAWN_TAG, lastCatSpawn);
         tag.putBoolean(VILLAGERS_TAG, villagersSpawned);
@@ -814,6 +823,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
         layout.load(tag.getCompound(LAYOUT_TAG));
         nightMode = tag.getBoolean(NIGHT_TAG);
+        exitStairs = tag.getBoolean(EXITS_TAG);
         catsSpawned = tag.getBoolean(CATS_TAG);
         lastCatSpawn = tag.getLong(CAT_SPAWN_TAG);
         villagersSpawned = tag.getBoolean(VILLAGERS_TAG);
