@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import net.minecraft.gametest.framework.GameTestServer;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -18,6 +19,9 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * end of the abstract tick, it calls each {@link WorldSystem} once.
  *
  * <p>The tick number and the time of the next abstract tick are saved in {@link SettlementData}.
+ *
+ * <p>The GameTest server has no automatic abstract tick: the tests call the systems directly, and an abstract tick
+ * between two steps of a test would change its settlements.
  */
 public final class SimulationTicker {
     private static final List<SettlementSystem> SYSTEMS = new CopyOnWriteArrayList<>();
@@ -54,6 +58,9 @@ public final class SimulationTicker {
 
     public static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
+        if (server instanceof GameTestServer) {
+            return;
+        }
         SettlementData data = SettlementData.get(server);
         TickScheduler<String> current = scheduler(data);
         StepResult result = current.step(server.overworld().getGameTime(), () -> activeIds(data),
