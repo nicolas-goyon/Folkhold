@@ -18,6 +18,7 @@ Supported languages: English, French.
 ## Documentation
 
 - [Design document](docs/design.md)
+- [Interface brief](docs/ui-brief.md): functions, data and constraints of all screens, menus and HUD elements. Input for new interface designs.
 - [Getting started](docs/getting-started.md): prerequisites, first build, daily workflow.
 - [Contributing](CONTRIBUTING.md): branches, commits, pull requests, translations.
 
