@@ -182,10 +182,18 @@ python3 tools/structures/village.py
 
 The village has:
 
-- a center piece (`center.nbt`): palisade, 4 corner towers with a watch post (archer post), 2 gates, paths, a plaza with the village heart and 4 braziers, lamp posts and torches. White banners hang on the outer face of the palisade. The village heart gives them the banner of the faction;
+- a center piece (`center.nbt`): palisade, 4 corner towers with a watch post (archer post), 2 gates, paths, a plaza with the village heart, 4 braziers and the quest board, lamp posts and torches. White banners hang on the outer face of the palisade. The village heart gives them the banner of the faction;
 - house pieces (`house_*.nbt`). Jigsaw connectors put up to 4 houses next to the main path.
 
 To see a village in the game: `/locate structure folkhold_world:village`, then `/tp` to the position.
+
+## Block models from a script
+
+The models and the block states of the quest board come from a script, because the board has 9 parts. Change the script, then run it:
+
+```bash
+python3 tools/models/quest_board.py
+```
 
 To replace a generated house with a house built by hand: build it in creative mode, save it with a structure block (name `folkhold_world:village/house_<name>`), copy the file from the world folder (`generated/folkhold_world/structure/`) to the `village` folder, and add it to `worldgen/template_pool/village/houses.json`. The porch row (z = 0) must contain the jigsaw block (name `folkhold_world:house_front`, facing out).
 

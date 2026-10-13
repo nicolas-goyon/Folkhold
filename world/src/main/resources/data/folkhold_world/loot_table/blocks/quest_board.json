@@ -11,6 +11,14 @@
       ],
       "conditions": [
         {
+          "condition": "minecraft:block_state_property",
+          "block": "folkhold_world:quest_board",
+          "properties": {
+            "column": "1",
+            "row": "0"
+          }
+        },
+        {
           "condition": "minecraft:survives_explosion"
         }
       ]

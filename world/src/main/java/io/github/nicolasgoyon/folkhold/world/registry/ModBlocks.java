@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.material.PushReaction;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -59,6 +60,7 @@ public final class ModBlocks {
                     .mapColor(MapColor.WOOD)
                     .strength(1.5F, 3.0F)
                     .sound(SoundType.WOOD)
+                    .pushReaction(PushReaction.BLOCK)
                     .noOcclusion()));
 
     /** The building signs, one block for each kind. */
