@@ -141,7 +141,7 @@ public final class Merchants {
      * @param tier the tier of the player
      * @return the factor of the sell prices
      */
-    static double priceFactor(ReputationTier tier) {
+    public static double priceFactor(ReputationTier tier) {
         return switch (tier) {
             case ALLY -> WorldConfig.MERCHANT_ALLY_FACTOR.get();
             case FRIEND -> WorldConfig.MERCHANT_FRIEND_FACTOR.get();

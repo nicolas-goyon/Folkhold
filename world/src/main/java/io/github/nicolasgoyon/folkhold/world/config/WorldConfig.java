@@ -49,6 +49,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue REPUTATION_DESTROY_VILLAGE;
     public static final ModConfigSpec.IntValue REPUTATION_HIT_CAT;
     public static final ModConfigSpec.IntValue REPUTATION_KILL_CAT;
+    public static final ModConfigSpec.IntValue REPUTATION_RAID_CARAVAN;
 
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue DISCOVERY_CHECKS_PER_TICK;
@@ -256,6 +257,11 @@ public final class WorldConfig {
                 .comment("Change when the player kills a cat of a village of the faction.")
                 .translation(KEY_PREFIX + "reputationKillCat")
                 .defineInRange("killCat", -50, -1000, 0);
+        REPUTATION_RAID_CARAVAN = builder
+                .comment("Reputation change with the faction of a caravan when a player raids it (hurts a member or",
+                        "opens a mule chest). Once in each offense window.")
+                .translation(KEY_PREFIX + "reputationRaidCaravan")
+                .defineInRange("raidCaravan", -150, -1000, 0);
         builder.pop();
 
         builder.comment("Abstract simulation of the settlements.")

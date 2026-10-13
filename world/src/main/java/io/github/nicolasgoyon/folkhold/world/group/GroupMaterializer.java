@@ -15,14 +15,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
@@ -47,6 +52,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *       members and removes the entities (except for a kept group, see {@link #keep(String, boolean)}). It also
  *       does this when the chunk of one entity unloads, and when the server stops.</li>
  *   <li>A dead entity records the death of its member (see {@link MobileGroup#onMemberDied(UUID)}).</li>
+ *   <li>The cargo of a caravan with entities is in the chests of its mules (see {@link CaravanCargo}).</li>
  *   <li>An entity of a group that loads from a chunk while its group has no entities does not join the level. So the
  *       entities of a group do not duplicate.</li>
  * </ul>
@@ -65,6 +71,8 @@ public final class GroupMaterializer {
     private static final Map<String, Set<UUID>> MATERIALIZED = new HashMap<>();
     /** The ids of the groups that keep their entities with no player near. Not saved. */
     private static final Set<String> KEPT = new HashSet<>();
+    /** The cargo of each group with entities that is not in the mule chests, by group id. Not saved. */
+    private static final Map<String, Map<String, Integer>> OVERFLOW = new HashMap<>();
 
     private GroupMaterializer() {
     }
@@ -163,7 +171,66 @@ public final class GroupMaterializer {
             ids.add(member.id());
             level.addFreshEntity(mob);
         }
+        OVERFLOW.put(group.id(), CaravanCargo.load(group.cargo().asMap(), mules(level, group)));
         return true;
+    }
+
+    /**
+     * The loaded mules of the living pack animals of a group with entities.
+     *
+     * @param level the level
+     * @param group the group
+     * @return the mules
+     */
+    public static List<AbstractChestedHorse> mules(ServerLevel level, MobileGroup group) {
+        List<AbstractChestedHorse> mules = new ArrayList<>();
+        Set<UUID> ids = MATERIALIZED.getOrDefault(group.id(), Set.of());
+        for (GroupMember member : group.members()) {
+            if (member.role() == MemberRole.PACK_ANIMAL && member.isAlive() && ids.contains(member.id())
+                    && level.getEntity(member.id()) instanceof AbstractChestedHorse mule && mule.isAlive()) {
+                mules.add(mule);
+            }
+        }
+        return mules;
+    }
+
+    /**
+     * Removes items from the cargo of a group: from the mule chests first if the group has entities, then from the
+     * rest of the cargo. The payment of the group gets smaller in proportion.
+     *
+     * @param level the level
+     * @param group the group
+     * @param item  the item id
+     * @param count the quantity
+     * @return the quantity that the cargo had
+     */
+    public static int removeCargo(ServerLevel level, MobileGroup group, String item, int count) {
+        if (!isMaterialized(group)) {
+            int before = group.cargo().total();
+            int removed = group.cargo().remove(item, count);
+            if (before > 0) {
+                group.setPayment(Math.round(group.payment() * (double) (before - removed) / before));
+            }
+            MobileGroupData.get(level.getServer()).setDirty();
+            return removed;
+        }
+        int removed = 0;
+        ResourceLocation location = ResourceLocation.tryParse(item);
+        if (location != null) {
+            Item type = BuiltInRegistries.ITEM.get(location);
+            removed = CaravanCargo.remove(mules(level, group), type, count);
+        }
+        Map<String, Integer> overflow = OVERFLOW.get(group.id());
+        if (removed < count && overflow != null) {
+            int fromOverflow = Math.min(overflow.getOrDefault(item, 0), count - removed);
+            if (fromOverflow > 0) {
+                overflow.merge(item, -fromOverflow, Integer::sum);
+                overflow.remove(item, 0);
+                removed += fromOverflow;
+            }
+        }
+        sync(level, group);
+        return removed;
     }
 
     /**
@@ -178,6 +245,7 @@ public final class GroupMaterializer {
             sync(level, group);
         }
         Set<UUID> ids = MATERIALIZED.remove(group.id());
+        OVERFLOW.remove(group.id());
         if (ids == null) {
             return;
         }
@@ -224,7 +292,41 @@ public final class GroupMaterializer {
                 }
             }
         }
+        syncCargo(level, group, ids);
         MobileGroupData.get(level.getServer()).setDirty();
+    }
+
+    /**
+     * Copies the content of the mule chests to the cargo. When the cargo gets smaller, the payment of the group gets
+     * smaller in proportion. If the entity of a living mule is not loaded, the cargo does not change.
+     */
+    private static void syncCargo(ServerLevel level, MobileGroup group, Set<UUID> ids) {
+        Map<String, Integer> overflow = OVERFLOW.get(group.id());
+        if (overflow == null) {
+            return;
+        }
+        Map<String, Integer> cargo = new TreeMap<>(overflow);
+        for (GroupMember member : group.members()) {
+            if (member.role() != MemberRole.PACK_ANIMAL || !member.isAlive() || !ids.contains(member.id())) {
+                continue;
+            }
+            if (!(level.getEntity(member.id()) instanceof AbstractChestedHorse mule) || !mule.isAlive()) {
+                return;
+            }
+            CaravanCargo.contents(mule).forEach((item, count) -> cargo.merge(item, count, Integer::sum));
+        }
+        if (cargo.equals(group.cargo().asMap())) {
+            return;
+        }
+        int before = group.cargo().total();
+        for (String item : new ArrayList<>(group.cargo().asMap().keySet())) {
+            group.cargo().set(item, 0);
+        }
+        cargo.forEach((item, count) -> group.cargo().set(item, count));
+        int after = group.cargo().total();
+        if (before > 0 && after < before) {
+            group.setPayment(Math.round(group.payment() * (double) after / before));
+        }
     }
 
     /** An entity of a group with no entities does not join the level. */
@@ -288,11 +390,13 @@ public final class GroupMaterializer {
             }
         }
         MATERIALIZED.clear();
+        OVERFLOW.clear();
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
         MATERIALIZED.clear();
         KEPT.clear();
+        OVERFLOW.clear();
     }
 
     /** The id of the group of an entity, or null. */
