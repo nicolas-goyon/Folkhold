@@ -110,6 +110,18 @@ public final class CaravanCargo {
         return removed;
     }
 
+    /**
+     * Removes all items from the chest of a mule.
+     *
+     * @param mule the mule
+     */
+    public static void clear(AbstractChestedHorse mule) {
+        SimpleContainer inventory = mule.inventory;
+        for (int i = chestStart(mule); i < inventory.getContainerSize(); i++) {
+            inventory.setItem(i, ItemStack.EMPTY);
+        }
+    }
+
     /** Gives a chest to a mule and makes its inventory with the chest slots. */
     public static void equipChest(AbstractChestedHorse mule) {
         mule.setChest(true);

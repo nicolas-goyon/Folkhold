@@ -10,6 +10,7 @@ import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.LookAtTradingPlayerGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.TradeWithPlayerGoal;
+import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
 import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.trading.MerchantOffers;
@@ -22,11 +23,18 @@ import net.minecraft.world.level.Level;
  * <ul>
  *   <li>It has no offers of the wandering trader.</li>
  *   <li>It does not drink potions, does not despawn and does not walk away from its route.</li>
+ *   <li>After the arrival of its group, it walks near the destination heart (its restriction area, see
+ *       {@link io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer#release}).</li>
  * </ul>
  */
 public class CaravanMerchant extends WanderingTrader {
-    /** Speed factor of the merchant on the route. */
-    private static final double ROUTE_SPEED = 0.6;
+    /**
+     * Speed factor of the merchant on the route. The merchant is a little slower than the guards and the mules of
+     * its group, so they can follow it.
+     */
+    public static final double ROUTE_SPEED = 0.45;
+    /** Speed factor of the merchant when it walks in a village after the arrival. */
+    private static final double STROLL_SPEED = 0.4;
 
     public CaravanMerchant(EntityType<? extends WanderingTrader> type, Level level) {
         super(type, level);
@@ -46,6 +54,12 @@ public class CaravanMerchant extends WanderingTrader {
         goalSelector.addGoal(1, new TradeWithPlayerGoal(this));
         goalSelector.addGoal(1, new LookAtTradingPlayerGoal(this));
         goalSelector.addGoal(2, new RouteWalkGoal(this, ROUTE_SPEED));
+        goalSelector.addGoal(7, new WaterAvoidingRandomStrollGoal(this, STROLL_SPEED) {
+            @Override
+            public boolean canUse() {
+                return hasRestriction() && super.canUse();
+            }
+        });
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
     }
