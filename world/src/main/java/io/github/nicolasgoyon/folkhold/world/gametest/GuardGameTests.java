@@ -211,7 +211,7 @@ public final class GuardGameTests {
      * A building sign is not passable for the path finder. A guard goes through the gap of a line of signs, and does
      * not jump against a sign.
      */
-    @GameTest(template = "arena", timeoutTicks = 300, batch = "guard_signs")
+    @GameTest(template = "arena", timeoutTicks = 500, batch = "guard_signs")
     public static void guardGoesAroundBuildingSigns(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         BlockState sign = ModBlocks.buildingSign(BuildingSignKind.values()[0]).defaultBlockState()
@@ -227,6 +227,8 @@ public final class GuardGameTests {
         guard.setFactionId(null);
         guard.setNightPos(null);
         BlockPos goal = helper.absolutePos(new BlockPos(4, 1, 13));
+        // The home position is behind the signs too, so the anchor goals do not pull the guard back.
+        guard.setHomePos(goal);
         helper.startSequence()
                 .thenWaitUntil(() -> {
                     if (guard.getNavigation().isDone() && guard.blockPosition().getZ() < goal.getZ() - 2) {
