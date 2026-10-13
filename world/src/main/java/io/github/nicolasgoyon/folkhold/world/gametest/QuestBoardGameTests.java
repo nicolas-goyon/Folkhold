@@ -78,7 +78,10 @@ public final class QuestBoardGameTests {
         registry.removeFinished();
     }
 
-    /** The center piece of the village has one complete quest board: 9 parts, one of them renders the model. */
+    /**
+     * The center piece of the village has one complete quest board: 9 parts, one of them renders the model. The
+     * board is at the west end of the east-west path and faces east, to the plaza.
+     */
     @GameTest(template = "village/center", timeoutTicks = 20, batch = "quest_board_center")
     public static void centerHasTheQuestBoard(GameTestHelper helper) {
         AABB bounds = helper.getBounds();
@@ -101,6 +104,17 @@ public final class QuestBoardGameTests {
         helper.assertTrue(isComplete(helper, QuestBoardBlock.basePos(render, helper.getLevel().getBlockState(render)),
                 helper.getLevel().getBlockState(render).getValue(QuestBoardBlock.FACING)),
                 "The parts of the board must be at their positions");
+        BlockPos heart = null;
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
+                BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
+            if (helper.getLevel().getBlockState(pos).is(ModBlocks.VILLAGE_HEART.get())) {
+                heart = pos.immutable();
+            }
+        }
+        helper.assertTrue(heart != null && render.getZ() == heart.getZ() && render.getX() < heart.getX() - 10,
+                "The board must be at the west end of the east-west path: " + render + ", heart " + heart);
+        helper.assertTrue(helper.getLevel().getBlockState(render).getValue(QuestBoardBlock.FACING) == Direction.EAST,
+                "The board must face the plaza");
         helper.succeed();
     }
 
@@ -110,7 +124,7 @@ public final class QuestBoardGameTests {
         for (int column = 0; column < QuestBoardBlock.SIZE; column++) {
             for (int row = 0; row < QuestBoardBlock.SIZE; row++) {
                 BlockPos pos = QuestBoardBlock.partPos(base, facing, column, row);
-                if (!helper.getLevel().getBlockState(pos).equals(block.part(facing, column, row))) {
+                if (!block.isPart(helper.getLevel().getBlockState(pos), facing, column, row)) {
                     return false;
                 }
             }
@@ -323,5 +337,49 @@ public final class QuestBoardGameTests {
         helper.assertTrue(first.tier().equals("neutral") && first.maxActive() == WorldConfig.QUEST_MAX_ACTIVE.get(),
                 "The board gives the tier of the player and the maximum of active quests");
         helper.succeed();
+    }
+
+    /**
+     * The papers of the board follow the number of offers of the village, up to the maximum. The test waits 2 ticks:
+     * the heart registers itself at its first tick.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "quest_board_papers")
+    public static void papersFollowTheOffers(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement village = village(helper);
+        QuestBoardBlock block = ModBlocks.QUEST_BOARD.get();
+        BlockPos middle = QuestBoardBlock.partPos(helper.absolutePos(BOARD), Direction.SOUTH, 1, 1);
+        Quests registry = QuestData.get(server).quests();
+        clear(server, List.copyOf(registry.offers(village.id())));
+        helper.startSequence()
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    List<Quest> offers = new ArrayList<>();
+                    offers.add(offer(server, village, ReputationTier.NEUTRAL));
+                    offers.add(offer(server, village, ReputationTier.NEUTRAL));
+                    update(helper, middle);
+                    int two = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
+                    for (int i = 0; i < QuestBoardBlock.MAX_PAPERS + 3; i++) {
+                        offers.add(offer(server, village, ReputationTier.NEUTRAL));
+                    }
+                    update(helper, middle);
+                    int many = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
+                    clear(server, offers);
+                    update(helper, middle);
+                    int none = helper.getLevel().getBlockState(middle).getValue(QuestBoardBlock.PAPERS);
+
+                    helper.assertTrue(two == 2, "Two offers must give two papers, not " + two);
+                    helper.assertTrue(many == QuestBoardBlock.MAX_PAPERS,
+                            "Many offers must give the maximum, not " + many);
+                    helper.assertTrue(none == 0, "No offer must give no paper, not " + none);
+                    helper.assertTrue(block.isPart(helper.getLevel().getBlockState(middle), Direction.SOUTH, 1, 1),
+                            "The board must stay complete");
+                })
+                .thenSucceed();
+    }
+
+    /** Runs the scheduled tick of the middle part of a board now. */
+    private static void update(GameTestHelper helper, BlockPos middle) {
+        helper.getLevel().getBlockState(middle).tick(helper.getLevel(), middle, helper.getLevel().getRandom());
     }
 }

@@ -2,11 +2,14 @@
 """Generate the models and the block states of the quest board.
 
 Output (in world/src/main/resources/assets/folkhold_world):
-- models/block/quest_board.json: the complete board. The part in the middle (column 1, row 1) renders it, so the
-  coordinates go from -16 to 32: 3 blocks wide and 3 blocks high around this part. The front faces north.
+- models/block/quest_board.json: the board with no paper. The part in the middle (column 1, row 1) renders it, so
+  the coordinates go from -16 to 32: 3 blocks wide and 3 blocks high around this part. The front faces north.
+- models/block/quest_board_paper_<n>.json: paper n (1 to PAPERS), with its pin. The block state adds the papers 1
+  to "papers" on the board: one paper for each offer of the village, in a fixed order.
 - models/block/quest_board_part.json: the other parts. No elements, only the particle texture.
-- models/item/quest_board.json: the complete board, small in the hand and in the inventory.
-- blockstates/quest_board.json: one variant for each direction, column and row.
+- models/block/quest_board_full.json and models/item/quest_board.json: the board with all the papers, small in the
+  hand and in the inventory.
+- blockstates/quest_board.json: a multipart block state.
 
     python3 tools/models/quest_board.py
 """
@@ -26,7 +29,20 @@ TEXTURES = {
     "paper": "minecraft:item/paper",
     "map": "minecraft:item/map",
     "filled_map": "minecraft:item/filled_map",
+    "pin": "minecraft:block/red_terracotta",
 }
+
+# The papers on the front, in the order of the offers: x, y, width, height, depth, texture. The first papers are in
+# the middle of the board, so a board with few offers looks complete.
+PAPERS = [
+    (4, 7, 8, 9, 6.8, "paper"),
+    (-7, 6, 8, 9, 6.7, "map"),
+    (15, 6, 8, 9, 6.7, "paper"),
+    (9, -3, 7, 8, 6.6, "filled_map"),
+    (0, -3, 7, 8, 6.8, "paper"),
+    (18, -2, 7, 7, 6.8, "paper"),
+    (-9, -2, 7, 7, 6.6, "map"),
+]
 
 FACES = ("north", "south", "east", "west", "up", "down")
 
@@ -59,8 +75,18 @@ def sheet(x, y, width, height, depth, texture):
     return element
 
 
-def board_model():
-    elements = [
+def paper(x, y, width, height, depth, texture):
+    """A paper on the front of the board, and a pin at its top."""
+    pin_x = x + width / 2 - 0.5
+    return [
+        sheet(x, y, width, height, depth, texture),
+        box((pin_x, y + height - 1.5, depth - 0.4), (pin_x + 1, y + height - 0.5, depth), "pin",
+            ("north", "east", "west", "up", "down")),
+    ]
+
+
+def board_elements():
+    return [
         # Two posts.
         box((-14, -16, 6), (-11, 21, 10), "post"),
         box((27, -16, 6), (30, 21, 10), "post"),
@@ -72,55 +98,61 @@ def board_model():
         box((-16, 19, 1), (32, 21, 15), "roof"),
         box((-16, 21, 3), (32, 23, 13), "roof"),
         box((-16, 23, 5), (32, 25, 11), "roof"),
-        # Papers and maps on the front.
-        sheet(-10, 7, 6, 8, 6.8, "paper"),
-        sheet(-3, 4, 10, 10, 6.7, "map"),
-        sheet(8, 8, 6, 8, 6.8, "paper"),
-        sheet(15, 2, 8, 8, 6.7, "filled_map"),
-        sheet(-9, -3, 6, 8, 6.6, "paper"),
-        sheet(4, -3, 6, 6, 6.8, "paper"),
-        sheet(12, -2, 5, 7, 6.6, "paper"),
-        sheet(20, 10, 6, 6, 6.8, "map"),
-        sheet(23, -3, 3, 4, 6.7, "paper"),
     ]
-    return {
+
+
+DISPLAY = {
+    "gui": {"rotation": [30, 225, 0], "translation": [0, -1, 0], "scale": [0.22, 0.22, 0.22]},
+    "ground": {"rotation": [0, 0, 0], "translation": [0, 2, 0], "scale": [0.12, 0.12, 0.12]},
+    "fixed": {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [0.25, 0.25, 0.25]},
+    "head": {"rotation": [0, 180, 0], "translation": [0, 10, 0], "scale": [0.3, 0.3, 0.3]},
+    "thirdperson_righthand": {"rotation": [75, 45, 0], "translation": [0, 2.5, 0], "scale": [0.15, 0.15, 0.15]},
+    "thirdperson_lefthand": {"rotation": [75, 45, 0], "translation": [0, 2.5, 0], "scale": [0.15, 0.15, 0.15]},
+    "firstperson_righthand": {"rotation": [0, 45, 0], "translation": [0, 2, 0], "scale": [0.16, 0.16, 0.16]},
+    "firstperson_lefthand": {"rotation": [0, 225, 0], "translation": [0, 2, 0], "scale": [0.16, 0.16, 0.16]},
+}
+
+
+def model(elements, display=False):
+    data = {
         "parent": "minecraft:block/block",
         "render_type": "minecraft:cutout",
         "ambientocclusion": False,
         "textures": TEXTURES,
         "elements": elements,
-        "display": {
-            "gui": {"rotation": [30, 225, 0], "translation": [0, -1, 0], "scale": [0.22, 0.22, 0.22]},
-            "ground": {"rotation": [0, 0, 0], "translation": [0, 2, 0], "scale": [0.12, 0.12, 0.12]},
-            "fixed": {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [0.25, 0.25, 0.25]},
-            "head": {"rotation": [0, 180, 0], "translation": [0, 10, 0], "scale": [0.3, 0.3, 0.3]},
-            "thirdperson_righthand": {"rotation": [75, 45, 0], "translation": [0, 2.5, 0],
-                                      "scale": [0.15, 0.15, 0.15]},
-            "thirdperson_lefthand": {"rotation": [75, 45, 0], "translation": [0, 2.5, 0],
-                                     "scale": [0.15, 0.15, 0.15]},
-            "firstperson_righthand": {"rotation": [0, 45, 0], "translation": [0, 2, 0],
-                                      "scale": [0.16, 0.16, 0.16]},
-            "firstperson_lefthand": {"rotation": [0, 225, 0], "translation": [0, 2, 0],
-                                     "scale": [0.16, 0.16, 0.16]},
-        },
     }
+    if display:
+        data["display"] = DISPLAY
+    return data
+
+
+def full_model():
+    elements = board_elements()
+    for spec in PAPERS:
+        elements += paper(*spec)
+    return model(elements, display=True)
 
 
 def block_state():
+    """Multipart: the board and its papers on the middle part, an empty model on the other parts."""
     rotations = {"north": 0, "east": 90, "south": 180, "west": 270}
-    variants = {}
-    for column in range(3):
-        for facing, rotation in rotations.items():
-            for row in range(3):
-                key = f"column={column},facing={facing},row={row}"
-                if column == 1 and row == 1:
-                    variant = {"model": f"{NS}:block/quest_board"}
-                    if rotation:
-                        variant["y"] = rotation
-                else:
-                    variant = {"model": f"{NS}:block/quest_board_part"}
-                variants[key] = variant
-    return {"variants": variants}
+    parts = []
+    for facing, rotation in rotations.items():
+        render = {"column": "1", "row": "1", "facing": facing}
+        board = {"model": f"{NS}:block/quest_board"}
+        if rotation:
+            board["y"] = rotation
+        parts.append({"when": render, "apply": board})
+        for n in range(1, len(PAPERS) + 1):
+            when = dict(render)
+            when["papers"] = "|".join(str(count) for count in range(n, len(PAPERS) + 1))
+            apply = {"model": f"{NS}:block/quest_board_paper_{n}"}
+            if rotation:
+                apply["y"] = rotation
+            parts.append({"when": when, "apply": apply})
+    parts.append({"when": {"OR": [{"column": "0|2"}, {"row": "0|2"}]},
+                  "apply": {"model": f"{NS}:block/quest_board_part"}})
+    return {"multipart": parts}
 
 
 def write(path, data):
@@ -132,9 +164,12 @@ def write(path, data):
 
 
 def main():
-    write("models/block/quest_board.json", board_model())
+    write("models/block/quest_board.json", model(board_elements()))
+    for n, spec in enumerate(PAPERS, start=1):
+        write(f"models/block/quest_board_paper_{n}.json", model(paper(*spec)))
+    write("models/block/quest_board_full.json", full_model())
     write("models/block/quest_board_part.json", {"textures": {"particle": TEXTURES["particle"]}})
-    write("models/item/quest_board.json", {"parent": f"{NS}:block/quest_board"})
+    write("models/item/quest_board.json", {"parent": f"{NS}:block/quest_board_full"})
     write("blockstates/quest_board.json", block_state())
 
 

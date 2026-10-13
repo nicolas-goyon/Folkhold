@@ -468,6 +468,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
             paintBanners();
             setChanged();
         }
+        layout.questBoards().forEach(board -> QuestBoardBlock.startUpdates(serverLevel, board));
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }

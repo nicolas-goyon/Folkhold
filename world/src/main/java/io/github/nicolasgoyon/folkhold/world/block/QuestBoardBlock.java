@@ -2,10 +2,13 @@ package io.github.nicolasgoyon.folkhold.world.block;
 
 import com.mojang.serialization.MapCodec;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
+import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -38,6 +41,10 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *       column 0 is on the right of a player who looks at the front of the board.</li>
  *   <li>The part in the middle (column 1, row 1) renders the complete model. The other parts give the collision and
  *       the click.</li>
+ *   <li>The model shows one paper for each offer of the village of the board, up to {@link #MAX_PAPERS}
+ *       ({@link #PAPERS} on the middle part). The middle part checks the offers every
+ *       {@link #UPDATE_INTERVAL} ticks with a scheduled tick. The heart of the village starts the ticks of a board
+ *       from the village structure (see {@link #startUpdates}).</li>
  *   <li>The item places the board with the clicked position as the bottom middle part (column 1, row 0), only if the
  *       9 positions are free.</li>
  *   <li>The removal of one part removes the complete board. The board drops one item.</li>
@@ -52,6 +59,12 @@ public class QuestBoardBlock extends HorizontalDirectionalBlock {
     public static final IntegerProperty ROW = IntegerProperty.create("row", 0, 2);
     /** The number of columns and of rows. */
     public static final int SIZE = 3;
+    /** The maximum number of papers on the model. */
+    public static final int MAX_PAPERS = 7;
+    /** The number of papers on the model: the number of offers of the village, up to {@link #MAX_PAPERS}. */
+    public static final IntegerProperty PAPERS = IntegerProperty.create("papers", 0, MAX_PAPERS);
+    /** The time between two checks of the offers, in ticks. */
+    public static final int UPDATE_INTERVAL = 40;
 
     private static final VoxelShape BOARD_NORTH_SOUTH = Block.box(0.0, 0.0, 6.0, 16.0, 16.0, 10.0);
     private static final VoxelShape BOARD_EAST_WEST = Block.box(6.0, 0.0, 0.0, 10.0, 16.0, 16.0);
@@ -64,7 +77,7 @@ public class QuestBoardBlock extends HorizontalDirectionalBlock {
         super(properties);
         // A board with no part values renders the complete model.
         registerDefaultState(stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(COLUMN, 1)
-                .setValue(ROW, 1));
+                .setValue(ROW, 1).setValue(PAPERS, 0));
     }
 
     @Override
@@ -74,7 +87,7 @@ public class QuestBoardBlock extends HorizontalDirectionalBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, COLUMN, ROW);
+        builder.add(FACING, COLUMN, ROW, PAPERS);
     }
 
     /**
@@ -138,9 +151,15 @@ public class QuestBoardBlock extends HorizontalDirectionalBlock {
         }
     }
 
-    /** The state of one part. */
+    /** The state of one part, with no paper. */
     public BlockState part(Direction facing, int column, int row) {
         return defaultBlockState().setValue(FACING, facing).setValue(COLUMN, column).setValue(ROW, row);
+    }
+
+    /** True if the state is the part of a board at this column and row, with any number of papers. */
+    public boolean isPart(BlockState state, Direction facing, int column, int row) {
+        return state.is(this) && state.getValue(FACING) == facing && state.getValue(COLUMN) == column
+                && state.getValue(ROW) == row;
     }
 
     /** True if the state is the part in the middle, which renders the complete model. */
@@ -199,7 +218,7 @@ public class QuestBoardBlock extends HorizontalDirectionalBlock {
             for (int column = 0; column < SIZE; column++) {
                 for (int row = 0; row < SIZE; row++) {
                     BlockPos other = partPos(base, facing, column, row);
-                    if (!other.equals(pos) && level.getBlockState(other).equals(part(facing, column, row))) {
+                    if (!other.equals(pos) && isPart(level.getBlockState(other), facing, column, row)) {
                         level.setBlock(other, Blocks.AIR.defaultBlockState(),
                                 Block.UPDATE_ALL | Block.UPDATE_SUPPRESS_DROPS);
                     }
@@ -213,6 +232,66 @@ public class QuestBoardBlock extends HorizontalDirectionalBlock {
     @Override
     protected boolean isPathfindable(BlockState state, PathComputationType type) {
         return false;
+    }
+
+    /** The middle part of a new board starts its updates. */
+    @Override
+    protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+        super.onPlace(state, level, pos, oldState, movedByPiston);
+        if (!level.isClientSide() && isRenderPart(state) && !oldState.is(this)) {
+            level.scheduleTick(pos, this, 1);
+        }
+    }
+
+    /**
+     * Starts the updates of the papers of a board, if its middle part has no scheduled tick. The heart calls it for
+     * the boards of the village structure: a structure does not call {@link #onPlace}.
+     *
+     * @param level the level
+     * @param pos   a position of a part of the board
+     */
+    public static void startUpdates(ServerLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof QuestBoardBlock block)) {
+            return;
+        }
+        BlockPos middle = partPos(basePos(pos, state), state.getValue(FACING), 1, 1);
+        if (isRenderPartAt(level, middle) && !level.getBlockTicks().hasScheduledTick(middle, block)) {
+            level.scheduleTick(middle, block, 1);
+        }
+    }
+
+    private static boolean isRenderPartAt(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return state.getBlock() instanceof QuestBoardBlock && isRenderPart(state);
+    }
+
+    /** The middle part shows the offers of the village of the board, then checks them again later. */
+    @Override
+    protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        if (!isRenderPart(state)) {
+            return;
+        }
+        int papers = papers(level, pos);
+        if (state.getValue(PAPERS) != papers) {
+            level.setBlock(pos, state.setValue(PAPERS, papers), Block.UPDATE_CLIENTS);
+        }
+        level.scheduleTick(pos, this, UPDATE_INTERVAL);
+    }
+
+    /**
+     * The number of papers of a board: the number of offers of the village near the board, up to
+     * {@link #MAX_PAPERS}. A board out of an active village has no paper.
+     *
+     * @param level the level
+     * @param pos   the position of the board
+     * @return the number of papers
+     */
+    public static int papers(ServerLevel level, BlockPos pos) {
+        return QuestBoards.villageAt(level, pos)
+                .map(settlement -> QuestData.get(level.getServer()).quests().offers(settlement.id()).size())
+                .map(count -> Math.min(MAX_PAPERS, count))
+                .orElse(0);
     }
 
     @Override

@@ -1,0 +1,100 @@
+{
+  "parent": "minecraft:block/block",
+  "render_type": "minecraft:cutout",
+  "ambientocclusion": false,
+  "textures": {
+    "particle": "minecraft:block/spruce_planks",
+    "post": "minecraft:block/stripped_spruce_log",
+    "beam": "minecraft:block/spruce_planks",
+    "board": "minecraft:block/birch_planks",
+    "roof": "minecraft:block/dark_oak_planks",
+    "paper": "minecraft:item/paper",
+    "map": "minecraft:item/map",
+    "filled_map": "minecraft:item/filled_map",
+    "pin": "minecraft:block/red_terracotta"
+  },
+  "elements": [
+    {
+      "from": [
+        4,
+        7,
+        6.8
+      ],
+      "to": [
+        12,
+        16,
+        6.8999999999999995
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#paper"
+        }
+      }
+    },
+    {
+      "from": [
+        7.5,
+        14.5,
+        6.3999999999999995
+      ],
+      "to": [
+        8.5,
+        15.5,
+        6.8
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            1.0
+          ],
+          "texture": "#pin"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            0.4,
+            1.0
+          ],
+          "texture": "#pin"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            0.4,
+            1.0
+          ],
+          "texture": "#pin"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            0.4
+          ],
+          "texture": "#pin"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            1.0,
+            0.4
+          ],
+          "texture": "#pin"
+        }
+      }
+    }
+  ]
+}
