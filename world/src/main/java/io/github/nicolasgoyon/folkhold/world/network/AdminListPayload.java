@@ -34,9 +34,11 @@ public record AdminListPayload(List<Summary> settlements) implements CustomPacke
      * @param z          block Z
      * @param population the population
      * @param distance   the horizontal distance to the player, in blocks
+     * @param generated  true if the village is in the world: its heart exists. A settlement of the discovery exists
+     *                   only in the simulation until the game generates its chunks.
      */
     public record Summary(String id, String name, Component faction, int level, Component tier, boolean active, int x,
-            int z, int population, int distance) {
+            int z, int population, int distance, boolean generated) {
 
         static void write(RegistryFriendlyByteBuf buf, Summary summary) {
             buf.writeUtf(summary.id);
@@ -49,12 +51,13 @@ public record AdminListPayload(List<Summary> settlements) implements CustomPacke
             buf.writeVarInt(summary.z);
             buf.writeVarInt(summary.population);
             buf.writeVarInt(summary.distance);
+            buf.writeBoolean(summary.generated);
         }
 
         static Summary read(RegistryFriendlyByteBuf buf) {
             return new Summary(buf.readUtf(), buf.readUtf(), ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf),
                     buf.readVarInt(), ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf), buf.readBoolean(),
-                    buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
+                    buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean());
         }
     }
 

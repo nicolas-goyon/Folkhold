@@ -28,10 +28,12 @@ import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import javax.annotation.Nullable;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -40,10 +42,11 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * {@link io.github.nicolasgoyon.folkhold.world.admin.AdminActions}). The command {@code /folkhold admin} opens it.
  *
  * <ul>
- *   <li>Header: refresh, the simulation menu (one tick or one cycle for all settlements), and the caravans and
- *       quests screen.</li>
+ *   <li>Header: refresh, the simulation menu (one tick or one cycle for all settlements, the discovery of the
+ *       villages around the operator), and the caravans and quests screen.</li>
  *   <li>Left: the settlements. A text filter (name, id or faction) and three chips (state, level range, sort order)
- *       select them. A click on a settlement shows its details.</li>
+ *       select them. A click on a settlement shows its details. The name of a settlement that is not generated (it
+ *       exists only in the simulation) is in italics.</li>
  *   <li>Right: the selected settlement. Its badges (level, state, alert), the action menus (village, economy,
  *       garrison, world), the teleport button, and its rows in two columns with the largest stocks.</li>
  *   <li>The status line shows the result of each action.</li>
@@ -66,10 +69,15 @@ public class AdminScreen extends UiScreen {
 
     /** Filter on the state of the settlements. */
     private enum StateFilter {
-        ALL, ACTIVE, RUINS;
+        ALL, ACTIVE, RUINS, NOT_GENERATED;
 
         boolean accepts(Summary summary) {
-            return this == ALL || (this == ACTIVE) == summary.active();
+            return switch (this) {
+                case ALL -> true;
+                case ACTIVE -> summary.active();
+                case RUINS -> !summary.active();
+                case NOT_GENERATED -> !summary.generated();
+            };
         }
     }
 
@@ -236,7 +244,9 @@ public class AdminScreen extends UiScreen {
             UiMenu.open(this, rectOf(button), simulation, List.of(
                     UiMenu.Action.of(Component.translatable(KEY + "action.tick_all"), () -> send("tick_all", "", 0)),
                     UiMenu.Action.of(Component.translatable(KEY + "action.cycle_all"),
-                            () -> send("cycle_all", "", 0))));
+                            () -> send("cycle_all", "", 0)),
+                    new UiMenu.Separator(),
+                    UiMenu.Action.of(Component.translatable(KEY + "action.discover"), () -> send("discover", "", 0))));
         });
         x -= simulationButton.getWidth() + UiTheme.GAP;
         Component refresh = compact ? Component.literal("⟳") : Component.translatable(KEY + "action.refresh");
@@ -416,8 +426,12 @@ public class AdminScreen extends UiScreen {
             Component info = Component.translatable(KEY + "entry", item.level(), distance(item.distance()));
             int infoWidth = UiText.drawRight(graphics, font, info, text.right(), y, text.width() / 2,
                     UiTheme.TEXT_MUTED);
-            Component name = item.active() ? Component.literal(item.name())
+            MutableComponent name = item.active() ? Component.literal(item.name())
                     : Component.translatable(KEY + "ruins_suffix", item.name());
+            if (!item.generated()) {
+                // A settlement of the discovery: it exists only in the simulation.
+                name.withStyle(ChatFormatting.ITALIC);
+            }
             int color = !item.active() ? UiTheme.TEXT_FAINT : selected ? UiTheme.GOLD : UiTheme.TEXT;
             UiText.draw(graphics, font, name, text.x(), y, text.width() - infoWidth - UiTheme.PADDING, color);
         }
@@ -637,6 +651,10 @@ public class AdminScreen extends UiScreen {
         tones.add(UiTone.GOLD);
         texts.add(Component.translatable(KEY + "state." + (shown.active() ? "active" : "ruins")));
         tones.add(shown.active() ? UiTone.GOOD : UiTone.MUTED);
+        if (!shown.hasY()) {
+            texts.add(Component.translatable(KEY + "badge.not_generated"));
+            tones.add(UiTone.INFO);
+        }
         if (shown.heartLoaded()) {
             String[] states = {"calm", "alert", "assault"};
             int alert = Math.max(0, Math.min(states.length - 1, shown.alert()));

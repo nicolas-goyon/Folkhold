@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -35,7 +36,10 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * start in this chunk (biome and terrain), as the {@code /locate} command does. It does not generate chunks.
  *
  * <p>The discovery checks each region once and saves the result. Around each player and around the world spawn,
- * it puts the regions that it did not check in a queue. Each server tick checks a small number of regions.
+ * it puts the regions that it did not check in a queue. Each server tick checks a small number of regions. The
+ * simulation runs on the discovered settlements, so the world around the players changes with no visit.
+ *
+ * <p>An operator can check all the regions around a position now ({@link #discoverAround}).
  */
 public final class SettlementDiscovery {
     /** The structure set of the faction villages. */
@@ -78,24 +82,69 @@ public final class SettlementDiscovery {
 
     /** Puts the regions in the discovery radius around a position in the queue, if they are not checked. */
     private static void enqueueAround(ServerLevel level, BlockPos center) {
+        SettlementData data = SettlementData.get(level.getServer());
+        for (RegionPos region : regionsAround(level, center)) {
+            if (!data.isRegionChecked(region.x(), region.z()) && QUEUED.add(region)) {
+                QUEUE.add(region);
+            }
+        }
+    }
+
+    /** The placement regions in the discovery radius around a position. */
+    private static List<RegionPos> regionsAround(ServerLevel level, BlockPos center) {
         Optional<RandomSpreadStructurePlacement> placement = placement(level);
         if (placement.isEmpty()) {
-            return;
+            return List.of();
         }
         int spacing = placement.get().spacing();
         int radiusChunks = WorldConfig.DISCOVERY_RADIUS.get() >> 4;
         ChunkPos chunk = new ChunkPos(center);
         RegionPos min = RegionPos.ofChunk(chunk.x - radiusChunks, chunk.z - radiusChunks, spacing);
         RegionPos max = RegionPos.ofChunk(chunk.x + radiusChunks, chunk.z + radiusChunks, spacing);
-        SettlementData data = SettlementData.get(level.getServer());
+        List<RegionPos> regions = new ArrayList<>();
         for (int x = min.x(); x <= max.x(); x++) {
             for (int z = min.z(); z <= max.z(); z++) {
-                RegionPos region = new RegionPos(x, z);
-                if (!data.isRegionChecked(x, z) && QUEUED.add(region)) {
-                    QUEUE.add(region);
-                }
+                regions.add(new RegionPos(x, z));
             }
         }
+        return regions;
+    }
+
+    /**
+     * The result of a discovery around a position.
+     *
+     * @param inRadius the active settlements in the discovery radius
+     * @param found    the settlements that the discovery added
+     * @param radius   the discovery radius, in blocks
+     */
+    public record Discovery(int inRadius, int found, int radius) {
+    }
+
+    /**
+     * Checks now all the regions in the discovery radius around a position that the discovery did not check.
+     * The check of a region can take some milliseconds: an operator action calls it, not the game.
+     *
+     * @param level  the Overworld
+     * @param center the position
+     * @return the settlements in the radius and the new settlements
+     */
+    public static Discovery discoverAround(ServerLevel level, BlockPos center) {
+        SettlementData data = SettlementData.get(level.getServer());
+        int before = data.registry().all().size();
+        for (RegionPos region : regionsAround(level, center)) {
+            if (!data.isRegionChecked(region.x(), region.z())) {
+                QUEUED.remove(region);
+                QUEUE.remove(region);
+                checkRegion(level, region);
+            }
+        }
+        int radius = WorldConfig.DISCOVERY_RADIUS.get();
+        long radiusSquared = (long) radius * radius;
+        int inRadius = (int) data.registry().all().stream()
+                .filter(Settlement::isActive)
+                .filter(settlement -> settlement.distanceSquared(center.getX(), center.getZ()) <= radiusSquared)
+                .count();
+        return new Discovery(inRadius, data.registry().all().size() - before, radius);
     }
 
     /**

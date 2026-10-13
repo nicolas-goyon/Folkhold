@@ -18,6 +18,7 @@ import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
@@ -62,6 +63,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li>{@code bells}: rings the bells of the village. The heart must be loaded.</li>
  *   <li>{@code tick_all} and {@code cycle_all}: run one abstract tick or one cycle of all active settlements and
  *       of the world systems (for example the caravans).</li>
+ *   <li>{@code discover}: checks now all the placement regions in the discovery radius around the player (see
+ *       {@link SettlementDiscovery#discoverAround}).</li>
  *   <li>{@code groups}: sends the caravans, the traveling merchants and the quests (see {@link GroupOverview}).
  *       The client shows them in a tabbed screen.</li>
  * </ul>
@@ -169,6 +172,15 @@ public final class AdminActions {
                 SimulationTicker.runWorldSystems(server, tick);
                 return Optional.of(Result.done(action, active.size()));
             }
+            case "discover" -> {
+                if (player == null) {
+                    return Optional.empty();
+                }
+                SettlementDiscovery.Discovery discovery = SettlementDiscovery.discoverAround(server.overworld(),
+                        player.blockPosition());
+                return Optional.of(Result.done("discover", discovery.inRadius(), discovery.radius(),
+                        discovery.found()));
+            }
             default -> {
                 // The other actions need a settlement.
             }
@@ -261,7 +273,8 @@ public final class AdminActions {
                         factionName(server, settlement.factionId()), settlement.level(),
                         SettlementLevels.tierName(settlement.level()), settlement.isActive(), settlement.x(),
                         settlement.z(), settlement.economy().population(),
-                        (int) Math.round(Math.sqrt(settlement.distanceSquared(pos.getX(), pos.getZ())))))
+                        (int) Math.round(Math.sqrt(settlement.distanceSquared(pos.getX(), pos.getZ()))),
+                        settlement.hasHeart()))
                 .toList();
         return new AdminListPayload(summaries);
     }
