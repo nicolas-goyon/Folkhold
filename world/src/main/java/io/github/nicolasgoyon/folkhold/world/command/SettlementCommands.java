@@ -47,7 +47,7 @@ import net.minecraft.server.MinecraftServer;
  *   <li>{@code /folkhold settlement stock <id> <item> <count>}: sets a stock.</li>
  *   <li>{@code /folkhold admin}: opens the admin screen (see {@link AdminActions}).</li>
  *   <li>{@code /folkhold sim tick [count]} and {@code /folkhold sim cycle [count]}: run the simulation now for all
- *       active settlements.</li>
+ *       active settlements and for the world systems (for example the mobile groups).</li>
  * </ul>
  */
 public final class SettlementCommands {
@@ -233,6 +233,7 @@ public final class SettlementCommands {
                     SimulationTicker.runSystems(server, settlement, tick);
                 }
             }
+            SimulationTicker.runWorldSystems(server, tick);
         }
         source.sendSuccess(() -> Component.translatable(KEY + (cycle ? "sim.cycle" : "sim.tick"), count,
                 active.size()), true);

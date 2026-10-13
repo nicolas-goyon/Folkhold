@@ -1,0 +1,76 @@
+package io.github.nicolasgoyon.folkhold.world.group;
+
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupSimulation;
+import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import java.util.Map;
+import java.util.Optional;
+import net.minecraft.server.MinecraftServer;
+
+/**
+ * The {@link io.github.nicolasgoyon.folkhold.world.settlement.WorldSystem} of the mobile groups. On each abstract
+ * tick, it moves the groups on their routes (see {@link GroupSimulation}).
+ *
+ * <ul>
+ *   <li>When a group arrives, its cargo goes into the stock of the destination settlement, up to the stock capacity
+ *       of the settlement. A destination that is not active gets nothing.</li>
+ *   <li>The cargo of a lost group does not arrive.</li>
+ * </ul>
+ */
+public final class MobileGroupSystem {
+
+    private MobileGroupSystem() {
+    }
+
+    /** Runs one abstract tick of the mobile groups. */
+    public static void tick(MinecraftServer server, TickInfo tick) {
+        MobileGroupData data = MobileGroupData.get(server);
+        if (data.groups().size() == 0) {
+            return;
+        }
+        GroupSimulation.Report report = GroupSimulation.tick(data.groups(), tick.number(),
+                WorldConfig.GROUP_BLOCKS_PER_TICK.get(), group -> false, new GroupSimulation.Listener() {
+                    @Override
+                    public void onArrival(MobileGroup group) {
+                        deliver(server, group);
+                    }
+
+                    @Override
+                    public void onLost(MobileGroup group) {
+                        FolkholdWorld.LOGGER.debug("Mobile group lost: {}", group);
+                    }
+                });
+        if (report.moved() > 0 || report.arrived() > 0 || report.lost() > 0) {
+            data.setDirty();
+        }
+    }
+
+    /**
+     * Puts the cargo of a group into the stock of its destination.
+     *
+     * @param server the server
+     * @param group  the group
+     * @return the quantity of items that the stock accepted
+     */
+    public static int deliver(MinecraftServer server, MobileGroup group) {
+        SettlementData settlements = SettlementData.get(server);
+        Optional<Settlement> destination = settlements.registry().byId(group.destinationId())
+                .filter(Settlement::isActive);
+        if (destination.isEmpty()) {
+            FolkholdWorld.LOGGER.debug("Mobile group arrived at an inactive settlement: {}", group);
+            return 0;
+        }
+        int capacity = LevelTables.get().traits(destination.get().level()).stockCapacity();
+        int accepted = 0;
+        for (Map.Entry<String, Integer> entry : group.cargo().asMap().entrySet()) {
+            accepted += destination.get().economy().stock().add(entry.getKey(), entry.getValue(), capacity);
+        }
+        settlements.setDirty();
+        return accepted;
+    }
+}
