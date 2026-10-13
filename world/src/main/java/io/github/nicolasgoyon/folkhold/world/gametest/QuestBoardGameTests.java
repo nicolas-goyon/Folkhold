@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.quest.Quests;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
@@ -15,15 +16,21 @@ import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.world.registry.ModItems;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -45,7 +52,8 @@ public final class QuestBoardGameTests {
     private static Settlement village(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
-        helper.setBlock(BOARD, ModBlocks.QUEST_BOARD.get());
+        ModBlocks.QUEST_BOARD.get().place(helper.getLevel(), helper.absolutePos(BOARD), Direction.SOUTH,
+                Block.UPDATE_ALL);
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
         heart.ensureSettlement();
         return Settlements.of(helper.getLevel().getServer(), heart).orElseThrow();
@@ -68,19 +76,137 @@ public final class QuestBoardGameTests {
         registry.removeFinished();
     }
 
-    /** The center piece of the village has one quest board. */
+    /** The center piece of the village has one complete quest board: 9 parts, one of them renders the model. */
     @GameTest(template = "village/center", timeoutTicks = 20, batch = "quest_board_center")
     public static void centerHasTheQuestBoard(GameTestHelper helper) {
         AABB bounds = helper.getBounds();
-        int boards = 0;
+        int parts = 0;
+        int renderParts = 0;
+        BlockPos render = null;
         for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
                 BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
-            if (helper.getLevel().getBlockState(pos).is(ModBlocks.QUEST_BOARD.get())) {
-                boards++;
+            BlockState state = helper.getLevel().getBlockState(pos);
+            if (state.is(ModBlocks.QUEST_BOARD.get())) {
+                parts++;
+                if (QuestBoardBlock.isRenderPart(state)) {
+                    renderParts++;
+                    render = pos.immutable();
+                }
             }
         }
-        helper.assertTrue(boards == 1, "Expected 1 quest board, found " + boards);
+        helper.assertTrue(parts == 9 && renderParts == 1,
+                "Expected 1 board of 9 parts, found " + parts + " parts and " + renderParts + " render parts");
+        helper.assertTrue(isComplete(helper, QuestBoardBlock.basePos(render, helper.getLevel().getBlockState(render)),
+                helper.getLevel().getBlockState(render).getValue(QuestBoardBlock.FACING)),
+                "The parts of the board must be at their positions");
         helper.succeed();
+    }
+
+    /** True if the 9 parts of a board are at their positions. */
+    private static boolean isComplete(GameTestHelper helper, BlockPos base, Direction facing) {
+        QuestBoardBlock block = ModBlocks.QUEST_BOARD.get();
+        for (int column = 0; column < QuestBoardBlock.SIZE; column++) {
+            for (int row = 0; row < QuestBoardBlock.SIZE; row++) {
+                BlockPos pos = QuestBoardBlock.partPos(base, facing, column, row);
+                if (!helper.getLevel().getBlockState(pos).equals(block.part(facing, column, row))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** True if no part of a board is at the positions of a board. */
+    private static boolean isRemoved(GameTestHelper helper, BlockPos base, Direction facing) {
+        for (int column = 0; column < QuestBoardBlock.SIZE; column++) {
+            for (int row = 0; row < QuestBoardBlock.SIZE; row++) {
+                if (helper.getLevel().getBlockState(QuestBoardBlock.partPos(base, facing, column, row))
+                        .is(ModBlocks.QUEST_BOARD.get())) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** The board needs 9 free positions. The 9 parts are at their positions, and each part finds the base. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "quest_board_place")
+    public static void boardHasNineParts(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockPos base = helper.absolutePos(new BlockPos(8, 1, 8));
+        QuestBoardBlock block = ModBlocks.QUEST_BOARD.get();
+        helper.setBlock(new BlockPos(7, 3, 8), Blocks.STONE);
+        boolean blocked = !QuestBoardBlock.canPlaceAt(helper.getLevel(), base, Direction.NORTH);
+        helper.setBlock(new BlockPos(7, 3, 8), Blocks.AIR);
+        boolean free = QuestBoardBlock.canPlaceAt(helper.getLevel(), base, Direction.NORTH);
+
+        block.place(helper.getLevel(), base, Direction.NORTH, Block.UPDATE_ALL);
+
+        helper.assertTrue(blocked, "A block in one of the 9 positions must stop the placement");
+        helper.assertTrue(free, "The board must go into 9 free positions");
+        helper.assertTrue(isComplete(helper, base, Direction.NORTH), "The 9 parts must be at their positions");
+        BlockPos topRight = QuestBoardBlock.partPos(base, Direction.NORTH, 2, 2);
+        helper.assertTrue(QuestBoardBlock.basePos(topRight, helper.getLevel().getBlockState(topRight)).equals(base),
+                "Each part must find the base of its board");
+        helper.assertTrue(topRight.equals(base.east().above(2)),
+                "The columns go in the clockwise direction of the board: " + topRight);
+        helper.succeed();
+    }
+
+    /**
+     * The removal of one part removes the complete board. Only the bottom middle part drops the item, so the board
+     * drops one item.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "quest_board_break")
+    public static void breakingOnePartRemovesTheBoard(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockPos base = helper.absolutePos(new BlockPos(8, 1, 8));
+        QuestBoardBlock block = ModBlocks.QUEST_BOARD.get();
+        AABB area = new AABB(base).inflate(4.0);
+
+        block.place(helper.getLevel(), base, Direction.EAST, Block.UPDATE_ALL);
+        helper.getLevel().destroyBlock(QuestBoardBlock.partPos(base, Direction.EAST, 0, 2), true);
+        boolean removedFromTop = isRemoved(helper, base, Direction.EAST);
+        int dropsFromTop = drops(helper, area);
+
+        block.place(helper.getLevel(), base, Direction.EAST, Block.UPDATE_ALL);
+        helper.getLevel().destroyBlock(base, true);
+        boolean removedFromBase = isRemoved(helper, base, Direction.EAST);
+        int dropsFromBase = drops(helper, area);
+        helper.getLevel().getEntitiesOfClass(ItemEntity.class, area).forEach(ItemEntity::discard);
+
+        helper.assertTrue(removedFromTop && removedFromBase, "The removal of one part must remove the board");
+        helper.assertTrue(dropsFromTop == 0, "A part that is not the base drops nothing: " + dropsFromTop);
+        helper.assertTrue(dropsFromBase == 1, "The base drops one board: " + dropsFromBase);
+        helper.succeed();
+    }
+
+    /** The number of quest board items on the ground in an area. */
+    private static int drops(GameTestHelper helper, AABB area) {
+        return helper.getLevel().getEntitiesOfClass(ItemEntity.class, area).stream()
+                .filter(item -> item.getItem().is(ModItems.QUEST_BOARD.get()))
+                .mapToInt(item -> item.getItem().getCount())
+                .sum();
+    }
+
+    /** Each part of the board finds the village of the board, so a click on each part opens its quests. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "quest_board_parts")
+    public static void eachPartFindsTheVillage(GameTestHelper helper) {
+        Settlement village = village(helper);
+        BlockPos base = helper.absolutePos(BOARD);
+        helper.startSequence()
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    for (int column = 0; column < QuestBoardBlock.SIZE; column++) {
+                        for (int row = 0; row < QuestBoardBlock.SIZE; row++) {
+                            BlockPos pos = QuestBoardBlock.partPos(base, Direction.SOUTH, column, row);
+                            Settlement found = QuestBoards.villageAt(helper.getLevel(), pos).orElse(null);
+                            helper.assertTrue(found != null && found.id().equals(village.id()),
+                                    "The part " + column + ", " + row + " must find the village");
+                        }
+                    }
+                })
+                .thenSucceed();
     }
 
     /**

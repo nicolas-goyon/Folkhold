@@ -1,19 +1,115 @@
 {
   "variants": {
-    "facing=north": {
+    "column=0,facing=north,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=north,row=1": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=north,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=east,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=east,row=1": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=east,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=south,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=south,row=1": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=south,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=west,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=west,row=1": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=0,facing=west,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=1,facing=north,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=1,facing=north,row=1": {
       "model": "folkhold_world:block/quest_board"
     },
-    "facing=east": {
+    "column=1,facing=north,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=1,facing=east,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=1,facing=east,row=1": {
       "model": "folkhold_world:block/quest_board",
       "y": 90
     },
-    "facing=south": {
+    "column=1,facing=east,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=1,facing=south,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=1,facing=south,row=1": {
       "model": "folkhold_world:block/quest_board",
       "y": 180
     },
-    "facing=west": {
+    "column=1,facing=south,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=1,facing=west,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=1,facing=west,row=1": {
       "model": "folkhold_world:block/quest_board",
       "y": 270
+    },
+    "column=1,facing=west,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=north,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=north,row=1": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=north,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=east,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=east,row=1": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=east,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=south,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=south,row=1": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=south,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=west,row=0": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=west,row=1": {
+      "model": "folkhold_world:block/quest_board_part"
+    },
+    "column=2,facing=west,row=2": {
+      "model": "folkhold_world:block/quest_board_part"
     }
   }
 }
