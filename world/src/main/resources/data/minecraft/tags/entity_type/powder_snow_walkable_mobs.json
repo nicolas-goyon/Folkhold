@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "folkhold_world:guard",
+    "folkhold_world:archer",
+    "folkhold_world:captain",
+    "folkhold_world:caravan_merchant"
+  ]
+}

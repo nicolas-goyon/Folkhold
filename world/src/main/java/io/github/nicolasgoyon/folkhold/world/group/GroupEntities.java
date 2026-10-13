@@ -15,11 +15,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.horse.Mule;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /**
  * Makes the entity of a member of a mobile group. The entity is not in the level yet.
@@ -97,6 +100,10 @@ public final class GroupEntities {
             }
             group.merchant().ifPresent(leader ->
                     mule.goalSelector.addGoal(2, new FollowEntityGoal(mule, leader.id(), MULE_SPEED)));
+            // Hidden leather boots: the mule walks on powder snow, as the other members of the group (entity type
+            // tag powder_snow_walkable_mobs). The model of a mule does not show them, and they do not drop.
+            mule.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.LEATHER_BOOTS));
+            mule.setDropChance(EquipmentSlot.FEET, 0.0F);
         }
         mob.setPersistenceRequired();
         mob.setHealth(Math.min(member.health(), mob.getMaxHealth()));
