@@ -68,6 +68,8 @@ public final class WorldConfig {
 
     public static final ModConfigSpec.IntValue GROUP_BLOCKS_PER_TICK;
     public static final ModConfigSpec.IntValue GROUP_MAX_GROUPS;
+    public static final ModConfigSpec.IntValue GROUP_MATERIALIZE_DISTANCE;
+    public static final ModConfigSpec.IntValue GROUP_DEMATERIALIZE_MARGIN;
     public static final ModConfigSpec.IntValue ROUTE_STEP;
     public static final ModConfigSpec.IntValue ROUTE_MAX_LENGTH;
     public static final ModConfigSpec.IntValue ROUTE_MAX_WATER_DEPTH;
@@ -343,6 +345,15 @@ public final class WorldConfig {
                         "the simulation makes no new group.")
                 .translation(KEY_PREFIX + "groupMaxGroups")
                 .defineInRange("maxGroups", 32, 0, 1024);
+        GROUP_MATERIALIZE_DISTANCE = builder
+                .comment("Horizontal distance in blocks from a player where a mobile group gets its entities.")
+                .translation(KEY_PREFIX + "groupMaterializeDistance")
+                .defineInRange("materializeDistance", 112, 32, 512);
+        GROUP_DEMATERIALIZE_MARGIN = builder
+                .comment("A mobile group loses its entities when no player is nearer than the materialization",
+                        "distance plus this margin, in blocks.")
+                .translation(KEY_PREFIX + "groupDematerializeMargin")
+                .defineInRange("dematerializeMargin", 32, 8, 256);
         ROUTE_STEP = builder
                 .comment("Size in blocks of a grid cell for the calculation of the routes between the villages.")
                 .translation(KEY_PREFIX + "routeStep")

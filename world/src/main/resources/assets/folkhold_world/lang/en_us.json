@@ -193,6 +193,8 @@
   "folkhold_world.configuration.groups": "Mobile groups",
   "folkhold_world.configuration.groupBlocksPerTick": "Movement of a group on each abstract tick (blocks)",
   "folkhold_world.configuration.groupMaxGroups": "Maximum number of mobile groups",
+  "folkhold_world.configuration.groupMaterializeDistance": "Distance of the group entities (blocks)",
+  "folkhold_world.configuration.groupDematerializeMargin": "Margin before the group entities disappear (blocks)",
   "folkhold_world.configuration.routeStep": "Grid cell of the routes (blocks)",
   "folkhold_world.configuration.routeMaxLength": "Maximum length of a route (blocks)",
   "folkhold_world.configuration.routeMaxWaterDepth": "Maximum water depth on a route (blocks)",

@@ -15,13 +15,15 @@ import net.minecraft.server.MinecraftServer;
 
 /**
  * The {@link io.github.nicolasgoyon.folkhold.world.settlement.WorldSystem} of the mobile groups. On each abstract
- * tick, it moves the groups on their routes (see {@link GroupSimulation}).
+ * tick, it moves the groups on their routes (see {@link GroupSimulation}). A group with entities does not move: its
+ * entities move (see {@link GroupMaterializer}).
  *
  * <ul>
  *   <li>When a group arrives, its cargo goes into the stock of the destination settlement, up to the stock capacity
  *       of the settlement. A destination that is not active gets nothing.</li>
  *   <li>When a caravan arrives, the destination pays the origin (see {@link VillageTrade#onArrival}).</li>
  *   <li>The cargo of a lost group does not arrive.</li>
+ *   <li>The entities of an arrived or lost group disappear.</li>
  * </ul>
  */
 public final class MobileGroupSystem {
@@ -36,9 +38,11 @@ public final class MobileGroupSystem {
             return;
         }
         GroupSimulation.Report report = GroupSimulation.tick(data.groups(), tick.number(),
-                WorldConfig.GROUP_BLOCKS_PER_TICK.get(), group -> false, new GroupSimulation.Listener() {
+                WorldConfig.GROUP_BLOCKS_PER_TICK.get(), GroupMaterializer::isMaterialized,
+                new GroupSimulation.Listener() {
                     @Override
                     public void onArrival(MobileGroup group) {
+                        GroupMaterializer.dematerialize(server.overworld(), group, false);
                         deliver(server, group);
                         if (group.kind() == GroupKind.CARAVAN) {
                             VillageTrade.onArrival(server, group);
@@ -47,6 +51,7 @@ public final class MobileGroupSystem {
 
                     @Override
                     public void onLost(MobileGroup group) {
+                        GroupMaterializer.dematerialize(server.overworld(), group, false);
                         FolkholdWorld.LOGGER.debug("Mobile group lost: {}", group);
                     }
                 });
