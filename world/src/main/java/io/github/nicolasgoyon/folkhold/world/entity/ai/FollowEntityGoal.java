@@ -14,6 +14,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
  * <ul>
  *   <li>The mob starts to follow when it is farther than the start distance. It stops at the stop distance.</li>
  *   <li>When the mob is farther than the teleport distance, it moves directly near the leader.</li>
+ *   <li>A mob in a vehicle (for example a boat) does not follow.</li>
  * </ul>
  */
 public class FollowEntityGoal extends Goal {
@@ -53,13 +54,13 @@ public class FollowEntityGoal extends Goal {
     @Override
     public boolean canUse() {
         Entity leader = leader();
-        return leader != null && mob.distanceTo(leader) > START_DISTANCE;
+        return leader != null && !mob.isPassenger() && mob.distanceTo(leader) > START_DISTANCE;
     }
 
     @Override
     public boolean canContinueToUse() {
         Entity leader = leader();
-        return leader != null && mob.distanceTo(leader) > STOP_DISTANCE;
+        return leader != null && !mob.isPassenger() && mob.distanceTo(leader) > STOP_DISTANCE;
     }
 
     @Override

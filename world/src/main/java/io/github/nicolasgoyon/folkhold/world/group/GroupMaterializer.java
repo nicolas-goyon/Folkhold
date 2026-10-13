@@ -61,6 +61,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *       does this when the chunk of one entity unloads, and when the server stops.</li>
  *   <li>A dead entity records the death of its member (see {@link MobileGroup#onMemberDied(UUID)}).</li>
  *   <li>The cargo of a caravan with entities is in the chests of its mules (see {@link CaravanCargo}).</li>
+ *   <li>On a water segment of the route, the members cross in boats (see {@link GroupBoats}).</li>
  *   <li>An entity of a group that loads from a chunk while its group has no entities does not join the level. So the
  *       entities of a group do not duplicate.</li>
  * </ul>
@@ -330,6 +331,7 @@ public final class GroupMaterializer {
      * @param group the arrived group
      */
     public static void release(ServerLevel level, MobileGroup group) {
+        GroupBoats.remove(level, group.id());
         Set<UUID> ids = MATERIALIZED.remove(group.id());
         OVERFLOW.remove(group.id());
         if (ids == null) {
@@ -393,6 +395,7 @@ public final class GroupMaterializer {
         if (writeBack) {
             sync(level, group);
         }
+        GroupBoats.remove(level, group.id());
         Set<UUID> ids = MATERIALIZED.remove(group.id());
         OVERFLOW.remove(group.id());
         if (ids == null) {
