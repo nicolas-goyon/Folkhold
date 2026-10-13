@@ -239,6 +239,10 @@ public final class MerchantGameTests {
     public static void inhabitantDoesNotTrade(GameTestHelper helper) {
         Village village = village(helper);
         ServerPlayer player = TestSupport.mockPlayer(helper);
+        // The mock player can keep the reputation of an earlier test: a neutral player can trade with a merchant.
+        ReputationData reputation = ReputationData.get(helper.getLevel().getServer());
+        reputation.get(player.getUUID()).setFaction(village.settlement().factionId(), 0);
+        reputation.get(player.getUUID()).setVillage(village.settlement().id(), 0);
         Villager inhabitant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
                 VillagerProfession.FARMER);
         Villager merchant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),

@@ -2,7 +2,6 @@ package io.github.nicolasgoyon.folkhold.world.admin;
 
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
-import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
@@ -48,7 +47,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li>{@code experience_add}: adds the value to the experience. The level changes if necessary.</li>
  *   <li>{@code cycle}: runs one economic cycle of the settlement now.</li>
  *   <li>{@code economy_reset}: removes the stock and starts the economy again (population, jobs, start stock).</li>
- *   <li>{@code ruin} and {@code restore}: change the state of the settlement.</li>
+ *   <li>{@code ruin}: destroys the settlement as in the game ({@link Settlements#ruin}), with no player as
+ *       cause.</li>
+ *   <li>{@code restore}: makes the settlement active again, with its heart and its bank
+ *       ({@link Settlements#restore}).</li>
  *   <li>{@code alert}: sets the alert state of the village heart to the {@link AlertState} with the ordinal of the
  *       value. The heart must be loaded.</li>
  *   <li>{@code bells}: rings the bells of the village. The heart must be loaded.</li>
@@ -168,10 +170,14 @@ public final class AdminActions {
                 data.setDirty();
                 return Optional.of(Component.translatable(KEY + "done.economy_reset", name));
             }
-            case "ruin", "restore" -> {
-                settlement.setState(action.equals("ruin") ? SettlementState.RUINS : SettlementState.ACTIVE);
-                data.setDirty();
-                return Optional.of(Component.translatable(KEY + "done." + action, name));
+            case "ruin" -> {
+                Settlements.ruin(server.overworld(), settlement.id(),
+                        new BlockPos(settlement.x(), settlement.heartY(), settlement.z()), null);
+                return Optional.of(Component.translatable(KEY + "done.ruin", name));
+            }
+            case "restore" -> {
+                Settlements.restore(server.overworld(), settlement);
+                return Optional.of(Component.translatable(KEY + "done.restore", name));
             }
             case "alert", "bells" -> {
                 Optional<VillageHeartBlockEntity> heart = loadedHeart(server, settlement);

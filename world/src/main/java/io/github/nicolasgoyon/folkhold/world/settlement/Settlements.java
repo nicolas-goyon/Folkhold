@@ -14,6 +14,9 @@ import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.world.village.BankChests;
+import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.Nullable;
@@ -26,6 +29,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 
@@ -202,6 +207,8 @@ public final class Settlements {
      * become unclaimed, and the simulation ignores it. The blocks of the village stay in the world.
      *
      * <ul>
+     *   <li>The stock and the share of the treasury go into the bank chests as real items
+     *       ({@link BankChests#storeInRuins}).</li>
      *   <li>The players near the village get a message.</li>
      *   <li>The player who caused the destruction loses reputation with the faction
      *       ({@link WorldConfig#REPUTATION_DESTROY_VILLAGE}).</li>
@@ -220,6 +227,7 @@ public final class Settlements {
             return;
         }
         Settlement settlement = found.get();
+        BankChests.storeInRuins(level, settlement, heartPos(settlement, pos));
         settlement.setState(SettlementState.RUINS);
         data.setDirty();
         FolkholdWorld.LOGGER.info("The settlement {} is destroyed", settlement);
@@ -238,5 +246,43 @@ public final class Settlements {
             Reputations.apply(server, cause, settlement.factionId(), settlement.id(),
                     WorldConfig.REPUTATION_DESTROY_VILLAGE.get());
         }
+    }
+
+    /**
+     * Makes a settlement in ruins active again:
+     * <ul>
+     *   <li>the settlement goes to the state {@link SettlementState#ACTIVE};</li>
+     *   <li>if its heart is not at its position, a new heart comes there, linked to the same settlement;</li>
+     *   <li>the items of the bank chests go back into the stock and the treasury
+     *       ({@link BankChests#recoverFromRuins}).</li>
+     * </ul>
+     * The garrison and the villagers come back when a player is near the heart, as in each village.
+     *
+     * @param level      the level of the village
+     * @param settlement the settlement
+     * @return the position of the heart
+     */
+    public static BlockPos restore(ServerLevel level, Settlement settlement) {
+        BlockPos surface = new BlockPos(settlement.x(), level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                settlement.x(), settlement.z()), settlement.z());
+        BlockPos heartPos = heartPos(settlement, surface);
+        if (!level.getBlockState(heartPos).is(ModBlocks.VILLAGE_HEART.get())) {
+            level.setBlock(heartPos, ModBlocks.VILLAGE_HEART.get().defaultBlockState(), Block.UPDATE_ALL);
+        }
+        settlement.setState(SettlementState.ACTIVE);
+        if (level.getBlockEntity(heartPos) instanceof VillageHeartBlockEntity heart) {
+            heart.adoptSettlement(UUID.fromString(settlement.id()), settlement.factionId(), settlement.name());
+            heart.ensureSettlement();
+            VillageHearts.register(level, heartPos);
+        }
+        BankChests.recoverFromRuins(level, settlement, heartPos);
+        SettlementData.get(level.getServer()).setDirty();
+        FolkholdWorld.LOGGER.info("The settlement {} is active again", settlement);
+        return heartPos;
+    }
+
+    /** The position of the heart of a settlement. A settlement with no known heart uses the given position. */
+    private static BlockPos heartPos(Settlement settlement, BlockPos fallback) {
+        return settlement.hasHeart() ? new BlockPos(settlement.x(), settlement.heartY(), settlement.z()) : fallback;
     }
 }

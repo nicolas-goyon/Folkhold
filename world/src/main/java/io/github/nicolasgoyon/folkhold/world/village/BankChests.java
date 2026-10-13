@@ -15,6 +15,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -29,6 +30,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Containers;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ChestMenu;
@@ -36,6 +38,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
@@ -57,10 +60,17 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * explosion can break a bank chest (for example an explosive of another mod), a chest breaks only when a player
  * caused the explosion. A creeper is not a cause. Creative and spectator players open the chests with no
  * confirmation and no pillage.
+ *
+ * <p>Ruins: when the village becomes ruins, its stock and its share of the treasury go into its bank chests as real
+ * items ({@link #storeInRuins}). With no active village, a bank chest is a normal chest: it keeps its items, and it
+ * drops them when it breaks. When the village becomes active again, the items go back into the stock and the
+ * treasury ({@link #recoverFromRuins}).
  */
 public final class BankChests {
     /** A player farther than this distance from a bank chest cannot confirm the pillage. */
     private static final double MAX_CONFIRM_DISTANCE = 8.0;
+    /** The bank chests of a village are at this vertical distance from the heart, or nearer. */
+    private static final int VERTICAL_RANGE = 32;
 
     private BankChests() {
     }
@@ -157,12 +167,15 @@ public final class BankChests {
                 settlement.name()), true);
     }
 
-    /** Fills the chest from the stocks and the treasury, then opens it for the player. */
+    /**
+     * Opens the chest for the player. In an active village, the chest shows the stocks and the treasury: the content
+     * comes from them at each opening. With no active village, the chest shows its own items.
+     */
     private static void open(ServerPlayer player, Bank bank) {
         BankChestBlockEntity chest = bank.chest();
-        chest.container().clearContent();
-        chest.snapshot().clear();
         if (bank.settlement() != null) {
+            chest.container().clearContent();
+            chest.snapshot().clear();
             List<ItemStack> stacks = contentOf(player.server, bank.settlement());
             int index = bank.heart().getLayout().bankChests().indexOf(chest.getBlockPos());
             int first = Math.max(0, index) * BankChestBlockEntity.SIZE;
@@ -236,13 +249,17 @@ public final class BankChests {
         }
         VillageHeartBlockEntity heart = heartOf(level, chest.getBlockPos());
         Optional<Settlement> settlement = heart == null ? Optional.empty()
-                : Settlements.of(level.getServer(), heart);
-        Map<String, Integer> now = count(chest);
-        if (settlement.isPresent()) {
-            applyChanges(level.getServer(), settlement.get(), chest.snapshot(), now);
+                : Settlements.of(level.getServer(), heart).filter(Settlement::isActive);
+        if (settlement.isEmpty()) {
+            // No active village: the chest is a normal chest and keeps its items.
+            chest.snapshot().clear();
+            chest.setChanged();
+            return;
         }
+        applyChanges(level.getServer(), settlement.get(), chest.snapshot(), count(chest));
         chest.snapshot().clear();
         chest.container().clearContent();
+        chest.setChanged();
     }
 
     /**
@@ -274,6 +291,132 @@ public final class BankChests {
             }
         }
         data.setDirty();
+    }
+
+    /**
+     * A bank chest is removed. With no active village, the chest drops its items. In an active village, the items
+     * of the chest are a view of the stocks, so the chest drops nothing.
+     *
+     * @param level the level
+     * @param pos   the position of the chest
+     * @param chest the chest
+     */
+    public static void onChestRemoved(ServerLevel level, BlockPos pos, BankChestBlockEntity chest) {
+        boolean active = bank(level, pos).map(bank -> bank.settlement() != null).orElse(false);
+        if (!active) {
+            Containers.dropContents(level, pos, chest.container());
+        }
+        chest.container().clearContent();
+    }
+
+    /**
+     * The village becomes ruins: its share of the treasury and its stock go into its bank chests as real items,
+     * as many as the chests can hold. The items leave the treasury and the stock. Call this method before the
+     * settlement leaves the active state (the share of the treasury depends on the active villages).
+     *
+     * @param level      the level
+     * @param settlement the settlement
+     * @param center     the position of the village heart
+     * @return the number of bank chests that got items
+     */
+    public static int storeInRuins(ServerLevel level, Settlement settlement, BlockPos center) {
+        List<BankChestBlockEntity> chests = chestsNear(level, center);
+        if (chests.isEmpty()) {
+            return 0;
+        }
+        MinecraftServer server = level.getServer();
+        SettlementData data = SettlementData.get(server);
+        List<ItemStack> treasury = new ArrayList<>();
+        addStacks(treasury, Items.EMERALD, emeraldShare(server, settlement));
+        List<ItemStack> stock = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : settlement.economy().stock().asMap().entrySet()) {
+            item(entry.getKey()).ifPresent(item -> addStacks(stock, item, entry.getValue()));
+        }
+        int used = 0;
+        int treasuryIndex = 0;
+        int stockIndex = 0;
+        for (BankChestBlockEntity chest : chests) {
+            boolean filled = false;
+            for (int slot = 0; slot < chest.container().getContainerSize(); slot++) {
+                if (!chest.container().getItem(slot).isEmpty()) {
+                    continue;
+                }
+                ItemStack stack;
+                if (treasuryIndex < treasury.size()) {
+                    stack = treasury.get(treasuryIndex++);
+                    data.addTreasury(settlement.factionId(), -stack.getCount());
+                } else if (stockIndex < stock.size()) {
+                    stack = stock.get(stockIndex++);
+                    settlement.economy().stock().remove(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                            stack.getCount());
+                } else {
+                    break;
+                }
+                chest.container().setItem(slot, stack);
+                filled = true;
+            }
+            if (filled) {
+                chest.snapshot().clear();
+                chest.setChanged();
+                used++;
+            }
+        }
+        data.setDirty();
+        return used;
+    }
+
+    /**
+     * The village becomes active again: the items of its bank chests go back into the stock (the emeralds into
+     * the treasury of the faction), and the chests become empty.
+     *
+     * @param level      the level
+     * @param settlement the settlement
+     * @param center     the position of the village heart
+     */
+    public static void recoverFromRuins(ServerLevel level, Settlement settlement, BlockPos center) {
+        SettlementData data = SettlementData.get(level.getServer());
+        for (BankChestBlockEntity chest : chestsNear(level, center)) {
+            for (int slot = 0; slot < chest.container().getContainerSize(); slot++) {
+                ItemStack stack = chest.container().getItem(slot);
+                if (stack.isEmpty()) {
+                    continue;
+                }
+                if (stack.is(Items.EMERALD)) {
+                    data.addTreasury(settlement.factionId(), stack.getCount());
+                } else {
+                    settlement.economy().stock().add(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                            stack.getCount(), Integer.MAX_VALUE);
+                }
+            }
+            chest.container().clearContent();
+            chest.snapshot().clear();
+            chest.setChanged();
+        }
+        data.setDirty();
+    }
+
+    /** The bank chests in the village radius around a position, in the loaded chunks, sorted by position. */
+    static List<BankChestBlockEntity> chestsNear(ServerLevel level, BlockPos center) {
+        int radius = WorldConfig.VILLAGE_RADIUS.get();
+        List<BankChestBlockEntity> chests = new ArrayList<>();
+        for (int chunkX = (center.getX() - radius) >> 4; chunkX <= (center.getX() + radius) >> 4; chunkX++) {
+            for (int chunkZ = (center.getZ() - radius) >> 4; chunkZ <= (center.getZ() + radius) >> 4; chunkZ++) {
+                if (!level.hasChunk(chunkX, chunkZ)) {
+                    continue;
+                }
+                for (BlockEntity entity : level.getChunk(chunkX, chunkZ).getBlockEntities().values()) {
+                    BlockPos pos = entity.getBlockPos();
+                    if (entity instanceof BankChestBlockEntity chest
+                            && Math.abs(pos.getX() - center.getX()) <= radius
+                            && Math.abs(pos.getZ() - center.getZ()) <= radius
+                            && Math.abs(pos.getY() - center.getY()) <= VERTICAL_RANGE) {
+                        chests.add(chest);
+                    }
+                }
+            }
+        }
+        chests.sort(Comparator.comparing(BlockEntity::getBlockPos));
+        return chests;
     }
 
     /** A player breaks a bank chest: a pillage. */
