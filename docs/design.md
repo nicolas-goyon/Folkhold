@@ -225,7 +225,7 @@ This section describes the physical growth (later milestone). New elements go in
 - Information for the player:
   - When the player enters the territory of a faction, a title shows the faction and the reputation tier. This is an early warning before the villages.
   - Near a village (50 blocks from the heart, configurable), the action bar shows the village name, the faction and the tier.
-  - An optional HUD (client option, off by default) shows the owner of the territory, the tier and the near village at the top right of the screen.
+  - An optional HUD panel (client option, off by default) at the top right of the screen, below the vanilla effect icons: the banner and the name of the faction that owns the territory, the tier of the player with its glyph and color, and the near village with its distance and an arrow to it.
   - The village heart opens a screen with the village information.
 
 ### Shelter at night
@@ -491,7 +491,7 @@ A quest has a giver, a success condition that the mod checks on the state of the
 
 - **Givers**: each faction village has a quest board. The captain of the village gives the same quests. The quest board is on the plaza of the village, between the heart and the south gate. It is a large notice board (3 blocks wide, about 2.5 blocks high) with two posts, a gable roof, papers and maps. A click on any part opens the quests. A captain does not give quests to a hostile player.
 - **Screen**: the offers are papers pinned on a wood board (item, what to do, kind, time, reward, the items of the player, the departure of an escort caravan). Each offer shows why the player cannot accept it: tier too low, or too many active quests. A column shows the active quests of the player: time left, progress, deliver button, abandon button (with a confirmation). The result of an action shows in the screen.
-- **Screen**: two tabs, the offers of the village and the active quests of the player, with buttons to accept and to abandon. An optional HUD (client option, off by default) shows the active quests at the top left of the screen.
+- **Screen**: two tabs, the offers of the village and the active quests of the player, with buttons to accept and to abandon. An optional HUD panel (client option, off by default) at the top left of the screen shows the active quests: the item, the items of the player for a delivery, and the time (on a red badge under 2 minutes). An escort has a tracker: the progress of the caravan, the hearts of the merchant, and a warning with the time to come back when the player is too far.
 - **Reward**: the emeralds come from the treasury of the faction of the village. An abandoned quest fails.
 
 ### Delivery

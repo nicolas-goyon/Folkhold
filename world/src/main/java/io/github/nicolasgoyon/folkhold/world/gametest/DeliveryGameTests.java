@@ -8,10 +8,12 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
+import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
 import io.github.nicolasgoyon.folkhold.world.quest.Deliveries;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
@@ -147,6 +149,28 @@ public final class DeliveryGameTests {
                 "With no bread, the delivery must show the reason: the missing items");
         helper.assertTrue(ready != null && ready.ready() && ready.blocked().isEmpty() && ready.secondsLeft() > 0,
                 "With all the bread, the delivery must be ready");
+        helper.succeed();
+    }
+
+    /** The quest HUD gets the delivery: the item, the number of items and the time before the deadline. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "delivery_hud")
+    public static void questLogGivesTheDelivery(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement village = village(helper);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        Quest quest = acceptedDelivery(server, village, player, 3);
+
+        QuestLogPayload log = QuestBoards.log(player);
+
+        server.getPlayerList().remove(player);
+        clear(server, quest);
+        QuestLogPayload.Entry entry = log.quests().stream().filter(found -> found.questId().equals(quest.id()))
+                .findFirst().orElse(null);
+        helper.assertTrue(entry != null && entry.itemId().equals(BREAD) && entry.count() == 8,
+                "The log must give the item and the number of items of the delivery");
+        helper.assertTrue(entry.escort().isEmpty() && entry.secondsLeft() > 0,
+                "A delivery has a time and no escort state");
+        helper.assertTrue(log.maxActive() == WorldConfig.QUEST_MAX_ACTIVE.get(), "The log must give the maximum");
         helper.succeed();
     }
 }

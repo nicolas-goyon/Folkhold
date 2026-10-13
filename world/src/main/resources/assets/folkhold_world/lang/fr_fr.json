@@ -134,8 +134,6 @@
   "message.folkhold_world.village_destroyed": "%s de %s est détruit.",
   "message.folkhold_world.village_entry_no_name": "Village de %s · %s (%s)",
   "message.folkhold_world.village_level": "%s, niveau %s",
-  "hud.folkhold_world.territory": "%s · %s",
-  "hud.folkhold_world.village": "Village : %s",
   "screen.folkhold_world.village_heart.unnamed": "Village",
   "screen.folkhold_world.village_heart.none": "aucune",
   "screen.folkhold_world.village_heart.village": "Village",
@@ -317,7 +315,6 @@
   "message.folkhold_world.quest_gone": "Cette quête n'est pas disponible maintenant.",
   "quest.folkhold_world.delivery": "Livrer %s × %s",
   "quest.folkhold_world.escort": "Escorter vers %s",
-  "hud.folkhold_world.quest": "%s (%s min)",
   "screen.folkhold_world.quest_board.title": "Tableau des quêtes · %s",
   "screen.folkhold_world.quest_board.offers": "Offres",
   "screen.folkhold_world.quest_board.active": "Mes quêtes",
@@ -506,5 +503,13 @@
   "screen.folkhold_world.admin.population_value": "%s / %s · %s visibles",
   "screen.folkhold_world.admin.jobs_value": "%s %% · %s métiers",
   "screen.folkhold_world.admin.stock.more": "+%s",
-  "screen.folkhold_world.admin.stock.count": "%s en stock"
+  "screen.folkhold_world.admin.stock.count": "%s en stock",
+  "hud.folkhold_world.quests.header": "QUÊTES %s / %s",
+  "hud.folkhold_world.quests.progress": "%s/%s",
+  "hud.folkhold_world.quests.blocks": "%s / %s blocs",
+  "hud.folkhold_world.quests.merchant": "Marchand %s",
+  "hud.folkhold_world.quests.too_far": "▲ Trop loin : %s m (max %s) · revenez %s",
+  "hud.folkhold_world.territory.village": "%s · %s %s",
+  "hud.folkhold_world.territory.distance.m": "%s m",
+  "hud.folkhold_world.territory.distance.km": "%s,%s km"
 }

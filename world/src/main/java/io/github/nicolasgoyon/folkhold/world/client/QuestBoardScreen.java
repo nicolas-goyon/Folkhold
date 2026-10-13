@@ -125,12 +125,7 @@ public class QuestBoardScreen extends UiScreen {
     }
 
     private ReputationTier tier() {
-        for (ReputationTier tier : ReputationTier.values()) {
-            if (tier.serializedName().equals(board.tier())) {
-                return tier;
-            }
-        }
-        return ReputationTier.NEUTRAL;
+        return ReputationTier.bySerializedName(board.tier());
     }
 
     @Override

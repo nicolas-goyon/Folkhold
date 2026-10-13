@@ -76,12 +76,7 @@ public class VillageHeartScreen extends UiScreen {
     }
 
     private ReputationTier tier() {
-        for (ReputationTier tier : ReputationTier.values()) {
-            if (tier.serializedName().equals(heart.playerTier())) {
-                return tier;
-            }
-        }
-        return ReputationTier.NEUTRAL;
+        return ReputationTier.bySerializedName(heart.playerTier());
     }
 
     private boolean hostile() {

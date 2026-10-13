@@ -18,6 +18,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
+import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
 import io.github.nicolasgoyon.folkhold.world.quest.Deliveries;
 import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
@@ -169,6 +170,40 @@ public final class EscortGameTests {
         helper.assertTrue(failed == QuestState.FAILED, "The quest must fail after the delay");
         helper.assertTrue(after == GroupState.TRAVELING && !kept, "The caravan must continue with no escort");
         helper.succeed();
+    }
+
+    /**
+     * The quest HUD gets the state of the escort: the progress on the route, the escort distance, and the time to
+     * come back when the player is too far.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "escort_hud")
+    public static void questLogGivesTheStateOfTheEscort(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement origin = village(helper);
+        MobileGroup caravan = caravan(helper, origin);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        Quest quest = acceptedEscort(helper, origin, caravan, player);
+
+        QuestLogPayload.Escort near = escortOf(QuestBoards.log(player), quest);
+        BlockPos far = helper.absolutePos(START).offset(1000, 0, 0);
+        player.teleportTo(far.getX(), far.getY(), far.getZ());
+        Escorts.update(server, helper.getLevel().getGameTime());
+        QuestLogPayload.Escort away = escortOf(QuestBoards.log(player), quest);
+
+        server.getPlayerList().remove(player);
+        clear(helper, caravan, quest);
+        helper.assertTrue(near != null && near.length() == 14 && !near.away()
+                && near.maxDistance() == WorldConfig.QUEST_ESCORT_DISTANCE.get(),
+                "The log must give the route and the escort distance");
+        helper.assertTrue(away != null && away.away() && away.distance() > away.maxDistance()
+                && away.awaySeconds() == WorldConfig.QUEST_ESCORT_AWAY_SECONDS.get(),
+                "The log must give the distance and the time to come back");
+        helper.succeed();
+    }
+
+    private static QuestLogPayload.Escort escortOf(QuestLogPayload log, Quest quest) {
+        return log.quests().stream().filter(entry -> entry.questId().equals(quest.id())).findFirst()
+                .flatMap(QuestLogPayload.Entry::escort).orElse(null);
     }
 
     /** The caravan arrives with its merchant alive: the escort is complete and the player gets the reward. */

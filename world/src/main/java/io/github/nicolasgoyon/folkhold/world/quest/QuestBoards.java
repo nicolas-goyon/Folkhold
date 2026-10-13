@@ -353,13 +353,34 @@ public final class QuestBoards {
         if (!player.connection.hasChannel(QuestLogPayload.TYPE)) {
             return;
         }
+        PacketDistributor.sendToPlayer(player, log(player));
+    }
+
+    /**
+     * The active quests of a player, for the quest HUD.
+     *
+     * @param player the player
+     * @return the payload
+     */
+    public static QuestLogPayload log(ServerPlayer player) {
         MinecraftServer server = player.server;
-        List<Component> lines = new ArrayList<>();
+        long now = server.overworld().getGameTime();
+        List<QuestLogPayload.Entry> entries = new ArrayList<>();
         for (Quest quest : QuestData.get(server).quests().active(player.getUUID())) {
-            lines.add(Component.translatable("hud.folkhold_world.quest", name(server, quest),
-                    minutesLeft(server, quest)));
+            int secondsLeft = (int) Math.max(0, (quest.deadline() - now) / TICKS_PER_SECOND);
+            if (quest.kind() == QuestKind.DELIVERY) {
+                entries.add(new QuestLogPayload.Entry(quest.id(), quest.target(),
+                        Component.translatable("quest.folkhold_world.active.delivery", quest.count(),
+                                itemName(quest.target())),
+                        quest.count(), secondsLeft, Optional.empty()));
+            } else {
+                String destination = Escorts.caravan(server, quest).map(MobileGroup::destinationId).orElse("");
+                entries.add(new QuestLogPayload.Entry(quest.id(), ESCORT_ICON,
+                        Component.translatable("quest.folkhold_world.active.escort", villageName(server, destination)),
+                        0, secondsLeft, Escorts.hudState(server, quest, player)));
+            }
         }
-        PacketDistributor.sendToPlayer(player, new QuestLogPayload(lines));
+        return new QuestLogPayload(WorldConfig.QUEST_MAX_ACTIVE.get(), entries);
     }
 
     /**
@@ -524,11 +545,6 @@ public final class QuestBoards {
         return SettlementData.get(server).registry().byId(settlementId)
                 .<Component>map(settlement -> Component.literal(settlement.name()))
                 .orElse(Component.literal("?"));
-    }
-
-    private static long minutesLeft(MinecraftServer server, Quest quest) {
-        long left = Math.max(0, quest.deadline() - server.overworld().getGameTime());
-        return (left + TICKS_PER_MINUTE - 1) / TICKS_PER_MINUTE;
     }
 
     private static void giveEmeralds(ServerPlayer player, long emeralds) {

@@ -141,19 +141,20 @@ public final class TerritoryMessages {
 
     private static TerritoryStatusPayload status(MinecraftServer server, ServerPlayer player,
             Optional<FactionSpec> territory, Optional<VillageHeartBlockEntity> village) {
+        Optional<Component> villageName = village
+                .map(VillageHeartBlockEntity::getVillageName)
+                .map(Component::literal);
+        Optional<BlockPos> villagePos = village.map(VillageHeartBlockEntity::getBlockPos);
         if (territory.isEmpty()) {
-            return new TerritoryStatusPayload(Optional.of(unclaimedName()), Optional.empty(),
-                    village.map(VillageHeartBlockEntity::getVillageName).map(Component::literal));
+            return new TerritoryStatusPayload(Optional.of(unclaimedName()), -1, Optional.empty(), villageName,
+                    villagePos);
         }
         ReputationTier tier = village
                 .filter(heart -> territory.get().id().equals(heart.getFactionId()))
                 .map(heart -> Reputations.tier(server, player, heart))
                 .orElseGet(() -> Reputations.tier(server, player, territory.get().id()));
-        Optional<Component> villageName = village
-                .map(VillageHeartBlockEntity::getVillageName)
-                .map(Component::literal);
-        return new TerritoryStatusPayload(Optional.of(FactionVisuals.name(territory.get())),
-                Optional.of(tierName(tier)), villageName);
+        return new TerritoryStatusPayload(Optional.of(FactionVisuals.name(territory.get())), territory.get().color(),
+                Optional.of(tier.serializedName()), villageName, villagePos);
     }
 
     private static Component tierName(ReputationTier tier) {
