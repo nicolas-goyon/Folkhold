@@ -25,7 +25,7 @@ class GroupSimulationTest {
     }
 
     /** Records the groups that the simulation gives to the listener. */
-    private static final class Recorder implements GroupSimulation.Listener {
+    private static class Recorder implements GroupSimulation.Listener {
         private final List<MobileGroup> arrived = new ArrayList<>();
         private final List<MobileGroup> lost = new ArrayList<>();
 
@@ -96,6 +96,28 @@ class GroupSimulationTest {
         assertEquals(100.0, stopped.progress(), EPSILON);
         assertEquals(100.0, frozen.progress(), EPSILON);
         assertEquals(2, groups.size());
+    }
+
+    @Test
+    void listenerCanKeepAGroupAtTheEndOfItsRoute() {
+        MobileGroups groups = new MobileGroups();
+        MobileGroup group = caravan("a");
+        group.setState(GroupState.TRAVELING);
+        group.setProgress(450.0);
+        groups.add(group);
+        Recorder recorder = new Recorder() {
+            @Override
+            public boolean onEndOfRoute(MobileGroup ended, long tickNumber) {
+                ended.setState(GroupState.STOPPED);
+                return false;
+            }
+        };
+
+        GroupSimulation.tick(groups, 1, 200.0, g -> false, recorder);
+
+        assertEquals(GroupState.STOPPED, group.state());
+        assertEquals(500.0, group.progress(), EPSILON);
+        assertEquals(1, groups.size(), "A kept group stays");
     }
 
     @Test

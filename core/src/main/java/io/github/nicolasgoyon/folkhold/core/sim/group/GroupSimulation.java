@@ -9,7 +9,8 @@ import java.util.function.Predicate;
  *
  * <ul>
  *   <li>A waiting group starts to travel at its departure tick.</li>
- *   <li>A traveling group moves a fixed distance on its route. At the end of the route, it arrives.</li>
+ *   <li>A traveling group moves a fixed distance on its route. At the end of the route, it arrives, or the
+ *       listener keeps it (for example a traveling merchant that stays at a village).</li>
  *   <li>A stopped group does not move.</li>
  *   <li>An abstract group has no risk. Only a death in the world makes a group lost.</li>
  *   <li>The simulation gives each arrived group and each lost group to the listener, then removes it.</li>
@@ -19,6 +20,17 @@ public final class GroupSimulation {
 
     /** Receives the groups that finish their journey. */
     public interface Listener {
+        /**
+         * Called when a traveling group is at the end of its route.
+         *
+         * @param group      the group
+         * @param tickNumber the number of the abstract tick
+         * @return true if the group arrives. False if the listener keeps the group and changes its state.
+         */
+        default boolean onEndOfRoute(MobileGroup group, long tickNumber) {
+            return true;
+        }
+
         /**
          * Called when a group arrives at its destination, before the simulation removes it.
          *
@@ -72,6 +84,10 @@ public final class GroupSimulation {
                 depart(group, tickNumber);
             } else if (advance(group, tickNumber, blocksPerTick)) {
                 moved++;
+                if (group.state() == GroupState.TRAVELING && group.progress() >= group.route().length()
+                        && listener.onEndOfRoute(group, tickNumber)) {
+                    group.setState(GroupState.ARRIVED);
+                }
             }
             if (group.isFinished()) {
                 finished.add(group);
@@ -103,9 +119,6 @@ public final class GroupSimulation {
             return false;
         }
         group.setProgress(group.progress() + blocksPerTick);
-        if (group.progress() >= group.route().length()) {
-            group.setState(GroupState.ARRIVED);
-        }
         return true;
     }
 
