@@ -44,8 +44,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *       route, the group arrives.</li>
  *   <li>Each second, the home position of the guards of a group goes to the position of its merchant.</li>
  *   <li>When no player is in the materialization distance plus a margin, the mod writes back the state of the
- *       members and removes the entities (except for a kept group, see {@link #keep(String, boolean)}). It also does this when the chunk of one entity unloads, and when the
- *       server stops.</li>
+ *       members and removes the entities (except for a kept group, see {@link #keep(String, boolean)}). It also
+ *       does this when the chunk of one entity unloads, and when the server stops.</li>
  *   <li>A dead entity records the death of its member (see {@link MobileGroup#onMemberDied(UUID)}).</li>
  *   <li>An entity of a group that loads from a chunk while its group has no entities does not join the level. So the
  *       entities of a group do not duplicate.</li>
