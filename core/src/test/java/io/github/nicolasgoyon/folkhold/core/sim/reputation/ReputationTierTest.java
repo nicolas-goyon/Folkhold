@@ -2,6 +2,8 @@ package io.github.nicolasgoyon.folkhold.core.sim.reputation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class ReputationTierTest {
@@ -22,5 +24,17 @@ class ReputationTierTest {
         }
         assertEquals(ReputationTier.NEUTRAL, ReputationTier.bySerializedName("unknown"),
                 "An unknown name must give the neutral tier");
+    }
+
+    @Test
+    void eachTierHasItsOwnGlyphAndColor() {
+        Set<String> glyphs = new HashSet<>();
+        Set<Integer> colors = new HashSet<>();
+        for (ReputationTier tier : ReputationTier.values()) {
+            glyphs.add(tier.glyph());
+            colors.add(tier.color());
+        }
+        assertEquals(ReputationTier.values().length, glyphs.size(), "Two tiers have the same glyph");
+        assertEquals(ReputationTier.values().length, colors.size(), "Two tiers have the same color");
     }
 }

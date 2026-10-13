@@ -17,6 +17,7 @@ import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Active;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Offer;
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
+import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -73,7 +74,7 @@ public final class QuestBoards {
     private static final int TEXT_GOOD = 0x9AD07E;
     private static final int TEXT_WARN = 0xE0A635;
     /** The keys of the messages of a success. */
-    private static final Set<String> GOOD_MESSAGES = Set.of("quest_accepted", "quest_completed", "quest_abandoned");
+    private static final Set<String> GOOD_MESSAGES = Set.of("quest_accepted", "quest_abandoned");
 
     /** The player of a screen action: its messages go to the status line of the screen, not to the chat. */
     @Nullable
@@ -304,7 +305,9 @@ public final class QuestBoards {
         if (player != null) {
             giveEmeralds(player, emeralds);
             Reputations.apply(server, player, quest.factionId(), quest.settlementId(), quest.rewardReputation());
-            message(player, "quest_completed", name(server, quest), emeralds);
+            notice(player, Notices.Tone.GOOD,
+                    Component.translatable("message.folkhold_world.quest_completed", name(server, quest)),
+                    Component.translatable("message.folkhold_world.quest_reward", emeralds));
             sendLog(player);
         }
         END_LISTENERS.forEach(listener -> listener.accept(server, quest));
@@ -339,7 +342,8 @@ public final class QuestBoards {
         if (quest.state() == QuestState.FAILED && quest.playerId() != null) {
             ServerPlayer player = server.getPlayerList().getPlayer(quest.playerId());
             if (player != null) {
-                message(player, "quest_failed", name(server, quest));
+                notice(player, Notices.Tone.BAD,
+                        Component.translatable("message.folkhold_world.quest_failed", name(server, quest)), null);
                 sendLog(player);
             }
         }
@@ -557,6 +561,19 @@ public final class QuestBoards {
             }
             remaining -= count;
         }
+    }
+
+    /**
+     * Sends a notice to a player: the result of a quest. During a screen action of this player, the notice goes to
+     * the status line of the screen.
+     */
+    private static void notice(ServerPlayer player, Notices.Tone tone, Component title, @Nullable Component details) {
+        if (player == capturePlayer) {
+            capturedMessage = Notices.asText(title, details);
+            capturedGood = tone == Notices.Tone.GOOD;
+            return;
+        }
+        Notices.send(player, title, details, tone);
     }
 
     /**

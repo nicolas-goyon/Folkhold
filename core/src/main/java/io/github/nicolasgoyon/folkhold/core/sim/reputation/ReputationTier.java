@@ -54,6 +54,31 @@ public enum ReputationTier {
         return this == FRIEND || this == ALLY;
     }
 
+    /**
+     * The glyph of the tier: crosses for danger, a dash for neutral, ticks and arrows for safety. A text shows the
+     * glyph with the name of the tier, so the color never gives the tier alone.
+     */
+    public String glyph() {
+        return switch (this) {
+            case SWORN_ENEMY -> "✕✕";
+            case HOSTILE -> "✕";
+            case NEUTRAL -> "–";
+            case FRIEND -> "✓";
+            case ALLY -> "⇈";
+        };
+    }
+
+    /** The RGB color of the tier for a text on a dark background: the HUD, the chat, a title, a dark panel. */
+    public int color() {
+        return switch (this) {
+            case SWORN_ENEMY -> 0xFF7A66;
+            case HOSTILE -> 0xE8846F;
+            case NEUTRAL -> 0xA89F8C;
+            case FRIEND -> 0x9AD07E;
+            case ALLY -> 0x8FC2F0;
+        };
+    }
+
     /** Lower-case name, for translation keys and save data. */
     public String serializedName() {
         return name().toLowerCase(Locale.ROOT);

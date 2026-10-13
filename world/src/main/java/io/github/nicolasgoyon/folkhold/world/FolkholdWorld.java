@@ -19,6 +19,7 @@ import io.github.nicolasgoyon.folkhold.world.group.MobileGroupSystem;
 import io.github.nicolasgoyon.folkhold.world.group.TravelingMerchants;
 import io.github.nicolasgoyon.folkhold.world.group.VillageTrade;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
+import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestSystem;
@@ -77,6 +78,8 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(TerritoryMessages::onPlayerTick);
         NeoForge.EVENT_BUS.addListener(TerritoryMessages::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(TerritoryMessages::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(Notices::onLoggedOut);
+        NeoForge.EVENT_BUS.addListener(Notices::onServerStopped);
         NeoForge.EVENT_BUS.addListener(VillageSpawnProtection::onPositionCheck);
         NeoForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> VillageHearts.clear());
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerStarted);

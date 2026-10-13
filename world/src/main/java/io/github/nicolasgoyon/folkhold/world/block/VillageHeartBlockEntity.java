@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
@@ -20,9 +21,9 @@ import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
-import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -241,7 +242,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 .min((a, b) -> Double.compare(a.distanceToSqr(player), b.distanceToSqr(player)))
                 .orElse(null);
         Component name = speaker != null ? speaker.getDisplayName() : Component.translatable("entity.folkhold_world.guard");
-        player.sendSystemMessage(Component.translatable("message.folkhold_world.warning", name));
+        Notices.send(player, Component.translatable("message.folkhold_world.warning", name),
+                Component.translatable("message.folkhold_world.warning.details"), Notices.Tone.BAD);
         if (speaker != null) {
             speaker.getLookControl().setLookAt(player);
             speaker.playSound(SoundEvents.VILLAGER_NO, 1.0F, 0.8F);
