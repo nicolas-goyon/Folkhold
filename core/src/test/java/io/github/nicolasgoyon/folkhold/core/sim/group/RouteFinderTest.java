@@ -10,7 +10,7 @@ class RouteFinderTest {
     private static final int SEA_LEVEL = 62;
     private static final int GROUND = 70;
     private static final RouteFinder.Settings SETTINGS =
-            new RouteFinder.Settings(16, 2, 2.0, 1.0, 3000.0, 20_000);
+            new RouteFinder.Settings(16, 2, 2.0, 1.0, 3000.0, 20_000, 1.0);
 
     /** Gives the floor height at a position. */
     @FunctionalInterface
@@ -89,7 +89,7 @@ class RouteFinderTest {
     void routeLongerThanTheMaximumIsNotValid() {
         assertTrue(RouteFinder.find(0, 0, 3500, 0, FLAT, SETTINGS).route().isEmpty(),
                 "The direct line is longer than the maximum");
-        RouteFinder.Settings shortMax = new RouteFinder.Settings(16, 2, 2.0, 1.0, 1100.0, 20_000);
+        RouteFinder.Settings shortMax = new RouteFinder.Settings(16, 2, 2.0, 1.0, 1100.0, 20_000, 1.0);
         assertTrue(RouteFinder.find(0, 0, 1000, 0, LAKE, shortMax).route().isEmpty(),
                 "The way around the lake is longer than the maximum");
     }
@@ -105,6 +105,21 @@ class RouteFinderTest {
         Route route = RouteFinder.find(0, 0, 1000, 0, highLake, SETTINGS).route().orElseThrow();
 
         assertTrue(route.length() > 1000.0, "The route must go around the lake");
+    }
+
+    @Test
+    void weightedHeuristicExaminesFewerCells() {
+        // Rolling hills: the slope cost makes the plain search examine many cells.
+        RouteFinder.HeightSource hills =
+                withSea((x, z) -> GROUND + (int) (20 * Math.sin(x / 40.0) * Math.cos(z / 40.0)));
+        RouteFinder.Settings weighted = new RouteFinder.Settings(16, 2, 2.0, 1.0, 3000.0, 20_000, 1.5);
+
+        RouteFinder.Result plain = RouteFinder.find(0, 0, 2000, 300, hills, SETTINGS);
+        RouteFinder.Result fast = RouteFinder.find(0, 0, 2000, 300, hills, weighted);
+
+        assertTrue(plain.route().isPresent() && fast.route().isPresent());
+        assertTrue(fast.examined() < plain.examined(),
+                "The weighted search must examine fewer cells: " + fast.examined() + " vs " + plain.examined());
     }
 
     @Test

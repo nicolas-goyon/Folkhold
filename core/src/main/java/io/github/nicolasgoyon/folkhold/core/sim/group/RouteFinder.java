@@ -14,6 +14,8 @@ import java.util.PriorityQueue;
  * <ul>
  *   <li>The grid has its origin at the start position. One cell is {@code step} blocks.</li>
  *   <li>The cost of a move is its length, plus a cost for the slope and a cost for shallow water.</li>
+ *   <li>The heuristic is the direct distance to the end, multiplied by a weight. A weight above 1 examines fewer
+ *       cells, and the route can be a little longer than the best route.</li>
  *   <li>The route does not go into water that is deeper than {@code maxWaterDepth}.</li>
  *   <li>A route that is longer than {@code maxLength} is not valid. The search also stops after
  *       {@code maxNodes} cells.</li>
@@ -58,11 +60,13 @@ public final class RouteFinder {
      * @param waterCost     extra cost for each block of distance in shallow water
      * @param maxLength     maximum length of a route in blocks
      * @param maxNodes      maximum number of cells that the search examines
+     * @param weight        weight of the heuristic (1 or more)
      */
     public record Settings(int step, int maxWaterDepth, double slopeCost, double waterCost,
-            double maxLength, int maxNodes) {
+            double maxLength, int maxNodes, double weight) {
         public Settings {
-            if (step < 1 || maxWaterDepth < 0 || slopeCost < 0 || waterCost < 0 || maxLength <= 0 || maxNodes < 1) {
+            if (step < 1 || maxWaterDepth < 0 || slopeCost < 0 || waterCost < 0 || maxLength <= 0 || maxNodes < 1
+                    || weight < 1.0) {
                 throw new IllegalArgumentException("Invalid route settings");
             }
         }
@@ -108,7 +112,7 @@ public final class RouteFinder {
         PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.estimate(), b.estimate()));
         long startKey = key(0, 0);
         bestCost.put(startKey, 0.0);
-        open.add(new Node(0, 0, 0.0, heuristic(0, 0, goalI, goalJ, step)));
+        open.add(new Node(0, 0, 0.0, settings.weight() * heuristic(0, 0, goalI, goalJ, step)));
         int examined = 0;
         while (!open.isEmpty() && examined < settings.maxNodes()) {
             Node node = open.poll();
@@ -139,7 +143,7 @@ public final class RouteFinder {
                 if (cost < bestCost.getOrDefault(neighborKey, Double.MAX_VALUE)) {
                     bestCost.put(neighborKey, cost);
                     parent.put(neighborKey, nodeKey);
-                    open.add(new Node(ni, nj, cost, cost + heuristic(ni, nj, goalI, goalJ, step)));
+                    open.add(new Node(ni, nj, cost, cost + settings.weight() * heuristic(ni, nj, goalI, goalJ, step)));
                 }
             }
         }
