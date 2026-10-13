@@ -53,6 +53,7 @@ public final class MobileGroupGameTests {
         group.setState(GroupState.STOPPED);
         group.setProgress(321.5);
         group.setDepartureTick(42);
+        group.setPayment(57);
         group.cargo().set("minecraft:bread", 17);
         group.cargo().set("minecraft:iron_ingot", 3);
         group.members().get(2).setHealth(0.0F);
@@ -70,7 +71,8 @@ public final class MobileGroupGameTests {
                 "The group must keep its kind, faction, origin and destination");
         helper.assertTrue(loaded.route().points().equals(group.route().points()), "The group must keep its route");
         helper.assertTrue(loaded.state() == GroupState.STOPPED && loaded.departureTick() == 42
-                && Math.abs(loaded.progress() - 321.5) < 1e-6, "The group must keep its state and progress");
+                && loaded.payment() == 57 && Math.abs(loaded.progress() - 321.5) < 1e-6,
+                "The group must keep its state, departure, payment and progress");
         helper.assertTrue(loaded.cargo().asMap().equals(group.cargo().asMap()), "The group must keep its cargo");
         helper.assertTrue(loaded.members().size() == 3, "The group must keep its members");
         for (int i = 0; i < 3; i++) {
