@@ -175,7 +175,7 @@ public final class VillageTrade {
     }
 
     /** The items that a settlement uses: the inputs of its jobs and the food. */
-    static Set<String> usedItems(Settlement settlement, ItemCatalog catalog) {
+    public static Set<String> usedItems(Settlement settlement, ItemCatalog catalog) {
         Set<String> items = new LinkedHashSet<>();
         for (Job job : Economies.jobs(settlement)) {
             for (Recipe.Input input : job.recipe().inputs()) {

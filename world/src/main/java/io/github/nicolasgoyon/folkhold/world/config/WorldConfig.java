@@ -82,6 +82,14 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue TRAVELING_MERCHANTS;
     public static final ModConfigSpec.IntValue TRAVELING_STAY_TICKS;
 
+    public static final ModConfigSpec.IntValue QUEST_OFFER_MINUTES;
+    public static final ModConfigSpec.IntValue QUEST_DELIVERY_MINUTES;
+    public static final ModConfigSpec.DoubleValue QUEST_DELIVERY_BONUS;
+    public static final ModConfigSpec.IntValue QUEST_DELIVERY_REPUTATION;
+    public static final ModConfigSpec.IntValue QUEST_DELIVERY_MAX_COUNT;
+    public static final ModConfigSpec.IntValue QUEST_FRIEND_REWARD;
+    public static final ModConfigSpec.IntValue QUEST_MAX_ACTIVE;
+
     public static final ModConfigSpec.DoubleValue MERCHANT_FRIEND_FACTOR;
     public static final ModConfigSpec.DoubleValue MERCHANT_ALLY_FACTOR;
     public static final ModConfigSpec.IntValue BANK_PILLAGE_VALUE;
@@ -402,6 +410,39 @@ public final class WorldConfig {
                 .comment("Abstract ticks that a traveling merchant stays near a village (5 = 10 minutes).")
                 .translation(KEY_PREFIX + "travelingStayTicks")
                 .defineInRange("travelingStayTicks", 5, 1, 1000);
+        builder.pop();
+
+        builder.comment("Quests of the faction villages.")
+                .translation(KEY_PREFIX + "quests")
+                .push("quests");
+        QUEST_OFFER_MINUTES = builder
+                .comment("Minutes from the offer of a quest to the end of the offer (20 minutes = 1 game day).")
+                .translation(KEY_PREFIX + "questOfferMinutes")
+                .defineInRange("offerMinutes", 40, 1, 10000);
+        QUEST_DELIVERY_MINUTES = builder
+                .comment("Minutes from the acceptance of a delivery quest to its deadline.")
+                .translation(KEY_PREFIX + "questDeliveryMinutes")
+                .defineInRange("deliveryMinutes", 60, 1, 10000);
+        QUEST_DELIVERY_BONUS = builder
+                .comment("Factor of the local price of the items for the emerald reward of a delivery quest.")
+                .translation(KEY_PREFIX + "questDeliveryBonus")
+                .defineInRange("deliveryBonus", 1.5, 0.1, 10.0);
+        QUEST_DELIVERY_REPUTATION = builder
+                .comment("Reputation reward of a delivery quest.")
+                .translation(KEY_PREFIX + "questDeliveryReputation")
+                .defineInRange("deliveryReputation", 20, 0, 1000);
+        QUEST_DELIVERY_MAX_COUNT = builder
+                .comment("Maximum quantity of items of a delivery quest.")
+                .translation(KEY_PREFIX + "questDeliveryMaxCount")
+                .defineInRange("deliveryMaxCount", 32, 1, 640);
+        QUEST_FRIEND_REWARD = builder
+                .comment("A quest with this reward in emeralds or more is only for the tiers friend and ally.")
+                .translation(KEY_PREFIX + "questFriendReward")
+                .defineInRange("friendReward", 20, 1, 100000);
+        QUEST_MAX_ACTIVE = builder
+                .comment("Maximum number of active quests of a player.")
+                .translation(KEY_PREFIX + "questMaxActive")
+                .defineInRange("maxActive", 3, 1, 20);
         builder.pop();
 
         builder.comment("Merchants of the faction villages.")
