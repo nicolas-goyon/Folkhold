@@ -115,6 +115,7 @@ public final class RuinsGameTests {
     }
 
     private static RuinedBank ruinedVillageWithBank(GameTestHelper helper) {
+        TestSupport.removeEarlierBankChests(helper);
         Village village = village(helper);
         helper.setBlock(CHEST, ModBlocks.BANK_CHEST.get());
         SettlementData data = SettlementData.get(helper.getLevel().getServer());
