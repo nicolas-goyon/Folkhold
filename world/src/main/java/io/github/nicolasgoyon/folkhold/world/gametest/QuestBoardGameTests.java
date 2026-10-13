@@ -224,6 +224,9 @@ public final class QuestBoardGameTests {
                 .thenIdle(2)
                 .thenExecute(() -> {
                     ServerPlayer player = TestSupport.mockPlayer(helper);
+                    // A neutral player: the start reputation of a hostile faction is below neutral.
+                    ReputationData.get(server).get(player.getUUID()).setFaction(village.factionId(), 0);
+                    ReputationData.get(server).get(player.getUUID()).setVillage(village.id(), 0);
                     Settlement found = QuestBoards.villageAt(helper.getLevel(), helper.absolutePos(BOARD))
                             .orElse(null);
                     QuestBoardPayload board = QuestBoards.board(player, village);

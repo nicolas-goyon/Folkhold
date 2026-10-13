@@ -358,7 +358,8 @@ public class QuestBoardScreen extends UiScreen {
         UiDraw.itemSlot(graphics, UiDraw.stack(offer.itemId()), rect.x() + 5, rect.y() + 6);
         int textX = rect.x() + 28;
         int textWidth = rect.right() - 5 - textX;
-        UiText.draw(graphics, font, offer.name(), textX, rect.y() + 6, textWidth, off ? UiTheme.INK_MUTED : UiTheme.INK);
+        UiText.draw(graphics, font, offer.name(), textX, rect.y() + 6, textWidth,
+                off ? UiTheme.INK_MUTED : UiTheme.INK);
         UiText.draw(graphics, font, offer.info(), textX, rect.y() + 16, textWidth, UiTheme.INK_MUTED);
         Component right = offer.progress();
         if (offer.countdown() >= 0) {
