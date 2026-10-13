@@ -22,8 +22,9 @@ import org.lwjgl.glfw.GLFW;
  * </ul>
  */
 public class UiTabs extends AbstractWidget {
-    private static final int TAB_PADDING = 6;
+    private static final int DEFAULT_PADDING = 6;
 
+    private int padding = DEFAULT_PADDING;
     private List<Component> labels;
     private int selected;
     private final IntConsumer onSelect;
@@ -41,6 +42,12 @@ public class UiTabs extends AbstractWidget {
         this.labels = List.copyOf(labels);
         this.selected = labels.isEmpty() ? 0 : Math.max(0, Math.min(selected, labels.size() - 1));
         this.onSelect = onSelect;
+    }
+
+    /** Sets the space on each side of a label, for a narrow tab bar. */
+    public UiTabs setPadding(int padding) {
+        this.padding = Math.max(1, padding);
+        return this;
     }
 
     /** The index of the selected tab. */
@@ -83,14 +90,14 @@ public class UiTabs extends AbstractWidget {
     private UiRect tab(int index, Font font) {
         int natural = 0;
         for (Component label : labels) {
-            natural += font.width(label) + 2 * TAB_PADDING;
+            natural += font.width(label) + 2 * padding;
         }
         if (natural <= width) {
             int x = getX();
             for (int i = 0; i < index; i++) {
-                x += font.width(labels.get(i)) + 2 * TAB_PADDING;
+                x += font.width(labels.get(i)) + 2 * padding;
             }
-            return new UiRect(x, getY(), font.width(labels.get(index)) + 2 * TAB_PADDING, height);
+            return new UiRect(x, getY(), font.width(labels.get(index)) + 2 * padding, height);
         }
         return new UiRect(getX(), getY(), width, height).column(index, labels.size(), 0);
     }

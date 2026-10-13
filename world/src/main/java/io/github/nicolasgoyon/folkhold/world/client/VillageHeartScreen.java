@@ -1,289 +1,462 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
-import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
-import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiButton;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiKeyValueList;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiScreen;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTabs;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
+import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.network.QuestBoardRequestPayload;
+import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload;
+import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload.Service;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
+import java.util.ArrayList;
 import java.util.List;
+import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.locale.Language;
-import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
-import org.lwjgl.glfw.GLFW;
+import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * Screen of the village heart: the village information that the server sent (see {@link VillageInfoPayload}).
+ * Screen of the village heart: the player first, then the village (see {@link VillageHeartPayload}).
  *
  * <ul>
- *   <li>A panel of fixed size, which fits in the screen at all GUI scales.</li>
- *   <li>One tab for each section of the payload. A click on a tab, or the left and right arrow keys, change the
- *       tab. The screen keeps the last tab for the next opening.</li>
- *   <li>The rows of a tab scroll with the mouse wheel. A scroll bar shows when the rows do not fit.</li>
- *   <li>A row has a label on the left and a value on the right. A value that is too long ends with "…".</li>
+ *   <li>Header: banner, village name, faction and culture, level badge, alert badge.</li>
+ *   <li>Player part, on parchment: the welcome for the tier of the player, the reputation (chip, bar, village and
+ *       faction values), "Here you can" (quests with a link to the quest board, trade, shelter, inn), and an
+ *       advice. A hostile player sees the welcome in a red band.</li>
+ *   <li>Village part, on wood: one tab for each section, with label-value rows and meters. The left and right
+ *       arrow keys change the tab. The screen keeps the last tab for the next opening.</li>
+ *   <li>A small panel shows the player part as a short list, and buttons for the village sections. A section opens
+ *       in the same panel, with a back button.</li>
  * </ul>
  */
-public class VillageHeartScreen extends Screen {
-    private static final int PANEL_WIDTH = 276;
-    private static final int MAX_PANEL_HEIGHT = 196;
-    private static final int MARGIN = 10;
-    private static final int PADDING = 8;
-    private static final int HEADER_HEIGHT = 22;
-    private static final int TAB_HEIGHT = 14;
-    private static final int TAB_GAP = 2;
-    private static final int ROW_HEIGHT = 12;
-    private static final int FOOTER_HEIGHT = 26;
-    private static final int BUTTON_WIDTH = 80;
-    private static final int BUTTON_HEIGHT = 18;
-    private static final int SCROLL_BAR_WIDTH = 3;
-    private static final int SCROLL_STEP = ROW_HEIGHT * 2;
+public class VillageHeartScreen extends UiScreen {
+    private static final String KEY = "screen.folkhold_world.village_heart.";
+    private static final int COLUMN_WIDTH = 184;
+    private static final int TALL_CARD = 52;
+    private static final int SHORT_CARD = 19;
+    private static final int CHIP_AREA = 100;
+    private static final int BAND_COLOR = 0xFF5A1E18;
+    private static final int ADVICE_BACKGROUND = 0xFFF1DCD3;
+    private static final int ADVICE_TEXT = 0xFF5A1E18;
+    private static final int ICON = 11;
 
-    private static final int FRAME_OUTER = 0xFF2B1F12;
-    private static final int FRAME_GOLD = 0xFFB8913F;
-    private static final int PANEL_COLOR = 0xF0211B14;
-    private static final int HEADER_COLOR = 0xF0302619;
-    private static final int TAB_COLOR = 0xFF1A1510;
-    private static final int TAB_HOVER_COLOR = 0xFF2A2219;
-    private static final int TAB_ACTIVE_COLOR = 0xFF3A2F21;
-    private static final int ROW_STRIPE_COLOR = 0x14FFFFFF;
-    private static final int SCROLL_TRACK_COLOR = 0x40FFFFFF;
-    private static final int SCROLL_THUMB_COLOR = 0xFFB8913F;
-    private static final int TITLE_COLOR = 0xFFFFFF;
-    private static final int TAB_TEXT_COLOR = 0x9A8F7A;
-    private static final int TAB_ACTIVE_TEXT_COLOR = 0xFFD37F;
-    private static final int LABEL_COLOR = 0xA89F8C;
-    private static final int VALUE_COLOR = 0xFFFFFF;
-    private static final int EMPTY_COLOR = 0x7A7262;
+    /** One service on the current layout, with its rectangle. */
+    private record Card(Service service, UiRect rect) {
+    }
 
-    /** The tab of the last opening. */
     private static int lastTab;
 
-    private final VillageInfoPayload info;
+    private final VillageHeartPayload heart;
     private int tab;
-    private int scroll;
-    private int left;
-    private int top;
-    private int panelHeight;
+    private boolean detailsView;
+    private final List<Card> cards = new ArrayList<>();
+    private UiRect playerRect = new UiRect(0, 0, 0, 0);
+    private UiRect overviewRect = new UiRect(0, 0, 0, 0);
 
-    public VillageHeartScreen(VillageInfoPayload info) {
-        super(info.title());
-        this.info = info;
-        this.tab = info.sections().isEmpty() ? 0 : Mth.clamp(lastTab, 0, info.sections().size() - 1);
+    public VillageHeartScreen(VillageHeartPayload heart) {
+        super(heart.title());
+        this.heart = heart;
+        this.tab = heart.sections().isEmpty() ? 0 : Mth.clamp(lastTab, 0, heart.sections().size() - 1);
     }
 
     /** Opens the screen. Called by the network handler on the client thread. */
-    public static void open(VillageInfoPayload info) {
-        Minecraft.getInstance().setScreen(new VillageHeartScreen(info));
+    public static void open(VillageHeartPayload heart) {
+        Minecraft.getInstance().setScreen(new VillageHeartScreen(heart));
     }
 
-    @Override
-    protected void init() {
-        panelHeight = Math.min(MAX_PANEL_HEIGHT, height - 2 * MARGIN);
-        left = (width - PANEL_WIDTH) / 2;
-        top = (height - panelHeight) / 2;
-        int buttonTop = top + panelHeight - FOOTER_HEIGHT + (FOOTER_HEIGHT - BUTTON_HEIGHT) / 2;
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> onClose())
-                .bounds(width / 2 - BUTTON_WIDTH / 2, buttonTop, BUTTON_WIDTH, BUTTON_HEIGHT)
-                .build());
-        setScroll(scroll);
-    }
-
-    // ------------------------------------------------------------------ layout
-
-    private int tabsTop() {
-        return top + HEADER_HEIGHT + 2;
-    }
-
-    private int contentLeft() {
-        return left + PADDING;
-    }
-
-    private int contentTop() {
-        return tabsTop() + TAB_HEIGHT + 4;
-    }
-
-    private int contentRight() {
-        return left + PANEL_WIDTH - PADDING - SCROLL_BAR_WIDTH - 2;
-    }
-
-    private int contentBottom() {
-        return top + panelHeight - FOOTER_HEIGHT;
-    }
-
-    private int tabWidth() {
-        int count = Math.max(1, info.sections().size());
-        return (PANEL_WIDTH - 2 * PADDING - (count - 1) * TAB_GAP) / count;
-    }
-
-    private int tabLeft(int index) {
-        return left + PADDING + index * (tabWidth() + TAB_GAP);
-    }
-
-    private List<Row> rows() {
-        return info.sections().isEmpty() ? List.of() : info.sections().get(tab).rows();
-    }
-
-    private int maxScroll() {
-        return Math.max(0, rows().size() * ROW_HEIGHT - (contentBottom() - contentTop()));
-    }
-
-    private void setScroll(int value) {
-        scroll = Mth.clamp(value, 0, maxScroll());
-    }
-
-    private void selectTab(int index) {
-        if (index >= 0 && index < info.sections().size() && index != tab) {
-            tab = index;
-            lastTab = index;
-            scroll = 0;
-        }
-    }
-
-    // ------------------------------------------------------------------ input
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0 && mouseY >= tabsTop() && mouseY < tabsTop() + TAB_HEIGHT) {
-            for (int i = 0; i < info.sections().size(); i++) {
-                if (mouseX >= tabLeft(i) && mouseX < tabLeft(i) + tabWidth()) {
-                    selectTab(i);
-                    return true;
-                }
+    private ReputationTier tier() {
+        for (ReputationTier tier : ReputationTier.values()) {
+            if (tier.serializedName().equals(heart.playerTier())) {
+                return tier;
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return ReputationTier.NEUTRAL;
+    }
+
+    private boolean hostile() {
+        return !heart.services().isEmpty() && tier().isHostile();
+    }
+
+    // ------------------------------------------------------------------ header
+
+    @Override
+    @Nullable
+    protected Component subtitle() {
+        boolean hasFaction = !heart.faction().getString().isEmpty();
+        boolean hasCulture = !heart.culture().getString().isEmpty();
+        if (hasFaction && hasCulture) {
+            return Component.translatable(KEY + "subtitle", heart.faction(), heart.culture());
+        }
+        return hasFaction ? heart.faction() : null;
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (maxScroll() > 0) {
-            setScroll(scroll - (int) Math.round(scrollY * SCROLL_STEP));
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    protected int bannerColor() {
+        return heart.bannerColor();
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == GLFW.GLFW_KEY_LEFT) {
-            selectTab(tab - 1);
-            return true;
+    protected List<Badge> badges() {
+        List<Badge> badges = new ArrayList<>();
+        if (heart.level() > 0) {
+            badges.add(Badge.of(Component.translatable(KEY + "level_badge", heart.level(), heart.tier()),
+                    UiTone.GOLD));
         }
-        if (keyCode == GLFW.GLFW_KEY_RIGHT) {
-            selectTab(tab + 1);
-            return true;
+        UiTone tone = switch (heart.alert()) {
+            case "assault" -> UiTone.BAD;
+            case "alert" -> UiTone.WARN;
+            default -> UiTone.GOOD;
+        };
+        badges.add(Badge.of(Component.translatable(KEY + "alert." + heart.alert()), tone));
+        return badges;
+    }
+
+    // ------------------------------------------------------------------ widgets
+
+    @Override
+    protected void initBody(UiRect body) {
+        cards.clear();
+        playerRect = new UiRect(body.x(), body.y(), 0, 0);
+        overviewRect = playerRect;
+        if (isCompact()) {
+            if (detailsView) {
+                initDetails(body.inset(UiTheme.PADDING, 4), true);
+            } else {
+                initOverview(body);
+            }
+            return;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        playerRect = body.inset(1, 0).beforeRight(COLUMN_WIDTH, 0);
+        initPlayer(playerRect);
+        initDetails(body.inset(1, 0).rightPart(COLUMN_WIDTH).inset(0, 0), false);
+    }
+
+    /** The tabs and the rows of the village sections. */
+    private void initDetails(UiRect area, boolean withBack) {
+        UiRect top = area.top(UiTheme.CONTROL);
+        UiRect tabsRect = top;
+        if (withBack) {
+            Component back = Component.translatable(KEY + "back");
+            int backWidth = font.width(back) + 12;
+            addRenderableWidget(UiButton.normal(top.left(backWidth), back, button -> {
+                detailsView = false;
+                rebuildWidgets();
+            }));
+            tabsRect = top.afterLeft(backWidth, UiTheme.GAP);
+        }
+        List<Section> sections = heart.sections();
+        if (!sections.isEmpty()) {
+            UiTabs tabs = addRenderableWidget(new UiTabs(tabsRect, sections.stream().map(Section::heading).toList(),
+                    tab, index -> {
+                        tab = index;
+                        lastTab = index;
+                        rebuildWidgets();
+                    }).setPadding(3));
+            setSectionTabs(tabs);
+        }
+        UiKeyValueList rows = addRenderableWidget(new UiKeyValueList(area.belowTop(UiTheme.CONTROL, 4)
+                .inset(withBack ? 0 : UiTheme.PADDING, 0)));
+        if (!sections.isEmpty()) {
+            rows.setItems(InfoRows.of(sections.get(tab).rows()));
+        }
+    }
+
+    /** The cards of the services, in two columns. */
+    private void initPlayer(UiRect area) {
+        UiRect inner = area.inset(7, 6);
+        int y = inner.y() + 36 + (hostile() ? 4 : 0);
+        List<Service> services = heart.services();
+        for (int i = 0; i < services.size(); i += 2) {
+            Service left = services.get(i);
+            Service right = i + 1 < services.size() ? services.get(i + 1) : null;
+            int height = Math.max(cardHeight(left), right == null ? 0 : cardHeight(right));
+            UiRect row = new UiRect(inner.x(), y, inner.width(), height);
+            addCard(left, row.column(0, 2, 4));
+            if (right != null) {
+                addCard(right, row.column(1, 2, 4));
+            }
+            y += height + 4;
+        }
+    }
+
+    private static int cardHeight(Service service) {
+        boolean extra = !service.details().getString().isEmpty() || !service.items().isEmpty()
+                || service.action() != VillageHeartPayload.ACTION_NONE;
+        return extra ? TALL_CARD : SHORT_CARD;
+    }
+
+    private void addCard(Service service, UiRect rect) {
+        cards.add(new Card(service, rect));
+        if (service.action() == VillageHeartPayload.ACTION_QUEST_BOARD
+                && service.status() != VillageHeartPayload.REFUSED) {
+            Component label = Component.translatable(KEY + "quest_board");
+            UiRect button = new UiRect(rect.x() + 5, rect.bottom() - 5 - UiTheme.CONTROL,
+                    Math.min(font.width(label) + 14, rect.width() - 10), UiTheme.CONTROL);
+            addRenderableWidget(UiButton.primary(button, label, this::openQuestBoard).onParchment());
+        }
+    }
+
+    /** The short layout: the services as a list, and buttons for the village sections. */
+    private void initOverview(UiRect body) {
+        overviewRect = body;
+        UiRect inner = body.inset(UiTheme.PADDING, 0);
+        int rowsTop = inner.y() + 32 + 12;
+        boolean questButton = false;
+        for (int i = 0; i < heart.services().size(); i++) {
+            Service service = heart.services().get(i);
+            UiRect row = new UiRect(inner.x(), rowsTop + i * 14, inner.width(), 14);
+            cards.add(new Card(service, row));
+            questButton |= service.action() == VillageHeartPayload.ACTION_QUEST_BOARD
+                    && service.status() != VillageHeartPayload.REFUSED;
+        }
+        int after = rowsTop + heart.services().size() * 14 + 4;
+        if (questButton) {
+            Component label = Component.translatable(KEY + "quest_board");
+            addRenderableWidget(UiButton.primary(new UiRect(inner.x(), after, font.width(label) + 14,
+                    UiTheme.CONTROL), label, this::openQuestBoard));
+        }
+        List<Section> sections = heart.sections();
+        if (sections.isEmpty()) {
+            return;
+        }
+        UiRect buttons = new UiRect(inner.x(), body.bottom() - 4 - UiTheme.CONTROL, inner.width(), UiTheme.CONTROL);
+        for (int i = 0; i < sections.size(); i++) {
+            int index = i;
+            addRenderableWidget(UiButton.normal(buttons.column(i, sections.size(), 2), sections.get(i).heading(),
+                    button -> {
+                        tab = index;
+                        lastTab = index;
+                        detailsView = true;
+                        rebuildWidgets();
+                    }));
+        }
+    }
+
+    private void openQuestBoard(UiButton button) {
+        button.setPending(true);
+        PacketDistributor.sendToServer(new QuestBoardRequestPayload(heart.settlementId()));
     }
 
     // ------------------------------------------------------------------ rendering
 
-    /** The vanilla background, then the frame and the panel. The widgets and the texts come on top. */
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.renderBackground(graphics, mouseX, mouseY, partialTick);
-        int right = left + PANEL_WIDTH;
-        int bottom = top + panelHeight;
-        graphics.fill(left - 2, top - 2, right + 2, bottom + 2, FRAME_OUTER);
-        graphics.fill(left - 1, top - 1, right + 1, bottom + 1, FRAME_GOLD);
-        graphics.fill(left, top, right, bottom, PANEL_COLOR);
-        graphics.fill(left, top, right, top + HEADER_HEIGHT, HEADER_COLOR);
-        graphics.fill(left + PADDING, top + HEADER_HEIGHT - 1, right - PADDING, top + HEADER_HEIGHT, FRAME_GOLD);
-        graphics.fill(left + PADDING, contentBottom() + 2, right - PADDING, contentBottom() + 3, FRAME_GOLD);
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-        FormattedCharSequence titleText = ellipsize(title, PANEL_WIDTH - 2 * PADDING);
-        graphics.drawString(font, titleText, width / 2 - font.width(titleText) / 2,
-                top + (HEADER_HEIGHT - font.lineHeight) / 2 + 1, TITLE_COLOR);
-        renderTabs(graphics, mouseX, mouseY);
-        renderRows(graphics);
-        renderScrollBar(graphics);
-    }
-
-    private void renderTabs(GuiGraphics graphics, int mouseX, int mouseY) {
-        int tabTop = tabsTop();
-        for (int i = 0; i < info.sections().size(); i++) {
-            int x = tabLeft(i);
-            int w = tabWidth();
-            boolean active = i == tab;
-            boolean hover = mouseX >= x && mouseX < x + w && mouseY >= tabTop && mouseY < tabTop + TAB_HEIGHT;
-            graphics.fill(x, tabTop, x + w, tabTop + TAB_HEIGHT,
-                    active ? TAB_ACTIVE_COLOR : hover ? TAB_HOVER_COLOR : TAB_COLOR);
-            if (active) {
-                graphics.fill(x, tabTop, x + w, tabTop + 1, FRAME_GOLD);
-            }
-            FormattedCharSequence label = ellipsize(info.sections().get(i).heading(), w - 2);
-            graphics.drawString(font, label, x + (w - font.width(label)) / 2,
-                    tabTop + (TAB_HEIGHT - font.lineHeight) / 2 + 1,
-                    active ? TAB_ACTIVE_TEXT_COLOR : TAB_TEXT_COLOR, false);
+    protected void renderBody(GuiGraphics graphics, UiRect body, int mouseX, int mouseY, float partialTick) {
+        if (playerRect.width() > 0) {
+            renderPlayer(graphics);
+            UiDraw.vLine(graphics, playerRect.right(), body.y(), body.height(), UiTheme.GILT);
+        } else if (overviewRect.width() > 0) {
+            renderOverview(graphics);
         }
     }
 
-    private void renderRows(GuiGraphics graphics) {
-        List<Row> rows = rows();
-        int x = contentLeft();
-        int right = contentRight();
-        if (rows.isEmpty()) {
-            Component empty = Component.translatable("screen.folkhold_world.village_heart.empty");
-            graphics.drawString(font, empty, x + (right - x - font.width(empty)) / 2, contentTop() + 4, EMPTY_COLOR,
-                    false);
+    private void renderPlayer(GuiGraphics graphics) {
+        UiDraw.fill(graphics, playerRect, UiTheme.PARCHMENT);
+        UiRect inner = playerRect.inset(7, 6);
+        if (heart.services().isEmpty()) {
+            UiText.drawCentered(graphics, font, Component.translatable(KEY + "no_faction"), inner.top(20),
+                    UiTheme.INK_MUTED);
             return;
         }
-        graphics.enableScissor(x, contentTop(), right, contentBottom());
-        int y = contentTop() - scroll;
-        for (int i = 0; i < rows.size(); i++) {
-            if (y + ROW_HEIGHT >= contentTop() && y <= contentBottom()) {
-                Row row = rows.get(i);
-                if (i % 2 == 0) {
-                    graphics.fill(x, y, right, y + ROW_HEIGHT, ROW_STRIPE_COLOR);
+        ReputationTier tier = tier();
+        if (hostile()) {
+            UiRect band = new UiRect(playerRect.x(), playerRect.y(), playerRect.width(), 36);
+            UiDraw.fill(graphics, band, BAND_COLOR);
+            UiRect text = band.inset(7, 5).beforeRight(CHIP_AREA, 4);
+            UiText.draw(graphics, font, heart.welcome(), text.x(), text.y(), text.width(), UiTheme.DANGER_TEXT);
+            UiText.draw(graphics, font, Component.translatable(KEY + "hostile_warning"), text.x(), text.y() + 12,
+                    text.width(), 0xFFF2B8AC);
+            renderChip(graphics, tier, band.inset(7, 5).rightPart(CHIP_AREA).x(), band.y() + 5, false);
+        } else {
+            UiRect welcome = new UiRect(inner.x(), inner.y(), inner.width() - CHIP_AREA - 4, 2 * UiTheme.LINE);
+            UiText.drawWrapped(graphics, font, heart.welcome(), welcome, UiTheme.INK);
+            renderChip(graphics, tier, inner.right() - CHIP_AREA, inner.y(), true);
+            Component line = Component.translatable(KEY + "reputation_line", heart.villageValue(),
+                    heart.villageWeight(), heart.factionValue(), 100 - heart.villageWeight());
+            UiText.drawRight(graphics, font, line, inner.right(), inner.y() + 21, inner.width(), UiTheme.INK_MUTED);
+        }
+        int labelY = inner.y() + 34 + (hostile() ? 4 : 0) - UiTheme.LINE - 1;
+        if (!hostile()) {
+            graphics.drawString(font, Component.translatable(KEY + "here_you_can"), inner.x(), labelY,
+                    UiTheme.INK_MUTED, false);
+        }
+        for (Card card : cards) {
+            renderCard(graphics, card);
+        }
+        renderAdvice(graphics, inner);
+    }
+
+    /** The reputation chip of the player, with a bar below on parchment. */
+    private void renderChip(GuiGraphics graphics, ReputationTier tier, int x, int y, boolean withBar) {
+        Component text = Component.literal(UiReputation.glyph(tier) + " ")
+                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
+                .append(" · " + heart.reputation());
+        int width = Math.min(font.width(text) + 8, CHIP_AREA);
+        int chipX = x + CHIP_AREA - width;
+        UiRect chip = new UiRect(chipX, y, width, UiTheme.BADGE);
+        UiDraw.fill(graphics, chip, UiReputation.background(tier));
+        UiText.drawCentered(graphics, font, text, chip.inset(3, 0), UiReputation.text(tier));
+        if (withBar) {
+            double fraction = (heart.reputation() + 1000) / 2000.0;
+            UiDraw.bar(graphics, new UiRect(x, y + UiTheme.BADGE + 3, CHIP_AREA, 3), fraction, UiTheme.PARCHMENT_EDGE,
+                    UiReputation.background(tier));
+        }
+    }
+
+    private void renderCard(GuiGraphics graphics, Card card) {
+        Service service = card.service();
+        UiRect rect = card.rect();
+        boolean later = service.status() == VillageHeartPayload.LATER;
+        UiDraw.box(graphics, rect, later ? UiTheme.PARCHMENT_OFF : UiTheme.PARCHMENT_LIGHT,
+                later ? UiTheme.PARCHMENT_OFF_EDGE : UiTheme.PARCHMENT_EDGE, later);
+        UiRect top = new UiRect(rect.x() + 5, rect.y() + 5, rect.width() - 10, UiTheme.LINE);
+        int stateWidth = UiText.drawRight(graphics, font, service.state(), top.right(), top.y(),
+                top.width() * 3 / 5, UiTheme.INK);
+        UiText.draw(graphics, font, service.name(), top.x(), top.y(), top.width() - stateWidth - 4,
+                later ? UiTheme.INK_FAINT : UiTheme.INK);
+        if (rect.height() <= SHORT_CARD) {
+            return;
+        }
+        int y = top.y() + 12;
+        if (!service.details().getString().isEmpty()) {
+            int lines = service.items().isEmpty() && service.action() == VillageHeartPayload.ACTION_NONE ? 3 : 1;
+            List<FormattedCharSequence> wrapped = UiText.wrap(font, service.details(), top.width(), lines);
+            for (FormattedCharSequence line : wrapped) {
+                graphics.drawString(font, line, top.x(), y, UiTheme.INK_MUTED, false);
+                y += UiTheme.LINE;
+            }
+            y += 2;
+        }
+        if (!service.items().isEmpty()) {
+            Component label = Component.translatable(KEY + "looks_for");
+            graphics.drawString(font, label, top.x(), y + 1, UiTheme.INK_MUTED, false);
+            int x = top.x() + font.width(label) + 3;
+            for (String item : service.items()) {
+                if (x + ICON > top.right()) {
+                    break;
                 }
-                int textY = y + (ROW_HEIGHT - font.lineHeight) / 2 + 1;
-                int available = right - x - 6;
-                FormattedCharSequence label = ellipsize(row.label(), available * 3 / 5);
-                int labelWidth = font.width(label);
-                FormattedCharSequence value = ellipsize(row.value(), available - labelWidth - 6);
-                graphics.drawString(font, label, x + 3, textY, LABEL_COLOR, false);
-                graphics.drawString(font, value, right - 3 - font.width(value), textY, VALUE_COLOR, false);
+                UiDraw.box(graphics, new UiRect(x, y, ICON, ICON), 0xFF8B8B8B, 0xFF4E4E4E, false);
+                UiDraw.item(graphics, UiDraw.stack(item), x + 1, y + 1, 9);
+                x += ICON + 2;
             }
-            y += ROW_HEIGHT;
         }
-        graphics.disableScissor();
     }
 
-    private void renderScrollBar(GuiGraphics graphics) {
-        int max = maxScroll();
-        if (max <= 0) {
+    private void renderAdvice(GuiGraphics graphics, UiRect inner) {
+        if (heart.advice().getString().isEmpty()) {
             return;
         }
-        int x = left + PANEL_WIDTH - PADDING - SCROLL_BAR_WIDTH;
-        int trackTop = contentTop();
-        int trackHeight = contentBottom() - trackTop;
-        int contentHeight = rows().size() * ROW_HEIGHT;
-        int thumbHeight = Math.max(8, trackHeight * trackHeight / contentHeight);
-        int thumbTop = trackTop + (trackHeight - thumbHeight) * scroll / max;
-        graphics.fill(x, trackTop, x + SCROLL_BAR_WIDTH, trackTop + trackHeight, SCROLL_TRACK_COLOR);
-        graphics.fill(x, thumbTop, x + SCROLL_BAR_WIDTH, thumbTop + thumbHeight, SCROLL_THUMB_COLOR);
+        UiRect box = inner.bottomPart(24);
+        if (heart.adviceDanger()) {
+            UiDraw.box(graphics, box, ADVICE_BACKGROUND, UiTheme.WAX, false);
+            UiDraw.mark(graphics, box.x() + 5, box.y() + 8, 7, UiTheme.WAX);
+            UiText.drawWrapped(graphics, font, heart.advice(), new UiRect(box.x() + 16, box.y() + 3,
+                    box.width() - 21, 2 * UiTheme.LINE), ADVICE_TEXT);
+        } else {
+            UiText.drawWrapped(graphics, font, heart.advice(), box.inset(0, 3), UiTheme.INK_MUTED);
+        }
     }
 
-    /** The text, cut with "…" at the end if it is wider than the maximum width. */
-    private FormattedCharSequence ellipsize(Component text, int maxWidth) {
-        if (font.width(text) <= maxWidth) {
-            return text.getVisualOrderText();
+    private void renderOverview(GuiGraphics graphics) {
+        UiRect inner = overviewRect.inset(UiTheme.PADDING, 0);
+        if (heart.services().isEmpty()) {
+            UiText.drawCentered(graphics, font, Component.translatable(KEY + "no_faction"),
+                    new UiRect(inner.x(), inner.y() + 8, inner.width(), 12), UiTheme.TEXT_MUTED);
+        } else {
+            ReputationTier tier = tier();
+            UiRect band = new UiRect(overviewRect.x() + 1, overviewRect.y(), overviewRect.width() - 2, 32);
+            boolean hostile = hostile();
+            UiDraw.fill(graphics, band, hostile ? BAND_COLOR : UiTheme.PARCHMENT);
+            UiRect text = band.inset(UiTheme.PADDING, 4).beforeRight(CHIP_AREA, 4);
+            UiText.draw(graphics, font, heart.welcome(), text.x(), text.y(), text.width(),
+                    hostile ? UiTheme.DANGER_TEXT : UiTheme.INK);
+            Component second = hostile ? Component.translatable(KEY + "hostile_warning")
+                    : Component.translatable(KEY + "reputation_line", heart.villageValue(), heart.villageWeight(),
+                            heart.factionValue(), 100 - heart.villageWeight());
+            UiText.draw(graphics, font, second, text.x(), text.y() + 12, text.width(),
+                    hostile ? 0xFFF2B8AC : UiTheme.INK_MUTED);
+            renderChip(graphics, tier, band.inset(UiTheme.PADDING, 4).rightPart(CHIP_AREA).x(), band.y() + 9, false);
+            graphics.drawString(font, Component.translatable(KEY + "here_for_you"), inner.x(), band.bottom() + 3,
+                    UiTheme.TEXT_MUTED, false);
+            for (int i = 0; i < cards.size(); i++) {
+                Card card = cards.get(i);
+                UiRect row = card.rect();
+                if (i % 2 == 0) {
+                    UiDraw.fill(graphics, row, UiTheme.WOOD_ROW);
+                }
+                Service service = card.service();
+                int color = switch (service.status()) {
+                    case VillageHeartPayload.AVAILABLE -> UiTheme.TEXT_GOOD;
+                    case VillageHeartPayload.REFUSED -> UiTheme.TEXT_BAD;
+                    case VillageHeartPayload.LATER -> UiTheme.TEXT_FAINT;
+                    default -> UiTheme.TEXT_MUTED;
+                };
+                int y = UiText.textY(row);
+                int stateWidth = UiText.drawRight(graphics, font, Component.literal(service.state().getString()),
+                        row.right() - 3, y, row.width() * 3 / 5, color);
+                UiText.draw(graphics, font, service.name(), row.x() + 3, y, row.width() - stateWidth - 10,
+                        UiTheme.TEXT);
+            }
+            int adviceY = cards.isEmpty() ? band.bottom() + 16 : cards.get(cards.size() - 1).rect().bottom() + 4;
+            boolean questButton = heart.services().stream().anyMatch(service -> service.action()
+                    == VillageHeartPayload.ACTION_QUEST_BOARD && service.status() != VillageHeartPayload.REFUSED);
+            if (questButton) {
+                adviceY += UiTheme.CONTROL + 4;
+            }
+            UiText.drawWrapped(graphics, font, heart.advice(), new UiRect(inner.x(), adviceY, inner.width(),
+                    2 * UiTheme.LINE), 0xFFD8CFBD);
         }
-        String ellipsis = "…";
-        FormattedText cut = font.substrByWidth(text, Math.max(0, maxWidth - font.width(ellipsis)));
-        return Language.getInstance().getVisualOrder(FormattedText.composite(cut, FormattedText.of(ellipsis)));
+        if (!heart.sections().isEmpty()) {
+            UiRect bottom = new UiRect(overviewRect.x() + 1, overviewRect.bottom() - 4 - UiTheme.CONTROL - 13,
+                    overviewRect.width() - 2, 13 + UiTheme.CONTROL + 4);
+            UiDraw.hLine(graphics, bottom.x(), bottom.y(), bottom.width(), UiTheme.WOOD_RAISED);
+            graphics.drawString(font, Component.translatable(KEY + "details_title"), inner.x(), bottom.y() + 3,
+                    UiTheme.TEXT_MUTED, false);
+        }
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
+    protected void renderOverlay(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (playerRect.width() <= 0) {
+            return;
+        }
+        for (Card card : cards) {
+            if (card.service().items().isEmpty() || card.rect().height() <= SHORT_CARD) {
+                continue;
+            }
+            int x = card.rect().x() + 5 + font.width(Component.translatable(KEY + "looks_for")) + 3;
+            int y = itemsY(card);
+            for (String item : card.service().items()) {
+                UiRect icon = new UiRect(x, y, ICON, ICON);
+                if (icon.contains(mouseX, mouseY)) {
+                    ItemStack stack = UiDraw.stack(item);
+                    if (!stack.isEmpty()) {
+                        graphics.renderTooltip(font, stack, mouseX, mouseY);
+                    }
+                    return;
+                }
+                x += ICON + 2;
+            }
+        }
+    }
+
+    /** The Y of the item icons of a card: the same computation as {@link #renderCard}. */
+    private int itemsY(Card card) {
+        Service service = card.service();
+        int y = card.rect().y() + 5 + 12;
+        if (!service.details().getString().isEmpty()) {
+            y += UiTheme.LINE + 2;
+        }
+        return y;
     }
 }

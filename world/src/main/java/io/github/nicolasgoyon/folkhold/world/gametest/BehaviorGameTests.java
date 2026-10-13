@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
+import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
@@ -145,20 +146,29 @@ public final class BehaviorGameTests {
     }
 
     /**
-     * The village heart screen has the village, garrison, reputation, economy and territory sections, with the
-     * village name.
+     * The village heart screen gives the player part (welcome, reputation, four services, advice) and the village,
+     * garrison, economy and territory sections, with the village name.
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "behavior_village_info")
     public static void villageInfoHasAllSections(GameTestHelper helper) {
         Scene scene = scene(helper, 0);
-        VillageInfoPayload info = VillageInfo.build(scene.heart(), scene.player());
+        ReputationData.get(helper.getLevel().getServer()).get(scene.player().getUUID())
+                .setVillage(scene.heart().getVillageId().toString(), 0);
+        VillageHeartPayload info = VillageInfo.build(scene.heart(), scene.player());
         String name = scene.heart().getVillageName();
         scene.remove(helper);
 
         helper.assertTrue(info.title().getString().equals(name), "The title must be the village name");
-        helper.assertTrue(info.sections().size() == 5, "Expected 5 sections, found " + info.sections().size());
-        helper.assertTrue(info.sections().get(1).rows().size() == GarrisonRole.values().length,
-                "The garrison section must have one row for each role");
+        helper.assertTrue(info.sections().size() == 4, "Expected 4 sections, found " + info.sections().size());
+        helper.assertTrue(info.sections().get(1).rows().size() == GarrisonRole.values().length
+                && info.sections().get(1).rows().stream()
+                        .allMatch(row -> row.meterKind() == VillageInfoPayload.METER_SEGMENTS),
+                "The garrison section must have one row with segments for each role");
+        helper.assertTrue(info.services().size() == 4, "Expected 4 services, found " + info.services().size());
+        helper.assertTrue(!info.welcome().getString().isEmpty() && !info.advice().getString().isEmpty(),
+                "The player part must have a welcome and an advice");
+        helper.assertTrue(info.playerTier().equals("neutral") && info.reputation() == 0,
+                "The player has the neutral tier: " + info.playerTier());
         helper.succeed();
     }
 }
