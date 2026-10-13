@@ -193,6 +193,8 @@
   "folkhold_world.configuration.groups": "Groupes mobiles",
   "folkhold_world.configuration.groupBlocksPerTick": "Déplacement d'un groupe à chaque tick abstrait (blocs)",
   "folkhold_world.configuration.groupMaxGroups": "Nombre maximal de groupes mobiles",
+  "folkhold_world.configuration.groupMaterializeDistance": "Distance d'apparition des groupes (blocs)",
+  "folkhold_world.configuration.groupDematerializeMargin": "Marge avant la disparition des groupes (blocs)",
   "folkhold_world.configuration.routeStep": "Case de la grille des routes (blocs)",
   "folkhold_world.configuration.routeMaxLength": "Longueur maximale d'une route (blocs)",
   "folkhold_world.configuration.routeMaxWaterDepth": "Profondeur d'eau maximale sur une route (blocs)",
