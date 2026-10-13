@@ -14,12 +14,14 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
  * Runs the abstract simulation on the server: one abstract tick at a fixed interval of game time (see
- * {@link TickScheduler}). Each abstract tick calls each {@link SettlementSystem} for each active settlement.
+ * {@link TickScheduler}). Each abstract tick calls each {@link SettlementSystem} for each active settlement. At the
+ * end of the abstract tick, it calls each {@link WorldSystem} once.
  *
  * <p>The tick number and the time of the next abstract tick are saved in {@link SettlementData}.
  */
 public final class SimulationTicker {
     private static final List<SettlementSystem> SYSTEMS = new CopyOnWriteArrayList<>();
+    private static final List<WorldSystem> WORLD_SYSTEMS = new CopyOnWriteArrayList<>();
     private static TickScheduler<String> scheduler;
 
     private SimulationTicker() {
@@ -32,6 +34,15 @@ public final class SimulationTicker {
      */
     public static void addSystem(SettlementSystem system) {
         SYSTEMS.add(system);
+    }
+
+    /**
+     * Adds a world system. The world systems run in the order of addition.
+     *
+     * @param system the system
+     */
+    public static void addWorldSystem(WorldSystem system) {
+        WORLD_SYSTEMS.add(system);
     }
 
     /** The settings from the server configuration. */
@@ -49,6 +60,9 @@ public final class SimulationTicker {
                 (id, tick) -> data.registry().byId(id).filter(Settlement::isActive)
                         .ifPresent(settlement -> runSystems(server, settlement, tick)),
                 System::nanoTime, settings());
+        if (result.finished() != null) {
+            runWorldSystems(server, result.finished());
+        }
         if (result.finished() != null || result.processed() > 0) {
             data.saveSchedule(current.tickNumber(), current.nextTickAt());
         }
@@ -78,6 +92,18 @@ public final class SimulationTicker {
     public static void runSystems(MinecraftServer server, Settlement settlement, TickInfo tick) {
         for (SettlementSystem system : SYSTEMS) {
             system.tick(server, settlement, tick);
+        }
+    }
+
+    /**
+     * Runs the world systems, now.
+     *
+     * @param server the server
+     * @param tick   the abstract tick
+     */
+    public static void runWorldSystems(MinecraftServer server, TickInfo tick) {
+        for (WorldSystem system : WORLD_SYSTEMS) {
+            system.tick(server, tick);
         }
     }
 

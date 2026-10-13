@@ -66,6 +66,9 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue ECONOMY_TREASURY_MINIMUM;
     public static final ModConfigSpec.IntValue ECONOMY_FOOD_SHORTAGE_LOSS;
 
+    public static final ModConfigSpec.IntValue GROUP_BLOCKS_PER_TICK;
+    public static final ModConfigSpec.IntValue GROUP_MAX_GROUPS;
+
     public static final ModConfigSpec.DoubleValue MERCHANT_FRIEND_FACTOR;
     public static final ModConfigSpec.DoubleValue MERCHANT_ALLY_FACTOR;
     public static final ModConfigSpec.IntValue BANK_PILLAGE_VALUE;
@@ -318,6 +321,20 @@ public final class WorldConfig {
                 .comment("Experience that a settlement loses in a cycle with a food shortage (less than half of its need).")
                 .translation(KEY_PREFIX + "economyFoodShortageLoss")
                 .defineInRange("foodShortageLoss", 10, 0, 10000);
+        builder.pop();
+
+        builder.comment("Mobile groups: caravans and traveling merchants.")
+                .translation(KEY_PREFIX + "groups")
+                .push("groups");
+        GROUP_BLOCKS_PER_TICK = builder
+                .comment("Distance in blocks that a mobile group with no entities moves on each abstract tick.")
+                .translation(KEY_PREFIX + "groupBlocksPerTick")
+                .defineInRange("blocksPerTick", 200, 1, 10000);
+        GROUP_MAX_GROUPS = builder
+                .comment("Maximum number of mobile groups in the world. When the world has this number of groups,",
+                        "the simulation makes no new group.")
+                .translation(KEY_PREFIX + "groupMaxGroups")
+                .defineInRange("maxGroups", 32, 0, 1024);
         builder.pop();
 
         builder.comment("Merchants of the faction villages.")
