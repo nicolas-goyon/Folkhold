@@ -22,6 +22,7 @@ import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -40,6 +41,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *   <li>The item places the board with the clicked position as the bottom middle part (column 1, row 0), only if the
  *       9 positions are free.</li>
  *   <li>The removal of one part removes the complete board. The board drops one item.</li>
+ *   <li>The path finders do not go through the parts.</li>
  * </ul>
  */
 public class QuestBoardBlock extends HorizontalDirectionalBlock {
@@ -205,6 +207,12 @@ public class QuestBoardBlock extends HorizontalDirectionalBlock {
             }
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
+    }
+
+    /** Not passable: the collision boxes are not full blocks, but a mob cannot walk or jump through them. */
+    @Override
+    protected boolean isPathfindable(BlockState state, PathComputationType type) {
+        return false;
     }
 
     @Override
