@@ -2,13 +2,17 @@ package io.github.nicolasgoyon.folkhold.world.faction;
 
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
+import io.github.nicolasgoyon.folkhold.world.network.TerritoryTitlePayload;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -32,15 +36,18 @@ import net.neoforged.neoforge.network.PacketDistributor;
 /**
  * Territory and village information for the players:
  * <ul>
- *   <li><b>territory message</b>: when a player enters the territory of a faction, a title shows "Lands of" and
- *       the faction name in its color, and the reputation tier of the player with its glyph and color. This is an
+ *   <li><b>territory message</b>: when a player enters the territory of a faction, a banner of the HUD (the vanilla
+ *       title for a client with no channel) shows "Lands of" and the faction name in its color, and the reputation
+ *       tier of the player with its glyph and color. This is an
  *       early warning before the villages. When a player enters an unclaimed cell, a title shows "Unclaimed
  *       territory".</li>
  *   <li><b>village message</b>: when a player comes near a village (see {@link WorldConfig#VILLAGE_MESSAGE_RADIUS}),
  *       the action bar shows the village name, the faction, the level and tier of the village, the reputation tier
  *       in this village, and what the guards do.</li>
- *   <li><b>territory status</b>: the server sends the territory, the tier and the village to the client when
- *       they change. The client shows them in the territory HUD, if the player turns it on.</li>
+ *   <li><b>territory status</b>: the server sends the territory, the tier and the nearest village of the
+ *       territory (also a village that the game did not generate yet) to the client when they change. Out of the
+ *       territories, the village is the village near the player. The client shows them in the territory HUD, if
+ *       the player turns it on.</li>
  * </ul>
  *
  * <p>The territories are in the overworld only. The settlements claim the territory cells (see
@@ -107,9 +114,25 @@ public final class TerritoryMessages {
     }
 
     private static void showUnclaimedTitle(ServerPlayer player) {
+        showTitle(player, unclaimedName(), null, -1);
+    }
+
+    /**
+     * Shows the territory title: a banner of the HUD for a client with the channel, else the vanilla title.
+     *
+     * @param title    the name of the territory
+     * @param subtitle the tier of the player, or null
+     * @param color    the color of the faction, or -1
+     */
+    private static void showTitle(ServerPlayer player, Component title, @Nullable Component subtitle, int color) {
+        if (player.connection.hasChannel(TerritoryTitlePayload.TYPE)) {
+            PacketDistributor.sendToPlayer(player, new TerritoryTitlePayload(title, Optional.ofNullable(subtitle),
+                    color));
+            return;
+        }
         player.connection.send(new ClientboundSetTitlesAnimationPacket(TITLE_FADE_IN, TITLE_STAY, TITLE_FADE_OUT));
-        player.connection.send(new ClientboundSetSubtitleTextPacket(Component.empty()));
-        player.connection.send(new ClientboundSetTitleTextPacket(unclaimedName()));
+        player.connection.send(new ClientboundSetSubtitleTextPacket(subtitle == null ? Component.empty() : subtitle));
+        player.connection.send(new ClientboundSetTitleTextPacket(title));
     }
 
     private static Component unclaimedName() {
@@ -118,14 +141,12 @@ public final class TerritoryMessages {
 
     private static void showTerritoryTitle(ServerPlayer player, FactionSpec faction) {
         Component tier = tierLabel(Reputations.tier(player.server, player, faction.id()));
-        player.connection.send(new ClientboundSetTitlesAnimationPacket(TITLE_FADE_IN, TITLE_STAY, TITLE_FADE_OUT));
-        player.connection.send(new ClientboundSetSubtitleTextPacket(
-                Component.translatable("message.folkhold_world.territory_entry", tier)));
         // A second key for a name that starts with a vowel: some languages change the word before it ("d'").
         boolean vowel = !faction.name().isEmpty() && VOWELS.indexOf(faction.name().charAt(0)) >= 0;
-        player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable(
-                "message.folkhold_world.territory_title" + (vowel ? ".vowel" : ""), faction.name())
-                .withColor(faction.color())));
+        Component title = Component.translatable("message.folkhold_world.territory_title" + (vowel ? ".vowel" : ""),
+                faction.name()).withColor(faction.color());
+        showTitle(player, title, Component.translatable("message.folkhold_world.territory_entry", tier),
+                faction.color());
     }
 
     private static void showVillageMessage(MinecraftServer server, ServerPlayer player, VillageHeartBlockEntity heart) {
@@ -163,8 +184,28 @@ public final class TerritoryMessages {
                 .filter(heart -> territory.get().id().equals(heart.getFactionId()))
                 .map(heart -> Reputations.tier(server, player, heart))
                 .orElseGet(() -> Reputations.tier(server, player, territory.get().id()));
+        Optional<Settlement> nearest = nearestOfFaction(server, territory.get().id(), player.blockPosition());
         return new TerritoryStatusPayload(Optional.of(FactionVisuals.name(territory.get())), territory.get().color(),
-                Optional.of(tier.serializedName()), villageName, villagePos);
+                Optional.of(tier.serializedName()),
+                nearest.<Component>map(settlement -> Component.literal(settlement.name())).or(() -> villageName),
+                nearest.map(settlement -> new BlockPos(settlement.x(),
+                        settlement.hasHeart() ? settlement.heartY() : server.overworld().getSeaLevel(), settlement.z()))
+                        .or(() -> villagePos));
+    }
+
+    /**
+     * The nearest active settlement of a faction, also a settlement that the game did not generate yet.
+     *
+     * @param server    the server
+     * @param factionId the faction
+     * @param pos       the position of the player
+     * @return the settlement, or empty if the faction has no active settlement
+     */
+    public static Optional<Settlement> nearestOfFaction(MinecraftServer server, String factionId, BlockPos pos) {
+        return SettlementData.get(server).registry().all().stream()
+                .filter(Settlement::isActive)
+                .filter(settlement -> factionId.equals(settlement.factionId()))
+                .min(Comparator.comparingLong(settlement -> settlement.distanceSquared(pos.getX(), pos.getZ())));
     }
 
     /** The tier with its glyph, in its color: "✓ Friend". */

@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.world.client.ClientTerritory;
 import io.github.nicolasgoyon.folkhold.world.client.InfoScreen;
 import io.github.nicolasgoyon.folkhold.world.client.NoticeToasts;
 import io.github.nicolasgoyon.folkhold.world.client.QuestBoardScreen;
+import io.github.nicolasgoyon.folkhold.world.client.TerritoryTitleHud;
 import io.github.nicolasgoyon.folkhold.world.client.VillageHeartScreen;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
@@ -29,6 +30,8 @@ public final class ModNetwork {
         PayloadRegistrar registrar = event.registrar(VERSION);
         registrar.playToClient(TerritoryStatusPayload.TYPE, TerritoryStatusPayload.STREAM_CODEC,
                 (payload, context) -> ClientTerritory.set(payload));
+        registrar.playToClient(TerritoryTitlePayload.TYPE, TerritoryTitlePayload.STREAM_CODEC,
+                (payload, context) -> TerritoryTitleHud.show(payload));
         registrar.playToClient(VillageInfoPayload.TYPE, VillageInfoPayload.STREAM_CODEC,
                 (payload, context) -> InfoScreen.open(payload));
         registrar.playToClient(VillageHeartPayload.TYPE, VillageHeartPayload.STREAM_CODEC,

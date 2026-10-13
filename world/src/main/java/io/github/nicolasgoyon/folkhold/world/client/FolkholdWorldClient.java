@@ -36,6 +36,8 @@ public final class FolkholdWorldClient {
     }
 
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {
+        event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "territory_title"),
+                TerritoryTitleHud::render);
         event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "territory"),
                 TerritoryHud::render);
         event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "quests"),

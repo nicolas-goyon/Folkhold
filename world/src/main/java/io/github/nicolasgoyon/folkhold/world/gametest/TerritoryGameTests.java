@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.faction.TerritoryMessages;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
@@ -86,6 +87,28 @@ public final class TerritoryGameTests {
 
         helper.assertTrue(SettlementData.get(server).claims().cellCount(settlement.id()) == 0,
                 "A settlement in ruins must claim no cell");
+        helper.succeed();
+    }
+
+    /**
+     * The territory HUD shows the nearest active village of the faction of the territory, also a village with no
+     * heart. Ruins do not count.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "territory_nearest")
+    public static void nearestVillageOfTheFaction(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement near = farSettlement(server, 430, 430, 1);
+        Settlement far = farSettlement(server, 433, 430, 1);
+        BlockPos player = new BlockPos(near.x() + 50, 64, near.z());
+
+        Settlement first = TerritoryMessages.nearestOfFaction(server, near.factionId(), player).orElse(null);
+        near.setState(SettlementState.RUINS);
+        Settlement second = TerritoryMessages.nearestOfFaction(server, near.factionId(), player).orElse(null);
+        far.setState(SettlementState.RUINS);
+        SettlementData.get(server).setDirty();
+
+        helper.assertTrue(first == near, "The nearest village must be the near village");
+        helper.assertTrue(second == far, "A village in ruins must not count");
         helper.succeed();
     }
 }
