@@ -26,6 +26,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
  *       {@link #MAX_WAIT_TICKS} or less. Then it continues until all members are near again.</li>
  *   <li>If the merchant does not go forward for {@link #STUCK_TICKS}, it moves directly to the target, on the
  *       ground.</li>
+ *   <li>In a boat, the merchant does not walk (see {@link GroupBoats}).</li>
  * </ul>
  */
 public class RouteWalkGoal extends Goal {
@@ -102,6 +103,11 @@ public class RouteWalkGoal extends Goal {
     public void tick() {
         MobileGroup group = group();
         if (group == null || !(mob.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (mob.isPassenger()) {
+            // In a boat: GroupBoats moves the boat.
+            stuckTicks = 0;
             return;
         }
         if (waitForMembers(level, group)) {
