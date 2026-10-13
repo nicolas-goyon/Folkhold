@@ -16,7 +16,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 /**
  * Runs the abstract simulation on the server: one abstract tick at a fixed interval of game time (see
  * {@link TickScheduler}). Each abstract tick calls each {@link SettlementSystem} for each active settlement. At the
- * end of the abstract tick, it calls each {@link WorldSystem} once.
+ * end of the abstract tick, it calls each {@link WorldSystem} once. {@link SimulationProfiler} records the time of
+ * each call.
  *
  * <p>The tick number and the time of the next abstract tick are saved in {@link SettlementData}.
  *
@@ -24,8 +25,14 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * between two steps of a test would change its settlements.
  */
 public final class SimulationTicker {
-    private static final List<SettlementSystem> SYSTEMS = new CopyOnWriteArrayList<>();
-    private static final List<WorldSystem> WORLD_SYSTEMS = new CopyOnWriteArrayList<>();
+    private static final List<Named<SettlementSystem>> SYSTEMS = new CopyOnWriteArrayList<>();
+    private static final List<Named<WorldSystem>> WORLD_SYSTEMS = new CopyOnWriteArrayList<>();
+    /** Name of the measurement of a complete abstract tick of the settlements. */
+    public static final String SETTLEMENTS_TICK = "abstract tick (settlements)";
+
+    /** A system with the name of its measurements (see {@link SimulationProfiler}). */
+    private record Named<T>(String name, T system) {
+    }
     private static TickScheduler<String> scheduler;
 
     private SimulationTicker() {
@@ -34,19 +41,21 @@ public final class SimulationTicker {
     /**
      * Adds a system. The systems run in the order of addition.
      *
+     * @param name   the name of the measurements of the system (see {@link SimulationProfiler})
      * @param system the system
      */
-    public static void addSystem(SettlementSystem system) {
-        SYSTEMS.add(system);
+    public static void addSystem(String name, SettlementSystem system) {
+        SYSTEMS.add(new Named<>(name, system));
     }
 
     /**
      * Adds a world system. The world systems run in the order of addition.
      *
+     * @param name   the name of the measurements of the system (see {@link SimulationProfiler})
      * @param system the system
      */
-    public static void addWorldSystem(WorldSystem system) {
-        WORLD_SYSTEMS.add(system);
+    public static void addWorldSystem(String name, WorldSystem system) {
+        WORLD_SYSTEMS.add(new Named<>(name, system));
     }
 
     /** The settings from the server configuration. */
@@ -68,6 +77,7 @@ public final class SimulationTicker {
                         .ifPresent(settlement -> runSystems(server, settlement, tick)),
                 System::nanoTime, settings());
         if (result.finished() != null) {
+            SimulationProfiler.record(SETTLEMENTS_TICK, result.tickNanos());
             runWorldSystems(server, result.finished());
         }
         if (result.finished() != null || result.processed() > 0) {
@@ -97,8 +107,8 @@ public final class SimulationTicker {
      * @param tick       the abstract tick
      */
     public static void runSystems(MinecraftServer server, Settlement settlement, TickInfo tick) {
-        for (SettlementSystem system : SYSTEMS) {
-            system.tick(server, settlement, tick);
+        for (Named<SettlementSystem> named : SYSTEMS) {
+            SimulationProfiler.time(named.name(), () -> named.system().tick(server, settlement, tick));
         }
     }
 
@@ -109,8 +119,8 @@ public final class SimulationTicker {
      * @param tick   the abstract tick
      */
     public static void runWorldSystems(MinecraftServer server, TickInfo tick) {
-        for (WorldSystem system : WORLD_SYSTEMS) {
-            system.tick(server, tick);
+        for (Named<WorldSystem> named : WORLD_SYSTEMS) {
+            SimulationProfiler.time(named.name(), () -> named.system().tick(server, tick));
         }
     }
 

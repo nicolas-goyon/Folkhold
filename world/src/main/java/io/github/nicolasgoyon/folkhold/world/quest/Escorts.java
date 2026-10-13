@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -171,7 +172,7 @@ public final class Escorts {
         MinecraftServer server = event.getServer();
         long now = server.overworld().getGameTime();
         if (now % CHECK_INTERVAL == 0) {
-            update(server, now);
+            SimulationProfiler.time("escorts (each second)", () -> update(server, now));
         }
     }
 
@@ -261,10 +262,10 @@ public final class Escorts {
             };
             int x = (int) Math.floor(ahead.x()) + random.nextInt(-3, 4);
             int z = (int) Math.floor(ahead.z()) + random.nextInt(-3, 4);
-            BlockPos pos = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
-            if (!level.isLoaded(pos)) {
+            if (!level.hasChunk(x >> 4, z >> 4)) {
                 continue;
             }
+            BlockPos pos = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
             Mob mob = type.create(level);
             if (mob == null) {
                 continue;

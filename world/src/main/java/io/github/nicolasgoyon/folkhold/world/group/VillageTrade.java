@@ -40,8 +40,9 @@ import net.minecraft.server.MinecraftServer;
  * <ol>
  *   <li>Each active settlement with an economy lists its surpluses and its needs (see {@link TradeMatcher}). A
  *       settlement uses the inputs of its jobs and the food.</li>
- *   <li>The system calculates a small number of new routes between possible partners, the nearest pairs first
- *       (see {@link CaravanRoutes}).</li>
+ *   <li>The system requests a small number of new routes between possible partners, the nearest pairs first. A
+ *       worker thread calculates them (see {@link CaravanRoutes#request}). The trade uses a route at the next
+ *       abstract tick after its calculation.</li>
  *   <li>Two settlements can trade if their factions are not at war, if a route connects them, and if no caravan of
  *       the seller is on the way to the buyer.</li>
  *   <li>Each order becomes a caravan. The goods leave the stock of the seller. The caravan leaves at the next
@@ -208,9 +209,9 @@ public final class VillageTrade {
     }
 
     /**
-     * Calculates the routes that are not in the data, for the pairs that could trade: a surplus of one is a need of
+     * Requests the routes that are not in the data, for the pairs that could trade: a surplus of one is a need of
      * the other, the factions are not at war, and the direct distance is below the maximum route length. The
-     * nearest pairs come first.
+     * nearest pairs come first. The number of routes on the way stays below the configured number.
      */
     private static void calculateRoutes(MinecraftServer server, List<Participant> participants,
             Map<String, Settlement> settlements, Relations relations) {
@@ -241,8 +242,9 @@ public final class VillageTrade {
         Map<Settlement[], Long> distances = new HashMap<>();
         missing.forEach(pair -> distances.put(pair, pair[0].distanceSquared(pair[1].x(), pair[1].z())));
         missing.sort(Comparator.comparingLong(distances::get));
-        for (int i = 0; i < Math.min(budget, missing.size()); i++) {
-            CaravanRoutes.calculate(server, missing.get(i)[0], missing.get(i)[1]);
+        int requests = Math.min(budget - CaravanRoutes.pending(), missing.size());
+        for (int i = 0; i < requests; i++) {
+            CaravanRoutes.request(server, missing.get(i)[0], missing.get(i)[1]);
         }
     }
 }

@@ -39,7 +39,8 @@ import net.minecraft.world.item.trading.MerchantOffers;
  *
  * <ul>
  *   <li>A traveling merchant is a mobile group with a merchant and a mule. It goes from village to village. At the
- *       end of its route, it stays near the village for a time, then it goes to another village near it.</li>
+ *       end of its route, it stays near the village for a time, then it goes to another village near it. A route
+ *       that is not in the data is requested (see {@link CaravanRoutes#request}), and the merchant waits for it.</li>
  *   <li>It sells 6 rare items (see {@link #RARE_ITEMS} and {@link #itemsOf(MobileGroup)}): very expensive, in small
  *       quantities. At each cycle, it gets back one item of one offer (a slow restock).</li>
  *   <li>The world has a maximum number of traveling merchants. When it has fewer, a new one starts at a random
@@ -149,7 +150,11 @@ public final class TravelingMerchants {
         if (destination.isEmpty()) {
             return Optional.empty();
         }
-        Optional<Route> route = CaravanRoutes.route(server, origin, destination.get());
+        Optional<Route> route = CaravanRoutes.cached(server, origin, destination.get());
+        if (route == null) {
+            CaravanRoutes.request(server, origin, destination.get());
+            return Optional.empty();
+        }
         if (route.isEmpty()) {
             return Optional.empty();
         }
@@ -197,7 +202,17 @@ public final class TravelingMerchants {
             return;
         }
         Optional<Settlement> next = nextVillage(server, here.get(), random);
-        Optional<Route> route = next.flatMap(settlement -> CaravanRoutes.route(server, here.get(), settlement));
+        if (next.isEmpty()) {
+            group.setDepartureTick(group.departureTick() + WorldConfig.TRAVELING_STAY_TICKS.get());
+            return;
+        }
+        Optional<Route> route = CaravanRoutes.cached(server, here.get(), next.get());
+        if (route == null) {
+            // The route comes from the worker thread. The merchant tries again at the next abstract tick.
+            CaravanRoutes.request(server, here.get(), next.get());
+            group.setDepartureTick(group.departureTick() + 1);
+            return;
+        }
         if (route.isEmpty()) {
             group.setDepartureTick(group.departureTick() + WorldConfig.TRAVELING_STAY_TICKS.get());
             return;

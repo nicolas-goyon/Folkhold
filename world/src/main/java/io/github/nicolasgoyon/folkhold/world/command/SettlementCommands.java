@@ -23,6 +23,7 @@ import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import java.util.Comparator;
 import java.util.List;
@@ -53,6 +54,8 @@ import net.minecraft.server.MinecraftServer;
  *   <li>{@code /folkhold admin}: opens the admin screen (see {@link AdminActions}).</li>
  *   <li>{@code /folkhold sim tick [count]} and {@code /folkhold sim cycle [count]}: run the simulation now for all
  *       active settlements and for the world systems (for example the mobile groups).</li>
+ *   <li>{@code /folkhold sim profile [reset]}: the time measurements of the systems of the simulation (see
+ *       {@link SimulationProfiler}), and the routes on the way.</li>
  * </ul>
  */
 public final class SettlementCommands {
@@ -108,7 +111,15 @@ public final class SettlementCommands {
                 .then(Commands.literal("sim")
                         .requires(source -> source.hasPermission(OPERATOR_LEVEL))
                         .then(runLiteral("tick", false))
-                        .then(runLiteral("cycle", true))));
+                        .then(runLiteral("cycle", true))
+                        .then(Commands.literal("profile")
+                                .executes(SettlementCommands::profile)
+                                .then(Commands.literal("reset").executes(context -> {
+                                    SimulationProfiler.reset();
+                                    context.getSource().sendSuccess(() ->
+                                            Component.translatable(KEY + "sim.profile.reset"), false);
+                                    return 1;
+                                })))));
     }
 
     private static RequiredArgumentBuilder<CommandSourceStack, String> idArgument() {
@@ -252,6 +263,23 @@ public final class SettlementCommands {
                 to.get().name(), Math.round(route.length()), route.points().size(), calculation.examined(), millis),
                 false);
         return 1;
+    }
+
+    private static int profile(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        List<SimulationProfiler.Entry> entries = SimulationProfiler.entries();
+        source.sendSuccess(() -> Component.translatable(KEY + "sim.profile.header", entries.size(),
+                CaravanRoutes.pending()), false);
+        for (SimulationProfiler.Entry entry : entries) {
+            source.sendSuccess(() -> Component.translatable(KEY + "sim.profile.entry", entry.name(), entry.calls(),
+                    millis(entry.averageNanos()), millis(entry.maxNanos()), millis(entry.lastNanos()),
+                    millis(entry.totalNanos())), false);
+        }
+        return entries.size();
+    }
+
+    private static String millis(long nanos) {
+        return String.format(Locale.ROOT, "%.2f", nanos / 1_000_000.0);
     }
 
     private static int run(CommandContext<CommandSourceStack> context, boolean cycle, int count) {
