@@ -35,13 +35,13 @@ TEXTURES = {
 # The papers on the front, in the order of the offers: x, y, width, height, depth, texture. The first papers are in
 # the middle of the board, so a board with few offers looks complete.
 PAPERS = [
-    (1, 7, 7, 9, 6.8, "paper"),
-    (-9, 6, 7, 9, 6.7, "map"),
-    (11, 6, 7, 9, 6.7, "paper"),
-    (5, -3, 7, 8, 6.6, "filled_map"),
-    (20, 8, 6, 8, 6.8, "paper"),
-    (-6, -3, 7, 8, 6.8, "paper"),
-    (16, -3, 7, 8, 6.6, "map"),
+    (4, 7, 8, 9, 6.8, "paper"),
+    (-7, 6, 8, 9, 6.7, "map"),
+    (15, 6, 8, 9, 6.7, "paper"),
+    (9, -3, 7, 8, 6.6, "filled_map"),
+    (0, -3, 7, 8, 6.8, "paper"),
+    (18, -2, 7, 7, 6.8, "paper"),
+    (-9, -2, 7, 7, 6.6, "map"),
 ]
 
 FACES = ("north", "south", "east", "west", "up", "down")
