@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.quest;
 
+import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
@@ -10,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Entry;
@@ -302,8 +304,10 @@ public final class QuestBoards {
         if (quest.kind() == QuestKind.DELIVERY) {
             return Component.translatable("quest.folkhold_world.delivery", quest.count(), itemName(quest.target()));
         }
+        String destination = MobileGroupData.get(server).groups().byId(quest.target())
+                .map(MobileGroup::destinationId).orElse("");
         return Component.translatable("quest.folkhold_world." + quest.kind().serializedName(),
-                villageName(server, quest.target()));
+                villageName(server, destination));
     }
 
     /** The reputation tier of a player for a quest: the effective tier in its village. */
