@@ -185,6 +185,9 @@ public final class EscortGameTests {
         Quest quest = acceptedEscort(helper, origin, caravan, player);
 
         QuestLogPayload.Escort near = escortOf(QuestBoards.log(player), quest);
+        boolean target = QuestBoards.log(player).quests().stream()
+                .filter(entry -> entry.questId().equals(quest.id()))
+                .allMatch(entry -> entry.target().isPresent());
         BlockPos far = helper.absolutePos(START).offset(1000, 0, 0);
         player.teleportTo(far.getX(), far.getY(), far.getZ());
         Escorts.update(server, helper.getLevel().getGameTime());
@@ -198,6 +201,7 @@ public final class EscortGameTests {
         helper.assertTrue(away != null && away.away() && away.distance() > away.maxDistance()
                 && away.awaySeconds() == WorldConfig.QUEST_ESCORT_AWAY_SECONDS.get(),
                 "The log must give the distance and the time to come back");
+        helper.assertTrue(target, "The log must give the position of the caravan as the target");
         helper.succeed();
     }
 
@@ -258,6 +262,20 @@ public final class EscortGameTests {
         helper.assertTrue(plan.size() >= 1 && plan.size() <= 3, "An escort has 1 to 3 ambushes: " + plan.size());
         helper.assertTrue(Escorts.ambushSize(400, 1) == 2 && Escorts.ambushSize(1600, 10) == 7
                 && Escorts.ambushSize(10_000, 20) == 8, "The size of an ambush follows the route and the level");
+        helper.succeed();
+    }
+
+    /** The time of an escort comes from the length of its route, with the configured time as the minimum. */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "escort_time")
+    public static void escortTimeFollowsTheRouteLength(GameTestHelper helper) {
+        long minimum = WorldConfig.QUEST_ESCORT_MINUTES.get();
+        long shortRoute = Escorts.escortMinutes(100);
+        long longRoute = Escorts.escortMinutes(20_000);
+        long expected = (long) Math.ceil(20_000.0 / WorldConfig.QUEST_ESCORT_BLOCKS_PER_MINUTE.get()) + 10;
+
+        helper.assertTrue(shortRoute == minimum, "A short route must give the minimum time: " + shortRoute);
+        helper.assertTrue(longRoute == Math.max(minimum, expected),
+                "A long route must give more time: " + longRoute + " minutes");
         helper.succeed();
     }
 }

@@ -94,7 +94,7 @@ public class QuestBoardScreen extends UiScreen {
     public QuestBoardScreen(QuestBoardPayload board) {
         super(Component.translatable(KEY + "title", board.title()));
         this.board = board;
-        this.receivedAt = System.currentTimeMillis();
+        this.receivedAt = gameTime();
     }
 
     /**
@@ -119,7 +119,7 @@ public class QuestBoardScreen extends UiScreen {
 
     private void update(QuestBoardPayload payload) {
         this.board = payload;
-        this.receivedAt = System.currentTimeMillis();
+        this.receivedAt = gameTime();
         rebuildWidgets();
         showResult(payload);
     }
@@ -315,8 +315,15 @@ public class QuestBoardScreen extends UiScreen {
         PacketDistributor.sendToServer(new QuestActionPayload(action, questId, board.settlementId()));
     }
 
+    /** The seconds that remain from a time of the payload. The times stop while the game is paused. */
     private int secondsNow(int seconds) {
-        return (int) Math.max(0, seconds - (System.currentTimeMillis() - receivedAt) / 1000L);
+        return (int) Math.max(0, seconds - Math.max(0L, gameTime() - receivedAt) / 20L);
+    }
+
+    /** The game time of the client level, or 0 with no level. */
+    private static long gameTime() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.level == null ? 0L : minecraft.level.getGameTime();
     }
 
     // ------------------------------------------------------------------ rendering

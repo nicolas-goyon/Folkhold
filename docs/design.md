@@ -493,7 +493,7 @@ A quest has a giver, a success condition that the mod checks on the state of the
 
 - **Givers**: each faction village has a quest board. The captain of the village gives the same quests. The quest board is at the west end of the east-west path of the village, and faces the plaza. It is a large notice board (3 blocks wide, about 2.5 blocks high) with two posts and a gable roof. The board shows one paper or map for each offer of the village, up to 7, so a player sees from a distance if the village has work. A click on any part opens the quests. A captain does not give quests to a hostile player.
 - **Screen**: the offers are papers pinned on a wood board (item, what to do, kind, time, reward, the items of the player, the departure of an escort caravan). Each offer shows why the player cannot accept it: tier too low, or too many active quests. A column shows the active quests of the player: time left, progress, deliver button, abandon button (with a confirmation). The result of an action shows in the screen.
-- **HUD**: an optional panel (client option, off by default) at the top left of the screen shows the active quests: the item, the items of the player for a delivery, and the time (on a red badge under 2 minutes). An escort has a tracker: the progress of the caravan, the hearts of the merchant, and a warning with the time to come back when the player is too far.
+- **HUD**: an optional panel (client option, off by default) at the top left of the screen shows the active quests: the item, the items of the player for a delivery, the arrow and the distance to the village of the delivery, and the time (on a red badge under 2 minutes). An escort has a tracker: the progress of the caravan, the arrow and the distance to the merchant, the hearts of the merchant, and a warning with the time to come back when the player is too far. The times go down with the game time: they stop while the game is paused.
 - **Reward**: the emeralds come from the treasury of the faction of the village. An abandoned quest fails.
 
 ### Delivery
@@ -513,8 +513,9 @@ A quest has a giver, a success condition that the mod checks on the state of the
 - **Ambushes**: each escort contains 1 to 3 ambushes of vanilla monsters at random points of the route. The length of the route and the level of the origin village set the size of an ambush.
 - **Success**: the caravan arrives and its merchant is alive. The reward comes from the value of the cargo.
 - **Failure**: the merchant dies, the player stays away too long, or the deadline ends.
+- **Guidance**: a gold marker above the merchant shows the caravan to protect, also through the blocks.
 
-- Defaults: the caravan waits 6 minutes for an escort, the escort distance is 48 blocks, the player can stay away 2 minutes, the deadline is 40 minutes, the reward is 50 % of the value of the cargo and +30 reputation.
+- Defaults: the caravan waits 6 minutes for an escort, the escort distance is 48 blocks, the player can stay away 2 minutes, the deadline is the length of the route at 60 blocks per minute plus 10 minutes (at least 40 minutes), the reward is 50 % of the value of the cargo and +30 reputation.
 - An ambush has 2 monsters, plus 1 for each 500 blocks of route and for each 5 levels of the origin village, up to 8. The monsters (zombies, skeletons and spiders, with a helmet against the sun) appear 16 blocks in front of the merchant and attack it.
 
 All distances, delays and rewards are configurable.

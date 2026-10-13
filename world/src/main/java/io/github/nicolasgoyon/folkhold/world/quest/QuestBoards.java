@@ -38,6 +38,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -373,15 +374,21 @@ public final class QuestBoards {
         for (Quest quest : QuestData.get(server).quests().active(player.getUUID())) {
             int secondsLeft = (int) Math.max(0, (quest.deadline() - now) / TICKS_PER_SECOND);
             if (quest.kind() == QuestKind.DELIVERY) {
+                Optional<BlockPos> village = SettlementData.get(server).registry().byId(quest.settlementId())
+                        .map(settlement -> new BlockPos(settlement.x(),
+                                settlement.hasHeart() ? settlement.heartY() : server.overworld().getSeaLevel(),
+                                settlement.z()));
                 entries.add(new QuestLogPayload.Entry(quest.id(), quest.target(),
                         Component.translatable("quest.folkhold_world.active.delivery", quest.count(),
                                 itemName(quest.target())),
-                        quest.count(), secondsLeft, Optional.empty()));
+                        quest.count(), secondsLeft, Optional.empty(), village, QuestLogPayload.NO_ENTITY));
             } else {
                 String destination = Escorts.caravan(server, quest).map(MobileGroup::destinationId).orElse("");
+                Optional<Entity> merchant = Escorts.merchantEntity(server, quest);
                 entries.add(new QuestLogPayload.Entry(quest.id(), ESCORT_ICON,
                         Component.translatable("quest.folkhold_world.active.escort", villageName(server, destination)),
-                        0, secondsLeft, Escorts.hudState(server, quest, player)));
+                        0, secondsLeft, Escorts.hudState(server, quest, player), Escorts.position(server, quest),
+                        merchant.map(Entity::getId).orElse(QuestLogPayload.NO_ENTITY)));
             }
         }
         return new QuestLogPayload(WorldConfig.QUEST_MAX_ACTIVE.get(), entries);

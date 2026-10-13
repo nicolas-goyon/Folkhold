@@ -98,6 +98,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue QUEST_ESCORT_DISTANCE;
     public static final ModConfigSpec.IntValue QUEST_ESCORT_AWAY_SECONDS;
     public static final ModConfigSpec.IntValue QUEST_ESCORT_MINUTES;
+    public static final ModConfigSpec.IntValue QUEST_ESCORT_BLOCKS_PER_MINUTE;
     public static final ModConfigSpec.DoubleValue QUEST_ESCORT_REWARD_SHARE;
     public static final ModConfigSpec.IntValue QUEST_ESCORT_REPUTATION;
 
@@ -494,9 +495,15 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "questEscortAwaySeconds")
                 .defineInRange("escortAwaySeconds", 120, 10, 3600);
         QUEST_ESCORT_MINUTES = builder
-                .comment("Minutes from the acceptance of an escort quest to its deadline.")
+                .comment("Minimum minutes from the acceptance of an escort quest to its deadline.")
                 .translation(KEY_PREFIX + "questEscortMinutes")
                 .defineInRange("escortMinutes", 40, 1, 10000);
+        QUEST_ESCORT_BLOCKS_PER_MINUTE = builder
+                .comment("Speed of a caravan for the time of an escort, in blocks per minute. The time of an escort is",
+                        "the length of the route at this speed, plus 10 minutes, and at least escortMinutes. A",
+                        "caravan with entities walks faster: the difference is the margin of the player.")
+                .translation(KEY_PREFIX + "questEscortBlocksPerMinute")
+                .defineInRange("escortBlocksPerMinute", 60, 5, 10000);
         QUEST_ESCORT_REWARD_SHARE = builder
                 .comment("Share of the value of the cargo that the player gets for an escort, in emeralds.")
                 .translation(KEY_PREFIX + "questEscortRewardShare")

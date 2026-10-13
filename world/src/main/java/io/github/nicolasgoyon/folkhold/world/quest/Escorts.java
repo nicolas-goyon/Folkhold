@@ -52,7 +52,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *   <li>Each escort has 1 to 3 ambushes of vanilla monsters at random points of the route. The length of the route
  *       and the level of the origin village set the size of an ambush.</li>
  *   <li>Success: the caravan arrives and its merchant is alive. The reward comes from the value of the cargo.</li>
- *   <li>Failure: the merchant dies, the player stays away too long, or the deadline ends.</li>
+ *   <li>Failure: the merchant dies, the player stays away too long, or the deadline ends. The time of an escort
+ *       comes from the length of its route ({@link #escortMinutes}).</li>
  *   <li>Each second, the player of an escort gets the state of the caravan in the quest HUD.</li>
  * </ul>
  */
@@ -61,6 +62,8 @@ public final class Escorts {
     public static final String AMBUSH_TAG = "folkhold_world:ambush";
     private static final int CHECK_INTERVAL = 20;
     private static final long TICKS_PER_MINUTE = 1200L;
+    /** The minutes that the time of an escort adds to the travel: the departure, the stops, the ambushes. */
+    private static final long EXTRA_MINUTES = 10L;
     /** The ambushes are between these shares of the route. */
     private static final double AMBUSH_FIRST = 0.2;
     private static final double AMBUSH_LAST = 0.9;
@@ -99,11 +102,23 @@ public final class Escorts {
         Quest quest = new Quest(UUID.randomUUID().toString(), QuestKind.ESCORT, origin.id(), origin.factionId(),
                 caravan.id(), 0, reward, WorldConfig.QUEST_ESCORT_REPUTATION.get(),
                 QuestGenerator.minTier(reward, QuestSystem.settings()), offerEnd,
-                WorldConfig.QUEST_ESCORT_MINUTES.get() * TICKS_PER_MINUTE);
+                escortMinutes(caravan.route().length()) * TICKS_PER_MINUTE);
         QuestData data = QuestData.get(server);
         data.quests().add(quest);
         data.setDirty();
         return Optional.of(quest);
+    }
+
+    /**
+     * The time of an escort: the length of the route at {@link WorldConfig#QUEST_ESCORT_BLOCKS_PER_MINUTE}, plus
+     * {@link #EXTRA_MINUTES}, and at least {@link WorldConfig#QUEST_ESCORT_MINUTES}.
+     *
+     * @param routeLength the length of the route, in blocks
+     * @return the time, in minutes
+     */
+    public static long escortMinutes(double routeLength) {
+        long travel = (long) Math.ceil(routeLength / WorldConfig.QUEST_ESCORT_BLOCKS_PER_MINUTE.get()) + EXTRA_MINUTES;
+        return Math.max(WorldConfig.QUEST_ESCORT_MINUTES.get(), travel);
     }
 
     /** The accepted escort quests. */
@@ -271,6 +286,40 @@ public final class Escorts {
         return Optional.of(new QuestLogPayload.Escort((int) Math.round(group.progress()),
                 (int) Math.round(group.route().length()), health, maxHealth, Math.min(distance, 99_999),
                 WorldConfig.QUEST_ESCORT_DISTANCE.get(), awaySeconds));
+    }
+
+    /**
+     * The entity of the merchant of the caravan of an escort, if it exists.
+     *
+     * @param server the server
+     * @param quest  the escort quest
+     * @return the entity, or empty
+     */
+    public static Optional<Entity> merchantEntity(MinecraftServer server, Quest quest) {
+        ServerLevel level = server.overworld();
+        return caravan(server, quest).flatMap(MobileGroup::merchant)
+                .map(member -> level.getEntity(member.id()))
+                .filter(Entity::isAlive);
+    }
+
+    /**
+     * The position of the caravan of an escort: its merchant if it has entities, else its position on the route.
+     *
+     * @param server the server
+     * @param quest  the escort quest
+     * @return the position, or empty if the caravan does not exist
+     */
+    public static Optional<BlockPos> position(MinecraftServer server, Quest quest) {
+        Optional<Entity> merchant = merchantEntity(server, quest);
+        if (merchant.isPresent()) {
+            return Optional.of(merchant.get().blockPosition());
+        }
+        return caravan(server, quest).map(group -> {
+            Route.Position position = group.position();
+            int x = (int) Math.floor(position.x());
+            int z = (int) Math.floor(position.z());
+            return new BlockPos(x, server.overworld().getSeaLevel(), z);
+        });
     }
 
     /**
