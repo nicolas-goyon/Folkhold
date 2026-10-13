@@ -1,6 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import com.mojang.authlib.GameProfile;
+import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
@@ -8,6 +10,8 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.netty.channel.embedded.EmbeddedChannel;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -22,7 +26,9 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Helpers for the GameTests of the world mod.
@@ -85,6 +91,36 @@ final class TestSupport {
         }
         if (changed) {
             data.setDirty();
+        }
+    }
+
+    /**
+     * Removes the bank chests of earlier tests near the test area, with their items. A village puts its stock into
+     * the bank chests near its heart when it becomes ruins, so a bank chest of an earlier test would get the items
+     * of the test.
+     */
+    static void removeEarlierBankChests(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        AABB area = helper.getBounds().inflate(2.0);
+        BlockPos center = BlockPos.containing(area.getCenter());
+        int radius = WorldConfig.VILLAGE_RADIUS.get() + 16;
+        List<BankChestBlockEntity> found = new ArrayList<>();
+        for (int chunkX = (center.getX() - radius) >> 4; chunkX <= (center.getX() + radius) >> 4; chunkX++) {
+            for (int chunkZ = (center.getZ() - radius) >> 4; chunkZ <= (center.getZ() + radius) >> 4; chunkZ++) {
+                if (!level.hasChunk(chunkX, chunkZ)) {
+                    continue;
+                }
+                for (BlockEntity blockEntity : level.getChunk(chunkX, chunkZ).getBlockEntities().values()) {
+                    if (blockEntity instanceof BankChestBlockEntity chest
+                            && !area.contains(Vec3.atCenterOf(chest.getBlockPos()))) {
+                        found.add(chest);
+                    }
+                }
+            }
+        }
+        for (BankChestBlockEntity chest : found) {
+            chest.container().clearContent();
+            level.setBlockAndUpdate(chest.getBlockPos(), Blocks.AIR.defaultBlockState());
         }
     }
 
