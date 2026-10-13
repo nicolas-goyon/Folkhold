@@ -433,6 +433,13 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - At the end of its route, a traveling merchant stays near the village (10 minutes by default). Then it goes to one of the 5 villages nearest to it.
 - The world has 2 traveling merchants by default. With no neutral faction, it has none.
 
+### Commands and admin screen
+
+- `/folkhold caravan list|info|spawn|tp|remove`: follow, make, find and remove the mobile groups.
+- `/folkhold quest list|give|complete|fail`: the quests of a player. `give` makes a delivery or an escort of the village nearest to the player.
+- `/folkhold settlement route <from> <to>`: calculates a route again and shows its time.
+- The admin screen has a button "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
+
 ### Synergy with the pack mods
 
 With The Roads More Travelled, the materialized caravans that walk on their route can create real paths over time. This gives visible trade routes. To check: TRMT reacts to mobs, not only to players (its Forge port says so).
