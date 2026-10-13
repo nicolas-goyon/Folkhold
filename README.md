@@ -19,6 +19,7 @@ Supported languages: English, French.
 
 - [Design document](docs/design.md)
 - [Getting started](docs/getting-started.md): prerequisites, first build, daily workflow.
+- [UI framework](docs/ui-framework.md): the shared widgets and the look of the screens.
 - [Contributing](CONTRIBUTING.md): branches, commits, pull requests, translations.
 
 ## Status

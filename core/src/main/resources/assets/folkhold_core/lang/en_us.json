@@ -1,3 +1,13 @@
 {
-  "fml.menu.mods.info.description.folkhold_core": "Shared library of Folkhold: abstract simulation, regions and scheduler."
+  "fml.menu.mods.info.description.folkhold_core": "Shared library of Folkhold: abstract simulation, regions and scheduler.",
+  "ui.folkhold_core.waiting": "Sending…",
+  "ui.folkhold_core.close": "Close",
+  "ui.folkhold_core.cancel": "Cancel",
+  "ui.folkhold_core.cancel_key": "Cancel (Esc)",
+  "ui.folkhold_core.ok": "OK",
+  "ui.folkhold_core.empty": "No information",
+  "ui.folkhold_core.hint.close": "Esc close",
+  "ui.folkhold_core.hint.sections": "Esc close · ← → sections",
+  "ui.folkhold_core.hold_hint": "Hold the button for 1 s. Cancel has the focus.",
+  "ui.folkhold_core.type_name": "Type the name to confirm"
 }
