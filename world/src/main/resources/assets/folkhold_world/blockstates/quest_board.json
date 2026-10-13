@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "folkhold_world:block/quest_board"
+    },
+    "facing=east": {
+      "model": "folkhold_world:block/quest_board",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "folkhold_world:block/quest_board",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "folkhold_world:block/quest_board",
+      "y": 270
+    }
+  }
+}

@@ -32,11 +32,14 @@ public final class FolkholdWorldClient {
         modEventBus.addListener(FolkholdWorldClient::onRegisterRenderers);
         modEventBus.addListener(FolkholdWorldClient::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientTerritory.clear());
+        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientQuestLog.clear());
     }
 
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {
         event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "territory"),
                 TerritoryHud::render);
+        event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "quests"),
+                QuestHud::render);
     }
 
     private static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {

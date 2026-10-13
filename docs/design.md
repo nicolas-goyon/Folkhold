@@ -465,7 +465,9 @@ Spread: an action toward faction A changes the reputation with the allies of A (
 
 A quest has a giver, a success condition that the mod checks on the state of the world, a deadline and a reward (emeralds, items, reputation).
 
-- **Givers**: each faction village has a quest board. The captain of the village gives the same quests.
+- **Givers**: each faction village has a quest board. The captain of the village gives the same quests. The quest board is on the plaza of the village, between the heart and the south gate. A captain does not give quests to a hostile player.
+- **Screen**: two tabs, the offers of the village and the active quests of the player, with buttons to accept and to abandon. An optional HUD (client option, off by default) shows the active quests at the top left of the screen.
+- **Reward**: the emeralds come from the treasury of the faction of the village. An abandoned quest fails.
 - **Offers**: at each cycle, a village makes new offers. The number of offers comes from its level. An offer expires after a delay.
 - **Reputation**: no quest below the neutral tier. Some quests are only for the friend tier and the ally tier.
 - **Quest log**: the mod keeps the quests of each player (UUID). A player has a maximum number of active quests.
