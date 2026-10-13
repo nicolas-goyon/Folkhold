@@ -350,5 +350,6 @@
   "screen.folkhold_world.quest_board.deliver": "Deliver",
   "screen.folkhold_world.quest_board.abandon": "Abandon",
   "screen.folkhold_world.quest_board.no_offers": "No offers",
-  "screen.folkhold_world.quest_board.no_quests": "No active quests"
+  "screen.folkhold_world.quest_board.no_quests": "No active quests",
+  "message.folkhold_world.quest_missing_items": "You need %s × %s."
 }

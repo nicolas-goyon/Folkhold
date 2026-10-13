@@ -468,6 +468,12 @@ A quest has a giver, a success condition that the mod checks on the state of the
 - **Givers**: each faction village has a quest board. The captain of the village gives the same quests. The quest board is on the plaza of the village, between the heart and the south gate. A captain does not give quests to a hostile player.
 - **Screen**: two tabs, the offers of the village and the active quests of the player, with buttons to accept and to abandon. An optional HUD (client option, off by default) shows the active quests at the top left of the screen.
 - **Reward**: the emeralds come from the treasury of the faction of the village. An abandoned quest fails.
+
+### Delivery
+
+- A delivery asks for an item that the village needs (stock below half of its target), at most 32 items. The needs with the most value come first. A village does not offer two deliveries of the same item.
+- The reward is the local price of the items × 1.5 in emeralds, and +20 reputation.
+- The player gives all the items with the "Deliver" button of the quest screen of the village. The items go into the stock of the village.
 - **Offers**: at each cycle, a village makes new offers. The number of offers comes from its level. An offer expires after a delay.
 - **Reputation**: no quest below the neutral tier. Some quests are only for the friend tier and the ally tier.
 - **Quest log**: the mod keeps the quests of each player (UUID). A player has a maximum number of active quests.

@@ -45,8 +45,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li>A click on a quest board, or on the captain of a village, opens the quest screen of the village: its offers
  *       and the active quests of the player (see {@link QuestBoardPayload}). A captain does not talk to a hostile
  *       player.</li>
- *   <li>The player accepts an offer or abandons an active quest with the buttons of the screen. The server checks
- *       the action, sends a message and updates the screen.</li>
+ *   <li>The player accepts an offer, gives the items of a delivery (see {@link Deliveries}) or abandons an active
+ *       quest with the buttons of the screen. The server checks the action, sends a message and updates the
+ *       screen.</li>
  *   <li>A completed quest gives its reward: emeralds from the treasury of the faction of the village, and
  *       reputation (see {@link #complete(MinecraftServer, Quest)}).</li>
  *   <li>The player gets a message when a quest starts, succeeds or fails. The quest HUD shows the active quests
@@ -148,6 +149,7 @@ public final class QuestBoards {
         Optional<Quest> quest = quests.byId(payload.questId());
         switch (payload.action()) {
             case QuestBoardPayload.ACTION_ACCEPT -> accept(player, payload.questId());
+            case QuestBoardPayload.ACTION_DELIVER -> Deliveries.deliver(player, payload.questId());
             case QuestBoardPayload.ACTION_ABANDON -> {
                 if (quest.isPresent() && quests.abandon(payload.questId(), player.getUUID())) {
                     message(player, "quest_abandoned", name(server, quest.get()));
@@ -294,9 +296,10 @@ public final class QuestBoards {
         return new QuestBoardPayload(Component.literal(settlement.name()), settlement.id(), offers, active);
     }
 
-    /** The main button of an active quest on the screen of a village. */
+    /** The main button of an active quest on the screen of a village: "Deliver" at the village of a delivery. */
     private static int mainAction(Quest quest, Settlement settlement) {
-        return QuestBoardPayload.ACTION_NONE;
+        return Deliveries.canDeliverAt(quest, settlement) ? QuestBoardPayload.ACTION_DELIVER
+                : QuestBoardPayload.ACTION_NONE;
     }
 
     /** The text of a quest: what to do. */
