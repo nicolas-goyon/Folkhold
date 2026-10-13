@@ -19,6 +19,7 @@ import net.minecraft.server.MinecraftServer;
  * entities move (see {@link GroupMaterializer}).
  *
  * <ul>
+ *   <li>A traveling merchant at the end of its route stays near the village. It does not arrive.</li>
  *   <li>When a group arrives, its cargo goes into the stock of the destination settlement, up to the stock capacity
  *       of the settlement. A destination that is not active gets nothing.</li>
  *   <li>When a caravan arrives, the destination pays the origin (see {@link VillageTrade#onArrival}).</li>
@@ -41,6 +42,11 @@ public final class MobileGroupSystem {
                 WorldConfig.GROUP_BLOCKS_PER_TICK.get(), GroupMaterializer::isMaterialized,
                 new GroupSimulation.Listener() {
                     @Override
+                    public boolean onEndOfRoute(MobileGroup group, long tickNumber) {
+                        return MobileGroupSystem.onEndOfRoute(group, tickNumber);
+                    }
+
+                    @Override
                     public void onArrival(MobileGroup group) {
                         GroupMaterializer.dematerialize(server.overworld(), group, false);
                         deliver(server, group);
@@ -58,6 +64,22 @@ public final class MobileGroupSystem {
         if (report.moved() > 0 || report.arrived() > 0 || report.lost() > 0) {
             data.setDirty();
         }
+    }
+
+    /**
+     * A traveling group is at the end of its route. A traveling merchant stays near the village (see
+     * {@link TravelingMerchants#stay(MobileGroup, long)}). The other groups arrive.
+     *
+     * @param group      the group
+     * @param tickNumber the number of the abstract tick
+     * @return true if the group arrives
+     */
+    public static boolean onEndOfRoute(MobileGroup group, long tickNumber) {
+        if (group.kind() == GroupKind.TRAVELING_MERCHANT) {
+            TravelingMerchants.stay(group, tickNumber);
+            return false;
+        }
+        return true;
     }
 
     /**

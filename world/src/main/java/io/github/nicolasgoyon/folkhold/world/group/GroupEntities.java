@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.group;
 
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupMember;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -22,8 +23,8 @@ import net.minecraft.world.entity.animal.horse.Mule;
  * Makes the entity of a member of a mobile group. The entity is not in the level yet.
  *
  * <ul>
- *   <li>Merchant: a {@link CaravanMerchant}. It walks on the route. Its name is "Caravan of" and the name of the
- *       origin settlement.</li>
+ *   <li>Merchant: a {@link CaravanMerchant}. It walks on the route. The name of a caravan merchant is "Caravan of"
+ *       and the name of the origin settlement. The name of a traveling merchant is "Traveling Merchant".</li>
  *   <li>Pack animal: a tamed vanilla mule with a chest. It follows the merchant (see {@link FollowEntityGoal}).
  *       Its chest holds a part of the cargo (see {@link CaravanCargo}).</li>
  *   <li>Guard: a faction guard of the faction of the group, with no village. Its home position follows the
@@ -67,9 +68,14 @@ public final class GroupEntities {
             // The spawn can find a village heart near the origin. A guard of a group has no village.
             guard.setVillagePos(null);
         } else if (mob instanceof CaravanMerchant merchant) {
-            Optional<Settlement> origin = SettlementData.get(level.getServer()).registry().byId(group.originId());
-            origin.ifPresent(settlement -> merchant.setCustomName(
-                    Component.translatable("entity.folkhold_world.caravan_merchant.of", settlement.name())));
+            if (group.kind() == GroupKind.TRAVELING_MERCHANT) {
+                merchant.setCustomName(Component.translatable("entity.folkhold_world.traveling_merchant"));
+            } else {
+                Optional<Settlement> origin = SettlementData.get(level.getServer()).registry()
+                        .byId(group.originId());
+                origin.ifPresent(settlement -> merchant.setCustomName(
+                        Component.translatable("entity.folkhold_world.caravan_merchant.of", settlement.name())));
+            }
         } else if (mob instanceof Mule mule) {
             CaravanCargo.equipChest(mule);
             mule.setTamed(true);

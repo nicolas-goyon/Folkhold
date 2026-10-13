@@ -3,12 +3,10 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.Relations;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
-import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
-import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
@@ -89,9 +87,10 @@ public final class VillageTradeGameTests {
         int cargo = caravan == null ? 0 : caravan.cargo().count(BREAD);
         int sellerStock = seller.economy().stock().count(BREAD);
         if (caravan != null) {
-            caravan.setState(GroupState.TRAVELING);
-            caravan.setProgress(caravan.route().length() - 1.0);
-            MobileGroupSystem.tick(server, new TickInfo(settlements.tickNumber() + 1, false));
+            // Only this caravan arrives: the other groups of the test world do not change the treasuries.
+            MobileGroupSystem.deliver(server, caravan);
+            VillageTrade.onArrival(server, caravan);
+            MobileGroupData.get(server).groups().remove(caravan.id());
         }
         int buyerStock = buyer.economy().stock().count(BREAD);
         long sellerGain = settlements.treasury(sellerFaction) - sellerTreasury;
