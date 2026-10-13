@@ -60,6 +60,8 @@ public final class ModNetwork {
                 (payload, context) -> AdminScreen.open(payload));
         registrar.playToClient(AdminDetailsPayload.TYPE, AdminDetailsPayload.STREAM_CODEC,
                 (payload, context) -> AdminScreen.showDetails(payload));
+        registrar.playToClient(AdminResultPayload.TYPE, AdminResultPayload.STREAM_CODEC,
+                (payload, context) -> AdminScreen.showResult(payload));
         registrar.playToServer(AdminActionPayload.TYPE, AdminActionPayload.STREAM_CODEC,
                 (payload, context) -> {
                     if (context.player() instanceof ServerPlayer player) {

@@ -17,7 +17,7 @@ import org.lwjgl.glfw.GLFW;
  *   <li>Header: an optional banner, the title, an optional subtitle, the badges and the close button.</li>
  *   <li>Footer: an optional hint line, for example the keys.</li>
  *   <li>A status line above the footer shows the result of the last action for some seconds
- *       ({@link #showStatus}).</li>
+ *       ({@link #showStatus}). It covers the bottom of the body, above the widgets.</li>
  *   <li>The screen does not pause the game, and the game stays visible behind the panel.</li>
  *   <li>Escape closes the screen. The left and right arrow keys change the section tabs, if the screen has them
  *       ({@link #setSectionTabs}).</li>
@@ -236,15 +236,23 @@ public abstract class UiScreen extends Screen {
         }
     }
 
-    private void renderFooter(GuiGraphics graphics) {
-        if (status != null && System.currentTimeMillis() < statusUntil) {
-            UiRect line = new UiRect(body.x() + 1, footer.y() - STATUS, body.width() - 2, STATUS);
-            boolean good = statusTone == UiTone.GOOD;
-            UiDraw.box(graphics, line, good ? UiTheme.STATUS_GOOD : UiTheme.STATUS_BAD,
-                    good ? UiTheme.STATUS_GOOD_EDGE : UiTheme.STATUS_BAD_EDGE, false);
-            UiText.drawLeft(graphics, font, status, line.inset(UiTheme.PADDING, 0),
-                    good ? UiTheme.STATUS_GOOD_TEXT : UiTheme.STATUS_BAD_TEXT);
+    private void renderStatus(GuiGraphics graphics) {
+        if (status == null || System.currentTimeMillis() >= statusUntil) {
+            return;
         }
+        UiRect line = new UiRect(body.x() + 1, footer.y() - STATUS, body.width() - 2, STATUS);
+        boolean good = statusTone == UiTone.GOOD;
+        graphics.pose().pushPose();
+        // Above the widgets and their items.
+        graphics.pose().translate(0.0F, 0.0F, 300.0F);
+        UiDraw.box(graphics, line, good ? UiTheme.STATUS_GOOD : UiTheme.STATUS_BAD,
+                good ? UiTheme.STATUS_GOOD_EDGE : UiTheme.STATUS_BAD_EDGE, false);
+        UiText.drawLeft(graphics, font, status, line.inset(UiTheme.PADDING, 0),
+                good ? UiTheme.STATUS_GOOD_TEXT : UiTheme.STATUS_BAD_TEXT);
+        graphics.pose().popPose();
+    }
+
+    private void renderFooter(GuiGraphics graphics) {
         Component hint = footerHint();
         if (hint != null && footer.height() > 0) {
             UiRect inner = footer.inset(1, 0).top(footer.height() - 1);
@@ -256,6 +264,7 @@ public abstract class UiScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
+        renderStatus(graphics);
         renderOverlay(graphics, mouseX, mouseY, partialTick);
     }
 

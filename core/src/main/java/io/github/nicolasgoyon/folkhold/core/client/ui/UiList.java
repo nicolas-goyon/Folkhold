@@ -118,7 +118,8 @@ public abstract class UiList<T> extends AbstractWidget {
         return maxScroll() > 0 ? all.beforeRight(UiTheme.SCROLL_BAR, 1) : all;
     }
 
-    private int contentHeight() {
+    /** The height of all rows. */
+    public int contentHeight() {
         int total = 0;
         for (int i = 0; i < items.size(); i++) {
             total += rowHeight(items.get(i), i);
