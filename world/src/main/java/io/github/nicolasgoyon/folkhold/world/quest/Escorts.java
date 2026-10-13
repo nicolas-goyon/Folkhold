@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
+import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
@@ -52,6 +53,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *       and the level of the origin village set the size of an ambush.</li>
  *   <li>Success: the caravan arrives and its merchant is alive. The reward comes from the value of the cargo.</li>
  *   <li>Failure: the merchant dies, the player stays away too long, or the deadline ends.</li>
+ *   <li>Each second, the player of an escort gets the state of the caravan in the quest HUD.</li>
  * </ul>
  */
 public final class Escorts {
@@ -230,10 +232,45 @@ public final class Escorts {
                 long away = AWAY_SINCE.computeIfAbsent(quest.id(), id -> now);
                 if (now - away > WorldConfig.QUEST_ESCORT_AWAY_SECONDS.get() * 20L) {
                     QuestBoards.fail(server, quest);
+                    continue;
                 }
             }
             MobileGroupData.get(server).setDirty();
+            if (player != null) {
+                QuestBoards.sendLog(player);
+            }
         }
+    }
+
+    /**
+     * The state of the caravan of an accepted escort, for the quest HUD of its player.
+     *
+     * @param server the server
+     * @param quest  the escort quest
+     * @param player the player of the quest
+     * @return the state, or empty if the caravan does not exist
+     */
+    public static Optional<QuestLogPayload.Escort> hudState(MinecraftServer server, Quest quest, ServerPlayer player) {
+        Optional<MobileGroup> found = caravan(server, quest);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        MobileGroup group = found.get();
+        ServerLevel level = server.overworld();
+        int health = -1;
+        int maxHealth = -1;
+        Optional<Entity> merchant = group.merchant().map(member -> level.getEntity(member.id()));
+        if (merchant.isPresent() && merchant.get() instanceof LivingEntity living) {
+            health = (int) Math.ceil(living.getHealth());
+            maxHealth = (int) Math.ceil(living.getMaxHealth());
+        }
+        int distance = player.level() == level ? (int) Math.round(distance(level, player, group)) : Integer.MAX_VALUE;
+        Long since = AWAY_SINCE.get(quest.id());
+        int awaySeconds = since == null ? -1 : (int) Math.max(0,
+                WorldConfig.QUEST_ESCORT_AWAY_SECONDS.get() - (level.getGameTime() - since) / 20L);
+        return Optional.of(new QuestLogPayload.Escort((int) Math.round(group.progress()),
+                (int) Math.round(group.route().length()), health, maxHealth, Math.min(distance, 99_999),
+                WorldConfig.QUEST_ESCORT_DISTANCE.get(), awaySeconds));
     }
 
     /**

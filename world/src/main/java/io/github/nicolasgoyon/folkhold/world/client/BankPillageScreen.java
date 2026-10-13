@@ -48,11 +48,6 @@ public final class BankPillageScreen {
     }
 
     private static ReputationTier tier(String name) {
-        for (ReputationTier tier : ReputationTier.values()) {
-            if (tier.serializedName().equals(name)) {
-                return tier;
-            }
-        }
-        return ReputationTier.NEUTRAL;
+        return ReputationTier.bySerializedName(name);
     }
 }

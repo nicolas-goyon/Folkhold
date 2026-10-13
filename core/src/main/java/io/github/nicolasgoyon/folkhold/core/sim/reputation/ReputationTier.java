@@ -58,4 +58,19 @@ public enum ReputationTier {
     public String serializedName() {
         return name().toLowerCase(Locale.ROOT);
     }
+
+    /**
+     * Gives the tier with a serialized name.
+     *
+     * @param name a name from {@link #serializedName()}
+     * @return the tier, or {@link #NEUTRAL} for an unknown name
+     */
+    public static ReputationTier bySerializedName(String name) {
+        for (ReputationTier tier : values()) {
+            if (tier.serializedName().equals(name)) {
+                return tier;
+            }
+        }
+        return NEUTRAL;
+    }
 }
