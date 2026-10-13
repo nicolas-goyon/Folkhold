@@ -106,6 +106,11 @@ Each faction has 3 to 8 villages, spread across the territory cells.
 | Tier | Name for a range of levels: Hamlet, Village, Town, City, Capital. |
 | Job | Economic activity of a settlement. A job has one recipe for each cycle. |
 | Bank | Building of a village. Its chests contain the stocks of the village and a part of the treasury. |
+| Mobile group | Group of NPCs that travels between villages: a caravan or a traveling merchant. |
+| Route | List of points between two villages. A mobile group follows it. |
+| Materialization | Creation of the entities of an abstract state near a player. The opposite operation removes the entities and writes their state back. |
+| Quest board | Block in each faction village. It shows the quests of the village. |
+| Ambush | Group of vanilla monsters that attacks an escorted caravan at a point of its route. |
 
 ### Data model
 
@@ -115,6 +120,8 @@ Each faction has 3 to 8 villages, spread across the territory cells.
 | `Relation` | pair of factions, value from -100 to +100, state (alliance, peace, tension, war), date of the last change |
 | `Territory` | territory cell, owner faction, linked village, current contest |
 | `Settlement` | id, faction, position, state (active or ruins), level, experience, tier (from the level), population, jobs, stocks, garrison |
+| `MobileGroup` | id, kind (caravan, traveling merchant), faction, origin, destination, route, progress, cargo, members (stable UUID, role, health), state |
+| `Quest` | id, kind (delivery, escort), giver, player, success condition, deadline, reward, state |
 
 The mod stores all of this in a `SavedData` of the Overworld level. `Codec` objects serialize it to NBT.
 
@@ -129,6 +136,12 @@ Rules of J3:
 - **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory cells become unclaimed. The ruins stay in the world.
 
 The faction of a new village is the faction with the nearest territory center.
+
+Rules of J4:
+
+- **Trade**: each trade between two villages creates a caravan. The goods arrive with the caravan (see "Trade between villages").
+- **Relations**: each caravan that arrives raises the relation between the two factions a little.
+- **Abstract caravans**: a caravan with no player near has no risk. It always arrives.
 
 Rules of later milestones:
 
@@ -312,8 +325,10 @@ A surplus lowers the price down to ×0.5. A shortage raises the price up to ×3.
 
 - On each abstract tick, each village makes a list of its surpluses (`S > 1.5 × S_target`) and its needs (`S < 0.5 × S_target`).
 - A greedy match links one seller and one buyer from factions that are not hostile. Distance is a weight.
-- The trade between villages comes with the caravans (J4).
-- The trade creates a **caravan** (next section). The goods arrive after a delay that is proportional to the distance. If the caravan is raided (by the player in phase 1, also by bandits in phase 2), the goods are lost.
+- Two villages with no route between them do not trade.
+- Each trade creates a **caravan** (see "World mod: caravans, squads, traveling merchants"). The goods leave the stock of the seller when the caravan leaves.
+- When the caravan arrives, the goods go into the stock of the buyer and the payment goes to the treasury of the seller. The time of travel comes from the length of the route.
+- If the caravan is raided (by the player in phase 1, also by bandits in phase 2), the goods are lost.
 - Expected result: prices converge between connected villages. A war that cuts a route makes prices go up on one side.
 
 ### Trade with the player
@@ -331,9 +346,9 @@ A surplus lowers the price down to ×0.5. A shortage raises the price up to ×3.
 
 ### Professions and offers
 
-- Rails and minecarts (rail, powered rail, detector rail, activator rail, minecart variants).
-- **Lumberjack**: logs and planks of different wood types.
-- **Explorer**: rare items, very expensive, small quantities, slow restock (as the wandering trader).
+- Rails and minecarts (rail, powered rail, detector rail, activator rail, minecart variants). J6.
+- **Lumberjack**: logs and planks of different wood types. J6.
+- **Traveling merchant**: rare items, very expensive, small quantities, slow restock (as the wandering trader). See "Traveling merchant".
 - No overpowered enchanted books (for example Mending) in the offers.
 
 ### Stability
@@ -366,6 +381,34 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - When the group leaves the area, it becomes abstract again and keeps its state (losses, cargo).
 - Encounters (phase 2): two hostile groups on near segments fight. A comparison of power with a random factor gives the result. If the player is present, the fight is real.
 
+### Routes
+
+- The mod calculates the route once, before the first caravan between two villages leaves. It keeps the route in the world data.
+- The heights come from the chunk generator, as the settlement discovery does. The calculation does not generate chunks.
+- The search uses a coarse grid. Slopes have a cost. The route does not cross deep water. A route has a maximum length.
+- When there is no route, the two villages do not trade. The mod keeps this result too.
+
+### Materialization
+
+- Each member of a group has a stable UUID. The entity of a member always has this UUID. This prevents duplicates.
+- The mod materializes a group when its position enters the distance of a player. It dematerializes the group when no player is in this distance plus a margin, and before the chunk of an entity unloads.
+- While the group is materialized, the position of its merchant sets its progress on the route.
+- At the dematerialization, the mod writes back the health and the death of each member, and the cargo.
+- The mod removes an entity of a group that loads from a chunk while its group is abstract.
+
+### Caravans
+
+- A caravan has a merchant (a vanilla villager with a Folkhold profession), loaded mules (vanilla mules with chests) and 2 to 4 guards. The level of the origin village sets the number of guards.
+- The guards of a caravan have no village anchor. They follow the group and defend its members. The center of their chase radius is the merchant.
+- **Trade on the road**: the caravan merchant sells the items of the cargo, with the prices of the origin village. The reputation rules of the village merchant apply.
+- **Raid**: an attack on a member of the caravan or a theft from a mule chest is a raid. A raid lowers the reputation with the faction of the caravan, and the guards attack the player.
+- When the merchant dies, the caravan is lost. The goods do not arrive.
+
+### Traveling merchant
+
+- The neutral faction has traveling merchants: 1 merchant and 1 pack animal. A traveling merchant goes from village to village and stays near each village for some time.
+- It sells rare items: very expensive, small quantities, slow restock, as the wandering trader. No overpowered enchanted books.
+
 ### Synergy with the pack mods
 
 With The Roads More Travelled, the materialized caravans that walk on their route can create real paths over time. This gives visible trade routes. To check: TRMT reacts to mobs, not only to players (its Forge port says so).
@@ -388,13 +431,31 @@ Spread: an action toward faction A changes the reputation with the allies of A (
 
 ### Quests from the state of the world
 
-- **Delivery**: a village with a shortage asks for an item. Linked to the economy. The reward follows the local price.
-- **Escort**: a real caravan leaves. The player protects it to its destination (against monsters in phase 1).
-- **Defense** (phase 2): an army on the road threatens an allied village.
-- **Hunt**: monsters attack a trade route. In phase 2, also bandits.
-- **Diplomacy**: carry a message to improve the relation between two factions.
+| Quest | Milestone | Description |
+| --- | --- | --- |
+| Delivery | J4 | A village with a shortage asks for an item. Linked to the economy. The reward follows the local price. |
+| Escort | J4 | A real caravan leaves. The player protects it to its destination (against monsters in phase 1). |
+| Hunt | Later | Monsters attack a trade route. In phase 2, also bandits. |
+| Diplomacy | Later | Carry a message to improve the relation between two factions. |
+| Defense | Phase 2 | An army on the road threatens an allied village. |
 
-A quest has a giver, a success condition that the mod checks on the state of the world, a deadline and a reward (emeralds, items, reputation). Each village has a quest board. Captains also give quests.
+A quest has a giver, a success condition that the mod checks on the state of the world, a deadline and a reward (emeralds, items, reputation).
+
+- **Givers**: each faction village has a quest board. The captain of the village gives the same quests.
+- **Offers**: at each cycle, a village makes new offers. The number of offers comes from its level. An offer expires after a delay.
+- **Reputation**: no quest below the neutral tier. Some quests are only for the friend tier and the ally tier.
+- **Quest log**: the mod keeps the quests of each player (UUID). A player has a maximum number of active quests.
+
+### Escort
+
+- When a caravan is ready to leave, its village offers an escort quest. The caravan waits until a player accepts or until a delay ends. Then it leaves.
+- The escorted caravan stays materialized while the player is in the escort distance.
+- When the player is farther than the escort distance, the caravan stops. When the player stays away longer than a delay, the quest fails and the caravan continues as an abstract group.
+- **Ambushes**: each escort contains 1 to 3 ambushes of vanilla monsters at random points of the route. The length of the route and the level of the origin village set the size of an ambush.
+- **Success**: the caravan arrives and its merchant is alive. The reward comes from the value of the cargo.
+- **Failure**: the merchant dies, the player stays away too long, or the deadline ends.
+
+All distances, delays and rewards are configurable.
 
 ### Lore
 
@@ -548,9 +609,9 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J1 · Guard and village | One NPC guard with AI, one jigsaw village and its garrison | An attack on a village in iron armor fails |
 | J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
 | J3 · Abstract simulation | `SavedData`, abstract tick, village level, territory claims, economy, bank, merchant | Villages grow, territories change owner |
-| J4 · Caravans, quests | Mobile groups, materialization, generated quests | The player meets convoys and can escort them |
+| J4 · Caravans, quests | Trade between villages, caravans, traveling merchants, materialization, delivery and escort quests | The player meets convoys and can escort them |
 | J5 · Additional mods | Balance mod (possible from J2): farms, trades, anvil. Earthquakes and collapses | Farms have limits, the anvil has no cap, first earthquakes |
-| J6 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment from the village level, healer | Villages repair and improve themselves |
+| J6 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment from the village level, healer, rail and lumberjack trades | Villages repair and improve themselves |
 | J7 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages | Each faction has its own look, villages fit the terrain |
 | J8 · Maps and journal | Territories on the maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
 
