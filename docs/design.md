@@ -398,7 +398,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 
 ### Caravans
 
-- A caravan has a merchant (it looks like a wandering trader), loaded mules (vanilla mules with chests) and 2 to 4 guards. The level of the origin village sets the number of guards. The merchant walks on the route. The mules follow the merchant.
+- A caravan has a merchant (a vanilla villager with a Folkhold profession), loaded mules (vanilla mules with chests) and 2 to 4 guards. The level of the origin village sets the number of guards.
 - The guards of a caravan have no village anchor. They follow the group and defend its members. The center of their chase radius is the merchant.
 - **Trade on the road**: the caravan merchant sells the items of the cargo, with the prices of the origin village. The reputation rules of the village merchant apply.
 - **Raid**: an attack on a member of the caravan or a theft from a mule chest is a raid. A raid lowers the reputation with the faction of the caravan, and the guards attack the player.
