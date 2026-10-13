@@ -32,12 +32,13 @@ import net.neoforged.neoforge.network.PacketDistributor;
 /**
  * Territory and village information for the players:
  * <ul>
- *   <li><b>territory message</b>: when a player enters the territory of a faction, a title shows the faction
- *       name and the reputation tier of the player. This is an early warning before the villages. When a player
- *       enters an unclaimed cell, a title shows "Unclaimed territory".</li>
+ *   <li><b>territory message</b>: when a player enters the territory of a faction, a title shows "Lands of" and
+ *       the faction name in its color, and the reputation tier of the player with its glyph and color. This is an
+ *       early warning before the villages. When a player enters an unclaimed cell, a title shows "Unclaimed
+ *       territory".</li>
  *   <li><b>village message</b>: when a player comes near a village (see {@link WorldConfig#VILLAGE_MESSAGE_RADIUS}),
- *       the action bar shows the village name, the faction, the level and tier of the village, and the reputation
- *       tier in this village.</li>
+ *       the action bar shows the village name, the faction, the level and tier of the village, the reputation tier
+ *       in this village, and what the guards do.</li>
  *   <li><b>territory status</b>: the server sends the territory, the tier and the village to the client when
  *       they change. The client shows them in the territory HUD, if the player turns it on.</li>
  * </ul>
@@ -51,6 +52,7 @@ public final class TerritoryMessages {
     private static final int TITLE_FADE_IN = 10;
     private static final int TITLE_STAY = 50;
     private static final int TITLE_FADE_OUT = 20;
+    private static final String VOWELS = "AEIOUYaeiouyÉéÈèÂâÎîÔôÛû";
     private static final Map<UUID, State> STATES = new HashMap<>();
     /** Territory id of an unclaimed cell. A faction id is never empty, so it cannot be this value. */
     private static final String UNCLAIMED = "";
@@ -115,26 +117,34 @@ public final class TerritoryMessages {
     }
 
     private static void showTerritoryTitle(ServerPlayer player, FactionSpec faction) {
-        Component tier = tierName(Reputations.tier(player.server, player, faction.id()));
+        Component tier = tierLabel(Reputations.tier(player.server, player, faction.id()));
         player.connection.send(new ClientboundSetTitlesAnimationPacket(TITLE_FADE_IN, TITLE_STAY, TITLE_FADE_OUT));
         player.connection.send(new ClientboundSetSubtitleTextPacket(
                 Component.translatable("message.folkhold_world.territory_entry", tier)));
-        player.connection.send(new ClientboundSetTitleTextPacket(FactionVisuals.name(faction)));
+        // A second key for a name that starts with a vowel: some languages change the word before it ("d'").
+        boolean vowel = !faction.name().isEmpty() && VOWELS.indexOf(faction.name().charAt(0)) >= 0;
+        player.connection.send(new ClientboundSetTitleTextPacket(Component.translatable(
+                "message.folkhold_world.territory_title" + (vowel ? ".vowel" : ""), faction.name())
+                .withColor(faction.color())));
     }
 
     private static void showVillageMessage(MinecraftServer server, ServerPlayer player, VillageHeartBlockEntity heart) {
         FactionVisuals.faction(server, heart.getFactionId()).ifPresent(faction -> {
-            Component tier = tierName(Reputations.tier(server, player, heart));
+            ReputationTier tier = Reputations.tier(server, player, heart);
+            Component mood = Component.translatable("message.folkhold_world.village_mood." + tier.serializedName(),
+                    tierLabel(tier)).withColor(tier.color());
             String name = heart.getVillageName();
             Component level = Settlements.of(server, heart)
                     .<Component>map(settlement -> Component.translatable("message.folkhold_world.village_level",
-                            SettlementLevels.tierName(settlement.level()), settlement.level()))
+                            SettlementLevels.tierName(settlement.level()), settlement.level())
+                            .withStyle(ChatFormatting.GRAY))
                     .orElse(Component.empty());
             Component message = name != null
-                    ? Component.translatable("message.folkhold_world.village_entry", name,
-                            FactionVisuals.name(faction), level, tier)
+                    ? Component.translatable("message.folkhold_world.village_entry",
+                            Component.literal(name).withStyle(ChatFormatting.BOLD), FactionVisuals.name(faction),
+                            level, mood)
                     : Component.translatable("message.folkhold_world.village_entry_no_name",
-                            FactionVisuals.name(faction), level, tier);
+                            FactionVisuals.name(faction), level, mood);
             player.displayClientMessage(message, true);
         });
     }
@@ -157,8 +167,11 @@ public final class TerritoryMessages {
                 Optional.of(tier.serializedName()), villageName, villagePos);
     }
 
-    private static Component tierName(ReputationTier tier) {
-        return Component.translatable("folkhold_world.reputation_tier." + tier.serializedName());
+    /** The tier with its glyph, in its color: "✓ Friend". */
+    private static Component tierLabel(ReputationTier tier) {
+        return Component.literal(tier.glyph() + " ")
+                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
+                .withColor(tier.color());
     }
 
     public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {

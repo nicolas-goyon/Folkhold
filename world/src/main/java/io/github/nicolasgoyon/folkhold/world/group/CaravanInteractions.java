@@ -17,6 +17,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -100,7 +101,8 @@ public final class CaravanInteractions {
             merchant.setOffers(offers(level.getServer(), group.get(), tier));
         } else if (target instanceof AbstractChestedHorse) {
             if (!player.isSecondaryUseActive()) {
-                player.displayClientMessage(Component.translatable("message.folkhold_world.caravan_mule"), true);
+                Notices.warn(player, "caravan_mule", Component.translatable("message.folkhold_world.caravan_mule"),
+                        Component.translatable("message.folkhold_world.caravan_mule.details"));
                 event.setCancellationResult(InteractionResult.SUCCESS);
                 event.setCanceled(true);
                 return;
@@ -162,7 +164,8 @@ public final class CaravanInteractions {
                 WorldConfig.REPUTATION_RAID_CARAVAN.get());
         Component faction = FactionVisuals.faction(level.getServer(), group.factionId())
                 .<Component>map(FactionVisuals::name).orElse(Component.literal(group.factionId()));
-        player.displayClientMessage(Component.translatable("message.folkhold_world.caravan_raided", faction), true);
+        Notices.send(player, Component.translatable("message.folkhold_world.caravan_raided", faction), null,
+                Notices.Tone.BAD);
     }
 
     /**

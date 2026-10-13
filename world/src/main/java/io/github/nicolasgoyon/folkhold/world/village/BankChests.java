@@ -14,6 +14,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageRequestPayload;
+import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
@@ -208,8 +209,8 @@ public final class BankChests {
             SettlementLevels.addExperience(server, settlement, -WorldConfig.BANK_PILLAGE_LOSS.get());
         }
         heart.reportThreat(player);
-        player.displayClientMessage(Component.translatable("message.folkhold_world.bank_pillaged",
-                settlement.name()), true);
+        Notices.send(player, Component.translatable("message.folkhold_world.bank_pillaged", settlement.name()),
+                Component.translatable("message.folkhold_world.bank_pillaged.details"), Notices.Tone.BAD);
     }
 
     /**
@@ -478,7 +479,8 @@ public final class BankChests {
     public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
         if (event.getEntity() instanceof ServerPlayer player && !isExempt(player)
                 && event.getLevel().getBlockState(event.getPos()).is(ModBlocks.BANK_CHEST.get())) {
-            player.displayClientMessage(Component.translatable("message.folkhold_world.bank_warning"), true);
+            Notices.warn(player, "bank_chest", Component.translatable("message.folkhold_world.bank_warning"),
+                    Component.translatable("message.folkhold_world.bank_warning.details"));
         }
     }
 

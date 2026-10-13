@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.world.client.BankPillageScreen;
 import io.github.nicolasgoyon.folkhold.world.client.ClientQuestLog;
 import io.github.nicolasgoyon.folkhold.world.client.ClientTerritory;
 import io.github.nicolasgoyon.folkhold.world.client.InfoScreen;
+import io.github.nicolasgoyon.folkhold.world.client.NoticeToasts;
 import io.github.nicolasgoyon.folkhold.world.client.QuestBoardScreen;
 import io.github.nicolasgoyon.folkhold.world.client.VillageHeartScreen;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
@@ -50,6 +51,8 @@ public final class ModNetwork {
                 (payload, context) -> QuestBoardScreen.open(payload));
         registrar.playToClient(QuestLogPayload.TYPE, QuestLogPayload.STREAM_CODEC,
                 (payload, context) -> ClientQuestLog.set(payload));
+        registrar.playToClient(NoticePayload.TYPE, NoticePayload.STREAM_CODEC,
+                (payload, context) -> NoticeToasts.show(payload));
         registrar.playToServer(QuestActionPayload.TYPE, QuestActionPayload.STREAM_CODEC,
                 (payload, context) -> {
                     if (context.player() instanceof ServerPlayer player) {

@@ -223,8 +223,9 @@ This section describes the physical growth (later milestone). New elements go in
 - Two villages of the same faction trade together first (see the economy section).
 - **Pillage**: to open or to break a bank chest is a pillage. Before a player opens a bank chest, a screen asks for a confirmation. After a pillage, the village reputation and the faction reputation of the player go to a very negative value (default -800, sworn enemy). The village goes to the alert state. An explosion that a player caused is also a pillage.
 - Information for the player:
-  - When the player enters the territory of a faction, a title shows the faction and the reputation tier. This is an early warning before the villages.
-  - Near a village (50 blocks from the heart, configurable), the action bar shows the village name, the faction and the tier.
+  - When the player enters the territory of a faction, a title shows "Lands of" and the faction in its color, and the reputation tier with its glyph and color. This is an early warning before the villages.
+  - Near a village (50 blocks from the heart, configurable), the action bar shows the village name, the faction, the level, the tier and what the guards do ("✓ Friend: the guards greet you").
+  - Important events show in a toast at the top right of the screen, not in the chat: the warning of a guard, the result of a quest, a pillage, and the warnings of a bank chest and a caravan mule. The same warning shows at most once in 10 seconds.
   - An optional HUD panel (client option, off by default) at the top right of the screen, below the vanilla effect icons: the banner and the name of the faction that owns the territory, the tier of the player with its glyph and color, and the near village with its distance and an arrow to it.
   - The village heart opens a screen with the village information.
 

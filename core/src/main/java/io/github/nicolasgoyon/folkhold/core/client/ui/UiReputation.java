@@ -34,23 +34,11 @@ public final class UiReputation {
 
     /** The color of the tier for a text on wood or on the HUD. */
     public static int textOnWood(ReputationTier tier) {
-        return switch (tier) {
-            case SWORN_ENEMY -> 0xFFFF7A66;
-            case HOSTILE -> UiTheme.TEXT_BAD;
-            case NEUTRAL -> UiTheme.TEXT_MUTED;
-            case FRIEND -> UiTheme.TEXT_GOOD;
-            case ALLY -> 0xFF8FC2F0;
-        };
+        return 0xFF000000 | tier.color();
     }
 
     /** The glyph of the tier: crosses for danger, a dash for neutral, ticks and arrows for safety. */
     public static String glyph(ReputationTier tier) {
-        return switch (tier) {
-            case SWORN_ENEMY -> "✕✕";
-            case HOSTILE -> "✕";
-            case NEUTRAL -> "–";
-            case FRIEND -> "✓";
-            case ALLY -> "⇈";
-        };
+        return tier.glyph();
     }
 }
