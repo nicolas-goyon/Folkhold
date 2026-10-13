@@ -27,31 +27,39 @@ public final class RouteFinder {
         {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
     };
 
-    /** Gives the height of the ground under the water at a position, without the generation of chunks. */
+    /**
+     * The ground and the water at one position.
+     *
+     * @param floor the Y of the highest solid block. Water is not solid.
+     * @param water the depth of the water above the floor, in blocks (0 on dry ground)
+     */
+    public record Column(int floor, int water) {
+    }
+
+    /** Gives the ground and the water at a position, without the generation of chunks. */
     @FunctionalInterface
     public interface HeightSource {
         /**
-         * The Y of the highest solid block at a position. Water is not solid.
+         * The column at a position.
          *
          * @param x block X
          * @param z block Z
-         * @return block Y
+         * @return the column
          */
-        int floorHeight(int x, int z);
+        Column column(int x, int z);
     }
 
     /**
      * Settings of the search.
      *
      * @param step          size of a grid cell in blocks (1 or more)
-     * @param seaLevel      the Y of the water surface
      * @param maxWaterDepth maximum depth of water on the route, in blocks (0: no water)
      * @param slopeCost     extra cost for each block of height change, for each block of distance
      * @param waterCost     extra cost for each block of distance in shallow water
      * @param maxLength     maximum length of a route in blocks
      * @param maxNodes      maximum number of cells that the search examines
      */
-    public record Settings(int step, int seaLevel, int maxWaterDepth, double slopeCost, double waterCost,
+    public record Settings(int step, int maxWaterDepth, double slopeCost, double waterCost,
             double maxLength, int maxNodes) {
         public Settings {
             if (step < 1 || maxWaterDepth < 0 || slopeCost < 0 || waterCost < 0 || maxLength <= 0 || maxNodes < 1) {
@@ -94,7 +102,7 @@ public final class RouteFinder {
         int step = settings.step();
         int goalI = Math.round((endX - startX) / (float) step);
         int goalJ = Math.round((endZ - startZ) / (float) step);
-        Map<Long, Integer> heightCache = new HashMap<>();
+        Map<Long, Column> columns = new HashMap<>();
         Map<Long, Double> bestCost = new HashMap<>();
         Map<Long, Long> parent = new HashMap<>();
         PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.estimate(), b.estimate()));
@@ -112,13 +120,14 @@ public final class RouteFinder {
             if (node.i() == goalI && node.j() == goalJ) {
                 return new Result(build(nodeKey, parent, startX, startZ, endX, endZ, step, settings), examined);
             }
-            int fromFloor = height(node.i(), node.j(), startX, startZ, step, heights, heightCache);
+            int fromFloor = column(node.i(), node.j(), startX, startZ, step, heights, columns).floor();
             for (int[] direction : DIRECTIONS) {
                 int ni = node.i() + direction[0];
                 int nj = node.j() + direction[1];
                 boolean goal = ni == goalI && nj == goalJ;
-                int toFloor = height(ni, nj, startX, startZ, step, heights, heightCache);
-                int depth = Math.max(0, settings.seaLevel() - toFloor);
+                Column to = column(ni, nj, startX, startZ, step, heights, columns);
+                int toFloor = to.floor();
+                int depth = Math.max(0, to.water());
                 if (depth > settings.maxWaterDepth() && !goal) {
                     continue;
                 }
@@ -162,9 +171,9 @@ public final class RouteFinder {
         return route.length() <= settings.maxLength() ? Optional.of(route) : Optional.empty();
     }
 
-    private static int height(int i, int j, int startX, int startZ, int step, HeightSource heights,
-            Map<Long, Integer> cache) {
-        return cache.computeIfAbsent(key(i, j), k -> heights.floorHeight(startX + i * step, startZ + j * step));
+    private static Column column(int i, int j, int startX, int startZ, int step, HeightSource heights,
+            Map<Long, Column> cache) {
+        return cache.computeIfAbsent(key(i, j), k -> heights.column(startX + i * step, startZ + j * step));
     }
 
     private static double heuristic(int i, int j, int goalI, int goalJ, int step) {

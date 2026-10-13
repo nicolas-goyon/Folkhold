@@ -21,7 +21,8 @@ import net.minecraft.world.level.levelgen.RandomState;
  * <ul>
  *   <li>The mod calculates a route once (see {@link RouteFinder}) and keeps it in {@link MobileGroupData}. It also
  *       keeps the result "no route".</li>
- *   <li>The heights come from the chunk generator of the Overworld. The calculation does not generate chunks.</li>
+ *   <li>The heights come from the chunk generator of the Overworld. The calculation does not generate chunks. The
+ *       water depth is the difference between the surface height (water included) and the floor height.</li>
  *   <li>A route is for the two directions. When the position of a settlement moves by more than one grid step (for
  *       example when its heart loads), the mod calculates the route again.</li>
  * </ul>
@@ -94,18 +95,20 @@ public final class CaravanRoutes {
         ServerLevel level = server.overworld();
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         RandomState randomState = level.getChunkSource().randomState();
-        RouteFinder.HeightSource heights = (x, z) ->
-                generator.getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, level, randomState) - 1;
-        RouteFinder.Result result = RouteFinder.find(from.x(), from.z(), to.x(), to.z(), heights, settings(level));
+        RouteFinder.HeightSource heights = (x, z) -> {
+            int floor = generator.getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, level, randomState);
+            int surface = generator.getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, level, randomState);
+            return new RouteFinder.Column(floor - 1, surface - floor);
+        };
+        RouteFinder.Result result = RouteFinder.find(from.x(), from.z(), to.x(), to.z(), heights, settings());
         MobileGroupData.get(server).putRoute(new RouteEntry(from.id(), to.id(), from.x(), from.z(), to.x(), to.z(),
                 result.route()));
         return new Calculation(result.route(), result.examined(), System.nanoTime() - start);
     }
 
     /** The settings of the search from the server configuration. */
-    public static RouteFinder.Settings settings(ServerLevel level) {
-        return new RouteFinder.Settings(WorldConfig.ROUTE_STEP.get(), level.getSeaLevel() - 1,
-                WorldConfig.ROUTE_MAX_WATER_DEPTH.get(), SLOPE_COST, WATER_COST, WorldConfig.ROUTE_MAX_LENGTH.get(),
+    public static RouteFinder.Settings settings() {
+        return new RouteFinder.Settings(WorldConfig.ROUTE_STEP.get(), WorldConfig.ROUTE_MAX_WATER_DEPTH.get(), SLOPE_COST, WATER_COST, WorldConfig.ROUTE_MAX_LENGTH.get(),
                 WorldConfig.ROUTE_MAX_NODES.get());
     }
 
