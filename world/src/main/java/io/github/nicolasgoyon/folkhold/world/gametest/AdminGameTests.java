@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
@@ -12,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.Optional;
@@ -19,6 +21,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -191,6 +194,28 @@ public final class AdminGameTests {
                 new AdminActionPayload("level_set", "unknown-settlement", 3));
         helper.assertTrue(result.isPresent() && !result.get().success(),
                 "An action on an unknown settlement must give a refusal");
+        helper.succeed();
+    }
+
+    /**
+     * The discover action checks all the regions around the player. A second discovery at the same position finds
+     * no new settlement.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100, batch = "admin_discover")
+    public static void discoverChecksTheRegionsAroundThePlayer(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+
+        Optional<AdminActions.Result> first = AdminActions.perform(server, player,
+                new AdminActionPayload("discover", "", 0));
+        SettlementDiscovery.Discovery again = SettlementDiscovery.discoverAround(helper.getLevel(),
+                player.blockPosition());
+
+        server.getPlayerList().remove(player);
+        helper.assertTrue(first.isPresent() && first.get().success(), "The discovery must give a result");
+        helper.assertTrue(again.found() == 0, "A second discovery must find no new settlement: " + again.found());
+        helper.assertTrue(again.radius() == WorldConfig.DISCOVERY_RADIUS.get() && again.inRadius() >= 0,
+                "The discovery must give the radius");
         helper.succeed();
     }
 }

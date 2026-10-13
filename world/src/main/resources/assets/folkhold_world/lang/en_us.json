@@ -523,5 +523,9 @@
   "message.folkhold_world.village_mood.neutral": "%s: the guards watch you",
   "message.folkhold_world.village_mood.friend": "%s: the guards greet you",
   "message.folkhold_world.village_mood.ally": "%s: the guards salute you",
-  "message.folkhold_world.territory_title.vowel": "Lands of %s"
+  "message.folkhold_world.territory_title.vowel": "Lands of %s",
+  "screen.folkhold_world.admin.action.discover": "Discover the villages around me",
+  "screen.folkhold_world.admin.done.discover": "%s villages within %s blocks (%s new)",
+  "screen.folkhold_world.admin.state_filter.not_generated": "Not generated",
+  "screen.folkhold_world.admin.badge.not_generated": "Not generated"
 }

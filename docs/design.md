@@ -169,7 +169,7 @@ Each faction village has fortifications and guards. A player in iron armor with 
 
 - Generated as *jigsaw* structures, one set for each culture (building pools: center, houses, workshops, wall, towers, gates).
 - The size follows the abstract state: a hamlet has a palisade, a city has a stone wall and archer towers.
-- Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation (J3) uses the same method to know the villages of a region before the player goes there.
+- Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation (J3) uses the same method to know the villages of a region before the player goes there. The discovery covers 1024 blocks around each player and the world spawn (`discoveryRadius`), and the simulation runs on all the discovered villages: the world around the player changes with no visit. The admin screen lists these villages, with the name in italics while the game did not generate them.
 - Materialization: when the player comes near, the mod creates the garrison and the inhabitants from the `Settlement` state. When the player goes away, the mod removes them and writes their state back (health, deaths, equipment).
 
 ### Village styles and terrain
@@ -455,7 +455,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - `/folkhold quest list|give|complete|fail`: the quests of a player. `give` makes a delivery or an escort of the village nearest to the player.
 - `/folkhold settlement route <from> <to>`: calculates a route again and shows its time.
 - `/folkhold admin` opens the admin screen (operators only). Left: all settlements of the world, with a text filter and chips for the state, the level range and the sort order. Right: the selected settlement, with its badges (level, state, alert), its rows and its largest stocks.
-- The actions of the admin screen are in menus: Village (teleport, set the level, add experience, restore, ruin), Economy (one cycle, reset), Garrison (alert state, bells, if the heart is loaded) and World (copy the position, the id or a `/tp` command). The header has Refresh, Simulation (one tick or one cycle for all settlements) and "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
+- The actions of the admin screen are in menus: Village (teleport, set the level, add experience, restore, ruin), Economy (one cycle, reset), Garrison (alert state, bells, if the heart is loaded) and World (copy the position, the id or a `/tp` command). The header has Refresh, Simulation (one tick or one cycle for all settlements, and the discovery of the villages around the operator now) and "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
 - The result of an action shows in the status line of the screen. To ruin a settlement, the operator types its name. To reset an economy, the operator confirms.
 
 ### Synergy with the pack mods
