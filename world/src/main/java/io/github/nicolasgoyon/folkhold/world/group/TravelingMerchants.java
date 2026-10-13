@@ -161,6 +161,7 @@ public final class TravelingMerchants {
         MobileGroup group = new MobileGroup(UUID.randomUUID().toString(), GroupKind.TRAVELING_MERCHANT,
                 neutral.get().id(), origin.id(), destination.get().id(), route.get());
         group.setDepartureTick(tickNumber + 1);
+        CaravanRoutes.prepare(server, group);
         group.addMember(new GroupMember(UUID.randomUUID(), MemberRole.MERCHANT, Caravans.MERCHANT_HEALTH));
         group.addMember(new GroupMember(UUID.randomUUID(), MemberRole.PACK_ANIMAL, Caravans.MULE_HEALTH));
         for (RareItem rare : itemsOf(group)) {
@@ -218,7 +219,9 @@ public final class TravelingMerchants {
             return;
         }
         group.setJourney(here.get().id(), next.get().id(), route.get());
-        group.setState(GroupState.TRAVELING);
+        // The merchant leaves when its detailed route is ready (see GroupSimulation).
+        group.setState(GroupState.WAITING);
+        CaravanRoutes.prepare(server, group);
     }
 
     /** A random active village among the villages nearest to a village, in the maximum route length. */

@@ -54,6 +54,9 @@ public final class MobileGroupGameTests {
         group.setProgress(321.5);
         group.setDepartureTick(42);
         group.setPayment(57);
+        group.setRoute(new Route(group.route().points(), List.of(Route.Surface.LAND, Route.Surface.WATER)));
+        group.setProgress(321.5);
+        group.setRouteReady(false);
         group.cargo().set("minecraft:bread", 17);
         group.cargo().set("minecraft:iron_ingot", 3);
         group.members().get(2).setHealth(0.0F);
@@ -69,7 +72,10 @@ public final class MobileGroupGameTests {
         helper.assertTrue(loaded.kind() == GroupKind.CARAVAN && loaded.factionId().equals("test_faction")
                 && loaded.originId().equals("test_origin") && loaded.destinationId().equals("test_destination"),
                 "The group must keep its kind, faction, origin and destination");
-        helper.assertTrue(loaded.route().points().equals(group.route().points()), "The group must keep its route");
+        helper.assertTrue(loaded.route().points().equals(group.route().points())
+                && loaded.route().surfaces().equals(group.route().surfaces()),
+                "The group must keep its route and the surfaces of the route");
+        helper.assertTrue(!loaded.isRouteReady(), "The group must keep the state of its detailed route");
         helper.assertTrue(loaded.state() == GroupState.STOPPED && loaded.departureTick() == 42
                 && loaded.payment() == 57 && Math.abs(loaded.progress() - 321.5) < 1e-6,
                 "The group must keep its state, departure, payment and progress");

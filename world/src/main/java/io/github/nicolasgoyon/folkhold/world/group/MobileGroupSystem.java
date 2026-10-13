@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.group;
 
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupSimulation;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -20,6 +21,7 @@ import net.minecraft.server.MinecraftServer;
  * entities move (see {@link GroupMaterializer}).
  *
  * <ul>
+ *   <li>A waiting group with no detailed route asks for it (see {@link CaravanRoutes#requestDetail}).</li>
  *   <li>A traveling merchant at the end of its route stays near the village. It does not arrive.</li>
  *   <li>When a group arrives, its cargo goes into the stock of the destination settlement, up to the stock capacity
  *       of the settlement. A destination that is not active gets nothing.</li>
@@ -40,6 +42,12 @@ public final class MobileGroupSystem {
         MobileGroupData data = MobileGroupData.get(server);
         if (data.groups().size() == 0) {
             return;
+        }
+        for (MobileGroup group : data.groups().all()) {
+            // The requests on the way are not saved: a group of a saved world asks for its route again.
+            if (group.state() == GroupState.WAITING && !group.isRouteReady()) {
+                CaravanRoutes.requestDetail(server, group);
+            }
         }
         GroupSimulation.Report report = GroupSimulation.tick(data.groups(), tick.number(),
                 WorldConfig.GROUP_BLOCKS_PER_TICK.get(), GroupMaterializer::isMaterialized,

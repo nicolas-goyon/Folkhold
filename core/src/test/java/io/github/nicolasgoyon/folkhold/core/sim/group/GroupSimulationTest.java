@@ -57,6 +57,25 @@ class GroupSimulationTest {
     }
 
     @Test
+    void waitingGroupWaitsForItsRoute() {
+        MobileGroups groups = new MobileGroups();
+        MobileGroup group = caravan("a");
+        group.setDepartureTick(5);
+        group.setRouteReady(false);
+        groups.add(group);
+
+        GroupSimulation.tick(groups, 9, 200.0, g -> false, new Recorder());
+        assertEquals(GroupState.WAITING, group.state(), "A group with no ready route must wait");
+
+        group.setRoute(new Route(List.of(new Route.Point(0, 0), new Route.Point(300, 0))));
+        group.setRouteReady(true);
+        GroupSimulation.tick(groups, 10, 200.0, g -> false, new Recorder());
+        assertEquals(GroupState.TRAVELING, group.state());
+        assertEquals(300.0, group.route().length(), EPSILON);
+        assertEquals(200.0, group.progress(), EPSILON);
+    }
+
+    @Test
     void travelingGroupMovesAndArrives() {
         MobileGroups groups = new MobileGroups();
         MobileGroup group = caravan("a");

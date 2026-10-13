@@ -23,6 +23,7 @@ public final class MobileGroup {
     private Route route;
     private double progress;
     private GroupState state = GroupState.WAITING;
+    private boolean routeReady = true;
     private long departureTick;
     private long payment;
     private final Stock cargo = new Stock();
@@ -82,6 +83,28 @@ public final class MobileGroup {
     public void setJourney(String originId, String destinationId, Route route) {
         this.originId = Objects.requireNonNull(originId);
         this.destinationId = Objects.requireNonNull(destinationId);
+        this.route = Objects.requireNonNull(route);
+        this.progress = 0.0;
+    }
+
+    /**
+     * True if the route of the group is ready. A waiting group with a route that is not ready does not leave: for
+     * example while a detailed route is calculated.
+     */
+    public boolean isRouteReady() {
+        return routeReady;
+    }
+
+    public void setRouteReady(boolean routeReady) {
+        this.routeReady = routeReady;
+    }
+
+    /**
+     * Replaces the route of the group, with the same origin and destination. The progress goes back to 0.
+     *
+     * @param route the new route
+     */
+    public void setRoute(Route route) {
         this.route = Objects.requireNonNull(route);
         this.progress = 0.0;
     }

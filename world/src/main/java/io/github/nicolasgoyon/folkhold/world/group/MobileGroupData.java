@@ -22,12 +22,19 @@ import net.minecraft.world.level.saveddata.SavedData;
 /**
  * The mobile groups of a world (caravans, traveling merchants) and the routes between the settlements. Saved in
  * the Overworld data ({@code folkhold_groups.dat}).
+ *
+ * <ul>
+ *   <li>The coarse routes: one for each pair of settlements. The trade uses them to find the partners.</li>
+ *   <li>The detailed routes: one for each pair of settlements. A group follows a detailed route (see
+ *       {@link CaravanRoutes}).</li>
+ * </ul>
  */
 public final class MobileGroupData extends SavedData {
     private static final String FILE_ID = "folkhold_groups";
 
     private final MobileGroups groups = new MobileGroups();
     private final Map<String, RouteEntry> routes = new HashMap<>();
+    private final Map<String, RouteEntry> detailedRoutes = new HashMap<>();
 
     /**
      * A calculated route between two settlements, or the result "no route".
@@ -87,6 +94,32 @@ public final class MobileGroupData extends SavedData {
         return routes.size();
     }
 
+    /**
+     * The calculated detailed route between two settlements, in the two directions.
+     *
+     * @param firstId  the id of one settlement
+     * @param secondId the id of the other settlement
+     * @return the entry, or null if the detailed route was not calculated
+     */
+    public RouteEntry detailedRouteEntry(String firstId, String secondId) {
+        return detailedRoutes.get(routeKey(firstId, secondId));
+    }
+
+    /**
+     * Records a calculated detailed route.
+     *
+     * @param entry the entry
+     */
+    public void putDetailedRoute(RouteEntry entry) {
+        detailedRoutes.put(routeKey(entry.fromId(), entry.toId()), entry);
+        setDirty();
+    }
+
+    /** The number of calculated detailed routes, with the results "no route". */
+    public int detailedRouteCount() {
+        return detailedRoutes.size();
+    }
+
     private static String routeKey(String firstId, String secondId) {
         return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
     }
@@ -98,17 +131,41 @@ public final class MobileGroupData extends SavedData {
             list.add(saveGroup(group));
         }
         tag.put("Groups", list);
+        tag.put("Routes", saveEntries(routes));
+        tag.put("DetailedRoutes", saveEntries(detailedRoutes));
+        return tag;
+    }
+
+    private static ListTag saveEntries(Map<String, RouteEntry> entries) {
         ListTag routeList = new ListTag();
-        for (RouteEntry entry : routes.values()) {
+        for (RouteEntry entry : entries.values()) {
             CompoundTag routeTag = new CompoundTag();
             routeTag.putString("From", entry.fromId());
             routeTag.putString("To", entry.toId());
             routeTag.putIntArray("Ends", new int[] {entry.fromX(), entry.fromZ(), entry.toX(), entry.toZ()});
-            entry.route().ifPresent(route -> routeTag.putIntArray("Points", savePoints(route)));
+            entry.route().ifPresent(route -> {
+                routeTag.putIntArray("Points", savePoints(route));
+                routeTag.putByteArray("Surfaces", saveSurfaces(route));
+            });
             routeList.add(routeTag);
         }
-        tag.put("Routes", routeList);
-        return tag;
+        return routeList;
+    }
+
+    private static void loadEntries(ListTag routeList, Map<String, RouteEntry> entries) {
+        for (int i = 0; i < routeList.size(); i++) {
+            CompoundTag routeTag = routeList.getCompound(i);
+            int[] ends = routeTag.getIntArray("Ends");
+            if (ends.length != 4) {
+                continue;
+            }
+            Optional<Route> route = routeTag.contains("Points")
+                    ? loadRoute(routeTag.getIntArray("Points"), routeTag.getByteArray("Surfaces"))
+                    : Optional.empty();
+            RouteEntry entry = new RouteEntry(routeTag.getString("From"), routeTag.getString("To"), ends[0], ends[1],
+                    ends[2], ends[3], route);
+            entries.put(routeKey(entry.fromId(), entry.toId()), entry);
+        }
     }
 
     /**
@@ -127,19 +184,8 @@ public final class MobileGroupData extends SavedData {
                 data.groups.add(group);
             }
         }
-        ListTag routeList = tag.getList("Routes", Tag.TAG_COMPOUND);
-        for (int i = 0; i < routeList.size(); i++) {
-            CompoundTag routeTag = routeList.getCompound(i);
-            int[] ends = routeTag.getIntArray("Ends");
-            if (ends.length != 4) {
-                continue;
-            }
-            Optional<Route> route = routeTag.contains("Points")
-                    ? loadPoints(routeTag.getIntArray("Points")) : Optional.empty();
-            RouteEntry entry = new RouteEntry(routeTag.getString("From"), routeTag.getString("To"), ends[0], ends[1],
-                    ends[2], ends[3], route);
-            data.routes.put(routeKey(entry.fromId(), entry.toId()), entry);
-        }
+        loadEntries(tag.getList("Routes", Tag.TAG_COMPOUND), data.routes);
+        loadEntries(tag.getList("DetailedRoutes", Tag.TAG_COMPOUND), data.detailedRoutes);
         return data;
     }
 
@@ -151,6 +197,8 @@ public final class MobileGroupData extends SavedData {
         tag.putString("Origin", group.originId());
         tag.putString("Destination", group.destinationId());
         tag.putIntArray("Route", savePoints(group.route()));
+        tag.putByteArray("RouteSurfaces", saveSurfaces(group.route()));
+        tag.putBoolean("RouteReady", group.isRouteReady());
         tag.putDouble("Progress", group.progress());
         tag.putString("State", group.state().serializedName());
         tag.putLong("DepartureTick", group.departureTick());
@@ -181,18 +229,38 @@ public final class MobileGroupData extends SavedData {
         return coordinates;
     }
 
-    /** Reads a route from X, Z pairs. Fewer than 2 points give an empty value. */
-    private static Optional<Route> loadPoints(int[] coordinates) {
+    /** The codes of the surfaces of a route, one for each segment. */
+    private static byte[] saveSurfaces(Route route) {
+        List<Route.Surface> surfaces = route.surfaces();
+        byte[] codes = new byte[surfaces.size()];
+        for (int i = 0; i < codes.length; i++) {
+            codes[i] = (byte) surfaces.get(i).code();
+        }
+        return codes;
+    }
+
+    /**
+     * Reads a route from X, Z pairs and the codes of the surfaces. Fewer than 2 points give an empty value. With no
+     * code for a segment, the segment is on land.
+     */
+    private static Optional<Route> loadRoute(int[] coordinates, byte[] codes) {
         List<Route.Point> points = new ArrayList<>();
         for (int i = 0; i + 1 < coordinates.length; i += 2) {
             points.add(new Route.Point(coordinates[i], coordinates[i + 1]));
         }
-        return points.size() < 2 ? Optional.empty() : Optional.of(new Route(points));
+        if (points.size() < 2) {
+            return Optional.empty();
+        }
+        List<Route.Surface> surfaces = new ArrayList<>();
+        for (int i = 0; i < points.size() - 1; i++) {
+            surfaces.add(i < codes.length ? Route.Surface.fromCode(codes[i]) : Route.Surface.LAND);
+        }
+        return Optional.of(new Route(points, surfaces));
     }
 
     /** Reads one group. A group with an invalid route gives null. */
     private static MobileGroup loadGroup(CompoundTag tag) {
-        Optional<Route> route = loadPoints(tag.getIntArray("Route"));
+        Optional<Route> route = loadRoute(tag.getIntArray("Route"), tag.getByteArray("RouteSurfaces"));
         if (route.isEmpty()) {
             return null;
         }
@@ -202,6 +270,7 @@ public final class MobileGroupData extends SavedData {
         group.setState(GroupState.fromSerializedName(tag.getString("State")));
         group.setDepartureTick(tag.getLong("DepartureTick"));
         group.setPayment(tag.getLong("Payment"));
+        group.setRouteReady(!tag.contains("RouteReady") || tag.getBoolean("RouteReady"));
         CompoundTag cargo = tag.getCompound("Cargo");
         for (String item : cargo.getAllKeys()) {
             group.cargo().set(item, cargo.getInt(item));
