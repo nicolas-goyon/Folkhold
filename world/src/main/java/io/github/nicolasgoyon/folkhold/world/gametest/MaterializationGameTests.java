@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
@@ -71,7 +72,7 @@ public final class MaterializationGameTests {
         Entity merchant = level.getEntity(group.members().get(0).id());
         Entity mule = level.getEntity(group.members().get(1).id());
         Entity guard = level.getEntity(group.members().get(2).id());
-        helper.assertTrue(merchant instanceof Villager, "The merchant must be a villager");
+        helper.assertTrue(merchant instanceof CaravanMerchant, "The merchant must be a caravan merchant");
         helper.assertTrue(mule instanceof Mule chested && chested.hasChest(),
                 "The pack animal must be a mule with a chest");
         helper.assertTrue(guard instanceof GuardEntity unit && "test_faction".equals(unit.getFactionId())

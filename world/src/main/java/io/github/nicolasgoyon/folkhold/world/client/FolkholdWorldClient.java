@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionUnitRenderer
 import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import net.minecraft.client.renderer.entity.CatRenderer;
+import net.minecraft.client.renderer.entity.WanderingTraderRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -43,5 +44,6 @@ public final class FolkholdWorldClient {
         event.registerEntityRenderer(ModEntities.ARCHER.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.CAPTAIN.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.VILLAGE_CAT.get(), CatRenderer::new);
+        event.registerEntityRenderer(ModEntities.CARAVAN_MERCHANT.get(), WanderingTraderRenderer::new);
     }
 }

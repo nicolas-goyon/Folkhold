@@ -54,7 +54,8 @@ public final class GroupSimulation {
      * @param tickNumber    the number of the abstract tick
      * @param blocksPerTick the distance that a traveling group moves on each abstract tick
      * @param frozen        the groups that the simulation must not move (for example the groups with entities).
-     *                      The simulation still removes them when they are finished.
+     *                      A frozen group still leaves at its departure tick, and the simulation still removes it
+     *                      when it is finished.
      * @param listener      the listener
      * @return the report
      */
@@ -63,7 +64,13 @@ public final class GroupSimulation {
         int moved = 0;
         List<MobileGroup> finished = new ArrayList<>();
         for (MobileGroup group : groups.all()) {
-            if (!group.isFinished() && !frozen.test(group) && advance(group, tickNumber, blocksPerTick)) {
+            if (group.isFinished()) {
+                finished.add(group);
+                continue;
+            }
+            if (frozen.test(group)) {
+                depart(group, tickNumber);
+            } else if (advance(group, tickNumber, blocksPerTick)) {
                 moved++;
             }
             if (group.isFinished()) {
@@ -91,12 +98,7 @@ public final class GroupSimulation {
      * @return true if the group moved
      */
     static boolean advance(MobileGroup group, long tickNumber, double blocksPerTick) {
-        if (group.state() == GroupState.WAITING) {
-            if (tickNumber < group.departureTick()) {
-                return false;
-            }
-            group.setState(GroupState.TRAVELING);
-        }
+        depart(group, tickNumber);
         if (group.state() != GroupState.TRAVELING) {
             return false;
         }
@@ -105,5 +107,12 @@ public final class GroupSimulation {
             group.setState(GroupState.ARRIVED);
         }
         return true;
+    }
+
+    /** A waiting group starts to travel at its departure tick. */
+    private static void depart(MobileGroup group, long tickNumber) {
+        if (group.state() == GroupState.WAITING && tickNumber >= group.departureTick()) {
+            group.setState(GroupState.TRAVELING);
+        }
     }
 }

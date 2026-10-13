@@ -2,30 +2,37 @@ package io.github.nicolasgoyon.folkhold.world.group;
 
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupMember;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.FollowEntityGoal;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
-import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.horse.Mule;
-import net.minecraft.world.entity.npc.Villager;
-import net.minecraft.world.item.trading.MerchantOffers;
 
 /**
  * Makes the entity of a member of a mobile group. The entity is not in the level yet.
  *
  * <ul>
- *   <li>Merchant: a vanilla villager with the Folkhold profession {@code merchant}, with no offers.</li>
- *   <li>Pack animal: a vanilla mule with a chest.</li>
- *   <li>Guard: a faction guard of the faction of the group, with no village. Its home position is its spawn
- *       position.</li>
+ *   <li>Merchant: a {@link CaravanMerchant}. It walks on the route. Its name is "Caravan of" and the name of the
+ *       origin settlement.</li>
+ *   <li>Pack animal: a vanilla mule with a chest. It follows the merchant (see {@link FollowEntityGoal}).</li>
+ *   <li>Guard: a faction guard of the faction of the group, with no village. Its home position follows the
+ *       merchant (see {@link GroupMaterializer}), so the guard stays near the caravan, and its chase area has its
+ *       center on the merchant.</li>
  * </ul>
  */
 public final class GroupEntities {
+    /** Speed factor of a mule that follows the merchant. A mule is slower than a villager. */
+    private static final double MULE_SPEED = 1.8;
 
     private GroupEntities() {
     }
@@ -42,7 +49,7 @@ public final class GroupEntities {
     @Nullable
     public static Mob create(ServerLevel level, MobileGroup group, GroupMember member, BlockPos pos) {
         Mob mob = switch (member.role()) {
-            case MERCHANT -> EntityType.VILLAGER.create(level);
+            case MERCHANT -> ModEntities.CARAVAN_MERCHANT.get().create(level);
             case PACK_ANIMAL -> EntityType.MULE.create(level);
             case GUARD -> ModEntities.GUARD.get().create(level);
         };
@@ -58,13 +65,14 @@ public final class GroupEntities {
         if (mob instanceof GuardEntity guard) {
             // The spawn can find a village heart near the origin. A guard of a group has no village.
             guard.setVillagePos(null);
-        } else if (mob instanceof Villager villager) {
-            villager.setVillagerData(villager.getVillagerData().setProfession(ModProfessions.MERCHANT.get())
-                    .setLevel(1));
-            villager.setVillagerXp(1);
-            villager.setOffers(new MerchantOffers());
+        } else if (mob instanceof CaravanMerchant merchant) {
+            Optional<Settlement> origin = SettlementData.get(level.getServer()).registry().byId(group.originId());
+            origin.ifPresent(settlement -> merchant.setCustomName(
+                    Component.translatable("entity.folkhold_world.caravan_merchant.of", settlement.name())));
         } else if (mob instanceof Mule mule) {
             mule.setChest(true);
+            group.merchant().ifPresent(leader ->
+                    mule.goalSelector.addGoal(2, new FollowEntityGoal(mule, leader.id(), MULE_SPEED)));
         }
         mob.setPersistenceRequired();
         mob.setHealth(Math.min(member.health(), mob.getMaxHealth()));

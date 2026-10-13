@@ -184,6 +184,8 @@
   "screen.folkhold_world.village_heart.territory": "Territory",
   "screen.folkhold_world.village_heart.claimed_cells": "Claimed cells",
   "entity.folkhold_world.village_cat": "Village Cat",
+  "entity.folkhold_world.caravan_merchant": "Caravan Merchant",
+  "entity.folkhold_world.caravan_merchant.of": "Caravan of %s",
   "folkhold_world.configuration.reputationHitCat": "Hit a village cat",
   "folkhold_world.configuration.reputationKillCat": "Kill a village cat",
   "screen.folkhold_world.village_heart.empty": "No information",

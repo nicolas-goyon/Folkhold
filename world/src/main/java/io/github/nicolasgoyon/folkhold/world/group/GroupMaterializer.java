@@ -6,8 +6,10 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,9 +42,10 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *   <li>While a group has entities, the simulation does not move it. The position of its merchant sets its progress,
  *       and the health of the entities sets the health of the members. When the merchant is at the end of the
  *       route, the group arrives.</li>
+ *   <li>Each second, the home position of the guards of a group goes to the position of its merchant.</li>
  *   <li>When no player is in the materialization distance plus a margin, the mod writes back the state of the
- *       members and removes the entities. It also does this when the chunk of one entity unloads, and when the
- *       server stops.</li>
+ *       members and removes the entities (except for a kept group, see {@link #keep(String, boolean)}). It also
+ *       does this when the chunk of one entity unloads, and when the server stops.</li>
  *   <li>A dead entity records the death of its member (see {@link MobileGroup#onMemberDied(UUID)}).</li>
  *   <li>An entity of a group that loads from a chunk while its group has no entities does not join the level. So the
  *       entities of a group do not duplicate.</li>
@@ -60,8 +63,24 @@ public final class GroupMaterializer {
 
     /** The UUIDs of the entities of each group with entities, by group id. Not saved. */
     private static final Map<String, Set<UUID>> MATERIALIZED = new HashMap<>();
+    /** The ids of the groups that keep their entities with no player near. Not saved. */
+    private static final Set<String> KEPT = new HashSet<>();
 
     private GroupMaterializer() {
+    }
+
+    /**
+     * Keeps the entities of a group with no player near, or ends this. For example an escorted caravan, or a test.
+     *
+     * @param groupId the id of the group
+     * @param keep    true to keep the entities
+     */
+    public static void keep(String groupId, boolean keep) {
+        if (keep) {
+            KEPT.add(groupId);
+        } else {
+            KEPT.remove(groupId);
+        }
     }
 
     /** True if the group has entities now. */
@@ -97,7 +116,7 @@ public final class GroupMaterializer {
             }
             Route.Position position = group.position();
             double nearest = nearestPlayer(players, position);
-            if (materialized && nearest > removeDistance) {
+            if (materialized && nearest > removeDistance && !KEPT.contains(group.id())) {
                 dematerialize(level, group, true);
             } else if (materialized) {
                 sync(level, group);
@@ -173,13 +192,15 @@ public final class GroupMaterializer {
 
     /**
      * Copies the state of the entities of a group to the group: the health of the members, the progress from the
-     * position of the merchant, and the arrival.
+     * position of the merchant, and the arrival. The home position of each guard goes to the position of the
+     * merchant.
      */
     static void sync(ServerLevel level, MobileGroup group) {
         Set<UUID> ids = MATERIALIZED.get(group.id());
         if (ids == null) {
             return;
         }
+        LivingEntity merchant = null;
         for (UUID id : ids) {
             Optional<GroupMember> member = group.member(id);
             if (member.isEmpty() || !member.get().isAlive()
@@ -188,10 +209,18 @@ public final class GroupMaterializer {
             }
             member.get().setHealth(living.getHealth());
             if (member.get().role() == MemberRole.MERCHANT) {
+                merchant = living;
                 group.setProgress(group.route().progressNear(living.getX(), living.getZ()));
                 if (group.state() == GroupState.TRAVELING
                         && group.progress() >= group.route().length() - ARRIVAL_DISTANCE) {
                     group.setState(GroupState.ARRIVED);
+                }
+            }
+        }
+        if (merchant != null) {
+            for (UUID id : ids) {
+                if (level.getEntity(id) instanceof FactionUnit guard && guard.isAlive()) {
+                    guard.setHomePos(merchant.blockPosition());
                 }
             }
         }
@@ -263,6 +292,7 @@ public final class GroupMaterializer {
 
     public static void onServerStopped(ServerStoppedEvent event) {
         MATERIALIZED.clear();
+        KEPT.clear();
     }
 
     /** The id of the group of an entity, or null. */

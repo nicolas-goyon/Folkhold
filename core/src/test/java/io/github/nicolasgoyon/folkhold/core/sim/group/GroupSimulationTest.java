@@ -99,6 +99,19 @@ class GroupSimulationTest {
     }
 
     @Test
+    void frozenWaitingGroupLeavesWithNoMovement() {
+        MobileGroups groups = new MobileGroups();
+        MobileGroup group = caravan("a");
+        group.setDepartureTick(3);
+        groups.add(group);
+
+        GroupSimulation.tick(groups, 3, 200.0, g -> true, new Recorder());
+
+        assertEquals(GroupState.TRAVELING, group.state());
+        assertEquals(0.0, group.progress(), EPSILON);
+    }
+
+    @Test
     void deadMerchantMakesTheGroupLost() {
         MobileGroups groups = new MobileGroups();
         MobileGroup group = caravan("a");
