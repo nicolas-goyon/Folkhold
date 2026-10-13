@@ -6,11 +6,18 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.group.CaravanCargo;
 import io.github.nicolasgoyon.folkhold.world.group.Caravans;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
+import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,6 +25,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -109,6 +117,81 @@ public final class CaravanGameTests {
         helper.assertTrue(kept, "A kept group must keep its entities with no player near");
         helper.assertTrue(far.equals(home), "The home of the guard must be the merchant position: " + home);
         helper.succeed();
+    }
+
+    /**
+     * The merchant waits while a member of its group is far behind. When the member is near again, the merchant
+     * continues.
+     */
+    @GameTest(template = "arena", timeoutTicks = 600, batch = "caravan_wait")
+    public static void merchantWaitsForAMemberFarBehind(GameTestHelper helper) {
+        MobileGroup group = caravan(helper, GroupState.TRAVELING);
+        Entity merchant = entity(helper, group, 0);
+        Entity guard = entity(helper, group, 2);
+        BlockPos start = helper.absolutePos(START);
+        BlockPos far = helper.absolutePos(new BlockPos(14, 1, 0));
+        ((GuardEntity) guard).setNoAi(true);
+        guard.teleportTo(far.getX() + 0.5, far.getY(), far.getZ() + 0.5);
+        helper.startSequence()
+                .thenIdle(100)
+                .thenExecute(() -> {
+                    helper.assertTrue(merchant.getX() < start.getX() + 3.0,
+                            "The merchant must wait for the guard: " + merchant.getX());
+                    guard.teleportTo(merchant.getX(), merchant.getY(), merchant.getZ());
+                    ((GuardEntity) guard).setNoAi(false);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(merchant.getX() >= start.getX() + ROUTE_LENGTH / 2.0,
+                        "The merchant must continue when the guard is near: " + merchant.getX()))
+                .thenExecute(() -> remove(helper, group))
+                .thenSucceed();
+    }
+
+    /**
+     * The end of the route is far from the heart of the destination. The merchant goes to the heart, and the group
+     * arrives near the heart. Then the entities stay in the village, and the mule chests are empty.
+     */
+    @GameTest(template = "arena", timeoutTicks = 800, batch = "caravan_arrival")
+    public static void caravanArrivesAtTheDestinationHeart(GameTestHelper helper) {
+        MobileGroup group = caravan(helper, GroupState.TRAVELING);
+        BlockPos heartPos = new BlockPos(13, 1, 13);
+        helper.setBlock(heartPos, ModBlocks.VILLAGE_HEART.get());
+        VillageHeartBlockEntity heart = helper.getBlockEntity(heartPos);
+        heart.ensureSettlement();
+        Settlement destination = Settlements.of(helper.getLevel().getServer(), heart).orElseThrow();
+        BlockPos start = helper.absolutePos(START);
+        group.setJourney("test_origin", destination.id(), new Route(List.of(
+                new Route.Point(start.getX(), start.getZ()), new Route.Point(start.getX() + 3, start.getZ()))));
+        Entity merchant = entity(helper, group, 0);
+        Entity mule = entity(helper, group, 1);
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    GroupMaterializer.update(helper.getLevel().getServer());
+                    helper.assertTrue(group.state() == GroupState.ARRIVED, "The caravan must arrive. Merchant at "
+                            + merchant.blockPosition() + ", heart at " + helper.absolutePos(heartPos));
+                })
+                .thenExecute(() -> {
+                    double distance = Math.sqrt(merchant.distanceToSqr(helper.absolutePos(heartPos).getCenter()));
+                    helper.assertTrue(distance <= GroupMaterializer.ARRIVAL_RADIUS + 1.5,
+                            "The merchant must be near the heart: " + distance);
+                    GroupMaterializer.keep(group.id(), false);
+                    GroupMaterializer.release(helper.getLevel(), group);
+                    MobileGroupData.get(helper.getLevel().getServer()).groups().remove(group.id());
+                    helper.assertTrue(merchant.isAlive() && GroupMaterializer.isLingering(merchant),
+                            "The merchant must stay in the village after the arrival");
+                    helper.assertTrue(mule instanceof AbstractChestedHorse chested
+                            && CaravanCargo.contents(chested).isEmpty(), "The mule chest must be empty");
+                    merchant.discard();
+                    mule.discard();
+                    group.members().forEach(member -> {
+                        Entity entity = helper.getLevel().getEntity(member.id());
+                        if (entity != null) {
+                            entity.discard();
+                        }
+                    });
+                    destination.setState(SettlementState.RUINS);
+                    SettlementData.get(helper.getLevel().getServer()).setDirty();
+                })
+                .thenSucceed();
     }
 
     /** The number of guards comes from the level of the origin: 2, 3 from level 8, 4 from level 16. */

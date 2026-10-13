@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -12,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -47,9 +49,13 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *       mod creates the entities of the living members (see {@link GroupEntities}). Each entity has the UUID of
  *       its member and the id of its group ({@link #GROUP_TAG}).</li>
  *   <li>While a group has entities, the simulation does not move it. The position of its merchant sets its progress,
- *       and the health of the entities sets the health of the members. When the merchant is at the end of the
- *       route, the group arrives (see {@link MobileGroupSystem#onEndOfRoute(MobileGroup, long)}).</li>
+ *       and the health of the entities sets the health of the members.</li>
+ *   <li>The group arrives (see {@link MobileGroupSystem#onEndOfRoute(MobileGroup, long)}) when its merchant is at
+ *       {@link #ARRIVAL_RADIUS} blocks or less from the heart of the destination. If the heart of the destination is
+ *       not known, the group arrives when its merchant is at the end of the route.</li>
  *   <li>Each second, the home position of the guards of a group goes to the position of its merchant.</li>
+ *   <li>The entities of an arrived group stay in the village for some time (see {@link #release}). Then they
+ *       disappear when no player is near, or after {@link #LINGER_MAX_TICKS}.</li>
  *   <li>When no player is in the materialization distance plus a margin, the mod writes back the state of the
  *       members and removes the entities (except for a kept group, see {@link #keep(String, boolean)}). It also
  *       does this when the chunk of one entity unloads, and when the server stops.</li>
@@ -64,8 +70,18 @@ public final class GroupMaterializer {
     public static final String GROUP_TAG = "folkhold_world:group";
     /** Game ticks between two checks. */
     private static final int CHECK_INTERVAL = 20;
-    /** The group arrives when its merchant is nearer than this distance to the end of the route, in blocks. */
+    /** With no known heart, the group arrives when its merchant is nearer than this distance to the end of the route. */
     private static final double ARRIVAL_DISTANCE = 3.0;
+    /** The group arrives when its merchant is nearer than this horizontal distance to the destination heart. */
+    public static final double ARRIVAL_RADIUS = 8.0;
+    /** The entities of an arrived group stay at least this time, in game ticks. */
+    static final long LINGER_MIN_TICKS = 600;
+    /** The entities of an arrived group disappear after this time, in game ticks, also near a player. */
+    static final long LINGER_MAX_TICKS = 3600;
+    /** After {@link #LINGER_MIN_TICKS}, an entity of an arrived group disappears when no player is this near. */
+    private static final double LINGER_SEEN_DISTANCE = 32.0;
+    /** The merchant of an arrived group walks at this distance or less from the heart, in blocks. */
+    private static final int LINGER_RADIUS = 10;
     /** Distance in blocks between the spawn positions of two members. */
     private static final int SPACING = 2;
 
@@ -75,6 +91,8 @@ public final class GroupMaterializer {
     private static final Set<String> KEPT = new HashSet<>();
     /** The cargo of each group with entities that is not in the mule chests, by group id. Not saved. */
     private static final Map<String, Map<String, Integer>> OVERFLOW = new HashMap<>();
+    /** The entities of the arrived groups that stay in the village, with their arrival game time. Not saved. */
+    private static final Map<UUID, Long> LINGERING = new HashMap<>();
 
     private GroupMaterializer() {
     }
@@ -121,6 +139,7 @@ public final class GroupMaterializer {
         double distance = WorldConfig.GROUP_MATERIALIZE_DISTANCE.get();
         double removeDistance = distance + WorldConfig.GROUP_DEMATERIALIZE_MARGIN.get();
         List<ServerPlayer> players = level.players().stream().filter(player -> !player.isSpectator()).toList();
+        updateLingering(level, players);
         for (MobileGroup group : new ArrayList<>(data.groups().all())) {
             boolean materialized = isMaterialized(group);
             if (group.isFinished()) {
@@ -246,6 +265,124 @@ public final class GroupMaterializer {
     }
 
     /**
+     * The living entities of the members of a group with entities.
+     *
+     * @param level the level
+     * @param group the group
+     * @return the entities, in the order of the members
+     */
+    public static List<LivingEntity> memberEntities(ServerLevel level, MobileGroup group) {
+        List<LivingEntity> entities = new ArrayList<>();
+        Set<UUID> ids = MATERIALIZED.getOrDefault(group.id(), Set.of());
+        for (GroupMember member : group.members()) {
+            if (member.isAlive() && ids.contains(member.id())
+                    && level.getEntity(member.id()) instanceof LivingEntity living && living.isAlive()) {
+                entities.add(living);
+            }
+        }
+        return entities;
+    }
+
+    /**
+     * The position of the heart of the destination of a group, if the heart is known.
+     *
+     * @param server the server
+     * @param group  the group
+     * @return the heart position
+     */
+    public static Optional<BlockPos> destinationHeart(MinecraftServer server, MobileGroup group) {
+        return SettlementData.get(server).registry().byId(group.destinationId())
+                .filter(Settlement::hasHeart)
+                .map(settlement -> new BlockPos(settlement.x(), settlement.heartY(), settlement.z()));
+    }
+
+    /**
+     * True if the merchant of a group is at the destination: near the destination heart, or at the end of the route
+     * if the heart is not known.
+     *
+     * @param server   the server
+     * @param group    the group, with its progress from the position of the merchant
+     * @param merchant the merchant entity
+     * @return true if the merchant is at the destination
+     */
+    public static boolean isAtDestination(MinecraftServer server, MobileGroup group, Entity merchant) {
+        Optional<BlockPos> heart = destinationHeart(server, group);
+        if (heart.isPresent()) {
+            double dx = heart.get().getX() + 0.5 - merchant.getX();
+            double dz = heart.get().getZ() + 0.5 - merchant.getZ();
+            return dx * dx + dz * dz <= ARRIVAL_RADIUS * ARRIVAL_RADIUS;
+        }
+        return group.progress() >= group.route().length() - ARRIVAL_DISTANCE;
+    }
+
+    /**
+     * Ends the link between an arrived group and its entities. The entities stay in the village for some time:
+     *
+     * <ul>
+     *   <li>the mule chests are empty, because the cargo goes into the stock of the destination;</li>
+     *   <li>the guards stay near the destination heart, and the merchant walks near it;</li>
+     *   <li>the entities disappear after {@link #LINGER_MIN_TICKS} when no player is near, or after
+     *       {@link #LINGER_MAX_TICKS};</li>
+     *   <li>an entity that unloads does not come back, because its group does not exist.</li>
+     * </ul>
+     *
+     * @param level the level
+     * @param group the arrived group
+     */
+    public static void release(ServerLevel level, MobileGroup group) {
+        Set<UUID> ids = MATERIALIZED.remove(group.id());
+        OVERFLOW.remove(group.id());
+        if (ids == null) {
+            return;
+        }
+        Optional<BlockPos> heart = destinationHeart(level.getServer(), group);
+        long now = level.getGameTime();
+        for (UUID id : ids) {
+            if (!(level.getEntity(id) instanceof Mob mob) || !mob.isAlive()) {
+                continue;
+            }
+            if (mob instanceof AbstractChestedHorse mule) {
+                CaravanCargo.clear(mule);
+            }
+            if (heart.isPresent()) {
+                if (mob instanceof FactionUnit unit) {
+                    unit.setHomePos(heart.get());
+                } else {
+                    mob.restrictTo(heart.get(), LINGER_RADIUS);
+                }
+            }
+            LINGERING.put(id, now);
+        }
+        MobileGroupData.get(level.getServer()).setDirty();
+    }
+
+    /** True if the entity is an entity of an arrived group that stays in the village. */
+    public static boolean isLingering(Entity entity) {
+        return LINGERING.containsKey(entity.getUUID());
+    }
+
+    /** Removes the entities of the arrived groups at the end of their stay. */
+    private static void updateLingering(ServerLevel level, List<ServerPlayer> players) {
+        long now = level.getGameTime();
+        Iterator<Map.Entry<UUID, Long>> iterator = LINGERING.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, Long> entry = iterator.next();
+            Entity entity = level.getEntity(entry.getKey());
+            if (entity == null || entity.isRemoved()) {
+                iterator.remove();
+                continue;
+            }
+            long age = now - entry.getValue();
+            boolean seen = players.stream()
+                    .anyMatch(player -> player.distanceToSqr(entity) < LINGER_SEEN_DISTANCE * LINGER_SEEN_DISTANCE);
+            if (age >= LINGER_MAX_TICKS || (age >= LINGER_MIN_TICKS && !seen)) {
+                entity.discard();
+                iterator.remove();
+            }
+        }
+    }
+
+    /**
      * Writes back the state of the members of a group and removes its entities.
      *
      * @param level     the level
@@ -292,7 +429,7 @@ public final class GroupMaterializer {
                 merchant = living;
                 group.setProgress(group.route().progressNear(living.getX(), living.getZ()));
                 if (group.state() == GroupState.TRAVELING
-                        && group.progress() >= group.route().length() - ARRIVAL_DISTANCE
+                        && isAtDestination(level.getServer(), group, living)
                         && MobileGroupSystem.onEndOfRoute(group,
                                 SettlementData.get(level.getServer()).tickNumber())) {
                     group.setState(GroupState.ARRIVED);
@@ -403,14 +540,22 @@ public final class GroupMaterializer {
                 dematerialize(level, group, true);
             }
         }
+        for (UUID id : LINGERING.keySet()) {
+            Entity entity = level.getEntity(id);
+            if (entity != null) {
+                entity.discard();
+            }
+        }
         MATERIALIZED.clear();
         OVERFLOW.clear();
+        LINGERING.clear();
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
         MATERIALIZED.clear();
         KEPT.clear();
         OVERFLOW.clear();
+        LINGERING.clear();
     }
 
     /** The id of the group of an entity, or null. */
