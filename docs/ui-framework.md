@@ -48,7 +48,7 @@ public class ExampleScreen extends UiScreen {
 
     @Override
     protected List<Badge> badges() {
-        return List.of(new Badge(Component.literal("Lv 7"), UiTone.GOLD));
+        return List.of(Badge.of(Component.literal("Lv 7"), UiTone.GOLD));
     }
 
     @Override

@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.core.client.ui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.locale.Language;
@@ -126,6 +127,20 @@ public final class UiText {
             y += UiTheme.LINE;
         }
         return lines.size() * UiTheme.LINE;
+    }
+
+    /**
+     * A time as "m:ss", or "h:mm:ss" for one hour or more.
+     *
+     * @param seconds the time in seconds (a negative time gives "0:00")
+     * @return the text
+     */
+    public static String clock(long seconds) {
+        long s = Math.max(0, seconds);
+        if (s >= 3600) {
+            return String.format(Locale.ROOT, "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60);
+        }
+        return String.format(Locale.ROOT, "%d:%02d", s / 60, s % 60);
     }
 
     /** The Y of a line of text at the vertical center of a rectangle. */

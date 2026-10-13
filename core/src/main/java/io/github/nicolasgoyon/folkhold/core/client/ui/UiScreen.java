@@ -45,8 +45,25 @@ public abstract class UiScreen extends Screen {
     /** True while an overlay draws its parent screen: the parent then does not dim the game. */
     private static boolean drawnBehind;
 
-    /** A badge of the header. */
-    public record Badge(Component text, UiTone tone) {
+    /**
+     * A badge of the header.
+     *
+     * @param text       the text
+     * @param background the background color
+     * @param border     the border color
+     * @param textColor  the text color
+     */
+    public record Badge(Component text, int background, int border, int textColor) {
+
+        /** A badge with the colors of a tone. */
+        public static Badge of(Component text, UiTone tone) {
+            return new Badge(text, tone.background(), tone.border(), tone.text());
+        }
+
+        /** A chip: a badge with no border, for example the reputation tier. */
+        public static Badge chip(Component text, int background, int textColor) {
+            return new Badge(text, background, background, textColor);
+        }
     }
 
     private UiRect panel = new UiRect(0, 0, 0, 0);
@@ -203,8 +220,10 @@ public abstract class UiScreen extends Screen {
                 break;
             }
             right -= badgeWidth;
-            UiDraw.badge(graphics, font, right, header.y() + (header.height() - UiTheme.BADGE) / 2, badge.text(),
-                    badge.tone());
+            UiRect rect = new UiRect(right, header.y() + (header.height() - UiTheme.BADGE) / 2, badgeWidth,
+                    UiTheme.BADGE);
+            UiDraw.box(graphics, rect, badge.background(), badge.border(), false);
+            graphics.drawString(font, badge.text(), rect.x() + 4, UiText.textY(rect), badge.textColor(), false);
             right -= UiTheme.GAP;
         }
         Component sub = subtitle();
