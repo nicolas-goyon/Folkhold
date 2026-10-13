@@ -15,7 +15,10 @@ import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -157,6 +160,46 @@ public final class GuardGameTests {
                     helper.assertBlockProperty(gate, FenceGateBlock.OPEN, false);
                 })
                 .thenExecute(guard::discard)
+                .thenSucceed();
+    }
+
+    /**
+     * Two guards go one after the other through a closed wooden door in a wall. The first guard does not close the
+     * door on the second guard. When both guards are on the other side, the door is closed again.
+     */
+    @GameTest(template = "arena", timeoutTicks = 400, batch = "guard_door")
+    public static void guardsPassADoorAndCloseIt(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockPos door = new BlockPos(8, 1, 8);
+        for (int x = 0; x < TestSupport.ARENA_SIZE; x++) {
+            helper.setBlock(new BlockPos(x, 1, 8), Blocks.COBBLESTONE);
+            helper.setBlock(new BlockPos(x, 2, 8), Blocks.COBBLESTONE);
+        }
+        BlockState lower = Blocks.OAK_DOOR.defaultBlockState().setValue(DoorBlock.FACING, Direction.NORTH)
+                .setValue(DoorBlock.OPEN, false);
+        helper.setBlock(door, lower.setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER));
+        helper.setBlock(door.above(), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+        GuardEntity first = TestSupport.spawnGuard(helper, new BlockPos(8, 1, 4));
+        GuardEntity second = TestSupport.spawnGuard(helper, new BlockPos(7, 1, 2));
+        BlockPos goal = helper.absolutePos(new BlockPos(8, 1, 13));
+        for (GuardEntity guard : new GuardEntity[] {first, second}) {
+            guard.setVillagePos(null);
+            guard.setFactionId(null);
+            guard.setNightPos(null);
+        }
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    for (GuardEntity guard : new GuardEntity[] {first, second}) {
+                        if (guard.getNavigation().isDone() && guard.blockPosition().getZ() < goal.getZ() - 2) {
+                            guard.getNavigation().moveTo(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0);
+                        }
+                        helper.assertTrue(guard.blockPosition().getZ() >= goal.getZ() - 3,
+                                "Both guards must go through the door. Guard at " + guard.blockPosition());
+                    }
+                    helper.assertBlockProperty(door, DoorBlock.OPEN, false);
+                })
+                .thenExecute(first::discard)
+                .thenExecute(second::discard)
                 .thenSucceed();
     }
 }

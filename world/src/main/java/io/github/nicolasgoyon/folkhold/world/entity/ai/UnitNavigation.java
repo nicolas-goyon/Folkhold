@@ -19,7 +19,7 @@ import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
  *
  * <ul>
  *   <li>A closed fence gate is a closed wooden door for the path finder: the path can go through it, and
- *       {@link UseFenceGateGoal} opens it. The units also open wooden doors.</li>
+ *       {@link UsePassageGoal} opens it. The same goal opens and closes the wooden doors.</li>
  *   <li>The path finder searches in a radius of at least {@link #MIN_PATH_RANGE} blocks, with
  *       {@link #NODES_MULTIPLIER} times more nodes than a vanilla mob. A unit can go around a wall or through a
  *       gate of the village to reach a target behind the wall.</li>
