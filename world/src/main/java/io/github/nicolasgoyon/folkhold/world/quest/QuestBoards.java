@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.quest;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
@@ -527,9 +528,12 @@ public final class QuestBoards {
         if (quest.kind() == QuestKind.DELIVERY) {
             Optional<Item> item = ItemIds.item(quest.target());
             int have = Deliveries.count(player.getInventory(), item.orElse(Items.AIR));
-            info.append(" · ").append(Component.translatable("quest.folkhold_world.active.progress",
-                    Math.min(have, quest.count()), quest.count(), have >= quest.count() ? " ✓" : "")
-                    .withColor(have >= quest.count() ? TEXT_GOOD : 0xA89F8C));
+            MutableComponent progress = Component.translatable("quest.folkhold_world.active.progress",
+                    Math.min(have, quest.count()), quest.count());
+            if (have >= quest.count()) {
+                progress = Component.translatable("quest.folkhold_world.active.done", progress);
+            }
+            info.append(UiStrings.separator()).append(progress.withColor(have >= quest.count() ? TEXT_GOOD : 0xA89F8C));
             if (Deliveries.canDeliverAt(quest, here)) {
                 action = QuestBoardPayload.ACTION_DELIVER;
                 ready = have >= quest.count();
@@ -547,7 +551,7 @@ public final class QuestBoards {
                     info, secondsLeft, action, blocked, ready);
         }
         Optional<MobileGroup> caravan = Escorts.caravan(server, quest);
-        caravan.map(QuestBoards::caravanState).ifPresent(state -> info.append(" · ").append(state));
+        caravan.map(QuestBoards::caravanState).ifPresent(state -> info.append(UiStrings.separator()).append(state));
         String destination = caravan.map(MobileGroup::destinationId).orElse("");
         return new Active(quest.id(), ESCORT_ICON,
                 Component.translatable("quest.folkhold_world.active.escort", villageName(server, destination)),

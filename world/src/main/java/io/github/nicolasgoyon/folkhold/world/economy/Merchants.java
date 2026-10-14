@@ -18,6 +18,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.ToIntFunction;
@@ -220,6 +221,18 @@ public final class Merchants {
             }
         }
         return offers;
+    }
+
+    /**
+     * The text of a price or of a price factor: two decimals at most, no trailing zero ("2", "0.85", "12.5"). The
+     * decimal separator is a point in all languages.
+     *
+     * @param value the price in emeralds, or the factor
+     * @return the text
+     */
+    public static String priceText(double value) {
+        String text = String.format(Locale.ROOT, "%.2f", value);
+        return text.contains(".") ? text.replaceAll("0+$", "").replaceAll("\\.$", "") : text;
     }
 
     /**

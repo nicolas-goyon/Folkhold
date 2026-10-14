@@ -1,6 +1,8 @@
 package io.github.nicolasgoyon.folkhold.core.client.ui;
 
+import java.util.Locale;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 /** The texts that the framework shows. The translations are in the language files of the core mod. */
 public final class UiStrings {
@@ -22,11 +24,21 @@ public final class UiStrings {
     public static final Component HINT_CLOSE = Component.translatable(KEY + "hint.close");
     /** The hint of the footer of a screen with sections. */
     public static final Component HINT_SECTIONS = Component.translatable(KEY + "hint.sections");
-    /** The hint under a button that the player must hold. */
-    public static final Component HOLD_HINT = Component.translatable(KEY + "hold_hint");
     /** The label above the field of a "type the name" dialog. */
     public static final Component TYPE_NAME = Component.translatable(KEY + "type_name");
 
     private UiStrings() {
+    }
+
+    /** The hint under a button that the player must hold for a time. */
+    public static Component holdHint(long millis) {
+        String seconds = millis % 1000 == 0 ? Long.toString(millis / 1000)
+                : String.format(Locale.ROOT, "%.1f", millis / 1000.0);
+        return Component.translatable(KEY + "hold_hint", seconds);
+    }
+
+    /** The separator between two parts of a line: " · ". The caller sets the color. */
+    public static MutableComponent separator() {
+        return Component.translatable(KEY + "separator");
     }
 }

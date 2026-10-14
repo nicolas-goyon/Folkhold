@@ -7,7 +7,8 @@
   "ui.folkhold_core.empty": "No information",
   "ui.folkhold_core.hint.close": "Esc close",
   "ui.folkhold_core.hint.sections": "Esc close · ← → sections",
-  "ui.folkhold_core.hold_hint": "Hold the button for 1 s. Cancel has the focus.",
+  "ui.folkhold_core.hold_hint": "Hold the button for %s s. Cancel has the focus.",
+  "ui.folkhold_core.separator": " · ",
   "ui.folkhold_core.type_name": "Type the name to confirm",
   "ui.folkhold_core.back": "Back"
 }

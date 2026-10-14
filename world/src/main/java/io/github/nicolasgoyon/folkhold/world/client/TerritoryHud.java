@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.client;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
@@ -86,7 +87,7 @@ public final class TerritoryHud {
     private static Component factionLine(Component faction, String tierName) {
         ReputationTier tier = ReputationTier.fromSerializedName(tierName).orElse(ReputationTier.NEUTRAL);
         Component title = FactionVisuals.tierTitle(tier).withColor(UiReputation.textOnWood(tier));
-        return Component.empty().append(faction).append(Component.literal(" · ").withColor(UiTheme.TEXT_FAINT))
+        return Component.empty().append(faction).append(UiStrings.separator().withColor(UiTheme.TEXT_FAINT))
                 .append(title);
     }
 
