@@ -24,6 +24,7 @@ import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -45,6 +46,11 @@ public final class CaravanGameTests {
 
     /** A caravan on a route along the arena, with a merchant, a mule and a guard. Its entities stay. */
     private static MobileGroup caravan(GameTestHelper helper, GroupState state) {
+        return caravan(helper, state, Map.of());
+    }
+
+    /** A caravan with a cargo. */
+    private static MobileGroup caravan(GameTestHelper helper, GroupState state, Map<String, Integer> cargo) {
         TestSupport.buildFloor(helper);
         BlockPos start = helper.absolutePos(START);
         Route route = new Route(List.of(new Route.Point(start.getX(), start.getZ()),
@@ -52,6 +58,7 @@ public final class CaravanGameTests {
         MobileGroup group = new MobileGroup(UUID.randomUUID().toString(), GroupKind.CARAVAN, "test_faction",
                 "test_origin", "test_destination", route);
         group.setState(state);
+        cargo.forEach((item, count) -> group.cargo().set(item, count));
         group.addMember(new GroupMember(UUID.randomUUID(), MemberRole.MERCHANT, 20.0F));
         group.addMember(new GroupMember(UUID.randomUUID(), MemberRole.PACK_ANIMAL, 20.0F));
         group.addMember(new GroupMember(UUID.randomUUID(), MemberRole.GUARD, 30.0F));
@@ -148,16 +155,19 @@ public final class CaravanGameTests {
 
     /**
      * The end of the route is far from the heart of the destination. The merchant goes to the heart, and the group
-     * arrives near the heart. Then the entities stay in the village, and the mule chests are empty.
+     * arrives near the heart at once: the group leaves the registry, the entities stay in the village, the mule
+     * chests are empty, and the stock of the destination gets the cargo.
      */
     @GameTest(template = "arena", timeoutTicks = 800, batch = "caravan_arrival")
     public static void caravanArrivesAtTheDestinationHeart(GameTestHelper helper) {
-        MobileGroup group = caravan(helper, GroupState.TRAVELING);
+        MobileGroup group = caravan(helper, GroupState.TRAVELING, Map.of("minecraft:bread", 8));
         BlockPos heartPos = new BlockPos(13, 1, 13);
         helper.setBlock(heartPos, ModBlocks.VILLAGE_HEART.get());
         VillageHeartBlockEntity heart = helper.getBlockEntity(heartPos);
         heart.ensureSettlement();
-        Settlement destination = Settlements.of(helper.getLevel().getServer(), heart).orElseThrow();
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement destination = Settlements.of(server, heart).orElseThrow();
+        int breadBefore = destination.economy().stock().count("minecraft:bread");
         BlockPos start = helper.absolutePos(START);
         group.setJourney("test_origin", destination.id(), new Route(List.of(
                 new Route.Point(start.getX(), start.getZ()), new Route.Point(start.getX() + 3, start.getZ()))));
@@ -165,21 +175,18 @@ public final class CaravanGameTests {
         Entity mule = entity(helper, group, 1);
         helper.startSequence()
                 .thenWaitUntil(() -> {
-                    GroupMaterializer.update(helper.getLevel().getServer());
+                    GroupMaterializer.update(server);
                     helper.assertTrue(group.state() == GroupState.ARRIVED, "The caravan must arrive. Merchant at "
                             + merchant.blockPosition() + ", heart at " + helper.absolutePos(heartPos));
                 })
                 .thenExecute(() -> {
                     double distance = Math.sqrt(merchant.distanceToSqr(helper.absolutePos(heartPos).getCenter()));
-                    helper.assertTrue(distance <= GroupMaterializer.ARRIVAL_RADIUS + 1.5,
-                            "The merchant must be near the heart: " + distance);
+                    boolean removed = MobileGroupData.get(server).groups().byId(group.id()).isEmpty();
+                    boolean lingering = merchant.isAlive() && GroupMaterializer.isLingering(merchant);
+                    boolean emptyChest = mule instanceof AbstractChestedHorse chested
+                            && CaravanCargo.contents(chested).isEmpty();
+                    int bread = destination.economy().stock().count("minecraft:bread");
                     GroupMaterializer.keep(group.id(), false);
-                    GroupMaterializer.release(helper.getLevel(), group);
-                    MobileGroupData.get(helper.getLevel().getServer()).groups().remove(group.id());
-                    helper.assertTrue(merchant.isAlive() && GroupMaterializer.isLingering(merchant),
-                            "The merchant must stay in the village after the arrival");
-                    helper.assertTrue(mule instanceof AbstractChestedHorse chested
-                            && CaravanCargo.contents(chested).isEmpty(), "The mule chest must be empty");
                     merchant.discard();
                     mule.discard();
                     group.members().forEach(member -> {
@@ -189,7 +196,14 @@ public final class CaravanGameTests {
                         }
                     });
                     destination.setState(SettlementState.RUINS);
-                    SettlementData.get(helper.getLevel().getServer()).setDirty();
+                    SettlementData.get(server).setDirty();
+                    helper.assertTrue(distance <= GroupMaterializer.ARRIVAL_RADIUS + 1.5,
+                            "The merchant must be near the heart: " + distance);
+                    helper.assertTrue(removed, "The arrived caravan must leave the registry at once");
+                    helper.assertTrue(lingering, "The merchant must stay in the village after the arrival");
+                    helper.assertTrue(emptyChest, "The mule chest must be empty");
+                    helper.assertTrue(bread == breadBefore + 8, "The stock of the destination must get the 8 bread, "
+                            + "found " + (bread - breadBefore));
                 })
                 .thenSucceed();
     }
