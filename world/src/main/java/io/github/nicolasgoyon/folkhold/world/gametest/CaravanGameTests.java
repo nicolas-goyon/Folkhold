@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanCargo;
 import io.github.nicolasgoyon.folkhold.world.group.Caravans;
@@ -192,6 +193,32 @@ public final class CaravanGameTests {
                     SettlementData.get(helper.getLevel().getServer()).setDirty();
                 })
                 .thenSucceed();
+    }
+
+    /** A caravan guard has the health of a village guard, with the health multiplier of the config. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "caravan_guard_health")
+    public static void caravanGuardHasTheHealthOfAVillageGuard(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        double multiplier = WorldConfig.HEALTH_MULTIPLIER.get();
+        WorldConfig.HEALTH_MULTIPLIER.set(2.0);
+        try {
+            Settlement origin = new Settlement(UUID.randomUUID().toString(), 0, 0, "test_faction", "Origin", 0, 0);
+            Settlement destination = new Settlement(UUID.randomUUID().toString(), 10, 0, "test_faction",
+                    "Destination", 160, 0);
+            Route route = new Route(List.of(new Route.Point(0, 0), new Route.Point(160, 0)));
+            MobileGroup caravan = Caravans.create(origin, destination, route, Map.of("minecraft:bread", 8), 10, 0);
+            GuardEntity villageGuard = TestSupport.spawnGuard(helper, START);
+            float caravanGuard = caravan.members().stream()
+                    .filter(member -> member.role() == MemberRole.GUARD)
+                    .findFirst().orElseThrow().health();
+            float village = villageGuard.getMaxHealth();
+            villageGuard.discard();
+            helper.assertTrue(caravanGuard == village, "A caravan guard must have the health of a village guard: "
+                    + caravanGuard + " and " + village);
+        } finally {
+            WorldConfig.HEALTH_MULTIPLIER.set(multiplier);
+        }
+        helper.succeed();
     }
 
     /** The number of guards comes from the level of the origin: 2, 3 from level 8, 4 from level 16. */
