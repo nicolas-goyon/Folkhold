@@ -54,12 +54,16 @@ public final class DeliveryGameTests {
         return settlement;
     }
 
-    /** A neutral player with some bread, and an accepted delivery of 8 bread for the village. */
+    /**
+     * A neutral player with some bread, next to the heart of the village, and an accepted delivery of 8 bread for
+     * the village.
+     */
     private static Quest acceptedDelivery(MinecraftServer server, Settlement village, ServerPlayer player,
             int bread) {
         ReputationData reputation = ReputationData.get(server);
         reputation.get(player.getUUID()).setFaction(village.factionId(), 0);
         reputation.get(player.getUUID()).setVillage(village.id(), 0);
+        player.teleportTo(village.x() + 2.5, village.heartY(), village.z() + 0.5);
         player.getInventory().clearContent();
         player.getInventory().add(new ItemStack(Items.BREAD, bread));
         Quest quest = new Quest(UUID.randomUUID().toString(), QuestKind.DELIVERY, village.id(), village.factionId(),
@@ -106,6 +110,70 @@ public final class DeliveryGameTests {
         helper.succeed();
     }
 
+    /** A quest action of a player who is far from the village does nothing. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "delivery_far")
+    public static void actionFromOutsideTheVillageIsRefused(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement village = village(helper);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        Quest quest = acceptedDelivery(server, village, player, 10);
+        int stockBefore = village.economy().stock().count(BREAD);
+        double far = WorldConfig.VILLAGE_RADIUS.get() * 2.0;
+        player.teleportTo(village.x() + far, player.getY(), village.z());
+
+        QuestBoards.handle(player, new QuestActionPayload(QuestBoardPayload.ACTION_DELIVER, quest.id(),
+                village.id()));
+
+        int bread = Deliveries.count(player.getInventory(), Items.BREAD);
+        int stockAfter = village.economy().stock().count(BREAD);
+        QuestState state = quest.state();
+        server.getPlayerList().remove(player);
+        clear(server, quest);
+        helper.assertTrue(state == QuestState.ACCEPTED, "The quest must stay active: " + state);
+        helper.assertTrue(bread == 10 && stockAfter == stockBefore, "The player must keep the bread: " + bread);
+        helper.succeed();
+    }
+
+    /**
+     * A quest completes while its player is not in the game: the treasury pays nothing now. At the next login, the
+     * player gets the emeralds and the reputation, and the treasury pays.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "delivery_offline")
+    public static void rewardWaitsForThePlayerWhoIsNotInTheGame(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement village = village(helper);
+        SettlementData settlements = SettlementData.get(server);
+        long treasury = settlements.treasury(village.factionId());
+        UUID playerId = UUID.randomUUID();
+        Quest quest = new Quest(UUID.randomUUID().toString(), QuestKind.DELIVERY, village.id(), village.factionId(),
+                BREAD, 8, 3, 20, ReputationTier.NEUTRAL, Long.MAX_VALUE / 2, 24_000);
+        QuestData data = QuestData.get(server);
+        data.quests().add(quest);
+        data.quests().accept(quest.id(), playerId, ReputationTier.NEUTRAL, 0, 10);
+
+        boolean completed = QuestBoards.complete(server, quest).isEmpty() && quest.state() == QuestState.COMPLETED;
+        long paidWhileAway = treasury - settlements.treasury(village.factionId());
+        int pending = data.pendingRewardCount();
+        // The player joins the game: the player list fires the login event.
+        ServerPlayer player = TestSupport.mockPlayer(helper, playerId);
+
+        int emeralds = Deliveries.count(player.getInventory(), Items.EMERALD);
+        long paidAtLogin = treasury - settlements.treasury(village.factionId());
+        int value = Reputations.effective(server, player, village.factionId(), village.id()).orElse(0);
+        int pendingAfter = data.pendingRewardCount();
+        server.getPlayerList().remove(player);
+        settlements.addTreasury(village.factionId(), treasury - settlements.treasury(village.factionId()));
+        clear(server, quest);
+        helper.assertTrue(completed, "The quest must complete with no message: " + quest.state());
+        helper.assertTrue(paidWhileAway == 0 && pending == 1, "The treasury must wait for the player: paid "
+                + paidWhileAway + ", pending " + pending);
+        helper.assertTrue(emeralds == 3 && paidAtLogin == 3, "The reward must come at the login: " + emeralds
+                + " emeralds, " + paidAtLogin + " paid");
+        helper.assertTrue(value > 0, "The reputation must go up: " + value);
+        helper.assertTrue(pendingAfter == 0, "The data must not keep the paid reward");
+        helper.succeed();
+    }
+
     /** With too few items, the quest stays active and the player keeps the items. */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "delivery_missing")
     public static void deliveryNeedsAllTheItems(GameTestHelper helper) {
@@ -114,7 +182,7 @@ public final class DeliveryGameTests {
         ServerPlayer player = TestSupport.mockPlayer(helper);
         Quest quest = acceptedDelivery(server, village, player, 5);
 
-        boolean complete = Deliveries.deliver(player, quest.id());
+        boolean complete = Deliveries.deliver(player, quest.id(), village).done();
 
         int bread = Deliveries.count(player.getInventory(), Items.BREAD);
         server.getPlayerList().remove(player);
