@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.notice;
 
+import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.NoticePayload;
 import java.util.HashMap;
 import java.util.Locale;
@@ -12,7 +13,6 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Notices: the important events for a player, in a toast at the top right of the screen in place of a chat
@@ -53,10 +53,8 @@ public final class Notices {
      * @param tone    the tone
      */
     public static void send(ServerPlayer player, Component title, @Nullable Component details, Tone tone) {
-        if (player.connection.hasChannel(NoticePayload.TYPE)) {
-            PacketDistributor.sendToPlayer(player, new NoticePayload(title, Optional.ofNullable(details),
-                    tone.serializedName()));
-        } else {
+        NoticePayload payload = new NoticePayload(title, Optional.ofNullable(details), tone.serializedName());
+        if (!ModNetwork.send(player, payload)) {
             player.sendSystemMessage(asText(title, details));
         }
     }

@@ -14,6 +14,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageRequestPayload;
+import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -47,7 +48,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * The bank of a faction village. The bank chests show the stocks of the village and a part of the treasury of its
@@ -121,7 +121,7 @@ public final class BankChests {
             if (bank.settlement() == null || isExempt(player) || bank.heart().hasPillaged(player)) {
                 open(player, bank);
             } else {
-                PacketDistributor.sendToPlayer(player, request(player, pos, bank.heart(), bank.settlement()));
+                ModNetwork.send(player, request(player, pos, bank.heart(), bank.settlement()));
             }
         });
     }
