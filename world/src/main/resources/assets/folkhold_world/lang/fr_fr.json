@@ -159,6 +159,8 @@
   "screen.folkhold_world.bank_pillage.title": "Piller la banque ?",
   "message.folkhold_world.bank_pillaged": "Tu as pillé la banque de %s.",
   "message.folkhold_world.bank_warning": "C'est le coffre de la banque du village.",
+  "message.folkhold_world.trade_canceled": "Le marchand ne peut pas faire cet échange.",
+  "message.folkhold_world.trade_canceled.details": "Le stock n'a pas les objets. Tu récupères ton paiement.",
   "folkhold_world.configuration.bank": "Banque",
   "folkhold_world.configuration.bankPillageValue": "Réputation après un pillage",
   "folkhold_world.configuration.bankPillageLoss": "Perte d'expérience pour un pillage",

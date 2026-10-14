@@ -111,7 +111,10 @@ public final class CaravanInteractions {
         }
     }
 
-    /** A trade with a caravan merchant removes the items from the cargo and fills the treasury. */
+    /**
+     * A trade with a caravan merchant removes the items from the cargo and fills the treasury. A trade that the
+     * cargo cannot pay is canceled. After the trade, the open screen shows what the cargo can pay now.
+     */
     public static void onTrade(TradeWithVillagerEvent event) {
         if (!(event.getAbstractVillager() instanceof CaravanMerchant merchant)
                 || !(merchant.level() instanceof ServerLevel level)) {
@@ -120,12 +123,18 @@ public final class CaravanInteractions {
         groupOf(level.getServer(), merchant).ifPresent(group -> {
             MerchantOffer offer = event.getMerchantOffer();
             ItemStack result = offer.getResult();
-            GroupMaterializer.removeCargo(level, group, BuiltInRegistries.ITEM.getKey(result.getItem()).toString(),
-                    result.getCount());
-            ItemStack cost = offer.getCostA();
-            if (cost.is(Items.EMERALD)) {
-                SettlementData.get(level.getServer()).addTreasury(group.factionId(), cost.getCount());
+            String item = BuiltInRegistries.ITEM.getKey(result.getItem()).toString();
+            int count = result.getCount();
+            boolean paid = group.cargo().count(item) >= count
+                    && GroupMaterializer.removeCargo(level, group, item, count) == count;
+            if (!paid) {
+                if (event.getEntity() instanceof ServerPlayer player) {
+                    Merchants.cancel(player, offer);
+                }
+            } else if (offer.getCostA().is(Items.EMERALD)) {
+                SettlementData.get(level.getServer()).addTreasury(group.factionId(), offer.getCostA().getCount());
             }
+            Merchants.syncOffers(merchant, group.cargo()::count, 0L);
         });
     }
 
