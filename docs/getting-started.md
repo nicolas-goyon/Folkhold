@@ -108,7 +108,6 @@ Run these commands in the container.
 | `./gradlew spotlessApply` | Fixes the format of the sources (imports, trailing spaces, final newline). |
 | `./gradlew checkTranslations` | Checks that `en_us.json` and `fr_fr.json` have the same keys. |
 | `./gradlew :dev:runGameTestServer` | Runs all GameTests in a server. |
-| `./gradlew :world:runData` | Data generation for one mod. Output: `world/src/generated/resources/`. |
 | `./gradlew :dev:runServer` | Dedicated server with all mods. |
 
 ## Test in the game
@@ -120,7 +119,7 @@ Run these commands in the container.
 3. Name the instance `Folkhold-dev`.
 4. Start the instance one time, then close the game. Prism creates the game folder.
 
-When the modpack exists (`modpack/`), you can also import the `.mrpack` file that the CI makes (see [Modpack](#modpack)).
+You can also import the `.mrpack` file that the CI makes (see [Modpack](#modpack)).
 
 ### 2. Copy the mods into the instance
 
@@ -196,6 +195,26 @@ The models and the block states of the quest board come from a script, because t
 python3 tools/models/quest_board.py
 ```
 
+## Textures from a script
+
+The textures of the building signs and of the villager professions come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the lang keys and the tag of the signs. Change a script, then run it:
+
+```bash
+python3 tools/textures/building_signs.py
+python3 tools/textures/villager_professions.py
+```
+
+## Test structures
+
+The GameTest templates `empty` and `arena` are boxes of air. The tests build their floor and their walls. The script writes a template:
+
+```bash
+python3 tools/make_test_structure.py world/src/main/resources/data/folkhold_world/structure/empty.nbt
+python3 tools/make_test_structure.py world/src/main/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16
+```
+
+The workflow **Generated files** runs all the scripts of `tools/` and fails when their output differs from the repository: commit the output of a script with the script.
+
 To replace a generated house with a house built by hand: build it in creative mode, save it with a structure block (name `folkhold_world:village/house_<name>`), copy the file from the world folder (`generated/folkhold_world/structure/`) to the `village` folder, and add it to `worldgen/template_pool/village/houses.json`. The porch row (z = 0) must contain the jigsaw block (name `folkhold_world:house_front`, facing out).
 
 ## Modpack
@@ -220,7 +239,7 @@ The CI makes the same file for each pull request (artifact `folkhold-modpack`).
 
 ## Continuous integration and releases
 
-- Each push and pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars (and the `.mrpack` file, when the modpack exists) and the coverage report of `core` are available as artifacts of the run.
+- Each push on `main` and each pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars, the `.mrpack` file and the coverage report of `core` are available as artifacts of the run. The workflow **Generated files** checks the output of the scripts of `tools/`.
 - A change to `.devcontainer/` runs the workflow **Dev container**: it builds the image and checks the tools.
 - To make a release, push a tag on `main`:
 

@@ -1,0 +1,44 @@
+# Checks that the generated files are up to date: the structures, the block models and the textures come from
+# the scripts of tools/. A change to a script or to a generated file must come with the output of the scripts.
+name: Generated files
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Scripts and their output
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Pillow
+        run: pip install pillow
+
+      - name: Run the generators
+        run: |
+          python3 tools/structures/village.py
+          python3 tools/models/quest_board.py
+          python3 tools/textures/building_signs.py
+          python3 tools/textures/villager_professions.py
+          python3 tools/make_test_structure.py world/src/main/resources/data/folkhold_world/structure/empty.nbt
+          python3 tools/make_test_structure.py world/src/main/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16
+
+      - name: Compare with the repository
+        run: |
+          git add --all
+          git status --short
+          git diff --cached --exit-code --stat
