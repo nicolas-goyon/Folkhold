@@ -38,6 +38,11 @@ public final class TerritoryTitleHud {
         shownAt = System.currentTimeMillis();
     }
 
+    /** Removes the banner. */
+    public static void clear() {
+        current = null;
+    }
+
     /** The opacity of the banner now, from 0 to 1. */
     private static float opacity(long elapsed) {
         if (elapsed < FADE_IN) {
