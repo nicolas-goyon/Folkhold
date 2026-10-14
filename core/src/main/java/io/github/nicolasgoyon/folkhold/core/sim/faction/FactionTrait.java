@@ -1,7 +1,7 @@
 package io.github.nicolasgoyon.folkhold.core.sim.faction;
 
 /**
- * Trait of a faction. Traits change the behavior of the faction in the abstract simulation (J3).
+ * Trait of a faction. Traits change the behavior of the faction in the abstract simulation.
  */
 public enum FactionTrait {
     /** Founds new hamlets faster. */

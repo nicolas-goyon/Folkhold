@@ -324,7 +324,8 @@ public final class MerchantGameTests {
     public static void inhabitantDoesNotTrade(GameTestHelper helper) {
         Village village = village(helper);
         ServerPlayer player = TestSupport.mockPlayer(helper);
-        // The mock player can keep the reputation of an earlier test: a neutral player can trade with a merchant.
+        // A mock player has a new UUID and the start reputation of the faction: a hostile faction refuses the
+        // trade. The test sets a neutral reputation, so the merchant trades.
         ReputationData reputation = ReputationData.get(helper.getLevel().getServer());
         reputation.get(player.getUUID()).setFaction(village.settlement().factionId(), 0);
         reputation.get(player.getUUID()).setVillage(village.settlement().id(), 0);

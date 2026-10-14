@@ -193,7 +193,7 @@ public abstract class UiScreen extends Screen {
     // ------------------------------------------------------------------ status line
 
     /**
-     * Shows a status line above the footer for some seconds: the result of an action. It replaces a chat message.
+     * Shows a status line above the footer for some seconds: the result of an action, in place of a chat message.
      *
      * @param text the text
      * @param tone {@link UiTone#GOOD} for a success, {@link UiTone#BAD} for a refusal

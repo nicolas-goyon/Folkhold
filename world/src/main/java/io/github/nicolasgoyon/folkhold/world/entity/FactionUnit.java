@@ -626,8 +626,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * The ambient sound of a calm unit: the vanilla villager sound for now. A unit with a target makes no ambient
-     * sound.
+     * The ambient sound of a calm unit: the vanilla villager sound. A unit with a target makes no ambient sound.
      */
     @Override
     @Nullable

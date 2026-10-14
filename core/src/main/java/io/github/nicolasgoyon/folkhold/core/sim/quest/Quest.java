@@ -111,12 +111,10 @@ public final class Quest {
         return minTier;
     }
 
-    /** The game time when the offer ends. */
     public long offerEnd() {
         return offerEnd;
     }
 
-    /** The time from the acceptance to the deadline, in ticks. */
     public long duration() {
         return duration;
     }

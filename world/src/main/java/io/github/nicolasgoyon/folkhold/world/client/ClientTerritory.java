@@ -4,8 +4,6 @@ import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
 
 /**
  * The last territory status that the server sent to this client. The territory HUD shows it.
- *
- * <p>This class does not use client classes: the network registration refers to it on both sides.
  */
 public final class ClientTerritory {
     private static TerritoryStatusPayload status = TerritoryStatusPayload.NONE;
