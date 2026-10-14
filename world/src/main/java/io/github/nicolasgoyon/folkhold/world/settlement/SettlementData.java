@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementRegistry;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,6 +31,11 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public final class SettlementData extends SavedData {
     private static final String FILE_ID = "folkhold_settlements";
+    /**
+     * The version of the saved format. {@code load} reads the tag of an earlier version (a tag with no version is
+     * version 0) and the data saves with the current version. A tag of a later version loads with a warning.
+     */
+    static final int VERSION = 1;
 
     private final SettlementRegistry registry = new SettlementRegistry();
     private final Set<Long> checkedRegions = new HashSet<>();
@@ -139,6 +145,7 @@ public final class SettlementData extends SavedData {
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+        tag.putInt("Version", VERSION);
         ListTag list = new ListTag();
         for (Settlement settlement : registry.all()) {
             CompoundTag entry = new CompoundTag();
@@ -171,6 +178,11 @@ public final class SettlementData extends SavedData {
 
     private static SettlementData load(CompoundTag tag, HolderLookup.Provider registries) {
         SettlementData data = new SettlementData();
+        int version = tag.getInt("Version");
+        if (version > VERSION) {
+            FolkholdWorld.LOGGER.warn("{} has the format version {}, this version of the mod reads version {}",
+                    FILE_ID, version, VERSION);
+        }
         ListTag list = tag.getList("Settlements", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);

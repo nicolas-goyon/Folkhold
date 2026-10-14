@@ -109,20 +109,49 @@ public final class FactionData extends SavedData {
         return tag;
     }
 
-    private static FactionData load(CompoundTag tag, HolderLookup.Provider registries) {
+    /** The constant of an enum with a saved name (any case), or empty. */
+    private static <E extends Enum<E>> Optional<E> constant(Class<E> type, String name) {
+        for (E value : type.getEnumConstants()) {
+            if (value.name().equalsIgnoreCase(name)) {
+                return Optional.of(value);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Reads the data from a tag. {@link #save(CompoundTag, HolderLookup.Provider)} writes this tag. An unknown
+     * trait name is skipped, and an unknown attitude name gives {@link Attitude#NEUTRAL}, with a warning in the
+     * log: a renamed constant does not stop the world load.
+     *
+     * @param tag        the tag
+     * @param registries the registries
+     * @return the data
+     */
+    public static FactionData load(CompoundTag tag, HolderLookup.Provider registries) {
         FactionData data = new FactionData();
         ListTag list = tag.getList("Factions", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
+            String id = entry.getString("Id");
             Set<FactionTrait> traits = EnumSet.noneOf(FactionTrait.class);
             ListTag traitList = entry.getList("Traits", Tag.TAG_STRING);
             for (int t = 0; t < traitList.size(); t++) {
-                traits.add(FactionTrait.valueOf(traitList.getString(t).toUpperCase(Locale.ROOT)));
+                String name = traitList.getString(t);
+                Optional<FactionTrait> trait = constant(FactionTrait.class, name);
+                if (trait.isPresent()) {
+                    traits.add(trait.get());
+                } else {
+                    FolkholdWorld.LOGGER.warn("Unknown trait \"{}\" of the faction {}: skipped", name, id);
+                }
             }
-            data.factions.add(new FactionSpec(entry.getString("Id"), entry.getString("Culture"),
-                    entry.getString("Name"), entry.getInt("Color"),
-                    Attitude.valueOf(entry.getString("Attitude").toUpperCase(Locale.ROOT)), traits,
-                    entry.getInt("CenterX"), entry.getInt("CenterZ")));
+            String attitudeName = entry.getString("Attitude");
+            Attitude attitude = constant(Attitude.class, attitudeName).orElseGet(() -> {
+                FolkholdWorld.LOGGER.warn("Unknown attitude \"{}\" of the faction {}: neutral", attitudeName, id);
+                return Attitude.NEUTRAL;
+            });
+            data.factions.add(new FactionSpec(id, entry.getString("Culture"), entry.getString("Name"),
+                    entry.getInt("Color"), attitude, traits, entry.getInt("CenterX"), entry.getInt("CenterZ")));
         }
         CompoundTag relationTag = tag.getCompound("Relations");
         for (String key : relationTag.getAllKeys()) {
