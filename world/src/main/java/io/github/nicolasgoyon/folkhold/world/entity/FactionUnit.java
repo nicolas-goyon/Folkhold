@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.ReturnToAnchorGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
@@ -101,9 +102,9 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /** A path goes to the target when its end is nearer than this distance to the target, in blocks. */
     private static final double PATH_TARGET_DISTANCE = 3.0;
     /** A unit on the way to its post moves to it after this time with no path. */
-    static final int NO_PATH_TICKS = 60;
+    static final int NO_PATH_TICKS = 100;
     /** A unit on the way to its post moves to it after this time. */
-    static final int POST_TRAVEL_MAX_TICKS = 600;
+    static final int POST_TRAVEL_MAX_TICKS = 1200;
     private static final double POST_ARRIVED_SQR = 4.0;
     /** Radius around the post while the village is not calm, in blocks. */
     private static final int POST_RADIUS = 2;
@@ -339,7 +340,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /**
      * A unit on the way to its post walks to it. The towers of the village have stairs, so the path finder can find
      * a path to the post. If the unit has no path for {@link #NO_PATH_TICKS} (for example a post with a ladder
-     * only), or is on the way for {@link #POST_TRAVEL_MAX_TICKS}, it moves directly to the post.
+     * only), or is on the way for {@link #POST_TRAVEL_MAX_TICKS}, it moves directly to the post. The ticks with
+     * no path include the waits of {@link ReturnToAnchorGoal} between two path searches.
      */
     private void updatePostTravel(@Nullable LivingEntity target) {
         BlockPos post = getPostPos();
@@ -349,8 +351,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             return;
         }
         postTravelTicks++;
-        Path path = getNavigation().getPath();
-        if (path == null || getNavigation().isDone()) {
+        if (getNavigation().getPath() == null) {
             noPathTicks++;
         } else {
             noPathTicks = 0;
