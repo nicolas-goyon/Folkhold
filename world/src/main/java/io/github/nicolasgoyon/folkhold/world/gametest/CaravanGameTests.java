@@ -12,14 +12,12 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanCargo;
-import io.github.nicolasgoyon.folkhold.world.group.Caravans;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -192,16 +190,5 @@ public final class CaravanGameTests {
                     SettlementData.get(helper.getLevel().getServer()).setDirty();
                 })
                 .thenSucceed();
-    }
-
-    /** The number of guards comes from the level of the origin: 2, 3 from level 8, 4 from level 16. */
-    @GameTest(template = "empty", timeoutTicks = 20, batch = "caravan_size")
-    public static void caravanSizeFollowsTheLevelAndTheCargo(GameTestHelper helper) {
-        helper.assertTrue(Caravans.guards(1) == 2 && Caravans.guards(7) == 2 && Caravans.guards(8) == 3
-                && Caravans.guards(16) == 4 && Caravans.guards(20) == 4, "Guards from the level");
-        helper.assertTrue(Caravans.mules(Map.of("minecraft:bread", 64)) == 1
-                && Caravans.mules(Map.of("minecraft:bread", 64 * 16)) == 2
-                && Caravans.mules(Map.of("minecraft:bread", 64 * 100)) == 3, "Mules from the cargo");
-        helper.succeed();
     }
 }

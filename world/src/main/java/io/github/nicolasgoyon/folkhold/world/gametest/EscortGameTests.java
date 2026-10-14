@@ -264,18 +264,4 @@ public final class EscortGameTests {
                 && Escorts.ambushSize(10_000, 20) == 8, "The size of an ambush follows the route and the level");
         helper.succeed();
     }
-
-    /** The time of an escort comes from the length of its route, with the configured time as the minimum. */
-    @GameTest(template = "empty", timeoutTicks = 20, batch = "escort_time")
-    public static void escortTimeFollowsTheRouteLength(GameTestHelper helper) {
-        long minimum = WorldConfig.QUEST_ESCORT_MINUTES.get();
-        long shortRoute = Escorts.escortMinutes(100);
-        long longRoute = Escorts.escortMinutes(20_000);
-        long expected = (long) Math.ceil(20_000.0 / WorldConfig.QUEST_ESCORT_BLOCKS_PER_MINUTE.get()) + 10;
-
-        helper.assertTrue(shortRoute == minimum, "A short route must give the minimum time: " + shortRoute);
-        helper.assertTrue(longRoute == Math.max(minimum, expected),
-                "A long route must give more time: " + longRoute + " minutes");
-        helper.succeed();
-    }
 }

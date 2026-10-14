@@ -91,7 +91,7 @@ Each mod has:
 - `src/main/java/io/github/nicolasgoyon/folkhold/<module>/`: Java code.
 - `src/main/resources/assets/<mod_id>/lang/en_us.json` and `fr_fr.json`: translations.
 - `src/main/templates/META-INF/neoforge.mods.toml`: mod metadata. Gradle replaces the `${...}` values.
-- `src/test/java/`: JUnit tests.
+- `src/test/java/`: JUnit tests. In `world`, the tests run with the game runtime (registries and mods loaded, no server): a test that reads the config loads it with `TestConfig.loadWorldConfig()`. Pure logic, data and codecs go here. A test that needs a world is a GameTest.
 - `gradle.properties`: `mod_id`, `mod_name`, `mod_description`.
 
 The shared versions are in the root `gradle.properties`.

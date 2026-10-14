@@ -186,20 +186,9 @@ public final class MerchantGameTests {
         helper.succeed();
     }
 
-    /** The inhabitants show the jobs in proportion to the workers, the jobs with the most workers first. */
+    /** The jobs of the data pack show their professions. An unknown job shows the inhabitant profession. */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "village_folk_jobs")
-    public static void inhabitantsShowTheJobsInProportion(GameTestHelper helper) {
-        List<String> jobs = List.of("folkhold_world:miner", "folkhold_world:farmer", "folkhold_world:farmer",
-                "folkhold_world:farmer");
-
-        List<String> two = VillageFolk.pickJobs(jobs, 2);
-        List<String> four = VillageFolk.pickJobs(jobs, 4);
-
-        helper.assertTrue(two.equals(List.of("folkhold_world:farmer", "folkhold_world:miner")),
-                "Expected 1 farmer and 1 miner, found " + two);
-        helper.assertTrue(four.equals(List.of("folkhold_world:farmer", "folkhold_world:farmer",
-                "folkhold_world:farmer", "folkhold_world:miner")), "Expected 3 farmers and 1 miner, found " + four);
-        helper.assertTrue(VillageFolk.pickJobs(List.of(), 3).isEmpty(), "No workers must give no jobs");
+    public static void jobsShowTheirProfessions(GameTestHelper helper) {
         helper.assertTrue(VillageFolk.professionOf("folkhold_world:farmer") == VillagerProfession.FARMER,
                 "The farmer job must show the farmer profession");
         helper.assertTrue(VillageFolk.professionOf("folkhold_world:lumberjack") == ModProfessions.LUMBERJACK.get(),
