@@ -32,9 +32,13 @@ public final class MonsterTargeting {
     /** A monster checks its distance to the nearest heart at this interval, in ticks. */
     private static final int GATE_INTERVAL = 20;
 
-    /** The target goal of a monster, with a gate on the distance to the nearest loaded village heart. */
+    /**
+     * The target goal of a monster, with a gate on the distance to the nearest loaded village heart. The goal
+     * selector asks {@link #canUse()} on one tick of two: the gate counts its own time.
+     */
     static final class UnitTargetGoal extends NearestAttackableTargetGoal<FactionUnit> {
         private boolean nearHeart;
+        private int nextGateCheck;
 
         UnitTargetGoal(PathfinderMob mob) {
             super(mob, FactionUnit.class, true);
@@ -42,8 +46,9 @@ public final class MonsterTargeting {
 
         @Override
         public boolean canUse() {
-            if (mob.tickCount % GATE_INTERVAL == 0) {
+            if (mob.tickCount >= nextGateCheck) {
                 nearHeart = VillageHearts.findNearest(mob.level(), mob.blockPosition(), gateRadius()).isPresent();
+                nextGateCheck = mob.tickCount + GATE_INTERVAL;
             }
             return nearHeart && super.canUse();
         }
