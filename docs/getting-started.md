@@ -228,7 +228,7 @@ The CI makes the same file for each pull request (artifact `folkhold-modpack`).
   git push origin v0.1.0
   ```
 
-  The workflow **Release** publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`) and creates a GitHub Release with the jars and the `.mrpack` file. A version with a suffix (for example `v0.1.0-beta.1`) is a pre-release.
+  The workflow **Release** checks that the tag is on `main`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). A version with a suffix (for example `v0.1.0-beta.1`) is a pre-release. The release uses the same packwiz commit as the CI, so two runs on the same tag give the same `.mrpack` content.
 
 ## Clean up
 

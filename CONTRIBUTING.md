@@ -41,4 +41,4 @@ Do not push directly to `main`.
 ## Versions and releases
 
 - The version is in `gradle.properties` (`mod_version`). All mods share one version.
-- To make a release, push a tag `vX.Y.Z` on `main`. The `release` workflow publishes the jars to GitHub Packages and creates a GitHub Release.
+- To make a release, push a tag `vX.Y.Z` on `main`. The `release` workflow creates a GitHub Release with the jars and the modpack, then publishes the jars to GitHub Packages. A tag that is not on `main` makes no release.

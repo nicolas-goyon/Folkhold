@@ -2,8 +2,9 @@ name: Release
 
 # Push a tag vX.Y.Z on main to make a release:
 #   git tag v0.1.0 && git push origin v0.1.0
-# The workflow publishes the mod jars to GitHub Packages (Maven)
-# and creates a GitHub Release with the jars and the modpack (.mrpack).
+# The workflow creates a GitHub Release with the jars and the modpack (.mrpack), then publishes the mod jars to
+# GitHub Packages (Maven). The release comes first: a Maven version is immutable, so a failed release step can run
+# again only when the publication did not happen.
 
 on:
   push:
@@ -17,22 +18,34 @@ jobs:
   release:
     name: Build and publish
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The history of main, to check that the tag is on main.
+          fetch-depth: 0
+
+      - name: Check that the tag is on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "The tag $GITHUB_REF_NAME is not on main. A release comes from main only." >&2
+            exit 1
+          fi
 
       - name: Read the version from the tag
         id: version
         run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Build, unit tests and translation check
         run: ./gradlew build -Pmod_version=${{ steps.version.outputs.value }} --stacktrace
@@ -40,36 +53,56 @@ jobs:
       - name: GameTest server
         run: ./gradlew :dev:runGameTestServer -Pmod_version=${{ steps.version.outputs.value }} --stacktrace
 
-      - name: Publish to GitHub Packages
-        run: ./gradlew publish -Pmod_version=${{ steps.version.outputs.value }} --stacktrace
-        env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check for a modpack
+        id: modpack
+        run: |
+          if [ -f modpack/pack.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Set up Go
-        if: hashFiles('modpack/pack.toml') != ''
-        uses: actions/setup-go@v7
+        if: steps.modpack.outputs.present == 'true'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: stable
+          go-version: '1.27'
           cache: false
 
+      # packwiz has no releases: the commit is the same as in build.yml and .devcontainer/Dockerfile, so a release
+      # has the same .mrpack content as the CI. The download can fail on a network error, so the step tries 3 times.
       - name: Install packwiz
-        if: hashFiles('modpack/pack.toml') != ''
-        run: go install github.com/packwiz/packwiz@latest
+        if: steps.modpack.outputs.present == 'true'
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            go install github.com/packwiz/packwiz@ef87d964f8cbd52b3b13ea42453ef322290e2b9e && exit 0
+            echo "Attempt $attempt failed. Next attempt in 15 seconds."
+            sleep 15
+          done
+          exit 1
 
       - name: Export the modpack
-        if: hashFiles('modpack/pack.toml') != ''
+        if: steps.modpack.outputs.present == 'true'
         run: scripts/export-modpack.sh "build/folkhold-${{ steps.version.outputs.value }}.mrpack" "${{ steps.version.outputs.value }}"
 
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.value }}
+        shell: bash
         run: |
-          files=$(ls */build/libs/folkhold_*-"${VERSION}".jar build/*.mrpack 2>/dev/null || true)
+          shopt -s nullglob
+          files=( */build/libs/folkhold_*-"${VERSION}".jar build/*.mrpack )
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No jar to release for the version ${VERSION}." >&2
+            exit 1
+          fi
           prerelease=""
           case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" $files \
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" \
             --title "Folkhold ${VERSION}" \
             --generate-notes \
             $prerelease
+
+      - name: Publish to GitHub Packages
+        run: ./gradlew publish -Pmod_version=${{ steps.version.outputs.value }} --stacktrace
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
