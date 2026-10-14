@@ -227,6 +227,22 @@ public final class CaravanRoutes {
         return PENDING_DETAILS.contains(group.id());
     }
 
+    /**
+     * Forgets the routes on the way that use an id of settlement: a result that comes back with the old id is
+     * dropped. The simulation asks for the routes again with the new id.
+     *
+     * @param server the server
+     * @param oldId  the id that the settlement had
+     */
+    public static void forgetPending(MinecraftServer server, String oldId) {
+        PENDING.removeIf(key -> key.startsWith(oldId + "|") || key.endsWith("|" + oldId));
+        for (MobileGroup group : MobileGroupData.get(server).groups().all()) {
+            if (group.originId().equals(oldId) || group.destinationId().equals(oldId)) {
+                PENDING_DETAILS.remove(group.id());
+            }
+        }
+    }
+
     /** Gives a detailed route to a group that still waits for it, on the same journey. */
     private static void applyDetail(MobileGroup group, String originId, String destinationId, Optional<Route> detail) {
         if (group.isRouteReady() || !group.originId().equals(originId)
