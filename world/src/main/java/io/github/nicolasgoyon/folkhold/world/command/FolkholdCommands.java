@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.Relations;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.PlayerReputation;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
@@ -38,7 +39,6 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
  */
 public final class FolkholdCommands {
     private static final String KEY = "commands.folkhold_world.";
-    private static final int OPERATOR_LEVEL = 2;
 
     private FolkholdCommands() {
     }
@@ -58,7 +58,7 @@ public final class FolkholdCommands {
                                 .executes(context -> showReputation(context,
                                         EntityArgument.getPlayer(context, "player"))))
                         .then(Commands.literal("set")
-                                .requires(source -> source.hasPermission(OPERATOR_LEVEL))
+                                .requires(source -> source.hasPermission(AdminActions.PERMISSION_LEVEL))
                                 .then(Commands.argument("player", EntityArgument.player())
                                         .then(Commands.argument("faction", StringArgumentType.word())
                                                 .suggests((context, builder) -> SharedSuggestionProvider.suggest(

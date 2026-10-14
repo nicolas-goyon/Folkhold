@@ -92,15 +92,6 @@ public final class SimulationTicker {
     }
 
     /**
-     * Starts the next abstract tick at the next server tick.
-     *
-     * @param server the server
-     */
-    public static void runNow(MinecraftServer server) {
-        scheduler(SettlementData.get(server)).runNow(server.overworld().getGameTime());
-    }
-
-    /**
      * Runs the systems for one settlement, now.
      *
      * @param server     the server

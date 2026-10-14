@@ -171,18 +171,6 @@ class TickSchedulerTest {
     }
 
     @Test
-    void runNowStartsTheNextTickAtTheNextStep() {
-        TickScheduler<String> scheduler = new TickScheduler<>();
-        FakeClock clock = new FakeClock(0);
-        scheduler.step(0, List::of, (item, tick) -> { }, clock::read, SETTINGS);
-
-        scheduler.runNow(10);
-        StepResult result = scheduler.step(10, () -> List.of("x"), (item, tick) -> { }, clock::read, SETTINGS);
-
-        assertNotNull(result.finished());
-    }
-
-    @Test
     void invalidSettingsAreRejected() {
         assertThrows(IllegalArgumentException.class, () -> new Settings(0, 10, 1));
         assertThrows(IllegalArgumentException.class, () -> new Settings(10, 0, 1));

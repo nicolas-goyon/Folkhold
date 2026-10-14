@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.SplittableRandom;
-import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
@@ -70,7 +69,7 @@ public final class Economies {
             initialize(server, settlement);
         }
         if (tick.cycle()) {
-            runCycle(server, settlement, new SplittableRandom(seed(settlement) ^ tick.number()));
+            runCycle(server, settlement, new SplittableRandom(Settlements.seed(settlement.id()) ^ tick.number()));
         }
     }
 
@@ -132,7 +131,7 @@ public final class Economies {
         List<Job> eligible = eligibleJobs(server, settlement);
         List<String> current = settlement.economy().jobs();
         List<String> updated = JobAssignment.assign(current, eligible, slots, EconomyData.catalog(),
-                seed(settlement));
+                Settlements.seed(settlement.id()));
         if (!updated.equals(current)) {
             settlement.economy().setJobs(updated);
         }
@@ -202,12 +201,4 @@ public final class Economies {
                 .unwrapKey().map(key -> key.location().toString()).orElse("");
     }
 
-    private static long seed(Settlement settlement) {
-        try {
-            UUID id = UUID.fromString(settlement.id());
-            return id.getMostSignificantBits() ^ id.getLeastSignificantBits();
-        } catch (IllegalArgumentException e) {
-            return settlement.id().hashCode();
-        }
-    }
 }

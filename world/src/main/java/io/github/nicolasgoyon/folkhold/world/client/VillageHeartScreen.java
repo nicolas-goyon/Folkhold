@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload.Service;
@@ -291,9 +292,7 @@ public class VillageHeartScreen extends UiScreen {
 
     /** The reputation chip of the player, with a bar below on parchment. */
     private void renderChip(GuiGraphics graphics, ReputationTier tier, int x, int y, boolean withBar) {
-        Component text = Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
-                .append(" · " + heart.reputation());
+        Component text = FactionVisuals.tierTitle(tier).append(" · " + heart.reputation());
         int width = Math.min(font.width(text) + 8, CHIP_AREA);
         int chipX = x + CHIP_AREA - width;
         UiRect chip = new UiRect(chipX, y, width, UiTheme.BADGE);

@@ -82,7 +82,7 @@ public final class MobileGroupData extends SavedData {
      * @return the entry, or null if the route was not calculated
      */
     public RouteEntry routeEntry(String firstId, String secondId) {
-        return routes.get(routeKey(firstId, secondId));
+        return routes.get(Route.pairKey(firstId, secondId));
     }
 
     /**
@@ -91,13 +91,8 @@ public final class MobileGroupData extends SavedData {
      * @param entry the entry
      */
     public void putRoute(RouteEntry entry) {
-        routes.put(routeKey(entry.fromId(), entry.toId()), entry);
+        routes.put(Route.pairKey(entry.fromId(), entry.toId()), entry);
         setDirty();
-    }
-
-    /** The number of calculated routes, with the results "no route". */
-    public int routeCount() {
-        return routes.size();
     }
 
     /**
@@ -108,7 +103,7 @@ public final class MobileGroupData extends SavedData {
      * @return the entry, or null if the detailed route was not calculated
      */
     public RouteEntry detailedRouteEntry(String firstId, String secondId) {
-        return detailedRoutes.get(routeKey(firstId, secondId));
+        return detailedRoutes.get(Route.pairKey(firstId, secondId));
     }
 
     /**
@@ -117,13 +112,8 @@ public final class MobileGroupData extends SavedData {
      * @param entry the entry
      */
     public void putDetailedRoute(RouteEntry entry) {
-        detailedRoutes.put(routeKey(entry.fromId(), entry.toId()), entry);
+        detailedRoutes.put(Route.pairKey(entry.fromId(), entry.toId()), entry);
         setDirty();
-    }
-
-    /** The number of calculated detailed routes, with the results "no route". */
-    public int detailedRouteCount() {
-        return detailedRoutes.size();
     }
 
     /**
@@ -147,16 +137,12 @@ public final class MobileGroupData extends SavedData {
             }
         }
         for (RouteEntry entry : renamed) {
-            entries.remove(routeKey(entry.fromId(), entry.toId()));
+            entries.remove(Route.pairKey(entry.fromId(), entry.toId()));
             RouteEntry replaced = new RouteEntry(entry.fromId().equals(oldId) ? newId : entry.fromId(),
                     entry.toId().equals(oldId) ? newId : entry.toId(), entry.fromX(), entry.fromZ(), entry.toX(),
                     entry.toZ(), entry.route());
-            entries.put(routeKey(replaced.fromId(), replaced.toId()), replaced);
+            entries.put(Route.pairKey(replaced.fromId(), replaced.toId()), replaced);
         }
-    }
-
-    private static String routeKey(String firstId, String secondId) {
-        return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
     }
 
     @Override
@@ -200,7 +186,7 @@ public final class MobileGroupData extends SavedData {
                     : Optional.empty();
             RouteEntry entry = new RouteEntry(routeTag.getString("From"), routeTag.getString("To"), ends[0], ends[1],
                     ends[2], ends[3], route);
-            entries.put(routeKey(entry.fromId(), entry.toId()), entry);
+            entries.put(Route.pairKey(entry.fromId(), entry.toId()), entry);
         }
     }
 

@@ -60,7 +60,6 @@ import net.minecraft.server.MinecraftServer;
  */
 public final class SettlementCommands {
     private static final String KEY = "commands.folkhold_world.";
-    private static final int OPERATOR_LEVEL = 2;
     private static final int MAX_RUNS = 1000;
     private static final int INFO_STOCKS = 12;
 
@@ -74,7 +73,7 @@ public final class SettlementCommands {
     static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("folkhold")
                 .then(Commands.literal("settlement")
-                        .requires(source -> source.hasPermission(OPERATOR_LEVEL))
+                        .requires(source -> source.hasPermission(AdminActions.PERMISSION_LEVEL))
                         .then(Commands.literal("list")
                                 .executes(context -> list(context, null))
                                 .then(Commands.argument("faction", StringArgumentType.word())
@@ -109,7 +108,7 @@ public final class SettlementCommands {
                             return 1;
                         }))
                 .then(Commands.literal("sim")
-                        .requires(source -> source.hasPermission(OPERATOR_LEVEL))
+                        .requires(source -> source.hasPermission(AdminActions.PERMISSION_LEVEL))
                         .then(runLiteral("tick", false))
                         .then(runLiteral("cycle", true))
                         .then(Commands.literal("profile")

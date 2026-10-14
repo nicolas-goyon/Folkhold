@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Active;
@@ -138,9 +139,8 @@ public class QuestBoardScreen extends UiScreen {
     @Override
     protected List<Badge> badges() {
         ReputationTier tier = tier();
-        Component text = Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()));
-        return List.of(Badge.chip(text, UiReputation.background(tier), UiReputation.text(tier)));
+        return List.of(Badge.chip(FactionVisuals.tierTitle(tier), UiReputation.background(tier),
+                UiReputation.text(tier)));
     }
 
     @Override

@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import net.minecraft.SharedConstants;
 import net.minecraft.server.MinecraftServer;
 
 /**
@@ -36,7 +37,6 @@ import net.minecraft.server.MinecraftServer;
  * </ul>
  */
 public final class QuestSystem {
-    private static final long TICKS_PER_MINUTE = 1200L;
     private static final List<BiConsumer<MinecraftServer, Quest>> LISTENERS = new ArrayList<>();
 
     private QuestSystem() {
@@ -53,8 +53,8 @@ public final class QuestSystem {
 
     /** The settings of the generation from the server configuration. */
     public static QuestGenerator.Settings settings() {
-        return new QuestGenerator.Settings(WorldConfig.QUEST_OFFER_MINUTES.get() * TICKS_PER_MINUTE,
-                WorldConfig.QUEST_DELIVERY_MINUTES.get() * TICKS_PER_MINUTE, WorldConfig.QUEST_DELIVERY_BONUS.get(),
+        return new QuestGenerator.Settings(WorldConfig.QUEST_OFFER_MINUTES.get() * SharedConstants.TICKS_PER_MINUTE,
+                WorldConfig.QUEST_DELIVERY_MINUTES.get() * SharedConstants.TICKS_PER_MINUTE, WorldConfig.QUEST_DELIVERY_BONUS.get(),
                 WorldConfig.QUEST_DELIVERY_REPUTATION.get(), WorldConfig.QUEST_DELIVERY_MAX_COUNT.get(),
                 WorldConfig.QUEST_FRIEND_REWARD.get());
     }

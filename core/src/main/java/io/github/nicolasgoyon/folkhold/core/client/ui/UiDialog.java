@@ -376,14 +376,9 @@ public final class UiDialog extends UiOverlay {
             return this;
         }
 
-        /** Makes the dialog. */
-        public UiDialog build() {
-            return new UiDialog(this);
-        }
-
         /** Opens the dialog. */
         public void open() {
-            Minecraft.getInstance().setScreen(build());
+            Minecraft.getInstance().setScreen(new UiDialog(this));
         }
     }
 }

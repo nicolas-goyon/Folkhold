@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.UUID;
+import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -63,7 +64,6 @@ public final class Escorts {
     /** Key in the persistent data of an ambush monster. */
     public static final String AMBUSH_TAG = "folkhold_world:ambush";
     private static final int CHECK_INTERVAL = 20;
-    private static final long TICKS_PER_MINUTE = 1200L;
     /** The minutes that the time of an escort adds to the travel: the departure, the stops, the ambushes. */
     private static final long EXTRA_MINUTES = 10L;
     /** The ambushes are between these shares of the route. */
@@ -104,7 +104,7 @@ public final class Escorts {
         Quest quest = new Quest(UUID.randomUUID().toString(), QuestKind.ESCORT, origin.id(), origin.factionId(),
                 caravan.id(), 0, reward, WorldConfig.QUEST_ESCORT_REPUTATION.get(),
                 QuestGenerator.minTier(reward, QuestSystem.settings()), offerEnd,
-                escortMinutes(caravan.route().length()) * TICKS_PER_MINUTE);
+                escortMinutes(caravan.route().length()) * SharedConstants.TICKS_PER_MINUTE);
         QuestData data = QuestData.get(server);
         data.quests().add(quest);
         data.setDirty();

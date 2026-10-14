@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
+import net.minecraft.SharedConstants;
 
 /**
  * The last quest log that the server sent to this client, and the game time when it came. The quest HUD shows it.
@@ -8,7 +9,6 @@ import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
  * <p>The times of the log go down with the game time of the client level, so they stop while the game is paused.
  */
 public final class ClientQuestLog {
-    private static final long TICKS_PER_SECOND = 20L;
 
     private static QuestLogPayload log = QuestLogPayload.EMPTY;
     private static long receivedAt;
@@ -39,7 +39,7 @@ public final class ClientQuestLog {
      * @return the seconds now, at least 0
      */
     public static int secondsNow(int seconds, long gameTime) {
-        long elapsed = Math.max(0L, gameTime - receivedAt) / TICKS_PER_SECOND;
+        long elapsed = Math.max(0L, gameTime - receivedAt) / SharedConstants.TICKS_PER_SECOND;
         return (int) Math.max(0, seconds - elapsed);
     }
 

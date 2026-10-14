@@ -12,8 +12,6 @@ public final class UiStrings {
     public static final Component CLOSE = Component.translatable(KEY + "close");
     /** The tooltip of the back button. */
     public static final Component BACK = Component.translatable(KEY + "back");
-    /** The cancel button of a dialog. */
-    public static final Component CANCEL = Component.translatable(KEY + "cancel");
     /** The cancel button of a dialog, with its key. */
     public static final Component CANCEL_KEY = Component.translatable(KEY + "cancel_key");
     /** The button that applies the value of a field. */

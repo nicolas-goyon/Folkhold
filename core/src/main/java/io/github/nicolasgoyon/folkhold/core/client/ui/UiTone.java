@@ -15,8 +15,6 @@ public enum UiTone {
     BAD(0xFF5A1E18, 0xFFE05A47, UiTheme.TEXT, UiTheme.WAX),
     /** An information: accepted. */
     INFO(0xFF2C3E52, 0xFF5F95C4, UiTheme.TEXT, 0xFF5F95C4),
-    /** A neutral state: traveling, waiting. */
-    NEUTRAL(UiTheme.WOOD_RAISED, 0xFF8A7F63, UiTheme.TEXT, 0xFF8A7F63),
     /** A state that does not count now: ruins. */
     MUTED(0xFF2A231B, 0xFF6E6455, UiTheme.TEXT_MUTED, 0xFF6E6455);
 

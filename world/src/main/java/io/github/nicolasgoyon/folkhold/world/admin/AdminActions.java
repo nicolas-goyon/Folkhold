@@ -72,7 +72,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
  * settlement again.
  */
 public final class AdminActions {
-    /** The permission level of the admin screen and of its actions. */
+    /** The permission level of the admin screen, its actions and the operator commands. */
     public static final int PERMISSION_LEVEL = 2;
 
     private static final String KEY = "screen.folkhold_world.admin.";

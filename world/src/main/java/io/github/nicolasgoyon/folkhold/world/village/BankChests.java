@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
@@ -324,7 +325,7 @@ public final class BankChests {
         for (int slot = 0; slot < chest.container().getContainerSize(); slot++) {
             ItemStack stack = chest.container().getItem(slot);
             if (!stack.isEmpty()) {
-                counts.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(),
+                counts.merge(ItemIds.id(stack.getItem()), stack.getCount(),
                         Integer::sum);
             }
         }
@@ -394,7 +395,7 @@ public final class BankChests {
             Map<String, Integer> after) {
         SettlementData data = SettlementData.get(server);
         Stock stock = settlement.economy().stock();
-        String emerald = BuiltInRegistries.ITEM.getKey(Items.EMERALD).toString();
+        String emerald = ItemIds.id(Items.EMERALD);
         Set<String> items = new HashSet<>(before.keySet());
         items.addAll(after.keySet());
         for (String item : items) {
@@ -467,7 +468,7 @@ public final class BankChests {
                     data.addTreasury(settlement.factionId(), -stack.getCount());
                 } else if (stockIndex < stock.size()) {
                     stack = stock.get(stockIndex++);
-                    settlement.economy().stock().remove(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                    settlement.economy().stock().remove(ItemIds.id(stack.getItem()),
                             stack.getCount());
                 } else {
                     break;
@@ -504,7 +505,7 @@ public final class BankChests {
                 if (stack.is(Items.EMERALD)) {
                     data.addTreasury(settlement.factionId(), stack.getCount());
                 } else {
-                    settlement.economy().stock().add(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                    settlement.economy().stock().add(ItemIds.id(stack.getItem()),
                             stack.getCount(), Integer.MAX_VALUE);
                 }
             }

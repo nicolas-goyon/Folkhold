@@ -19,6 +19,17 @@ public final class Route {
     private final double[] distances;
 
     /**
+     * The key of the route between two settlements: the same key in both directions.
+     *
+     * @param firstId  the id of one settlement
+     * @param secondId the id of the other settlement
+     * @return the key, {@code a|b} with a before b in alphabetical order
+     */
+    public static String pairKey(String firstId, String secondId) {
+        return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
+    }
+
+    /**
      * A point of a route, in block coordinates.
      *
      * @param x block X

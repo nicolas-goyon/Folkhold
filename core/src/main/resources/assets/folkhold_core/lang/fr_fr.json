@@ -2,7 +2,6 @@
   "fml.menu.mods.info.description.folkhold_core": "Bibliothèque partagée de Folkhold : simulation abstraite, régions et planificateur.",
   "ui.folkhold_core.waiting": "Envoi…",
   "ui.folkhold_core.close": "Fermer",
-  "ui.folkhold_core.cancel": "Annuler",
   "ui.folkhold_core.cancel_key": "Annuler (Échap)",
   "ui.folkhold_core.ok": "OK",
   "ui.folkhold_core.empty": "Aucune information",

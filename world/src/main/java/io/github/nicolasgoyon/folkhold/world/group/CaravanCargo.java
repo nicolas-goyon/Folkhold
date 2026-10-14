@@ -1,16 +1,14 @@
 package io.github.nicolasgoyon.folkhold.world.group;
 
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 /**
  * The cargo of a caravan in the chests of its mules.
@@ -39,7 +37,7 @@ public final class CaravanCargo {
         int muleIndex = 0;
         int slot = 0;
         for (Map.Entry<String, Integer> entry : cargo.entrySet()) {
-            Optional<Item> item = item(entry.getKey());
+            Optional<Item> item = ItemIds.item(entry.getKey());
             if (item.isEmpty()) {
                 overflow.merge(entry.getKey(), entry.getValue(), Integer::sum);
                 continue;
@@ -78,7 +76,7 @@ public final class CaravanCargo {
         for (int i = chestStart(mule); i < inventory.getContainerSize(); i++) {
             ItemStack stack = inventory.getItem(i);
             if (!stack.isEmpty()) {
-                result.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(),
+                result.merge(ItemIds.id(stack.getItem()), stack.getCount(),
                         Integer::sum);
             }
         }
@@ -133,9 +131,4 @@ public final class CaravanCargo {
         return Math.max(0, mule.inventory.getContainerSize() - mule.getInventoryColumns() * 3);
     }
 
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty()
-                : BuiltInRegistries.ITEM.getOptional(location).filter(item -> item != Items.AIR);
-    }
 }

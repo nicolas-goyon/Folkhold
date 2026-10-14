@@ -227,8 +227,7 @@ public final class VillageTrade {
                 if (seller == buyer || seller.surpluses().keySet().stream().noneMatch(buyer.needs()::containsKey)) {
                     continue;
                 }
-                String key = seller.id().compareTo(buyer.id()) < 0 ? seller.id() + "|" + buyer.id()
-                        : buyer.id() + "|" + seller.id();
+                String key = Route.pairKey(seller.id(), buyer.id());
                 Settlement from = settlements.get(seller.id());
                 Settlement to = settlements.get(buyer.id());
                 long distanceSquared = from.distanceSquared(to.x(), to.z());

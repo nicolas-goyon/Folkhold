@@ -23,9 +23,7 @@ import java.util.Optional;
 import java.util.function.ToIntFunction;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -65,7 +63,8 @@ public final class Merchants {
     public static final String VILLAGE_TAG = "folkhold_world:village";
     /** Maximum uses of one offer. */
     private static final int MAX_USES = 64;
-    private static final float PRICE_MULTIPLIER = 0.05F;
+    /** The price change of an offer for each use, as a share: the vanilla demand. */
+    public static final float PRICE_MULTIPLIER = 0.05F;
 
     private Merchants() {
     }
@@ -185,31 +184,19 @@ public final class Merchants {
         int population = settlement.economy().population();
         double factor = priceFactor(tier);
 
-        List<Map.Entry<String, Integer>> sellable = stock.asMap().entrySet().stream()
-                .filter(entry -> item(entry.getKey()).filter(item -> item != Items.EMERALD).isPresent())
-                .sorted(Comparator.comparingDouble((Map.Entry<String, Integer> entry) ->
-                        EconomyData.catalog().info(entry.getKey()).price() * entry.getValue()).reversed())
-                .toList();
-        for (Map.Entry<String, Integer> entry : sellable) {
+        for (Map.Entry<String, Integer> entry : sellable(stock.asMap())) {
             if (offers.size() >= sellSlots) {
                 break;
             }
-            Item item = item(entry.getKey()).orElseThrow();
             ItemInfo info = EconomyData.catalog().info(entry.getKey());
             double price = Prices.sellPrice(info, entry.getValue(), population, settings) * factor;
-            int maxStack = new ItemStack(item).getMaxStackSize();
-            int emeralds = price >= 1.0 ? (int) Math.min(64, Math.round(price)) : 1;
-            int quantity = price >= 1.0 ? 1 : (int) Math.max(1, Math.min(maxStack, Math.floor(1.0 / price)));
-            int uses = Math.min(MAX_USES, entry.getValue() / quantity);
-            if (uses > 0) {
-                offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, emeralds), Optional.empty(),
-                        new ItemStack(item, quantity), uses, 0, PRICE_MULTIPLIER));
-            }
+            sellOffer(ItemIds.item(entry.getKey()).orElseThrow(), entry.getValue(), price, MAX_USES)
+                    .ifPresent(offers::add);
         }
 
         long treasury = SettlementData.get(server).treasury(settlement.factionId());
         List<ItemInfo> needs = EconomyData.catalog().all().stream()
-                .filter(info -> item(info.id()).isPresent()
+                .filter(info -> ItemIds.item(info.id()).isPresent()
                         && stock.count(info.id()) < Prices.target(info, population) / 2)
                 .sorted(Comparator.comparingInt((ItemInfo info) ->
                         stock.count(info.id()) - Prices.target(info, population)).thenComparing(ItemInfo::id))
@@ -219,7 +206,7 @@ public final class Merchants {
             if (bought >= buySlots) {
                 break;
             }
-            Item item = item(info.id()).orElseThrow();
+            Item item = ItemIds.item(info.id()).orElseThrow();
             double price = Prices.buyPrice(info, stock.count(info.id()), population, settings);
             int maxStack = new ItemStack(item).getMaxStackSize();
             int emeralds = price >= 1.0 ? (int) Math.min(64, Math.floor(price)) : 1;
@@ -233,6 +220,43 @@ public final class Merchants {
             }
         }
         return offers;
+    }
+
+    /**
+     * The items of a stock that a merchant sells, with the most valuable stock first: the known items except the
+     * emeralds.
+     *
+     * @param stock the stock, by item id
+     * @return the entries of the stock, sorted
+     */
+    public static List<Map.Entry<String, Integer>> sellable(Map<String, Integer> stock) {
+        return stock.entrySet().stream()
+                .filter(entry -> ItemIds.item(entry.getKey()).filter(item -> item != Items.EMERALD).isPresent())
+                .sorted(Comparator.comparingDouble((Map.Entry<String, Integer> entry) ->
+                        EconomyData.catalog().info(entry.getKey()).price() * entry.getValue()).reversed())
+                .toList();
+    }
+
+    /**
+     * The offer of a merchant that sells one item: one unit for its price in emeralds, or several units for one
+     * emerald when the price is below one emerald.
+     *
+     * @param item      the item
+     * @param available the number of units for sale
+     * @param price     the price of one unit, in emeralds
+     * @param maxUses   the maximum number of trades of the offer
+     * @return the offer, or empty if the available units are not enough for one trade
+     */
+    public static Optional<MerchantOffer> sellOffer(Item item, int available, double price, int maxUses) {
+        int maxStack = new ItemStack(item).getMaxStackSize();
+        int emeralds = price >= 1.0 ? (int) Math.min(64, Math.round(price)) : 1;
+        int quantity = price >= 1.0 ? 1 : (int) Math.max(1, Math.min(maxStack, Math.floor(1.0 / price)));
+        int uses = Math.min(maxUses, available / quantity);
+        if (uses <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(new MerchantOffer(new ItemCost(Items.EMERALD, emeralds), Optional.empty(),
+                new ItemStack(item, quantity), uses, 0, PRICE_MULTIPLIER));
     }
 
     /**
@@ -260,13 +284,13 @@ public final class Merchants {
                 return false;
             }
             int capacity = LevelTables.get().traits(settlement.level()).stockCapacity();
-            stock.add(key(cost.getItem()), cost.getCount(), capacity);
+            stock.add(ItemIds.id(cost.getItem()), cost.getCount(), capacity);
             data.addTreasury(settlement.factionId(), -result.getCount());
         } else {
-            if (stock.count(key(result.getItem())) < result.getCount()) {
+            if (stock.count(ItemIds.id(result.getItem())) < result.getCount()) {
                 return false;
             }
-            stock.remove(key(result.getItem()), result.getCount());
+            stock.remove(ItemIds.id(result.getItem()), result.getCount());
             if (cost.is(Items.EMERALD)) {
                 data.addTreasury(settlement.factionId(), cost.getCount());
             }
@@ -321,7 +345,7 @@ public final class Merchants {
             MerchantOffer offer = offers.get(index);
             ItemStack result = offer.getResult();
             long payable = result.is(Items.EMERALD) ? treasury / result.getCount()
-                    : available.applyAsInt(key(result.getItem())) / result.getCount();
+                    : available.applyAsInt(ItemIds.id(result.getItem())) / result.getCount();
             int maxUses = (int) Math.min(offer.getMaxUses(), offer.getUses() + payable);
             if (maxUses != offer.getMaxUses()) {
                 MerchantOffer limited = new MerchantOffer(offer.getItemCostA(), offer.getItemCostB(), result,
@@ -339,14 +363,7 @@ public final class Merchants {
         }
     }
 
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location);
-    }
 
-    private static String key(Item item) {
-        return BuiltInRegistries.ITEM.getKey(item).toString();
-    }
 
     /** The target number of merchants of a settlement: 1, plus 1 for each 8 levels. */
     public static int merchantCount(Settlement settlement) {

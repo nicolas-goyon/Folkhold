@@ -222,11 +222,6 @@ public final class CaravanRoutes {
         return PENDING_DETAILS.size();
     }
 
-    /** True if the detailed route of a group is on the way. */
-    public static boolean isDetailPending(MobileGroup group) {
-        return PENDING_DETAILS.contains(group.id());
-    }
-
     /**
      * Forgets the routes on the way that use an id of settlement: a result that comes back with the old id is
      * dropped. The simulation asks for the routes again with the new id.
@@ -307,7 +302,7 @@ public final class CaravanRoutes {
      */
     public static boolean request(MinecraftServer server, Settlement from, Settlement to,
             RouteFinder.HeightSource heights) {
-        String key = key(from.id(), to.id());
+        String key = Route.pairKey(from.id(), to.id());
         if (!PENDING.add(key)) {
             return true;
         }
@@ -420,10 +415,6 @@ public final class CaravanRoutes {
             });
         }
         return worker;
-    }
-
-    private static String key(String firstId, String secondId) {
-        return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
     }
 
     private static boolean far(Route.Point a, Route.Point b, int tolerance) {
