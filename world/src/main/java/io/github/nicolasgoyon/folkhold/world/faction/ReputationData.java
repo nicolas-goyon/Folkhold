@@ -16,6 +16,8 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public final class ReputationData extends SavedData {
     private static final String FILE_ID = "folkhold_reputation";
+    /** Grows at each change of the data. The caches of the units compare it to the version of their value. */
+    private static long version;
 
     private final Map<UUID, PlayerReputation> players = new HashMap<>();
 
@@ -25,6 +27,21 @@ public final class ReputationData extends SavedData {
     public static ReputationData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(
                 new SavedData.Factory<>(ReputationData::new, ReputationData::load, null), FILE_ID);
+    }
+
+    /**
+     * The version of the data: a number that grows at each change (see {@link #setDirty()}). A cached value with
+     * another version is stale.
+     */
+    public static long version() {
+        return version;
+    }
+
+    /** Marks the data for a save and makes the cached values stale (see {@link #version()}). */
+    @Override
+    public void setDirty() {
+        super.setDirty();
+        version++;
     }
 
     /**

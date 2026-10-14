@@ -7,11 +7,13 @@ import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Optional;
+import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -118,6 +120,13 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final int GREETING_COOLDOWN = 600;
     private static final double GREETING_DISTANCE = 5.0;
     private long lastGreetingTick = -GREETING_COOLDOWN;
+    /** A cached reputation tier stays valid for this time, in ticks. */
+    private static final int TIER_CACHE_TICKS = 20;
+    @Nullable
+    private UUID cachedTierPlayer;
+    private ReputationTier cachedTier = ReputationTier.NEUTRAL;
+    private long cachedTierVersion = -1;
+    private long cachedTierTime;
     /** Id of the faction of the unit, or null. */
     @Nullable
     private String factionId;
@@ -257,15 +266,28 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /**
      * The reputation tier of a player for this unit: the effective tier in its village, else the tier with its
      * faction. {@link ReputationTier#NEUTRAL} for a unit without a faction.
+     *
+     * <p>The unit keeps the tier of the last player for {@link #TIER_CACHE_TICKS} ticks, or until the reputation
+     * data changes (see {@link ReputationData#version()}): the AI asks for it on each tick.
      */
     public ReputationTier tierOf(Player player) {
         MinecraftServer server = level().getServer();
         if (server == null || factionId == null) {
             return ReputationTier.NEUTRAL;
         }
-        return getVillageHeart()
+        long now = level().getGameTime();
+        if (player.getUUID().equals(cachedTierPlayer) && cachedTierVersion == ReputationData.version()
+                && now - cachedTierTime < TIER_CACHE_TICKS) {
+            return cachedTier;
+        }
+        ReputationTier tier = getVillageHeart()
                 .map(heart -> Reputations.tier(server, player, heart))
                 .orElseGet(() -> Reputations.tier(server, player, factionId));
+        cachedTierPlayer = player.getUUID();
+        cachedTier = tier;
+        cachedTierVersion = ReputationData.version();
+        cachedTierTime = now;
+        return tier;
     }
 
     /**
