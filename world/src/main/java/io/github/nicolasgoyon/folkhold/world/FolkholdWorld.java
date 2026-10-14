@@ -87,7 +87,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerStopped);
-        NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopping);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onServerTick);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onEntityLeave);
