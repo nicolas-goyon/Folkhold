@@ -92,6 +92,7 @@ Each mod has:
 - `src/main/resources/assets/<mod_id>/lang/en_us.json` and `fr_fr.json`: translations.
 - `src/main/templates/META-INF/neoforge.mods.toml`: mod metadata. Gradle replaces the `${...}` values.
 - `src/test/java/`: JUnit tests.
+- `src/gametest/java/` and `src/gametest/resources/`: GameTests and their test structures. The dev project loads them with the mod in its runs. The jar of the mod does not contain them.
 - `gradle.properties`: `mod_id`, `mod_name`, `mod_description`.
 
 The shared versions are in the root `gradle.properties`.

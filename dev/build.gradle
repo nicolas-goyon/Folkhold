@@ -18,7 +18,11 @@ modProjects.each { evaluationDependsOn(it) }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 dependencies {
-    modProjects.each { implementation project(it) }
+    modProjects.each { path ->
+        implementation project(path)
+        // The GameTests of the mod, on the classpath of the runs.
+        implementation rootProject.project(path).sourceSets.gametest.output
+    }
 }
 
 def gameTestNamespaces = modProjects.collect { project(it).property('mod_id') }.join(',')
@@ -57,11 +61,12 @@ neoForge {
     }
 }
 
-// Link each mod id to the source set of its project.
+// Link each mod id to the source sets of its project: the mod and its GameTests.
 modProjects.each { path ->
     def modProject = project(path)
     neoForge.mods.create(modProject.property('mod_id') as String) {
         sourceSet(modProject.sourceSets.main)
+        sourceSet(modProject.sourceSets.gametest)
     }
 }
 
