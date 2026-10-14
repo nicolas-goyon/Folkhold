@@ -290,7 +290,8 @@ public final class BankChests {
      * @param player the player
      */
     public static void onClose(BankChestBlockEntity chest, Player player) {
-        if (!(chest.getLevel() instanceof ServerLevel level) || chest.snapshot().isEmpty() && chest.container().isEmpty()) {
+        if (!(chest.getLevel() instanceof ServerLevel level)
+                || (chest.snapshot().isEmpty() && chest.container().isEmpty())) {
             return;
         }
         VillageHeartBlockEntity heart = heartOf(level, chest.getBlockPos());

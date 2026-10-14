@@ -1,5 +1,19 @@
 plugins {
     id 'net.neoforged.moddev' version '2.0.148' apply false
+    id 'com.diffplug.spotless' version '8.10.4'
+    id 'net.ltgt.errorprone' version '5.1.1' apply false
+}
+
+// Format checks for the files of the root project. The mod subprojects check their sources in
+// gradle/mod-common.gradle.
+spotless {
+    format('misc') {
+        target '*.gradle', 'gradle/*.gradle', '*/build.gradle', '.github/workflows/*.yml', 'scripts/*.sh', '*.md',
+                'docs/*.md'
+        trimTrailingWhitespace()
+        leadingTabsToSpaces(4)
+        endWithNewline()
+    }
 }
 
 // Fails when a translation key exists in one language file and not in the other language files of the same mod.

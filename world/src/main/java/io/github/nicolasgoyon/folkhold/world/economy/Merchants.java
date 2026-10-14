@@ -91,7 +91,7 @@ public final class Merchants {
 
     /** True if the merchants of the village trade with the player: neutral tier or better. */
     public static boolean canTrade(MinecraftServer server, ServerPlayer player, VillageHeartBlockEntity heart) {
-        return Reputations.tier(server, player, heart).ordinal() >= ReputationTier.NEUTRAL.ordinal();
+        return !Reputations.tier(server, player, heart).isHostile();
     }
 
     /** A player interacts with a merchant: the offers come from the stocks, or the merchant refuses. */

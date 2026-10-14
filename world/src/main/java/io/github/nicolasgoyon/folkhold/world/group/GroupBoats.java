@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -154,7 +155,7 @@ public final class GroupBoats {
         Route.Position position = group.route().positionAt(startProgress);
         int x = (int) Math.floor(position.x());
         int z = (int) Math.floor(position.z());
-        if (!level.isLoaded(new BlockPos(x, level.getSeaLevel(), z))) {
+        if (!level.isLoaded(new BlockPos(x, Settlements.seaLevel(level), z))) {
             return;
         }
         double y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
@@ -260,7 +261,7 @@ public final class GroupBoats {
         Route.Position shore = route.positionAt(Math.min(route.length(), crossing.endProgress + SHORE_DISTANCE));
         int x = (int) Math.floor(shore.x());
         int z = (int) Math.floor(shore.z());
-        boolean loaded = level.isLoaded(new BlockPos(x, level.getSeaLevel(), z));
+        boolean loaded = level.isLoaded(new BlockPos(x, Settlements.seaLevel(level), z));
         int y = loaded ? level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) : 0;
         int index = 0;
         for (UUID id : crossing.boats) {
@@ -271,7 +272,10 @@ public final class GroupBoats {
             for (Entity passenger : List.copyOf(boat.getPassengers())) {
                 passenger.stopRiding();
                 if (loaded) {
-                    passenger.teleportTo(x + 0.5 + (index % 3) - 1, y, z + 0.5 + (index / 3) - 1);
+                    // The passengers land on a grid of three columns around the shore position.
+                    int column = index % 3;
+                    int row = index / 3;
+                    passenger.teleportTo(x + 0.5 + column - 1, y, z + 0.5 + row - 1);
                 }
                 index++;
             }

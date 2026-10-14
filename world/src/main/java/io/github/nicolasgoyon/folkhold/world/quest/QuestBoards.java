@@ -375,9 +375,7 @@ public final class QuestBoards {
             int secondsLeft = (int) Math.max(0, (quest.deadline() - now) / TICKS_PER_SECOND);
             if (quest.kind() == QuestKind.DELIVERY) {
                 Optional<BlockPos> village = SettlementData.get(server).registry().byId(quest.settlementId())
-                        .map(settlement -> new BlockPos(settlement.x(),
-                                settlement.hasHeart() ? settlement.heartY() : server.overworld().getSeaLevel(),
-                                settlement.z()));
+                        .map(settlement -> Settlements.position(server, settlement));
                 entries.add(new QuestLogPayload.Entry(quest.id(), quest.target(),
                         Component.translatable("quest.folkhold_world.active.delivery", quest.count(),
                                 itemName(quest.target())),
@@ -454,7 +452,7 @@ public final class QuestBoards {
         if (activeCount >= maxActive) {
             blocked = Optional.of(Component.translatable("quest.folkhold_world.blocked.full", activeCount,
                     maxActive));
-        } else if (playerTier.ordinal() < quest.minTier().ordinal()) {
+        } else if (!playerTier.isAtLeast(quest.minTier())) {
             blocked = Optional.of(Component.translatable("quest.folkhold_world.blocked.tier",
                     tierTitle(quest.minTier())));
         }

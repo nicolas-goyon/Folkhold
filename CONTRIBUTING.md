@@ -38,6 +38,14 @@ Do not push directly to `main`.
 - When you add a key, add it to the two files in the same commit.
 - `./gradlew checkTranslations` fails when a key is missing in one language. The CI runs this check.
 
+## Code checks
+
+`./gradlew build` runs these checks. The CI runs them on each pull request.
+
+- `javac` lints: all the lints are errors (`-Xlint:all -Werror`), except `this-escape`.
+- [Error Prone](https://errorprone.info): the bug patterns of the `core` and `world` mods are errors. `ReferenceEquality` is off, because the game compares the registry objects and the entities by identity. To silence one finding, use `@SuppressWarnings("<pattern>")` on the smallest element with a comment that gives the reason.
+- [Spotless](https://github.com/diffplug/spotless): import order (one group in ASCII order, static imports first), unused imports, trailing spaces, tabs and the final newline. `./gradlew spotlessApply` fixes the files.
+
 ## Versions and releases
 
 - The version is in `gradle.properties` (`mod_version`). All mods share one version.

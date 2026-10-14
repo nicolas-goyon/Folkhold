@@ -85,7 +85,7 @@ public final class AdminGameTests {
                 "The details of the settlement must have the village and economy sections");
         helper.assertTrue(details.get().level() == settlement.level() && details.get().active(),
                 "The details must give the level and the state");
-        helper.assertTrue(details.get().heartLoaded() && details.get().alert() == AlertState.CALM.ordinal(),
+        helper.assertTrue(details.get().heartLoaded() && details.get().alert() == AlertState.CALM.index(),
                 "The details must give the alert state of the loaded heart");
         helper.assertTrue(details.get().hasY() && details.get().x() == helper.absolutePos(HEART).getX(),
                 "The details must give the position of the heart");
@@ -159,9 +159,9 @@ public final class AdminGameTests {
         VillageHeartBlockEntity heart = newHeart(helper);
         Settlement settlement = settlementOf(helper, heart);
 
-        act(helper, "alert", settlement, AlertState.ASSAULT.ordinal());
+        act(helper, "alert", settlement, AlertState.ASSAULT.index());
         AlertState assault = heart.getAlertState();
-        act(helper, "alert", settlement, AlertState.CALM.ordinal());
+        act(helper, "alert", settlement, AlertState.CALM.index());
 
         helper.assertTrue(assault == AlertState.ASSAULT, "Expected the assault state, not " + assault);
         helper.assertTrue(heart.getAlertState() == AlertState.CALM, "Expected the calm state");

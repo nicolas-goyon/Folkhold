@@ -514,6 +514,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     protected void unitServerAiStep(@Nullable LivingEntity target) {
     }
 
+    /** Override only: callers use {@link net.neoforged.neoforge.event.EventHooks#finalizeMobSpawn}. */
+    @Deprecated
     @Override
     @Nullable
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty,
@@ -593,7 +595,6 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return false;
     }
 
-    /** Units do not pick up items. */
     /**
      * The ambient sound of a calm unit: the vanilla villager sound for now. A unit with a target makes no ambient
      * sound.
@@ -614,6 +615,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return SoundEvents.VILLAGER_DEATH;
     }
 
+    /** Units do not pick up items. */
     @Override
     public boolean canPickUpLoot() {
         return false;

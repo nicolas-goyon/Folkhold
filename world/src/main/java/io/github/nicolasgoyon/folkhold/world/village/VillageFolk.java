@@ -28,6 +28,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.phys.AABB;
+import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
@@ -188,7 +189,7 @@ public final class VillageFolk {
         }
         BlockPos pos = Garrison.groundSpawnPos(level, heartPos);
         villager.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, level.random.nextFloat() * 360.0F, 0.0F);
-        villager.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
+        EventHooks.finalizeMobSpawn(villager, level, level.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
         setProfession(villager, profession);
         villager.getPersistentData().putLong(Merchants.VILLAGE_TAG, heartPos.asLong());
         level.addFreshEntity(villager);
@@ -232,8 +233,8 @@ public final class VillageFolk {
 
     /** The villagers of a faction village do not breed: the simulation sets the population. */
     public static void onBabySpawn(BabyEntitySpawnEvent event) {
-        if (event.getParentA() instanceof Villager a && isVillageFolk(a)
-                || event.getParentB() instanceof Villager b && isVillageFolk(b)) {
+        if ((event.getParentA() instanceof Villager a && isVillageFolk(a))
+                || (event.getParentB() instanceof Villager b && isVillageFolk(b))) {
             event.setCanceled(true);
         }
     }

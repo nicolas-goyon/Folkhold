@@ -54,6 +54,11 @@ public enum ReputationTier {
         return this == FRIEND || this == ALLY;
     }
 
+    /** True if this tier is the given tier or a better one. */
+    public boolean isAtLeast(ReputationTier other) {
+        return compareTo(other) >= 0;
+    }
+
     /**
      * The glyph of the tier: crosses for danger, a dash for neutral, ticks and arrows for safety. A text shows the
      * glyph with the name of the tier, so the color never gives the tier alone.

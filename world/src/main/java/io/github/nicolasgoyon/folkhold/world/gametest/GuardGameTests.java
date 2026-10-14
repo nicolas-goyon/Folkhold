@@ -216,7 +216,7 @@ public final class GuardGameTests {
     @GameTest(template = "arena", timeoutTicks = 500, batch = "guard_signs")
     public static void guardGoesAroundBuildingSigns(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
-        BlockState sign = ModBlocks.buildingSign(BuildingSignKind.values()[0]).defaultBlockState()
+        BlockState sign = ModBlocks.buildingSign(BuildingSignKind.HOUSE).defaultBlockState()
                 .setValue(BuildingSignBlock.FACING, Direction.NORTH);
         for (int x = 0; x < TestSupport.ARENA_SIZE; x++) {
             if (x != 13) {

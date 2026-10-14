@@ -121,7 +121,7 @@ public final class VillageInfo {
         if (faction.isPresent() && settlement.isPresent()) {
             welcome = Component.translatable(KEY + "welcome." + tier.serializedName());
             services.add(questService(server, player, settlement.get(), tier));
-            services.add(tradeService(server, settlement.get(), tier));
+            services.add(tradeService(settlement.get(), tier));
             services.add(shelterService(tier));
             services.add(innService(settlement.get()));
             if (tier.isHostile()) {
@@ -159,8 +159,7 @@ public final class VillageInfo {
                     VillageHeartPayload.REFUSED, Component.empty(), List.of(), VillageHeartPayload.ACTION_NONE);
         }
         List<Quest> offers = QuestData.get(server).quests().offers(settlement.id());
-        long forFriends = offers.stream().filter(quest -> quest.minTier().ordinal() > ReputationTier.NEUTRAL.ordinal())
-                .count();
+        long forFriends = offers.stream().filter(quest -> quest.minTier().isFriendly()).count();
         int active = QuestData.get(server).quests().active(player.getUUID()).size();
         int max = WorldConfig.QUEST_MAX_ACTIVE.get();
         Component state = offers.isEmpty()
@@ -173,9 +172,9 @@ public final class VillageInfo {
                 details, List.of(), VillageHeartPayload.ACTION_QUEST_BOARD);
     }
 
-    private static Service tradeService(MinecraftServer server, Settlement settlement, ReputationTier tier) {
+    private static Service tradeService(Settlement settlement, ReputationTier tier) {
         Component name = Component.translatable(KEY + "service.trade");
-        if (tier.ordinal() < ReputationTier.NEUTRAL.ordinal()) {
+        if (tier.isHostile()) {
             return new Service(name, refused(Component.translatable(KEY + "trade.refused",
                     Component.translatable("folkhold_world.reputation_tier_title.neutral"))),
                     VillageHeartPayload.REFUSED, Component.empty(), List.of(), VillageHeartPayload.ACTION_NONE);

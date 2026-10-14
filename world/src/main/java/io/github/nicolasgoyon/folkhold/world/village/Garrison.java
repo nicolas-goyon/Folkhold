@@ -17,6 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.neoforged.neoforge.event.EventHooks;
 
 /**
  * Garrison of a village: the list of its units, with a stable id for each unit.
@@ -230,7 +231,7 @@ public final class Garrison {
             unit.setHomePos(post);
             unit.setPostPos(post);
             unit.setVillagePos(heartPos);
-            unit.finalizeSpawn(level, level.getCurrentDifficultyAt(post), MobSpawnType.STRUCTURE, null);
+            EventHooks.finalizeMobSpawn(unit, level, level.getCurrentDifficultyAt(post), MobSpawnType.STRUCTURE, null);
             level.addFreshEntity(unit);
             return unit;
         }
@@ -238,7 +239,7 @@ public final class Garrison {
         unit.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, level.random.nextFloat() * 360.0F, 0.0F);
         unit.setHomePos(pos);
         unit.setVillagePos(heartPos);
-        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
+        EventHooks.finalizeMobSpawn(unit, level, level.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
         level.addFreshEntity(unit);
         return unit;
     }

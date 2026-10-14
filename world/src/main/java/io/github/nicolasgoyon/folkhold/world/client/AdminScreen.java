@@ -21,6 +21,7 @@ import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload.Summary;
 import io.github.nicolasgoyon.folkhold.world.network.AdminResultPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
+import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -87,6 +88,7 @@ public class AdminScreen extends UiScreen {
         LEVEL(Comparator.comparingInt(Summary::level).reversed().thenComparingInt(Summary::distance)),
         NAME(Comparator.comparing(summary -> summary.name().toLowerCase(Locale.ROOT)));
 
+        @SuppressWarnings("ImmutableEnumChecker") // The comparators have no state.
         private final Comparator<Summary> comparator;
 
         Sort(Comparator<Summary> comparator) {
@@ -283,14 +285,14 @@ public class AdminScreen extends UiScreen {
         int x = inner.x();
         Component state = Component.translatable(KEY + "state_filter." + lastState.name().toLowerCase(Locale.ROOT));
         x += chip(x, chipY, state, lastState != StateFilter.ALL, button -> {
-            lastState = StateFilter.values()[(lastState.ordinal() + 1) % StateFilter.values().length];
+            lastState = next(lastState);
             rebuild();
         }) + UiTheme.GAP;
         boolean levelFilter = !lastMinLevel.isEmpty() || !lastMaxLevel.isEmpty();
         x += chip(x, chipY, levelLabel(), levelFilter, this::openLevelMenu) + UiTheme.GAP;
         Component sort = Component.translatable(KEY + "sort." + lastSort.name().toLowerCase(Locale.ROOT));
         chip(x, chipY, sort, false, button -> {
-            lastSort = Sort.values()[(lastSort.ordinal() + 1) % Sort.values().length];
+            lastSort = next(lastSort);
             rebuild();
         });
 
@@ -309,6 +311,13 @@ public class AdminScreen extends UiScreen {
         addRenderableWidget(new UiButton(new UiRect(x, y, w, CHIP), label,
                 selected ? UiButton.Style.CHIP_SELECTED : UiButton.Style.CHIP, action));
         return w;
+    }
+
+    /** The constant after the given one, in the declaration order. The first one follows the last one. */
+    @SuppressWarnings("EnumOrdinal") // The chips cycle through the constants in their declaration order.
+    private static <E extends Enum<E>> E next(E current) {
+        E[] values = current.getDeclaringClass().getEnumConstants();
+        return values[(current.ordinal() + 1) % values.length];
     }
 
     private static Component levelLabel() {
@@ -549,14 +558,12 @@ public class AdminScreen extends UiScreen {
 
     private List<UiMenu.Item> garrisonItems(AdminDetailsPayload shown) {
         List<UiMenu.Item> items = new ArrayList<>();
-        String[] states = {"calm", "alert", "assault"};
-        for (int i = 0; i < states.length; i++) {
-            int value = i;
-            UiMenu.Action action = UiMenu.Action.of(Component.translatable(KEY + "action." + states[i]),
-                    () -> sendSelected("alert", value));
+        for (AlertState state : AlertState.values()) {
+            UiMenu.Action action = UiMenu.Action.of(Component.translatable(KEY + "action." + state.serializedName()),
+                    () -> sendSelected("alert", state.index()));
             if (!shown.heartLoaded()) {
                 action = action.disabled(Component.translatable(KEY + "menu.heart_unloaded"));
-            } else if (shown.alert() == i) {
+            } else if (shown.alert() == state.index()) {
                 action = action.disabled(Component.translatable(KEY + "menu.current"));
             }
             items.add(action);
@@ -656,11 +663,14 @@ public class AdminScreen extends UiScreen {
             tones.add(UiTone.INFO);
         }
         if (shown.heartLoaded()) {
-            String[] states = {"calm", "alert", "assault"};
-            int alert = Math.max(0, Math.min(states.length - 1, shown.alert()));
+            AlertState alert = AlertState.byIndex(shown.alert());
             texts.add(Component.translatable(KEY + "badge.alert",
-                    Component.translatable(KEY + "alert." + states[alert])));
-            tones.add(alert == 0 ? UiTone.GOOD : alert == 1 ? UiTone.WARN : UiTone.BAD);
+                    Component.translatable(KEY + "alert." + alert.serializedName())));
+            tones.add(switch (alert) {
+                case CALM -> UiTone.GOOD;
+                case ALERT -> UiTone.WARN;
+                case ASSAULT -> UiTone.BAD;
+            });
         }
         int right = header.right();
         for (int i = texts.size() - 1; i >= 0; i--) {

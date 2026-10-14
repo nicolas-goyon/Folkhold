@@ -1,8 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.group;
 
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
-import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupSimulation;
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;

@@ -90,7 +90,7 @@ public final class CaravanInteractions {
         }
         if (target instanceof CaravanMerchant merchant) {
             ReputationTier tier = Reputations.tier(level.getServer(), player, group.get().factionId());
-            if (tier.ordinal() < ReputationTier.NEUTRAL.ordinal()) {
+            if (tier.isHostile()) {
                 player.displayClientMessage(Component.translatable("message.folkhold_world.merchant_refuses",
                         merchant.getDisplayName()), true);
                 merchant.playSound(SoundEvents.VILLAGER_NO, 1.0F, 1.0F);

@@ -377,7 +377,6 @@ public final class CaravanRoutes {
             worker = Executors.newSingleThreadExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "Folkhold routes");
                 thread.setDaemon(true);
-                thread.setPriority(Thread.MIN_PRIORITY);
                 return thread;
             });
         }

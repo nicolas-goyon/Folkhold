@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ class VillageNamesTest {
         for (long seed = 0; seed < 50; seed++) {
             String name = VillageNames.name(CULTURE, seed);
             assertTrue(Character.isUpperCase(name.charAt(0)), name);
-            String lower = name.toLowerCase();
+            String lower = name.toLowerCase(Locale.ROOT);
             assertTrue(CULTURE.prefixes().stream().anyMatch(lower::startsWith), name);
             assertTrue(CULTURE.suffixes().stream().anyMatch(lower::endsWith), name);
         }
