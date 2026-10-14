@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.block.BuildingSignBlock;
 import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -23,6 +24,7 @@ import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -168,8 +170,9 @@ public final class GuardGameTests {
     }
 
     /**
-     * Two guards go one after the other through a closed wooden door in a wall. The first guard does not close the
-     * door on the second guard. When both guards are on the other side, the door is closed again.
+     * Two guards go one after the other through a closed wooden door in a wall, 2 blocks apart. The first guard
+     * does not close the door on the second guard. The door is closed again at most 5 seconds after the second
+     * guard. The guards have no stroll goal: the test depends on the passage goal only.
      */
     @GameTest(template = "arena", timeoutTicks = 400, batch = "guard_door")
     public static void guardsPassADoorAndCloseIt(GameTestHelper helper) {
@@ -184,15 +187,17 @@ public final class GuardGameTests {
         helper.setBlock(door, lower.setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER));
         helper.setBlock(door.above(), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
         GuardEntity first = TestSupport.spawnGuard(helper, new BlockPos(8, 1, 4));
-        GuardEntity second = TestSupport.spawnGuard(helper, new BlockPos(7, 1, 2));
+        GuardEntity second = TestSupport.spawnGuard(helper, new BlockPos(8, 1, 2));
         BlockPos goal = helper.absolutePos(new BlockPos(8, 1, 13));
         for (GuardEntity guard : new GuardEntity[] {first, second}) {
             guard.setVillagePos(null);
             guard.setFactionId(null);
             guard.setNightPos(null);
-            // The home position is behind the door, so the anchor goals do not pull the guard back.
+            // The home position is behind the door, so the anchor goal pulls the guard through the door.
             guard.setHomePos(goal);
+            guard.goalSelector.getAvailableGoals().removeIf(wrapped -> wrapped.getGoal() instanceof AnchorStrollGoal);
         }
+        long[] passedAt = {0L};
         helper.startSequence()
                 .thenWaitUntil(() -> {
                     for (GuardEntity guard : new GuardEntity[] {first, second}) {
@@ -202,10 +207,52 @@ public final class GuardGameTests {
                         helper.assertTrue(guard.blockPosition().getZ() >= goal.getZ() - 3,
                                 "Both guards must go through the door. Guard at " + guard.blockPosition());
                     }
-                    helper.assertBlockProperty(door, DoorBlock.OPEN, false);
+                })
+                .thenExecute(() -> passedAt[0] = helper.getLevel().getGameTime())
+                .thenWaitUntil(() -> helper.assertBlockProperty(door, DoorBlock.OPEN, false))
+                .thenExecute(() -> {
+                    long delay = helper.getLevel().getGameTime() - passedAt[0];
+                    helper.assertTrue(delay <= 100, "The door must close at most 5 seconds after the second guard, "
+                            + "not " + delay + " ticks");
                 })
                 .thenExecute(first::discard)
                 .thenExecute(second::discard)
+                .thenSucceed();
+    }
+
+    /**
+     * A guard that watches a gate at night strolls on the heart side of its watch position only. By day, the guard
+     * strolls all around its home position.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "guard_night_stroll")
+    public static void gateWatchStrollsOnTheHeartSide(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(8, 1, 8));
+        BlockPos heart = helper.absolutePos(new BlockPos(8, 1, 14));
+        BlockPos watch = helper.absolutePos(new BlockPos(8, 1, 4));
+        guard.setVillagePos(heart);
+        guard.setHomePos(heart);
+        guard.setNightPos(watch);
+        Vec3 inside = Vec3.atBottomCenterOf(watch.south(2));
+        Vec3 outside = Vec3.atBottomCenterOf(watch.north(2));
+        long dayTime = helper.getLevel().getDayTime();
+        boolean[] night = new boolean[2];
+        // The level updates the sky darkness on its next tick: the checks come one tick after the time change.
+        helper.startSequence()
+                .thenExecute(() -> helper.getLevel().setDayTime(18_000L))
+                .thenExecuteAfter(2, () -> {
+                    night[0] = AnchorStrollGoal.accepts(guard, inside);
+                    night[1] = AnchorStrollGoal.accepts(guard, outside);
+                    helper.getLevel().setDayTime(6_000L);
+                })
+                .thenExecuteAfter(2, () -> {
+                    boolean dayNear = AnchorStrollGoal.accepts(guard, Vec3.atBottomCenterOf(heart.north(3)));
+                    helper.getLevel().setDayTime(dayTime);
+                    guard.discard();
+                    helper.assertTrue(night[0], "At night, the guard strolls on the heart side of the watch position");
+                    helper.assertTrue(!night[1], "At night, the guard does not stroll beyond the gate");
+                    helper.assertTrue(dayNear, "By day, the guard strolls around its home position");
+                })
                 .thenSucceed();
     }
 
