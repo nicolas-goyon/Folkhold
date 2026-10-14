@@ -62,11 +62,11 @@ public final class JobAssignment {
     }
 
     private static Job pick(List<Job> jobs, SplittableRandom random) {
-        int total = 0;
+        long sum = 0;
         for (Job job : jobs) {
-            total += job.weight();
+            sum += job.weight();
         }
-        int roll = random.nextInt(total);
+        int roll = random.nextInt(Math.toIntExact(sum));
         for (Job job : jobs) {
             if (roll < job.weight()) {
                 return job;

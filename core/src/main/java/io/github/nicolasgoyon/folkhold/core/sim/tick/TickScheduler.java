@@ -16,6 +16,10 @@ import java.util.function.Supplier;
  * <p>The scheduler counts the game time. When the server stops, the simulation stops. There is no catch-up:
  * after a long pause, the next abstract tick starts one interval after the current game time.
  *
+ * <p>An exception from the processor goes to the caller of {@link #step}. The scheduler stays consistent: the
+ * item that failed is not processed again, the time of the step counts, and the abstract tick continues with the
+ * remaining items at the next step.
+ *
  * @param <T> the type of the items
  */
 public final class TickScheduler<T> {
@@ -102,15 +106,18 @@ public final class TickScheduler<T> {
         }
         long start = nanoClock.getAsLong();
         int processed = 0;
-        while (!pending.isEmpty()) {
-            if (processed > 0 && nanoClock.getAsLong() - start >= settings.budgetNanos()) {
-                break;
+        try {
+            while (!pending.isEmpty()) {
+                if (processed > 0 && nanoClock.getAsLong() - start >= settings.budgetNanos()) {
+                    break;
+                }
+                processor.process(pending.poll(), current);
+                processed++;
             }
-            processor.process(pending.poll(), current);
-            processed++;
+        } finally {
+            currentNanos += nanoClock.getAsLong() - start;
+            currentSteps++;
         }
-        currentNanos += nanoClock.getAsLong() - start;
-        currentSteps++;
         if (!pending.isEmpty()) {
             return new StepResult(processed, null, 0, 0);
         }

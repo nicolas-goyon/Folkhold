@@ -190,7 +190,11 @@ public final class SettlementData extends SavedData {
             if (entry.contains("HeartY")) {
                 settlement.setHeart(entry.getInt("X"), entry.getInt("HeartY"), entry.getInt("Z"));
             }
-            settlement.setState(SettlementState.fromSerializedName(entry.getString("State")));
+            settlement.setState(SettlementState.fromSerializedName(entry.getString("State")).orElseGet(() -> {
+                FolkholdWorld.LOGGER.warn("Unknown state '{}' for the settlement {}: the settlement is active",
+                        entry.getString("State"), settlement.id());
+                return SettlementState.ACTIVE;
+            }));
             if (entry.contains("Level")) {
                 settlement.setProgress(Math.max(1, entry.getInt("Level")), Math.max(0, entry.getInt("Experience")));
             } else {
@@ -226,6 +230,7 @@ public final class SettlementData extends SavedData {
         tag.put("Stock", stock);
         tag.putDouble("FoodCovered", economy.foodCovered());
         tag.putDouble("JobsWorking", economy.jobsWorking());
+        tag.putInt("Cycles", economy.cycles());
         return tag;
     }
 
@@ -245,5 +250,6 @@ public final class SettlementData extends SavedData {
         double food = tag.contains("FoodCovered") ? tag.getDouble("FoodCovered") : 1.0;
         double jobsWorking = tag.contains("JobsWorking") ? tag.getDouble("JobsWorking") : 1.0;
         economy.setLastCycle(food, jobsWorking);
+        economy.setCycles(tag.getInt("Cycles"));
     }
 }

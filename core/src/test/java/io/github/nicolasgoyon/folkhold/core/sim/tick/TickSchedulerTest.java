@@ -93,6 +93,30 @@ class TickSchedulerTest {
     }
 
     @Test
+    void failedItemDoesNotStopTheAbstractTick() {
+        TickScheduler<String> scheduler = new TickScheduler<>();
+        List<String> seen = new ArrayList<>();
+        FakeClock clock = new FakeClock(1);
+        TickScheduler.Processor<String> processor = (item, tick) -> {
+            if (item.equals("bad")) {
+                throw new IllegalStateException("broken item");
+            }
+            seen.add(item);
+        };
+        scheduler.step(0, List::of, processor, clock::read, SETTINGS);
+
+        assertThrows(IllegalStateException.class,
+                () -> scheduler.step(100, () -> List.of("a", "bad", "b"), processor, clock::read, SETTINGS));
+        assertTrue(scheduler.isRunning(), "The abstract tick continues at the next step");
+        StepResult result = scheduler.step(101, List::of, processor, clock::read, SETTINGS);
+
+        assertEquals(List.of("a", "b"), seen, "The failed item is not processed again");
+        assertNotNull(result.finished());
+        assertEquals(2, result.tickSteps(), "The step with the failure counts");
+        assertTrue(result.tickNanos() > 0);
+    }
+
+    @Test
     void oneItemRunsEvenIfItIsSlowerThanTheBudget() {
         TickScheduler<String> scheduler = new TickScheduler<>();
         FakeClock clock = new FakeClock(1000);

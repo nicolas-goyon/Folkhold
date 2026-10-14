@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.faction;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -151,7 +152,7 @@ public final class TerritoryMessages {
         FactionVisuals.faction(server, heart.getFactionId()).ifPresent(faction -> {
             ReputationTier tier = Reputations.tier(server, player, heart);
             Component mood = Component.translatable("message.folkhold_world.village_mood." + tier.serializedName(),
-                    tierLabel(tier)).withColor(tier.color());
+                    tierLabel(tier)).withColor(UiReputation.color(tier));
             String name = heart.getVillageName();
             Component level = Settlements.of(server, heart)
                     .<Component>map(settlement -> Component.translatable("message.folkhold_world.village_level",
@@ -206,9 +207,9 @@ public final class TerritoryMessages {
 
     /** The tier with its glyph, in its color: "✓ Friend". */
     private static Component tierLabel(ReputationTier tier) {
-        return Component.literal(tier.glyph() + " ")
+        return Component.literal(UiReputation.glyph(tier) + " ")
                 .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
-                .withColor(tier.color());
+                .withColor(UiReputation.color(tier));
     }
 
     public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {

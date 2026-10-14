@@ -140,6 +140,31 @@ class GroupSimulationTest {
     }
 
     @Test
+    void listenerCanAddAGroupAtTheEndOfARoute() {
+        MobileGroups groups = new MobileGroups();
+        MobileGroup group = caravan("a");
+        group.setState(GroupState.TRAVELING);
+        group.setProgress(450.0);
+        groups.add(group);
+        Recorder recorder = new Recorder() {
+            @Override
+            public boolean onEndOfRoute(MobileGroup ended, long tickNumber) {
+                MobileGroup back = caravan("b");
+                back.setState(GroupState.TRAVELING);
+                groups.add(back);
+                return true;
+            }
+        };
+
+        GroupSimulation.Report report = GroupSimulation.tick(groups, 1, 200.0, g -> false, recorder);
+
+        assertEquals(1, report.arrived());
+        assertEquals(List.of(group), recorder.arrived);
+        assertTrue(groups.byId("b").isPresent(), "The new group is in the registry");
+        assertEquals(0.0, groups.byId("b").get().progress(), EPSILON, "The new group moves at the next tick");
+    }
+
+    @Test
     void frozenWaitingGroupLeavesWithNoMovement() {
         MobileGroups groups = new MobileGroups();
         MobileGroup group = caravan("a");

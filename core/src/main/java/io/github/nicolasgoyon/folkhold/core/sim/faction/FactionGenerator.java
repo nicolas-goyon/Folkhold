@@ -65,7 +65,8 @@ public final class FactionGenerator {
         int count = settings.minFactions() + random.nextInt(settings.maxFactions() - settings.minFactions() + 1);
 
         List<Attitude> attitudes = new ArrayList<>();
-        int allies = 1 + random.nextInt(2);
+        // One neutral faction and at least one hostile faction after the allies.
+        int allies = Math.min(1 + random.nextInt(2), count - 2);
         for (int i = 0; i < count; i++) {
             attitudes.add(i < allies ? Attitude.ALLY : i == allies ? Attitude.NEUTRAL : Attitude.HOSTILE);
         }

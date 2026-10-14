@@ -43,6 +43,19 @@ class FactionGeneratorTest {
     }
 
     @Test
+    void threeFactionsHaveOneOfEachAttitude() {
+        FactionGenerator.Settings three = new FactionGenerator.Settings(3, 3, 600, 2500);
+        for (long seed = 0; seed < 50; seed++) {
+            List<FactionSpec> factions = FactionGenerator.generate(seed, CULTURES, 0, 0, three);
+            assertEquals(3, factions.size());
+            for (Attitude attitude : Attitude.values()) {
+                assertEquals(1, factions.stream().filter(f -> f.attitude() == attitude).count(),
+                        "seed " + seed + ": " + factions.stream().map(FactionSpec::attitude).toList());
+            }
+        }
+    }
+
+    @Test
     void ownerIsTheNearestCenter() {
         List<FactionSpec> factions = FactionGenerator.generate(7L, CULTURES, 0, 0, SETTINGS);
         for (FactionSpec faction : factions) {

@@ -13,6 +13,7 @@ public final class EconomyState {
     private double foodCovered = 1.0;
     private double jobsWorking = 1.0;
     private boolean initialized;
+    private int cycles;
 
     public int population() {
         return population;
@@ -55,6 +56,15 @@ public final class EconomyState {
     public void setLastCycle(double foodCovered, double jobsWorking) {
         this.foodCovered = clamp(foodCovered);
         this.jobsWorking = clamp(jobsWorking);
+    }
+
+    /** The number of cycles that ran. The active jobs of a cycle start at this index in the job list. */
+    public int cycles() {
+        return cycles;
+    }
+
+    public void setCycles(int cycles) {
+        this.cycles = Math.max(0, cycles);
     }
 
     /** True after the first population, jobs and stock are set. */

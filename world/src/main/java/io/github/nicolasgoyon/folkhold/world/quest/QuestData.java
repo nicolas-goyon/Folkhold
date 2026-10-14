@@ -9,7 +9,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -170,12 +170,25 @@ public final class QuestData extends SavedData {
         ListTag list = tag.getList("Quests", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
-            Quest quest = new Quest(entry.getString("Id"), QuestKind.fromSerializedName(entry.getString("Kind")),
-                    entry.getString("Settlement"), entry.getString("Faction"), entry.getString("Target"),
-                    entry.getInt("Count"), entry.getLong("RewardEmeralds"), entry.getInt("RewardReputation"),
-                    tier(entry.getString("MinTier")), entry.getLong("OfferEnd"), entry.getLong("Duration"));
-            quest.restore(QuestState.fromSerializedName(entry.getString("State")),
-                    entry.hasUUID("Player") ? entry.getUUID("Player") : null, entry.getLong("Deadline"));
+            String id = entry.getString("Id");
+            Optional<QuestKind> kind = QuestKind.fromSerializedName(entry.getString("Kind"));
+            if (kind.isEmpty()) {
+                FolkholdWorld.LOGGER.warn("Unknown kind '{}' for the quest {}: the quest is dropped",
+                        entry.getString("Kind"), id);
+                continue;
+            }
+            QuestState state = QuestState.fromSerializedName(entry.getString("State")).orElseGet(() -> {
+                FolkholdWorld.LOGGER.warn("Unknown state '{}' for the quest {}: the quest is expired",
+                        entry.getString("State"), id);
+                return QuestState.EXPIRED;
+            });
+            ReputationTier minTier = ReputationTier.fromSerializedName(entry.getString("MinTier"))
+                    .orElse(ReputationTier.NEUTRAL);
+            Quest quest = new Quest(id, kind.get(), entry.getString("Settlement"), entry.getString("Faction"),
+                    entry.getString("Target"), entry.getInt("Count"), entry.getLong("RewardEmeralds"),
+                    entry.getInt("RewardReputation"), minTier, entry.getLong("OfferEnd"), entry.getLong("Duration"));
+            quest.restore(state, entry.hasUUID("Player") ? entry.getUUID("Player") : null,
+                    entry.getLong("Deadline"));
             if (data.quests.byId(quest.id()).isEmpty()) {
                 data.quests.add(quest);
             }
@@ -192,13 +205,5 @@ public final class QuestData extends SavedData {
                     name == null ? Component.empty() : name));
         }
         return data;
-    }
-
-    private static ReputationTier tier(String name) {
-        try {
-            return ReputationTier.valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            return ReputationTier.NEUTRAL;
-        }
     }
 }
