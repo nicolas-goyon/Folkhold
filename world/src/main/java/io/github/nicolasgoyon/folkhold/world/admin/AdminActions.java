@@ -14,7 +14,6 @@ import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload.Summary;
 import io.github.nicolasgoyon.folkhold.world.network.AdminResultPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
-import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
