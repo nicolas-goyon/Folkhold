@@ -18,6 +18,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
+import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -53,8 +54,8 @@ import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
  *       friends and the allies. A sale removes the items from the cargo. The emeralds go into the treasury of the
  *       faction of the caravan.</li>
  *   <li><b>Raid</b>: a player who hurts a member of the caravan, or who opens a mule chest, raids the caravan. The
- *       reputation of the player with the faction of the caravan goes down (once in each offense window), and the
- *       guards of the caravan attack the player.</li>
+ *       reputation of the player with the faction of the caravan goes down (once in each offense window), the
+ *       guards of the caravan attack the player, and the escort of the player on this caravan fails.</li>
  *   <li>A mule of a caravan does not carry a player. To open its chest, the player uses the secondary action (sneak
  *       and click).</li>
  * </ul>
@@ -156,6 +157,7 @@ public final class CaravanInteractions {
      * @param group  the caravan
      */
     public static void raid(ServerLevel level, ServerPlayer player, MobileGroup group) {
+        Escorts.onRaid(level.getServer(), player, group);
         for (GroupMember member : group.members()) {
             if (member.role() == MemberRole.GUARD && level.getEntity(member.id()) instanceof FactionUnit guard
                     && guard.isAlive()) {
