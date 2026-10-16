@@ -69,6 +69,7 @@ public final class VillageStructureGameTests {
      * template block and the relative positions of {@link GameTestHelper} do not always agree.
      */
     private static VillageHeartBlockEntity findHeart(GameTestHelper helper) {
+        TestSupport.sweep(helper);
         TestSupport.retireEarlierSettlements(helper);
         AABB bounds = helper.getBounds();
         for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
@@ -368,7 +369,8 @@ public final class VillageStructureGameTests {
             BlockPos post = archer.getPostPos();
             helper.assertTrue(post != null && !post.equals(start), "The archer must have another tower");
             helper.assertTrue(archer.distanceToSqr(Vec3.atBottomCenterOf(post)) <= 4.0,
-                    "The archer must arrive at the new post");
+                    "The archer must arrive at the new post " + post.toShortString() + " ("
+                            + String.join(" | ", history) + ")");
             helper.assertTrue(seen[0], "The archer must walk on the ground of the compound");
             WorldConfig.ARCHER_ROTATION_SECONDS.set(rotationSeconds);
             archer.discard();
