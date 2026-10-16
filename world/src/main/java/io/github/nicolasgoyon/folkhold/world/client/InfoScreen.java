@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiKeyValueList;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiOverlay;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiScreen;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTabs;
@@ -31,12 +32,11 @@ public class InfoScreen extends UiScreen {
 
     /** Opens the screen. Called by the network handler on the client thread. */
     public static void open(VillageInfoPayload info) {
-        Minecraft minecraft = Minecraft.getInstance();
         InfoScreen screen = new InfoScreen(info);
-        if (minecraft.screen instanceof UiScreen current && !(current instanceof InfoScreen)) {
+        if (UiOverlay.rootScreen() instanceof UiScreen current && !(current instanceof InfoScreen)) {
             screen.setPrevious(current);
         }
-        minecraft.setScreen(screen);
+        Minecraft.getInstance().setScreen(screen);
     }
 
     @Override

@@ -380,7 +380,13 @@ public final class GroupCommands {
             source.sendFailure(Component.translatable(KEY + "quest.unknown"));
             return 0;
         }
-        boolean done = complete ? QuestBoards.complete(server, quest.get()) : QuestBoards.fail(server, quest.get());
+        boolean done;
+        if (complete) {
+            QuestBoards.completeAndNotify(server, quest.get());
+            done = quest.get().state() == QuestState.COMPLETED;
+        } else {
+            done = QuestBoards.fail(server, quest.get());
+        }
         source.sendSuccess(() -> Component.translatable(KEY + (complete ? "quest.completed" : "quest.failed"),
                 QuestBoards.name(server, quest.get())), true);
         return done ? 1 : 0;
