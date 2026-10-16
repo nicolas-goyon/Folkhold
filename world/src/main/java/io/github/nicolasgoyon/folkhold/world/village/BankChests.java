@@ -32,9 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -289,7 +287,7 @@ public final class BankChests {
         List<ItemStack> stacks = new ArrayList<>();
         addStacks(stacks, Items.EMERALD, emeraldShare(server, settlement));
         for (Map.Entry<String, Integer> entry : settlement.economy().stock().asMap().entrySet()) {
-            item(entry.getKey()).ifPresent(item -> addStacks(stacks, item, entry.getValue()));
+            ItemIds.item(entry.getKey()).ifPresent(item -> addStacks(stacks, item, entry.getValue()));
         }
         return stacks;
     }
@@ -313,11 +311,6 @@ public final class BankChests {
             stacks.add(new ItemStack(item, size));
             left -= size;
         }
-    }
-
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location);
     }
 
     private static Map<String, Integer> count(BankChestBlockEntity chest) {
@@ -451,7 +444,7 @@ public final class BankChests {
         addStacks(treasury, Items.EMERALD, emeraldShare(server, settlement));
         List<ItemStack> stock = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : settlement.economy().stock().asMap().entrySet()) {
-            item(entry.getKey()).ifPresent(item -> addStacks(stock, item, entry.getValue()));
+            ItemIds.item(entry.getKey()).ifPresent(item -> addStacks(stock, item, entry.getValue()));
         }
         int used = 0;
         int treasuryIndex = 0;
