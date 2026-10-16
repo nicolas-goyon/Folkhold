@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -218,6 +219,42 @@ public final class GuardGameTests {
                 .thenExecute(first::discard)
                 .thenExecute(second::discard)
                 .thenSucceed();
+    }
+
+    /**
+     * A guard with a home that it cannot reach (fenced in) waits between two path searches: at most one search for
+     * each retry delay, not one search on each tick.
+     */
+    @GameTest(template = "arena", timeoutTicks = 200, batch = "guard_unreachable_home")
+    public static void unreachableHomeDoesNotSearchAPathOnEachTick(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockPos cell = new BlockPos(7, 1, 7);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx != 0 || dz != 0) {
+                    helper.setBlock(cell.offset(dx, 0, dz), Blocks.OAK_FENCE);
+                }
+            }
+        }
+        GuardEntity guard = TestSupport.spawnGuard(helper, cell);
+        guard.setVillagePos(null);
+        guard.setFactionId(null);
+        guard.setNightPos(null);
+        // The home is outside the patrol radius, so the guard tries to go back to it.
+        guard.setHomePos(helper.absolutePos(new BlockPos(-WorldConfig.PATROL_RADIUS.get(), 1, -8)));
+        guard.goalSelector.getAvailableGoals().removeIf(wrapped -> wrapped.getGoal() instanceof AnchorStrollGoal);
+        UnitNavigation navigation = (UnitNavigation) guard.getNavigation();
+        int ticks = 100;
+        helper.runAfterDelay(ticks, () -> {
+            long searches = navigation.searches();
+            boolean inCell = guard.blockPosition().equals(helper.absolutePos(cell));
+            guard.discard();
+            helper.assertTrue(inCell, "The guard must stay in its cell, found at " + guard.blockPosition());
+            helper.assertTrue(searches <= ticks / 20 + 2, "At most one path search for each retry delay, found "
+                    + searches + " in " + ticks + " ticks");
+            helper.assertTrue(searches >= 2, "The guard must try again, found " + searches + " searches");
+            helper.succeed();
+        });
     }
 
     /**
