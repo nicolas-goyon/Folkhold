@@ -43,14 +43,27 @@ public final class BankGameTests {
     private BankGameTests() {
     }
 
+    /** The treasury of the faction during a test: its share fits in the chest with the bread. */
+    private static final long TREASURY = 100L;
+
+    /**
+     * @param treasury the treasury of the faction before the test: the scene puts it back at the end, because the
+     *                 other tests use the same factions
+     */
     private record Scene(VillageHeartBlockEntity heart, Settlement settlement, BankChestBlockEntity chest,
-            ServerPlayer player) {
+            ServerPlayer player, long treasury) {
         void remove(GameTestHelper helper) {
-            helper.getLevel().getServer().getPlayerList().remove(player);
+            MinecraftServer server = helper.getLevel().getServer();
+            server.getPlayerList().remove(player);
+            SettlementData data = SettlementData.get(server);
+            data.addTreasury(settlement.factionId(), treasury - data.treasury(settlement.factionId()));
         }
     }
 
-    /** A heart with its settlement, a bank chest, 10 bread in the stock, and a player next to the chest. */
+    /**
+     * A heart with its settlement, a bank chest, 10 bread in the stock, {@link #TREASURY} emeralds in the treasury
+     * of the faction, and a player next to the chest.
+     */
     private static Scene scene(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
@@ -63,11 +76,14 @@ public final class BankGameTests {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement settlement = Settlements.of(server, heart).orElseThrow();
         settlement.economy().stock().set("minecraft:bread", 10);
+        SettlementData data = SettlementData.get(server);
+        long treasury = data.treasury(settlement.factionId());
+        data.addTreasury(settlement.factionId(), TREASURY - treasury);
         ServerPlayer player = TestSupport.mockPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
         BlockPos chestPos = helper.absolutePos(CHEST);
         player.setPos(chestPos.getX() + 0.5, chestPos.getY(), chestPos.getZ() + 1.5);
-        return new Scene(heart, settlement, helper.getBlockEntity(CHEST), player);
+        return new Scene(heart, settlement, helper.getBlockEntity(CHEST), player, treasury);
     }
 
     /** A confirmed opening is a pillage: very negative reputation, alert, and the chest shows the stocks. */
