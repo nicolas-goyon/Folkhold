@@ -212,7 +212,7 @@ public final class MerchantGameTests {
     /** A canceled trade: the result goes back from the hand of the player, and the player gets the emeralds. */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "merchant_cancel")
     public static void canceledTradeGivesThePaymentBack(GameTestHelper helper) {
-        Village village = village(helper);
+        TestSupport.buildFloor(helper);
         ServerPlayer player = TestSupport.mockPlayer(helper);
         MerchantOffer offer = new MerchantOffer(new ItemCost(Items.EMERALD, 3), Optional.empty(),
                 new ItemStack(Items.DIAMOND, 2), 1, 0, 0.05F);
