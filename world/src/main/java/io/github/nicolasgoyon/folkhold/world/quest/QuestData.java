@@ -96,6 +96,7 @@ public final class QuestData extends SavedData {
         return pendingRewards.size();
     }
 
+    /**
      * Replaces the id of a village in all quests.
      *
      * @param oldId the current id of the village

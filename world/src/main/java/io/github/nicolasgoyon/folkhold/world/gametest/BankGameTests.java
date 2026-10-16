@@ -43,8 +43,12 @@ public final class BankGameTests {
     private BankGameTests() {
     }
 
-    /** The treasury of the faction during a test: its share fits in the chest with the bread. */
-    private static final long TREASURY = 100L;
+    /**
+     * The emeralds of the treasury in the bank chest during a test: they fit in one slot next to the bread. The
+     * scene sets the treasury of the faction from this share and from the number of villages of the faction, which
+     * changes with the other tests.
+     */
+    private static final int SHARE = 20;
 
     /**
      * @param treasury the treasury of the faction before the test: the scene puts it back at the end, because the
@@ -61,8 +65,8 @@ public final class BankGameTests {
     }
 
     /**
-     * A heart with its settlement, a bank chest, 10 bread in the stock, {@link #TREASURY} emeralds in the treasury
-     * of the faction, and a player next to the chest.
+     * A heart with its settlement, a bank chest, 10 bread in the stock, a treasury that puts {@link #SHARE} emeralds
+     * in the chest, and a player next to the chest.
      */
     private static Scene scene(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
@@ -78,7 +82,10 @@ public final class BankGameTests {
         settlement.economy().stock().set("minecraft:bread", 10);
         SettlementData data = SettlementData.get(server);
         long treasury = data.treasury(settlement.factionId());
-        data.addTreasury(settlement.factionId(), TREASURY - treasury);
+        data.addTreasury(settlement.factionId(), -treasury);
+        for (int i = 0; i < 1000 && BankChests.emeraldShare(server, settlement) < SHARE; i++) {
+            data.addTreasury(settlement.factionId(), SHARE);
+        }
         ServerPlayer player = TestSupport.mockPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
         BlockPos chestPos = helper.absolutePos(CHEST);

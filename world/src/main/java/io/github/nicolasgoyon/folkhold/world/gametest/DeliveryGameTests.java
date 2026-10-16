@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
@@ -9,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
@@ -150,6 +152,10 @@ public final class DeliveryGameTests {
         QuestData data = QuestData.get(server);
         data.quests().add(quest);
         data.quests().accept(quest.id(), playerId, ReputationTier.NEUTRAL, 0, 10);
+        // The start value depends on the attitude of the faction of the test position.
+        FactionSpec faction = FactionData.get(server).byId(village.factionId()).orElseThrow();
+        int valueBefore = ReputationData.get(server).get(playerId).effective(faction, village.id(),
+                Reputations.settings());
 
         boolean completed = QuestBoards.complete(server, quest).isEmpty() && quest.state() == QuestState.COMPLETED;
         long paidWhileAway = treasury - settlements.treasury(village.factionId());
@@ -169,7 +175,7 @@ public final class DeliveryGameTests {
                 + paidWhileAway + ", pending " + pending);
         helper.assertTrue(emeralds == 3 && paidAtLogin == 3, "The reward must come at the login: " + emeralds
                 + " emeralds, " + paidAtLogin + " paid");
-        helper.assertTrue(value > 0, "The reputation must go up: " + value);
+        helper.assertTrue(value > valueBefore, "The reputation must go up: " + valueBefore + " -> " + value);
         helper.assertTrue(pendingAfter == 0, "The data must not keep the paid reward");
         helper.succeed();
     }
