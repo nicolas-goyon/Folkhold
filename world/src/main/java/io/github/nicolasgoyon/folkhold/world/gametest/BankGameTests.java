@@ -22,6 +22,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Explosion;
@@ -42,14 +43,27 @@ public final class BankGameTests {
     private BankGameTests() {
     }
 
+    /** The treasury of the faction during a test: its share fits in the chest with the bread. */
+    private static final long TREASURY = 100L;
+
+    /**
+     * @param treasury the treasury of the faction before the test: the scene puts it back at the end, because the
+     *                 other tests use the same factions
+     */
     private record Scene(VillageHeartBlockEntity heart, Settlement settlement, BankChestBlockEntity chest,
-            ServerPlayer player) {
+            ServerPlayer player, long treasury) {
         void remove(GameTestHelper helper) {
-            helper.getLevel().getServer().getPlayerList().remove(player);
+            MinecraftServer server = helper.getLevel().getServer();
+            server.getPlayerList().remove(player);
+            SettlementData data = SettlementData.get(server);
+            data.addTreasury(settlement.factionId(), treasury - data.treasury(settlement.factionId()));
         }
     }
 
-    /** A heart with its settlement, a bank chest, 10 bread in the stock, and a player next to the chest. */
+    /**
+     * A heart with its settlement, a bank chest, 10 bread in the stock, {@link #TREASURY} emeralds in the treasury
+     * of the faction, and a player next to the chest.
+     */
     private static Scene scene(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
@@ -62,11 +76,14 @@ public final class BankGameTests {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement settlement = Settlements.of(server, heart).orElseThrow();
         settlement.economy().stock().set("minecraft:bread", 10);
+        SettlementData data = SettlementData.get(server);
+        long treasury = data.treasury(settlement.factionId());
+        data.addTreasury(settlement.factionId(), TREASURY - treasury);
         ServerPlayer player = TestSupport.mockPlayer(helper);
         player.setGameMode(GameType.SURVIVAL);
         BlockPos chestPos = helper.absolutePos(CHEST);
         player.setPos(chestPos.getX() + 0.5, chestPos.getY(), chestPos.getZ() + 1.5);
-        return new Scene(heart, settlement, helper.getBlockEntity(CHEST), player);
+        return new Scene(heart, settlement, helper.getBlockEntity(CHEST), player, treasury);
     }
 
     /** A confirmed opening is a pillage: very negative reputation, alert, and the chest shows the stocks. */
@@ -144,6 +161,65 @@ public final class BankGameTests {
         helper.assertTrue(bread == 6, "Expected 6 bread in the stock, not " + bread);
         helper.assertTrue(treasuryAfter == treasuryBefore - 5,
                 "Expected " + (treasuryBefore - 5) + " emeralds in the treasury, not " + treasuryAfter);
+        helper.succeed();
+    }
+
+    /**
+     * A second player cannot open a chest that another player has open. The second player opens the chest after the
+     * close of the first player, and sees the stock after the changes of the first player. The stock loses the
+     * taken items one time.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "bank_two_players")
+    public static void secondOpenerWaitsForTheFirstClose(GameTestHelper helper) {
+        Scene scene = scene(helper);
+        ServerPlayer first = scene.player();
+        ServerPlayer second = TestSupport.mockPlayer(helper);
+        second.setGameMode(GameType.SURVIVAL);
+        second.setPos(first.getX(), first.getY(), first.getZ());
+        BlockPos chestPos = helper.absolutePos(CHEST);
+        BankChests.onConfirm(first, chestPos);
+        removeFromChest(scene.chest(), new ItemStack(Items.BREAD, 4));
+
+        BankChests.onConfirm(second, chestPos);
+        boolean secondRefused = !(second.containerMenu instanceof ChestMenu);
+        int breadWhileOpen = scene.chest().container().countItem(Items.BREAD);
+        first.closeContainer();
+        int stockAfterFirst = scene.settlement().economy().stock().count("minecraft:bread");
+
+        BankChests.onConfirm(second, chestPos);
+        boolean secondOpened = second.containerMenu instanceof ChestMenu;
+        int breadForSecond = scene.chest().container().countItem(Items.BREAD);
+        second.closeContainer();
+        int stockAfterSecond = scene.settlement().economy().stock().count("minecraft:bread");
+        helper.getLevel().getServer().getPlayerList().remove(second);
+        scene.remove(helper);
+
+        helper.assertTrue(secondRefused, "The second player must not open the chest while the first has it open");
+        helper.assertTrue(breadWhileOpen == 6, "The chest must keep the content of the first player, found "
+                + breadWhileOpen + " bread");
+        helper.assertTrue(stockAfterFirst == 6, "Expected 6 bread in the stock after the first close, not "
+                + stockAfterFirst);
+        helper.assertTrue(secondOpened, "The second player must open the chest after the first close");
+        helper.assertTrue(breadForSecond == 6, "The second player must see 6 bread, found " + breadForSecond);
+        helper.assertTrue(stockAfterSecond == 6, "Expected 6 bread in the stock after the second close, not "
+                + stockAfterSecond);
+        helper.succeed();
+    }
+
+    /** A player who leaves the game with the chest open: the items that the player took leave the stock. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "bank_logout")
+    public static void leavingPlayerSettlesTheChest(GameTestHelper helper) {
+        Scene scene = scene(helper);
+        BankChests.onConfirm(scene.player(), helper.absolutePos(CHEST));
+        removeFromChest(scene.chest(), new ItemStack(Items.BREAD, 4));
+
+        scene.remove(helper);
+
+        int bread = scene.settlement().economy().stock().count("minecraft:bread");
+        boolean empty = scene.chest().container().isEmpty() && scene.chest().snapshot().isEmpty();
+        helper.assertTrue(bread == 6, "Expected 6 bread in the stock after the logout, not " + bread);
+        helper.assertTrue(empty, "The chest must be empty after the logout");
+        helper.assertTrue(scene.chest().viewer() == null, "The chest must forget the viewer after the logout");
         helper.succeed();
     }
 

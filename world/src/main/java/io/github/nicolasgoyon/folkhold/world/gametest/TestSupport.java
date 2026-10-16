@@ -155,9 +155,14 @@ final class TestSupport {
      * of the test with {@code getPlayerList().remove(player)}.
      */
     static ServerPlayer mockPlayer(GameTestHelper helper) {
+        return mockPlayer(helper, UUID.randomUUID());
+    }
+
+    /** A mock server player with a given id. See {@link #mockPlayer(GameTestHelper)}. */
+    static ServerPlayer mockPlayer(GameTestHelper helper, UUID id) {
         ServerLevel level = helper.getLevel();
         CommonListenerCookie cookie = CommonListenerCookie.createInitial(
-                new GameProfile(UUID.randomUUID(), "test-mock-player"), false);
+                new GameProfile(id, "test-mock-player"), false);
         ServerPlayer player = new ServerPlayer(level.getServer(), level, cookie.gameProfile(),
                 cookie.clientInformation()) {
             @Override

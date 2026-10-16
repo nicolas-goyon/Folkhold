@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import java.util.Objects;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -177,8 +178,14 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return postPos;
     }
 
+    /** Sets the post of the unit. A new post starts the travel to the post again (see {@link #updatePostTravel}). */
     public void setPostPos(@Nullable BlockPos pos) {
-        postPos = pos == null ? null : pos.immutable();
+        BlockPos post = pos == null ? null : pos.immutable();
+        if (!Objects.equals(post, postPos)) {
+            postTravelTicks = 0;
+            noPathTicks = 0;
+        }
+        postPos = post;
     }
 
     /**

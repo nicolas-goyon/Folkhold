@@ -120,6 +120,35 @@ public final class MobileGroupData extends SavedData {
         return detailedRoutes.size();
     }
 
+    /**
+     * Replaces the id of a settlement in the groups, the routes and the detailed routes.
+     *
+     * @param oldId the current id of the settlement
+     * @param newId the new id
+     */
+    public void renameSettlement(String oldId, String newId) {
+        groups.renameSettlement(oldId, newId);
+        renameSettlement(routes, oldId, newId);
+        renameSettlement(detailedRoutes, oldId, newId);
+        setDirty();
+    }
+
+    private static void renameSettlement(Map<String, RouteEntry> entries, String oldId, String newId) {
+        List<RouteEntry> renamed = new ArrayList<>();
+        for (RouteEntry entry : entries.values()) {
+            if (entry.fromId().equals(oldId) || entry.toId().equals(oldId)) {
+                renamed.add(entry);
+            }
+        }
+        for (RouteEntry entry : renamed) {
+            entries.remove(routeKey(entry.fromId(), entry.toId()));
+            RouteEntry replaced = new RouteEntry(entry.fromId().equals(oldId) ? newId : entry.fromId(),
+                    entry.toId().equals(oldId) ? newId : entry.toId(), entry.fromX(), entry.fromZ(), entry.toX(),
+                    entry.toZ(), entry.route());
+            entries.put(routeKey(replaced.fromId(), replaced.toId()), replaced);
+        }
+    }
+
     private static String routeKey(String firstId, String secondId) {
         return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
     }
