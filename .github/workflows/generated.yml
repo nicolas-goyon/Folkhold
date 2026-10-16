@@ -34,8 +34,8 @@ jobs:
           python3 tools/models/quest_board.py
           python3 tools/textures/building_signs.py
           python3 tools/textures/villager_professions.py
-          python3 tools/make_test_structure.py world/src/main/resources/data/folkhold_world/structure/empty.nbt
-          python3 tools/make_test_structure.py world/src/main/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16
+          python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/empty.nbt
+          python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16
 
       - name: Compare with the repository
         run: |
