@@ -52,8 +52,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *   <li>Each escort has 1 to 3 ambushes of vanilla monsters at random points of the route. The length of the route
  *       and the level of the origin village set the size of an ambush.</li>
  *   <li>Success: the caravan arrives and its merchant is alive. The reward comes from the value of the cargo.</li>
- *   <li>Failure: the merchant dies, the player stays away too long, or the deadline ends. The time of an escort
- *       comes from the length of its route ({@link #escortMinutes}).</li>
+ *   <li>Failure: the merchant dies, the player stays away too long, the player raids the caravan, or the deadline
+ *       ends. The time of an escort comes from the length of its route ({@link #escortMinutes}).</li>
  *   <li>Each second, the player of an escort gets the state of the caravan in the quest HUD.</li>
  * </ul>
  */
@@ -178,8 +178,23 @@ public final class Escorts {
             }
             boolean merchantAlive = group.merchant().filter(merchant -> merchant.isAlive()).isPresent();
             if (group.state() == GroupState.ARRIVED && merchantAlive) {
-                QuestBoards.complete(server, quest);
+                QuestBoards.completeAndNotify(server, quest);
             } else {
+                QuestBoards.fail(server, quest);
+            }
+        }
+    }
+
+    /**
+     * A player raids a caravan: the escort of this player on this caravan fails.
+     *
+     * @param server the server
+     * @param player the player
+     * @param group  the caravan
+     */
+    public static void onRaid(MinecraftServer server, ServerPlayer player, MobileGroup group) {
+        for (Quest quest : active(server)) {
+            if (quest.target().equals(group.id()) && player.getUUID().equals(quest.playerId())) {
                 QuestBoards.fail(server, quest);
             }
         }
@@ -224,7 +239,7 @@ public final class Escorts {
             MobileGroup group = found.get();
             if (group.state() == GroupState.ARRIVED) {
                 if (group.merchant().filter(merchant -> merchant.isAlive()).isPresent()) {
-                    QuestBoards.complete(server, quest);
+                    QuestBoards.completeAndNotify(server, quest);
                 } else {
                     QuestBoards.fail(server, quest);
                 }

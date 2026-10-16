@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.core.client.ui;
 
 import javax.annotation.Nullable;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -36,6 +37,29 @@ public abstract class UiOverlay extends Screen {
     @Nullable
     public Screen parent() {
         return parent;
+    }
+
+    /**
+     * The screen that the player uses, behind the open menus and dialogs: the open screen when it is not an
+     * overlay, else the parent at the bottom of the overlays. A payload that updates or replaces a screen uses
+     * this screen, so an open overlay does not hide the screen from the payload.
+     *
+     * @return the screen, or null when no screen is open
+     */
+    @Nullable
+    public static Screen rootScreen() {
+        Screen screen = Minecraft.getInstance().screen;
+        while (screen instanceof UiOverlay overlay && overlay.parent() != null) {
+            screen = overlay.parent();
+        }
+        return screen;
+    }
+
+    /** Advances the hold buttons of the overlay. */
+    @Override
+    public void tick() {
+        super.tick();
+        UiHoldButton.tickAll(children());
     }
 
     @Override

@@ -21,6 +21,7 @@ import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload.Summary;
 import io.github.nicolasgoyon.folkhold.world.network.AdminResultPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
+import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -31,7 +32,6 @@ import javax.annotation.Nullable;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.ItemStack;
@@ -125,11 +125,20 @@ public class AdminScreen extends UiScreen {
 
     // ------------------------------------------------------------------ network
 
-    /** Opens the screen, or updates the list of the open screen. Called by the network handler. */
+    /**
+     * Opens the screen, or updates the list of the open screen. Called by the network handler. A selected
+     * settlement that is not in the list any more is not selected any more.
+     */
     public static void open(AdminListPayload payload) {
+        if (lastSelected != null && payload.settlements().stream().noneMatch(s -> s.id().equals(lastSelected))) {
+            lastSelected = null;
+        }
         AdminScreen screen = current();
         if (screen != null) {
             screen.settlements = payload.settlements();
+            if (lastSelected == null) {
+                screen.details = null;
+            }
             screen.applyFilters();
             return;
         }
@@ -161,11 +170,17 @@ public class AdminScreen extends UiScreen {
     /** The open admin screen, also behind a menu or a dialog, or null. */
     @Nullable
     private static AdminScreen current() {
-        Screen screen = Minecraft.getInstance().screen;
-        while (screen instanceof UiOverlay overlay) {
-            screen = overlay.parent();
-        }
-        return screen instanceof AdminScreen admin ? admin : null;
+        return UiOverlay.rootScreen() instanceof AdminScreen admin ? admin : null;
+    }
+
+    /** Forgets the state kept between two openings. Called when the player leaves a world or a server. */
+    public static void clear() {
+        lastText = "";
+        lastMinLevel = "";
+        lastMaxLevel = "";
+        lastState = StateFilter.ALL;
+        lastSort = Sort.DISTANCE;
+        lastSelected = null;
     }
 
     /** Makes the widgets again from the state. The list keeps its scroll and its keyboard focus. */
@@ -549,10 +564,11 @@ public class AdminScreen extends UiScreen {
 
     private List<UiMenu.Item> garrisonItems(AdminDetailsPayload shown) {
         List<UiMenu.Item> items = new ArrayList<>();
-        String[] states = {"calm", "alert", "assault"};
+        AlertState[] states = AlertState.values();
         for (int i = 0; i < states.length; i++) {
             int value = i;
-            UiMenu.Action action = UiMenu.Action.of(Component.translatable(KEY + "action." + states[i]),
+            UiMenu.Action action = UiMenu.Action.of(
+                    Component.translatable(KEY + "action." + states[i].serializedName()),
                     () -> sendSelected("alert", value));
             if (!shown.heartLoaded()) {
                 action = action.disabled(Component.translatable(KEY + "menu.heart_unloaded"));
@@ -656,11 +672,11 @@ public class AdminScreen extends UiScreen {
             tones.add(UiTone.INFO);
         }
         if (shown.heartLoaded()) {
-            String[] states = {"calm", "alert", "assault"};
-            int alert = Math.max(0, Math.min(states.length - 1, shown.alert()));
+            AlertState[] states = AlertState.values();
+            AlertState alert = states[Math.max(0, Math.min(states.length - 1, shown.alert()))];
             texts.add(Component.translatable(KEY + "badge.alert",
-                    Component.translatable(KEY + "alert." + states[alert])));
-            tones.add(alert == 0 ? UiTone.GOOD : alert == 1 ? UiTone.WARN : UiTone.BAD);
+                    Component.translatable(KEY + "alert." + alert.serializedName())));
+            tones.add(alertTone(alert));
         }
         int right = header.right();
         for (int i = texts.size() - 1; i >= 0; i--) {
@@ -719,5 +735,14 @@ public class AdminScreen extends UiScreen {
         Component name = item.isEmpty() ? Component.literal(stock.itemId()) : item.getHoverName();
         graphics.renderComponentTooltip(font, List.of(name,
                 Component.translatable(KEY + "stock.count", stock.count())), mouseX, mouseY);
+    }
+
+    /** The tone of a badge for an alert state. */
+    static UiTone alertTone(AlertState alert) {
+        return switch (alert) {
+            case CALM -> UiTone.GOOD;
+            case ALERT -> UiTone.WARN;
+            case ASSAULT -> UiTone.BAD;
+        };
     }
 }
