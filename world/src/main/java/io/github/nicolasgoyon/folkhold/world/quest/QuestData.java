@@ -39,6 +39,17 @@ public final class QuestData extends SavedData {
         return quests;
     }
 
+    /**
+     * Replaces the id of a village in all quests.
+     *
+     * @param oldId the current id of the village
+     * @param newId the new id
+     */
+    public void renameSettlement(String oldId, String newId) {
+        quests.renameSettlement(oldId, newId);
+        setDirty();
+    }
+
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
