@@ -146,7 +146,7 @@ public final class GuardGameTests {
     }
 
     /** A hostile monster far from every village heart does not look for a guard. */
-    @GameTest(template = "arena", timeoutTicks = 100, batch = "monster_targets_guard")
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "monster_far_from_villages")
     public static void monsterFarFromTheVillagesIgnoresGuards(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
