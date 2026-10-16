@@ -44,6 +44,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class MerchantGameTests {
+    /** The treasury of the faction in the test of a purchase: the merchants can pay. */
+    private static final long BUYER_TREASURY = 1_000L;
     private static final BlockPos HEART = new BlockPos(8, 1, 8);
 
     private static final Comparator<VillagerProfession> BY_ID =
@@ -62,6 +64,7 @@ public final class MerchantGameTests {
         heart.ensureSettlement();
         Settlement settlement = Settlements.of(helper.getLevel().getServer(), heart).orElseThrow();
         settlement.economy().setPopulation(10);
+        TestSupport.emptyStock(settlement);
         return new Village(heart, settlement);
     }
 
@@ -123,18 +126,25 @@ public final class MerchantGameTests {
         MinecraftServer server = helper.getLevel().getServer();
         village.settlement().setProgress(20, 0);
         SettlementData data = SettlementData.get(server);
-        long treasury = data.treasury(village.settlement().factionId());
+        String faction = village.settlement().factionId();
+        // The other tests use the same factions: a known treasury, put back at the end.
+        long original = data.treasury(faction);
+        data.addTreasury(faction, BUYER_TREASURY - original);
+        long treasury = data.treasury(faction);
 
         MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL);
         MerchantOffer purchase = offers.stream().filter(offer -> offer.getResult().is(Items.EMERALD)).findFirst()
                 .orElse(null);
-        helper.assertTrue(purchase != null, "The merchant must buy an item that the village needs");
-        String item = BuiltInRegistries.ITEM.getKey(purchase.getCostA().getItem()).toString();
+        String item = purchase == null ? "" : BuiltInRegistries.ITEM.getKey(purchase.getCostA().getItem()).toString();
         int before = village.settlement().economy().stock().count(item);
-        Merchants.applyTrade(server, village.settlement(), purchase);
+        if (purchase != null) {
+            Merchants.applyTrade(server, village.settlement(), purchase);
+        }
 
         int stock = village.settlement().economy().stock().count(item);
-        long after = data.treasury(village.settlement().factionId());
+        long after = data.treasury(faction);
+        data.addTreasury(faction, original - data.treasury(faction));
+        helper.assertTrue(purchase != null, "The merchant must buy an item that the village needs");
         helper.assertTrue(stock == before + purchase.getCostA().getCount(), "The item must go into the stock");
         helper.assertTrue(after == treasury - purchase.getResult().getCount(), "The treasury must pay the emeralds");
         helper.succeed();

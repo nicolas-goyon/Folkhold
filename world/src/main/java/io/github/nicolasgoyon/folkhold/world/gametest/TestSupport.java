@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import com.mojang.authlib.GameProfile;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Stock;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
@@ -147,6 +148,15 @@ final class TestSupport {
                     }
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * Sets each item of the stock of a settlement to zero. The start stock of a settlement depends on its level and
+     * on its biome, which change with the position of the test: a test that checks a stock puts its own items.
+     */
+    static void emptyStock(Settlement settlement) {
+        Stock stock = settlement.economy().stock();
+        List.copyOf(stock.asMap().keySet()).forEach(item -> stock.set(item, 0));
     }
 
     /**
