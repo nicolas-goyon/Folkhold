@@ -107,7 +107,7 @@ public final class EconomyGameTests {
     }
 
     /** The text of a price has two decimals at most and no trailing zero. */
-    @GameTest(template = "empty", timeoutTicks = 20, batch = "economy_data")
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "economy_price_text")
     public static void priceTextHasTwoDecimalsAtMost(GameTestHelper helper) {
         helper.assertTrue(Merchants.priceText(2.0).equals("2"), "2.0 -> " + Merchants.priceText(2.0));
         helper.assertTrue(Merchants.priceText(0.85).equals("0.85"), "0.85 -> " + Merchants.priceText(0.85));
