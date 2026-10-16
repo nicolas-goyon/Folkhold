@@ -16,6 +16,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
+import io.github.nicolasgoyon.folkhold.world.group.CaravanInteractions;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
@@ -234,6 +235,29 @@ public final class EscortGameTests {
         clear(helper, caravan, quest);
         helper.assertTrue(state == QuestState.COMPLETED, "The escort must be complete: " + state);
         helper.assertTrue(emeralds == quest.rewardEmeralds(), "The player must get the reward: " + emeralds);
+        helper.succeed();
+    }
+
+    /** The player of an escort raids the caravan: the escort fails, and the treasury pays nothing. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "escort_raid")
+    public static void raidFailsTheEscort(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement origin = village(helper);
+        SettlementData settlements = SettlementData.get(server);
+        long treasury = settlements.treasury(origin.factionId());
+        MobileGroup caravan = caravan(helper, origin);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        Quest quest = acceptedEscort(helper, origin, caravan, player);
+
+        CaravanInteractions.raid(helper.getLevel(), player, caravan);
+
+        QuestState state = quest.state();
+        long paid = treasury - settlements.treasury(origin.factionId());
+        server.getPlayerList().remove(player);
+        settlements.addTreasury(origin.factionId(), treasury - settlements.treasury(origin.factionId()));
+        clear(helper, caravan, quest);
+        helper.assertTrue(state == QuestState.FAILED, "The escort must fail: " + state);
+        helper.assertTrue(paid == 0, "The treasury must pay nothing: " + paid);
         helper.succeed();
     }
 

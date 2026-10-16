@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import com.mojang.authlib.GameProfile;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Stock;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
@@ -179,14 +180,28 @@ final class TestSupport {
     }
 
     /**
+     * Sets each item of the stock of a settlement to zero. The start stock of a settlement depends on its level and
+     * on its biome, which change with the position of the test: a test that checks a stock puts its own items.
+     */
+    static void emptyStock(Settlement settlement) {
+        Stock stock = settlement.economy().stock();
+        List.copyOf(stock.asMap().keySet()).forEach(item -> stock.set(item, 0));
+    }
+
+    /**
      * A mock server player in the level of the test, with a connection that sends nothing. It is creative for
      * {@link Player#isCreative()}, but its game mode is survival (as the vanilla mock player). Remove it at the end
      * of the test with {@code getPlayerList().remove(player)}.
      */
     static ServerPlayer mockPlayer(GameTestHelper helper) {
+        return mockPlayer(helper, UUID.randomUUID());
+    }
+
+    /** A mock server player with a given id. See {@link #mockPlayer(GameTestHelper)}. */
+    static ServerPlayer mockPlayer(GameTestHelper helper, UUID id) {
         ServerLevel level = helper.getLevel();
         CommonListenerCookie cookie = CommonListenerCookie.createInitial(
-                new GameProfile(UUID.randomUUID(), "test-mock-player"), false);
+                new GameProfile(id, "test-mock-player"), false);
         ServerPlayer player = new ServerPlayer(level.getServer(), level, cookie.gameProfile(),
                 cookie.clientInformation()) {
             @Override

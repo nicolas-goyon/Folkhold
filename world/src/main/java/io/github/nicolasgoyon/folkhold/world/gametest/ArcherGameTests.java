@@ -56,6 +56,36 @@ public final class ArcherGameTests {
         }, archer);
     }
 
+    /**
+     * An archer on its post does not go to a target outside its attack radius. When the target comes into the
+     * radius, the archer shoots it from the post.
+     */
+    @GameTest(template = "arena", timeoutTicks = 800, batch = "archer_post_stay")
+    public static void postedArcherStaysOnItsPost(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockPos post = helper.absolutePos(new BlockPos(1, 1, 1));
+        ArcherEntity archer = TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(1, 1, 1));
+        archer.setPostPos(post);
+        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(14, 1, 14));
+        husk.setNoAi(true);
+        BlockPos near = helper.absolutePos(new BlockPos(9, 1, 9));
+        helper.startSequence()
+                .thenExecuteAfter(100, () -> {
+                    double distance = archer.position().distanceTo(Vec3.atBottomCenterOf(post));
+                    helper.assertTrue(distance < 1.5, "The archer must stay on its post, distance: " + distance);
+                    helper.assertTrue(husk.isAlive(), "The husk out of the attack radius must stay alive");
+                    husk.teleportTo(near.getX() + 0.5, near.getY(), near.getZ() + 0.5);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(!husk.isAlive(), "The archer must shoot the husk in range"))
+                .thenExecute(() -> {
+                    double distance = archer.position().distanceTo(Vec3.atBottomCenterOf(post));
+                    archer.discard();
+                    husk.discard();
+                    helper.assertTrue(distance < 1.5, "The archer must shoot from its post, distance: " + distance);
+                })
+                .thenSucceed();
+    }
+
     /** An archer at its post sees and kills a monster far from the post. */
     @GameTest(template = "arena", timeoutTicks = 800, batch = "archer_post_kill")
     public static void archerAtPostKillsDistantMonster(GameTestHelper helper) {

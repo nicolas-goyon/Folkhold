@@ -15,6 +15,7 @@ import io.github.nicolasgoyon.folkhold.world.network.QuestBoardRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload.Service;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
+import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -108,12 +109,9 @@ public class VillageHeartScreen extends UiScreen {
             badges.add(Badge.of(Component.translatable(KEY + "level_badge", heart.level(), heart.tier()),
                     UiTone.GOLD));
         }
-        UiTone tone = switch (heart.alert()) {
-            case "assault" -> UiTone.BAD;
-            case "alert" -> UiTone.WARN;
-            default -> UiTone.GOOD;
-        };
-        badges.add(Badge.of(Component.translatable(KEY + "alert." + heart.alert()), tone));
+        AlertState alert = AlertState.fromSerializedName(heart.alert());
+        badges.add(Badge.of(Component.translatable(KEY + "alert." + alert.serializedName()),
+                AdminScreen.alertTone(alert)));
         return badges;
     }
 

@@ -1,19 +1,29 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
+import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
+import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
+import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
+import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.ChunkPos;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -135,6 +145,53 @@ public final class SettlementGameTests {
         helper.assertTrue(oldIdGone, "The discovered id must not exist any more");
         helper.assertTrue(newId, "The discovered settlement must get the id of the heart");
         helper.assertTrue(identity, "The settlement must get the faction and the name of the heart");
+        helper.succeed();
+    }
+
+    /**
+     * When the settlement takes the id of the heart, the groups, the routes and the quests that refer to the
+     * settlement take the new id too, so a caravan toward the settlement still arrives.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "settlement_id_change")
+    public static void idChangeFollowsTheGroupsRoutesAndQuests(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
+        VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+        MinecraftServer server = helper.getLevel().getServer();
+        FactionSpec heartFaction = otherFaction(helper);
+        String heartId = heart.getVillageId().toString();
+        heart.adoptSettlement(heart.getVillageId(), heartFaction.id(), "Oldbury");
+        Settlement discovered = discover(helper, FactionData.get(server).ownerAt(helper.absolutePos(HEART)),
+                "Newbury");
+        String discoveredId = discovered.id();
+        String originId = "test_origin_" + UUID.randomUUID();
+        MobileGroupData groups = MobileGroupData.get(server);
+        Route route = new Route(List.of(new Route.Point(0, 0), new Route.Point(discovered.x(), discovered.z())));
+        MobileGroup caravan = new MobileGroup(UUID.randomUUID().toString(), GroupKind.CARAVAN, heartFaction.id(),
+                originId, discoveredId, route);
+        groups.groups().add(caravan);
+        groups.putRoute(new MobileGroupData.RouteEntry(originId, discoveredId, 0, 0, discovered.x(), discovered.z(),
+                Optional.of(route)));
+        Quest quest = new Quest(UUID.randomUUID().toString(), QuestKind.DELIVERY, discoveredId, heartFaction.id(),
+                "minecraft:bread", 4, 2, 10, ReputationTier.NEUTRAL, helper.getLevel().getGameTime() + 1000, 1000);
+        QuestData.get(server).quests().add(quest);
+
+        heart.ensureSettlement();
+
+        boolean newId = discovered.id().equals(heartId);
+        boolean groupFollows = caravan.destinationId().equals(heartId)
+                && groups.groups().bySettlement(heartId).contains(caravan);
+        boolean routeFollows = groups.routeEntry(originId, heartId) != null
+                && groups.routeEntry(originId, discoveredId) == null;
+        boolean questFollows = quest.settlementId().equals(heartId)
+                && QuestData.get(server).quests().offers(heartId).contains(quest);
+        groups.groups().remove(caravan.id());
+        retire(helper, discovered);
+
+        helper.assertTrue(newId, "The discovered settlement must get the id of the heart");
+        helper.assertTrue(groupFollows, "The caravan must go to the new id, found " + caravan.destinationId());
+        helper.assertTrue(routeFollows, "The route must use the new id");
+        helper.assertTrue(questFollows, "The quest must use the new id, found " + quest.settlementId());
         helper.succeed();
     }
 
