@@ -109,7 +109,7 @@ public class VillageHeartScreen extends UiScreen {
             badges.add(Badge.of(Component.translatable(KEY + "level_badge", heart.level(), heart.tier()),
                     UiTone.GOLD));
         }
-        AlertState alert = AlertState.fromSerializedName(heart.alert());
+        AlertState alert = AlertState.fromSerializedName(heart.alert()).orElse(AlertState.CALM);
         badges.add(Badge.of(Component.translatable(KEY + "alert." + alert.serializedName()),
                 AdminScreen.alertTone(alert)));
         return badges;
