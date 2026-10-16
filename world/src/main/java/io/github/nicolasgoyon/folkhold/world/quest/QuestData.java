@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quests;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -24,6 +25,11 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public final class QuestData extends SavedData {
     private static final String FILE_ID = "folkhold_quests";
+    /**
+     * The version of the saved format. {@code load} reads the tag of an earlier version (a tag with no version is
+     * version 0) and the data saves with the current version. A tag of a later version loads with a warning.
+     */
+    static final int VERSION = 1;
 
     private final Quests quests = new Quests();
     private final List<Reward> pendingRewards = new ArrayList<>();
@@ -109,6 +115,7 @@ public final class QuestData extends SavedData {
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+        tag.putInt("Version", VERSION);
         ListTag list = new ListTag();
         for (Quest quest : quests.all()) {
             CompoundTag entry = new CompoundTag();
@@ -155,6 +162,11 @@ public final class QuestData extends SavedData {
      */
     public static QuestData load(CompoundTag tag, HolderLookup.Provider registries) {
         QuestData data = new QuestData();
+        int version = tag.getInt("Version");
+        if (version > VERSION) {
+            FolkholdWorld.LOGGER.warn("{} has the format version {}, this version of the mod reads version {}",
+                    FILE_ID, version, VERSION);
+        }
         ListTag list = tag.getList("Quests", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
