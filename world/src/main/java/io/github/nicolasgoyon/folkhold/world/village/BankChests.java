@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -44,6 +45,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
@@ -111,19 +113,62 @@ public final class BankChests {
 
     /**
      * A player uses a bank chest. With no village, or for a creative player, or after a pillage of this village,
-     * the chest opens. Else the client shows the confirmation screen.
+     * the chest opens. Else the client shows the confirmation screen. When another player has the chest open, the
+     * player gets a notice and nothing opens.
      *
      * @param player the player
      * @param pos    the position of the chest
      */
     public static void onUse(ServerPlayer player, BlockPos pos) {
         bank(player.serverLevel(), pos).ifPresent(bank -> {
+            if (isInUse(player, bank)) {
+                return;
+            }
             if (bank.settlement() == null || isExempt(player) || bank.heart().hasPillaged(player)) {
                 open(player, bank);
             } else {
                 PacketDistributor.sendToPlayer(player, request(player, pos, bank.heart(), bank.settlement()));
             }
         });
+    }
+
+    /**
+     * True when another player has the chest of an active village open. The player then gets a notice. A chest
+     * shows the stocks to one player at a time: a second opening would fill the chest again with the items that the
+     * first player can take.
+     */
+    private static boolean isInUse(ServerPlayer player, Bank bank) {
+        if (bank.settlement() == null) {
+            return false;
+        }
+        Optional<ServerPlayer> viewer = viewerOf(player.server, bank.chest());
+        if (viewer.isEmpty() || viewer.get() == player) {
+            return false;
+        }
+        Notices.send(player, Component.translatable("message.folkhold_world.bank_in_use"), null, Notices.Tone.WARN);
+        return true;
+    }
+
+    /**
+     * The player who has the chest open in a chest menu.
+     *
+     * @param server the server
+     * @param chest  the chest
+     * @return the player, or empty when no player has the chest open. A player who left the game or who closed the
+     *         menu without a close of the container does not count: the chest then forgets this viewer.
+     */
+    public static Optional<ServerPlayer> viewerOf(MinecraftServer server, BankChestBlockEntity chest) {
+        UUID viewer = chest.viewer();
+        if (viewer == null) {
+            return Optional.empty();
+        }
+        ServerPlayer player = server.getPlayerList().getPlayer(viewer);
+        if (player != null && player.containerMenu instanceof ChestMenu menu
+                && menu.getContainer() == chest.container()) {
+            return Optional.of(player);
+        }
+        chest.clearViewer();
+        return Optional.empty();
     }
 
     /**
@@ -178,6 +223,9 @@ public final class BankChests {
             return;
         }
         bank(player.serverLevel(), pos).ifPresent(bank -> {
+            if (isInUse(player, bank)) {
+                return;
+            }
             if (bank.settlement() != null && !isExempt(player)) {
                 pillage(player, bank.heart(), bank.settlement());
             }
@@ -215,13 +263,14 @@ public final class BankChests {
 
     /**
      * Opens the chest for the player. In an active village, the chest shows the stocks and the treasury: the content
-     * comes from them at each opening. With no active village, the chest shows its own items.
+     * comes from them at each opening. Items that are in the chest before the opening go into the stocks first
+     * (the session of a player who left the game, see {@link #settle}). With no active village, the chest shows its
+     * own items.
      */
     private static void open(ServerPlayer player, Bank bank) {
         BankChestBlockEntity chest = bank.chest();
         if (bank.settlement() != null) {
-            chest.container().clearContent();
-            chest.snapshot().clear();
+            settle(player.server, bank.settlement(), chest);
             List<ItemStack> stacks = contentOf(player.server, bank.settlement());
             int index = bank.heart().getLayout().bankChests().indexOf(chest.getBlockPos());
             int first = Math.max(0, index) * BankChestBlockEntity.SIZE;
@@ -290,21 +339,46 @@ public final class BankChests {
      * @param player the player
      */
     public static void onClose(BankChestBlockEntity chest, Player player) {
-        if (!(chest.getLevel() instanceof ServerLevel level) || chest.snapshot().isEmpty() && chest.container().isEmpty()) {
+        if (!(chest.getLevel() instanceof ServerLevel level)
+                || chest.snapshot().isEmpty() && chest.container().isEmpty()) {
             return;
         }
         VillageHeartBlockEntity heart = heartOf(level, chest.getBlockPos());
-        Optional<Settlement> settlement = heart == null ? Optional.empty()
-                : Settlements.of(level.getServer(), heart).filter(Settlement::isActive);
-        if (settlement.isEmpty()) {
-            // No active village: the chest is a normal chest and keeps its items.
-            chest.snapshot().clear();
-            chest.setChanged();
+        Settlement settlement = heart == null ? null
+                : Settlements.of(level.getServer(), heart).filter(Settlement::isActive).orElse(null);
+        settle(level.getServer(), settlement, chest);
+    }
+
+    /**
+     * A player leaves the game with a bank chest open: the chest closes now, as if the player closed it.
+     *
+     * @param event the event
+     */
+    public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player && player.containerMenu instanceof ChestMenu menu
+                && menu.getContainer() instanceof BankChestBlockEntity.Content) {
+            player.doCloseContainer();
+        }
+    }
+
+    /**
+     * Settles the session of a chest. In an active village, the difference between the content at the opening and
+     * the content now goes to the stocks and to the treasury, and the chest becomes empty. With no active village,
+     * the chest is a normal chest and keeps its items.
+     *
+     * @param server     the server
+     * @param settlement the active settlement of the village of the chest, or null
+     * @param chest      the chest
+     */
+    private static void settle(MinecraftServer server, @Nullable Settlement settlement, BankChestBlockEntity chest) {
+        if (chest.snapshot().isEmpty() && chest.container().isEmpty()) {
             return;
         }
-        applyChanges(level.getServer(), settlement.get(), chest.snapshot(), count(chest));
+        if (settlement != null) {
+            applyChanges(server, settlement, chest.snapshot(), count(chest));
+            chest.container().clearContent();
+        }
         chest.snapshot().clear();
-        chest.container().clearContent();
         chest.setChanged();
     }
 

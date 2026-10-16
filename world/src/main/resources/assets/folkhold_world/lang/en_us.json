@@ -159,6 +159,7 @@
   "screen.folkhold_world.bank_pillage.title": "Pillage the bank?",
   "message.folkhold_world.bank_pillaged": "You pillaged the bank of %s.",
   "message.folkhold_world.bank_warning": "This is the chest of the village bank.",
+  "message.folkhold_world.bank_in_use": "Another player uses this chest.",
   "folkhold_world.configuration.bank": "Bank",
   "folkhold_world.configuration.bankPillageValue": "Reputation after a pillage",
   "folkhold_world.configuration.bankPillageLoss": "Experience loss for a pillage",
