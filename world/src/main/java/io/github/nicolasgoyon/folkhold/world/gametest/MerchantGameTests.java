@@ -14,6 +14,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -24,12 +25,16 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -39,6 +44,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class MerchantGameTests {
+    /** The treasury of the faction in the test of a purchase: the merchants can pay. */
+    private static final long BUYER_TREASURY = 1_000L;
     private static final BlockPos HEART = new BlockPos(8, 1, 8);
 
     private static final Comparator<VillagerProfession> BY_ID =
@@ -57,6 +64,7 @@ public final class MerchantGameTests {
         heart.ensureSettlement();
         Settlement settlement = Settlements.of(helper.getLevel().getServer(), heart).orElseThrow();
         settlement.economy().setPopulation(10);
+        TestSupport.emptyStock(settlement);
         return new Village(heart, settlement);
     }
 
@@ -118,20 +126,108 @@ public final class MerchantGameTests {
         MinecraftServer server = helper.getLevel().getServer();
         village.settlement().setProgress(20, 0);
         SettlementData data = SettlementData.get(server);
-        long treasury = data.treasury(village.settlement().factionId());
+        String faction = village.settlement().factionId();
+        // The other tests use the same factions: a known treasury, put back at the end.
+        long original = data.treasury(faction);
+        data.addTreasury(faction, BUYER_TREASURY - original);
+        long treasury = data.treasury(faction);
 
         MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL);
         MerchantOffer purchase = offers.stream().filter(offer -> offer.getResult().is(Items.EMERALD)).findFirst()
                 .orElse(null);
-        helper.assertTrue(purchase != null, "The merchant must buy an item that the village needs");
-        String item = BuiltInRegistries.ITEM.getKey(purchase.getCostA().getItem()).toString();
+        String item = purchase == null ? "" : BuiltInRegistries.ITEM.getKey(purchase.getCostA().getItem()).toString();
         int before = village.settlement().economy().stock().count(item);
-        Merchants.applyTrade(server, village.settlement(), purchase);
+        if (purchase != null) {
+            Merchants.applyTrade(server, village.settlement(), purchase);
+        }
 
         int stock = village.settlement().economy().stock().count(item);
-        long after = data.treasury(village.settlement().factionId());
+        long after = data.treasury(faction);
+        data.addTreasury(faction, original - data.treasury(faction));
+        helper.assertTrue(purchase != null, "The merchant must buy an item that the village needs");
         helper.assertTrue(stock == before + purchase.getCostA().getCount(), "The item must go into the stock");
         helper.assertTrue(after == treasury - purchase.getResult().getCount(), "The treasury must pay the emeralds");
+        helper.succeed();
+    }
+
+    /** The offer of an item in the offers of a merchant, or null. */
+    private static MerchantOffer offerOf(MerchantOffers offers, Item item) {
+        return offers.stream().filter(offer -> offer.getResult().is(item)).findFirst().orElse(null);
+    }
+
+    /** A merchant of the village, with offers, that trades with a player: the player has the trade screen open. */
+    private static Villager tradingMerchant(GameTestHelper helper, Village village, ServerPlayer player,
+            MerchantOffers offers) {
+        Villager merchant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
+                ModProfessions.MERCHANT.get());
+        merchant.setOffers(offers);
+        merchant.setTradingPlayer(player);
+        merchant.openTradingScreen(player, merchant.getDisplayName(), 1);
+        return merchant;
+    }
+
+    /**
+     * Two players have the trade screen open on the same stock with one diamond. The first trade takes the
+     * diamond. The second trade does not apply: the stock stays at zero and the treasury gets the emeralds one
+     * time. After the first trade, the screen of the second player shows the offer as sold out.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "merchant_last_item")
+    public static void onlyOneTradeTakesTheLastItem(GameTestHelper helper) {
+        Village village = village(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        village.settlement().economy().stock().set("minecraft:diamond", 1);
+        SettlementData data = SettlementData.get(server);
+        long treasury = data.treasury(village.settlement().factionId());
+        ServerPlayer first = TestSupport.mockPlayer(helper);
+        ServerPlayer second = TestSupport.mockPlayer(helper);
+        Villager firstMerchant = tradingMerchant(helper, village, first,
+                Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL));
+        Villager secondMerchant = tradingMerchant(helper, village, second,
+                Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL));
+        MerchantOffer firstDiamond = offerOf(firstMerchant.getOffers(), Items.DIAMOND);
+        MerchantOffer secondDiamond = offerOf(secondMerchant.getOffers(), Items.DIAMOND);
+        helper.assertTrue(firstDiamond != null && secondDiamond != null, "The two merchants must sell the diamond");
+
+        firstDiamond.increaseUses();
+        NeoForge.EVENT_BUS.post(new TradeWithVillagerEvent(first, firstDiamond, firstMerchant));
+        int stockAfterFirst = village.settlement().economy().stock().count("minecraft:diamond");
+        boolean secondSoldOut = offerOf(secondMerchant.getOffers(), Items.DIAMOND).isOutOfStock();
+        secondDiamond.increaseUses();
+        NeoForge.EVENT_BUS.post(new TradeWithVillagerEvent(second, secondDiamond, secondMerchant));
+        int stockAfterSecond = village.settlement().economy().stock().count("minecraft:diamond");
+        long treasuryAfter = data.treasury(village.settlement().factionId());
+
+        firstMerchant.discard();
+        secondMerchant.discard();
+        server.getPlayerList().remove(first);
+        server.getPlayerList().remove(second);
+        helper.assertTrue(stockAfterFirst == 0, "The first trade must take the diamond, found " + stockAfterFirst);
+        helper.assertTrue(secondSoldOut, "The screen of the second player must show the diamond as sold out");
+        helper.assertTrue(stockAfterSecond == 0, "The stock must stay at zero, found " + stockAfterSecond);
+        helper.assertTrue(treasuryAfter == treasury + firstDiamond.getCostA().getCount(),
+                "The treasury must get the emeralds of one trade, found " + (treasuryAfter - treasury));
+        helper.succeed();
+    }
+
+    /** A canceled trade: the result goes back from the hand of the player, and the player gets the emeralds. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "merchant_cancel")
+    public static void canceledTradeGivesThePaymentBack(GameTestHelper helper) {
+        Village village = village(helper);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        MerchantOffer offer = new MerchantOffer(new ItemCost(Items.EMERALD, 3), Optional.empty(),
+                new ItemStack(Items.DIAMOND, 2), 1, 0, 0.05F);
+        player.getInventory().clearContent();
+        player.containerMenu.setCarried(new ItemStack(Items.DIAMOND, 2));
+
+        Merchants.cancel(player, offer);
+
+        boolean handEmpty = player.containerMenu.getCarried().isEmpty();
+        int emeralds = player.getInventory().countItem(Items.EMERALD);
+        int diamonds = player.getInventory().countItem(Items.DIAMOND);
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.assertTrue(handEmpty, "The result must leave the hand of the player");
+        helper.assertTrue(emeralds == 3, "The player must get the 3 emeralds back, found " + emeralds);
+        helper.assertTrue(diamonds == 0, "The player must not keep the diamonds, found " + diamonds);
         helper.succeed();
     }
 

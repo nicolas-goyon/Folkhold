@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroups;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.core.sim.group.RouteFinder;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -99,6 +100,32 @@ public final class RouteGameTests {
         helper.assertTrue(CaravanRoutes.cached(server, from, to) == null,
                 "When a settlement moves, the route must be calculated again");
         helper.succeed();
+    }
+
+    /**
+     * A search that fails gives "no route" for the pair: the data keeps a result, and nothing stays on the way, so
+     * the simulation does not ask for the same route on each tick.
+     */
+    @GameTest(template = "empty", timeoutTicks = 200, batch = "route_failure")
+    public static void failedSearchGivesNoRoute(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<Settlement> ends = settlements(server, 10_000);
+        Settlement from = ends.get(0);
+        Settlement to = ends.get(1);
+        RouteFinder.HeightSource broken = (x, z) -> {
+            throw new IllegalStateException("Test: the heights are not available");
+        };
+
+        helper.assertTrue(CaravanRoutes.request(server, from, to, broken), "The request must start");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(CaravanRoutes.cached(server, from, to) != null,
+                        "The data must get a result"))
+                .thenExecute(() -> {
+                    Optional<Route> route = CaravanRoutes.cached(server, from, to);
+                    helper.assertTrue(route != null && route.isEmpty(), "A failed search must give no route");
+                    helper.assertTrue(CaravanRoutes.pending() == 0, "No route must stay on the way");
+                })
+                .thenSucceed();
     }
 
     /**

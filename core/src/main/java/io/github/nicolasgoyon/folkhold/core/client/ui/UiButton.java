@@ -17,12 +17,15 @@ import net.minecraft.network.chat.Component;
  *   <li>A {@link Style}: normal, primary (the main action), dangerous, or a row of a menu.</li>
  *   <li>Disabled with a reason: the button has a dashed border, and the reason is its tooltip.</li>
  *   <li>Waiting: after a click that sends an action to the server, the button shows "…" until the screen gets the
- *       answer (see {@link #setPending(boolean)}).</li>
+ *       answer (see {@link #setPending(boolean)}), or for {@link #PENDING_TIMEOUT_MILLIS} at most.</li>
  *   <li>Keyboard focus (Tab key): a dashed gold line around the button. Enter or Space clicks the button.</li>
  *   <li>A label that does not fit ends with "…", and the tooltip shows the complete label.</li>
  * </ul>
  */
 public class UiButton extends AbstractButton {
+    /** The waiting state ends after this time with no answer of the server, in milliseconds. */
+    public static final long PENDING_TIMEOUT_MILLIS = 5000L;
+
     /** The look of a button. */
     public enum Style {
         /** A normal action on wood. */
@@ -48,6 +51,7 @@ public class UiButton extends AbstractButton {
     @Nullable
     private Component tooltipText;
     private boolean pending;
+    private long pendingSince;
     private boolean parchment;
     private int textColor;
 
@@ -134,14 +138,21 @@ public class UiButton extends AbstractButton {
         return this;
     }
 
-    /** True while the screen waits for the answer of the server. */
+    /**
+     * True while the screen waits for the answer of the server. The waiting state ends by itself after
+     * {@link #PENDING_TIMEOUT_MILLIS}, when the server does not answer.
+     */
     public boolean isPending() {
+        if (pending && System.currentTimeMillis() - pendingSince > PENDING_TIMEOUT_MILLIS) {
+            pending = false;
+        }
         return pending;
     }
 
     /** Shows the waiting state. A waiting button does not accept clicks. */
     public UiButton setPending(boolean pending) {
         this.pending = pending;
+        this.pendingSince = System.currentTimeMillis();
         return this;
     }
 
@@ -161,7 +172,7 @@ public class UiButton extends AbstractButton {
 
     @Override
     public void onPress() {
-        if (!pending) {
+        if (!isPending()) {
             action.accept(this);
         }
     }
@@ -175,7 +186,7 @@ public class UiButton extends AbstractButton {
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         Font font = Minecraft.getInstance().font;
         UiRect rect = new UiRect(getX(), getY(), width, height);
-        boolean hovered = isHovered() && active && !pending;
+        boolean hovered = isHovered() && active && !isPending();
         int text;
         if (!active) {
             if (style != Style.MENU) {
@@ -224,7 +235,7 @@ public class UiButton extends AbstractButton {
             UiDraw.dashedOutline(graphics, rect.inset(-2), UiTheme.GOLD);
         }
         Component label = getMessage();
-        if (pending) {
+        if (isPending()) {
             int frame = (int) (System.currentTimeMillis() / 150L % SPINNER.length);
             label = Component.literal(SPINNER[frame] + " ").append(UiStrings.WAITING);
             text = UiTheme.TEXT_MUTED;

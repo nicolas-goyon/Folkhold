@@ -206,6 +206,13 @@ public abstract class UiScreen extends Screen {
 
     // ------------------------------------------------------------------ input
 
+    /** Advances the hold buttons of the screen. A screen with its own tick calls this method. */
+    @Override
+    public void tick() {
+        super.tick();
+        UiHoldButton.tickAll(children());
+    }
+
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (sectionTabs != null && !(getFocused() instanceof UiTextField)
