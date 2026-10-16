@@ -255,6 +255,8 @@ public final class GuardGameTests {
             helper.assertTrue(searches >= 2, "The guard must try again, found " + searches + " searches");
             helper.succeed();
         });
+    }
+
     /**
      * A guard that watches a gate at night strolls on the heart side of its watch position only. By day, the guard
      * strolls all around its home position.
