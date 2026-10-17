@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.block;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
@@ -55,7 +56,7 @@ import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
+import net.neoforged.neoforge.event.EventHooks;
 
 /**
  * State of a village: id, faction, alert state and garrison. The units of the village keep the position of this block.
@@ -388,9 +389,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level == null) {
             return List.of();
         }
-        double radius = WorldConfig.VILLAGE_RADIUS.get();
-        AABB area = new AABB(worldPosition).inflate(radius, 32.0, radius);
-        return level.getEntitiesOfClass(FactionUnit.class, area, unit -> worldPosition.equals(unit.getVillagePos()));
+        return level.getEntitiesOfClass(FactionUnit.class, VillageHearts.area(worldPosition),
+                unit -> worldPosition.equals(unit.getVillagePos()));
     }
 
     public Garrison getGarrison() {
@@ -494,9 +494,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level == null) {
             return List.of();
         }
-        double radius = WorldConfig.VILLAGE_RADIUS.get();
-        AABB area = new AABB(worldPosition).inflate(radius, 32.0, radius);
-        return level.getEntitiesOfClass(VillageCat.class, area, cat -> worldPosition.equals(cat.getVillagePos()));
+        return level.getEntitiesOfClass(VillageCat.class, VillageHearts.area(worldPosition),
+                cat -> worldPosition.equals(cat.getVillagePos()));
     }
 
     /**
@@ -543,7 +542,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         List<VillageCat> cats = getCats();
         int missing = catCount() - cats.size();
         long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
-        if (missing <= 0 || catsSpawned && now - lastCatSpawn < refill) {
+        if (missing <= 0 || (catsSpawned && now - lastCatSpawn < refill)) {
             return false;
         }
         List<BlockPos> anchors = catAnchors();
@@ -557,7 +556,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
                     serverLevel.random.nextFloat() * 360.0F, 0.0F);
             cat.setAnchorPos(anchor);
             cat.setVillagePos(worldPosition);
-            cat.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(anchor), MobSpawnType.STRUCTURE, null);
+            EventHooks.finalizeMobSpawn(cat, serverLevel, serverLevel.getCurrentDifficultyAt(anchor), MobSpawnType.STRUCTURE, null);
             serverLevel.addFreshEntity(cat);
         }
         catsSpawned = true;
@@ -588,8 +587,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         List<VillagerProfession> missingInhabitants =
                 VillageFolk.assign(VillageFolk.inhabitants(serverLevel, worldPosition), wanted);
         long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
-        if (missingMerchants <= 0 && missingInhabitants.isEmpty()
-                || villagersSpawned && now - lastVillagerSpawn < refill) {
+        if ((missingMerchants <= 0 && missingInhabitants.isEmpty())
+                || (villagersSpawned && now - lastVillagerSpawn < refill)) {
             return false;
         }
         for (int i = 0; i < missingMerchants; i++) {
@@ -621,11 +620,6 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level != null && garrison.onUnitDied(unitId, level.getGameTime())) {
             setChanged();
         }
-    }
-
-    /** True if the heart applied the night state (gates closed, braziers lit). */
-    public boolean isNightMode() {
-        return nightMode;
     }
 
     /**
@@ -737,13 +731,18 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
     }
 
+    /**
+     * The periodic work of a heart. The gates of the intervals have an offset from the position of the heart, so
+     * the hearts of a world do their work on different ticks.
+     */
     public static void serverTick(Level level, BlockPos pos, BlockState state, VillageHeartBlockEntity heart) {
-        if (level.getGameTime() % CHECK_INTERVAL != 0) {
+        long time = level.getGameTime() + Math.floorMod(pos.hashCode(), ROTATION_INTERVAL);
+        if (time % CHECK_INTERVAL != 0) {
             return;
         }
         // The registration in onLoad can happen before the level is ready. Register again: it costs nothing.
         VillageHearts.register(level, pos);
-        if (level.getGameTime() % GARRISON_INTERVAL == 0) {
+        if (time % GARRISON_INTERVAL == 0) {
             double activation = WorldConfig.GARRISON_ACTIVATION_RADIUS.get();
             if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {
                 heart.ensureGarrison(level.getGameTime());
@@ -751,7 +750,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         int rotationSeconds = WorldConfig.ARCHER_ROTATION_SECONDS.get();
         if (rotationSeconds > 0 && heart.alertState == AlertState.CALM && heart.layout.isScanned()
-                && level.getGameTime() % ROTATION_INTERVAL == 0) {
+                && time % ROTATION_INTERVAL == 0) {
             heart.rotateArchers(level.random, (double) ROTATION_INTERVAL / (rotationSeconds * 20.0));
         }
         if (heart.layout.isScanned() && level.isNight() != heart.nightMode) {
@@ -818,7 +817,13 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (tag.hasUUID(ID_TAG)) {
             villageId = tag.getUUID(ID_TAG);
         }
-        alertState = AlertState.fromSerializedName(tag.getString(ALERT_TAG));
+        alertState = AlertState.fromSerializedName(tag.getString(ALERT_TAG)).orElseGet(() -> {
+            if (tag.contains(ALERT_TAG)) {
+                FolkholdWorld.LOGGER.warn("Unknown alert state '{}' at {}: the village is calm",
+                        tag.getString(ALERT_TAG), worldPosition);
+            }
+            return AlertState.CALM;
+        });
         lastThreatTick = tag.getLong(LAST_THREAT_TAG);
         garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
         layout.load(tag.getCompound(LAYOUT_TAG));

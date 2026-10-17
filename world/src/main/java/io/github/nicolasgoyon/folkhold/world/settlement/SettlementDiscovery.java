@@ -177,7 +177,7 @@ public final class SettlementDiscovery {
         if (!known.isEmpty()) {
             return Optional.of(known.get(0));
         }
-        BlockPos pos = new BlockPos(candidate.getMiddleBlockX(), level.getSeaLevel(), candidate.getMiddleBlockZ());
+        BlockPos pos = new BlockPos(candidate.getMiddleBlockX(), Settlements.seaLevel(level), candidate.getMiddleBlockZ());
         Settlement settlement = Settlements.create(level.getServer(), UUID.randomUUID(), candidate, pos);
         data.registry().add(settlement);
         data.setDirty();

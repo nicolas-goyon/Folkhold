@@ -17,7 +17,7 @@ import java.util.UUID;
 public final class Quest {
     private final String id;
     private final QuestKind kind;
-    private final String settlementId;
+    private String settlementId;
     private final String factionId;
     private final String target;
     private final int count;
@@ -72,6 +72,21 @@ public final class Quest {
         return settlementId;
     }
 
+    /**
+     * Replaces the id of the village that gives the quest.
+     *
+     * @param oldId the current id of the village
+     * @param newId the new id
+     * @return true if the quest had the old id
+     */
+    public boolean renameSettlement(String oldId, String newId) {
+        if (!settlementId.equals(oldId)) {
+            return false;
+        }
+        settlementId = Objects.requireNonNull(newId);
+        return true;
+    }
+
     public String factionId() {
         return factionId;
     }
@@ -96,12 +111,10 @@ public final class Quest {
         return minTier;
     }
 
-    /** The game time when the offer ends. */
     public long offerEnd() {
         return offerEnd;
     }
 
-    /** The time from the acceptance to the deadline, in ticks. */
     public long duration() {
         return duration;
     }

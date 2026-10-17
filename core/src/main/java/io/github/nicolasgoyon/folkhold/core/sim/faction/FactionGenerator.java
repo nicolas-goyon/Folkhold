@@ -65,7 +65,8 @@ public final class FactionGenerator {
         int count = settings.minFactions() + random.nextInt(settings.maxFactions() - settings.minFactions() + 1);
 
         List<Attitude> attitudes = new ArrayList<>();
-        int allies = 1 + random.nextInt(2);
+        // One neutral faction and at least one hostile faction after the allies.
+        int allies = Math.min(1 + random.nextInt(2), count - 2);
         for (int i = 0; i < count; i++) {
             attitudes.add(i < allies ? Attitude.ALLY : i == allies ? Attitude.NEUTRAL : Attitude.HOSTILE);
         }
@@ -89,12 +90,12 @@ public final class FactionGenerator {
 
     private static String uniqueName(CultureInfo culture, Random random, Set<String> used) {
         for (int attempt = 0; attempt < 50; attempt++) {
-            String name = capitalize(pick(culture.prefixes(), random) + pick(culture.suffixes(), random));
+            String name = VillageNames.name(culture, random);
             if (used.add(name)) {
                 return name;
             }
         }
-        String name = capitalize(pick(culture.prefixes(), random) + pick(culture.suffixes(), random)) + " " + used.size();
+        String name = VillageNames.name(culture, random) + " " + used.size();
         used.add(name);
         return name;
     }
@@ -112,14 +113,6 @@ public final class FactionGenerator {
             traits.remove(FactionTrait.ISOLATIONIST);
         }
         return traits;
-    }
-
-    private static String pick(List<String> values, Random random) {
-        return values.get(random.nextInt(values.size()));
-    }
-
-    private static String capitalize(String text) {
-        return text.isEmpty() ? text : Character.toUpperCase(text.charAt(0)) + text.substring(1);
     }
 
     /**

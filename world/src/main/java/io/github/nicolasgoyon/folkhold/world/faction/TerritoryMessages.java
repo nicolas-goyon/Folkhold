@@ -1,10 +1,12 @@
 package io.github.nicolasgoyon.folkhold.world.faction;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryTitlePayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -31,7 +33,6 @@ import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Territory and village information for the players:
@@ -108,7 +109,7 @@ public final class TerritoryMessages {
                 ? status(server, player, territory, village)
                 : TerritoryStatusPayload.NONE;
         if (previous == null || !status.equals(previous.status())) {
-            PacketDistributor.sendToPlayer(player, status);
+            ModNetwork.send(player, status);
         }
         STATES.put(player.getUUID(), new State(territoryId, villagePos, status));
     }
@@ -125,9 +126,7 @@ public final class TerritoryMessages {
      * @param color    the color of the faction, or -1
      */
     private static void showTitle(ServerPlayer player, Component title, @Nullable Component subtitle, int color) {
-        if (player.connection.hasChannel(TerritoryTitlePayload.TYPE)) {
-            PacketDistributor.sendToPlayer(player, new TerritoryTitlePayload(title, Optional.ofNullable(subtitle),
-                    color));
+        if (ModNetwork.send(player, new TerritoryTitlePayload(title, Optional.ofNullable(subtitle), color))) {
             return;
         }
         player.connection.send(new ClientboundSetTitlesAnimationPacket(TITLE_FADE_IN, TITLE_STAY, TITLE_FADE_OUT));
@@ -153,7 +152,7 @@ public final class TerritoryMessages {
         FactionVisuals.faction(server, heart.getFactionId()).ifPresent(faction -> {
             ReputationTier tier = Reputations.tier(server, player, heart);
             Component mood = Component.translatable("message.folkhold_world.village_mood." + tier.serializedName(),
-                    tierLabel(tier)).withColor(tier.color());
+                    tierLabel(tier)).withColor(UiReputation.color(tier));
             String name = heart.getVillageName();
             Component level = Settlements.of(server, heart)
                     .<Component>map(settlement -> Component.translatable("message.folkhold_world.village_level",
@@ -188,9 +187,7 @@ public final class TerritoryMessages {
         return new TerritoryStatusPayload(Optional.of(FactionVisuals.name(territory.get())), territory.get().color(),
                 Optional.of(tier.serializedName()),
                 nearest.<Component>map(settlement -> Component.literal(settlement.name())).or(() -> villageName),
-                nearest.map(settlement -> new BlockPos(settlement.x(),
-                        settlement.hasHeart() ? settlement.heartY() : server.overworld().getSeaLevel(), settlement.z()))
-                        .or(() -> villagePos));
+                nearest.map(settlement -> Settlements.position(server, settlement)).or(() -> villagePos));
     }
 
     /**
@@ -210,9 +207,7 @@ public final class TerritoryMessages {
 
     /** The tier with its glyph, in its color: "✓ Friend". */
     private static Component tierLabel(ReputationTier tier) {
-        return Component.literal(tier.glyph() + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
-                .withColor(tier.color());
+        return FactionVisuals.tierTitle(tier).withColor(UiReputation.color(tier));
     }
 
     public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {

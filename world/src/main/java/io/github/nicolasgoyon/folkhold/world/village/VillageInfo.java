@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemInfo;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
@@ -31,7 +32,6 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -121,7 +121,7 @@ public final class VillageInfo {
         if (faction.isPresent() && settlement.isPresent()) {
             welcome = Component.translatable(KEY + "welcome." + tier.serializedName());
             services.add(questService(server, player, settlement.get(), tier));
-            services.add(tradeService(server, settlement.get(), tier));
+            services.add(tradeService(settlement.get(), tier));
             services.add(shelterService(tier));
             services.add(innService(settlement.get()));
             if (tier.isHostile()) {
@@ -144,7 +144,7 @@ public final class VillageInfo {
                 faction.<Component>map(FactionVisuals::name).orElse(Component.empty()), culture,
                 faction.map(FactionSpec::color).orElse(-1), level,
                 level > 0 ? SettlementLevels.tierName(level) : Component.empty(),
-                heart.getAlertState().name().toLowerCase(Locale.ROOT), tier.serializedName(), effective,
+                heart.getAlertState().serializedName(), tier.serializedName(), effective,
                 villageValue, factionValue, (int) Math.round(settings.villageWeight() * 100.0), welcome, services,
                 advice, adviceDanger, sections);
     }
@@ -159,8 +159,7 @@ public final class VillageInfo {
                     VillageHeartPayload.REFUSED, Component.empty(), List.of(), VillageHeartPayload.ACTION_NONE);
         }
         List<Quest> offers = QuestData.get(server).quests().offers(settlement.id());
-        long forFriends = offers.stream().filter(quest -> quest.minTier().ordinal() > ReputationTier.NEUTRAL.ordinal())
-                .count();
+        long forFriends = offers.stream().filter(quest -> quest.minTier().isFriendly()).count();
         int active = QuestData.get(server).quests().active(player.getUUID()).size();
         int max = WorldConfig.QUEST_MAX_ACTIVE.get();
         Component state = offers.isEmpty()
@@ -173,17 +172,16 @@ public final class VillageInfo {
                 details, List.of(), VillageHeartPayload.ACTION_QUEST_BOARD);
     }
 
-    private static Service tradeService(MinecraftServer server, Settlement settlement, ReputationTier tier) {
+    private static Service tradeService(Settlement settlement, ReputationTier tier) {
         Component name = Component.translatable(KEY + "service.trade");
-        if (tier.ordinal() < ReputationTier.NEUTRAL.ordinal()) {
+        if (tier.isHostile()) {
             return new Service(name, refused(Component.translatable(KEY + "trade.refused",
-                    Component.translatable("folkhold_world.reputation_tier_title.neutral"))),
+                    FactionVisuals.tierName(ReputationTier.NEUTRAL))),
                     VillageHeartPayload.REFUSED, Component.empty(), List.of(), VillageHeartPayload.ACTION_NONE);
         }
         double factor = Merchants.priceFactor(tier);
         Component state = factor < 1.0
-                ? available(Component.translatable(KEY + "trade.discount",
-                        String.format(Locale.ROOT, "%.2f", factor).replaceAll("0+$", "").replaceAll("\\.$", "")))
+                ? available(Component.translatable(KEY + "trade.discount", Merchants.priceText(factor)))
                 : available(Component.translatable(KEY + "trade.normal"));
         Component details = Component.translatable(KEY + "trade.merchants", Merchants.merchantCount(settlement));
         List<String> needs = List.of();
@@ -272,7 +270,8 @@ public final class VillageInfo {
             int configured = role.configuredCount();
             MutableComponent value = Component.translatable(KEY + "units_alive", alive, configured);
             if (dead > 0) {
-                value.append(" · ").append(Component.translatable(KEY + "units_dead", dead).withColor(TEXT_BAD));
+                value.append(UiStrings.separator())
+                        .append(Component.translatable(KEY + "units_dead", dead).withColor(TEXT_BAD));
             }
             rows.add(Row.segments(role.entityType().getDescription(), value, Math.min(alive, configured),
                     Math.max(configured, alive + dead), Math.min(dead, Math.max(0, configured - alive))));
@@ -299,7 +298,7 @@ public final class VillageInfo {
                     double price = Prices.sellPrice(info, entry.getValue(), economy.population(),
                             Economies.settings());
                     rows.add(new Row(itemName(entry.getKey()), Component.translatable(KEY + "stock_value",
-                            entry.getValue(), String.format(Locale.ROOT, "%.2f", price))));
+                            entry.getValue(), Merchants.priceText(price))));
                 });
         return new Section(Component.translatable(KEY + "economy"), rows);
     }

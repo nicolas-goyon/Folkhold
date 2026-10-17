@@ -3,10 +3,12 @@ package io.github.nicolasgoyon.folkhold.world.client;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
 import java.util.ArrayList;
 import java.util.List;
@@ -83,11 +85,9 @@ public final class TerritoryHud {
 
     /** The faction and the tier of the player: "Ashmark · ✓ Friend". */
     private static Component factionLine(Component faction, String tierName) {
-        ReputationTier tier = ReputationTier.bySerializedName(tierName);
-        Component title = Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tierName))
-                .withColor(UiReputation.textOnWood(tier));
-        return Component.empty().append(faction).append(Component.literal(" · ").withColor(UiTheme.TEXT_FAINT))
+        ReputationTier tier = ReputationTier.fromSerializedName(tierName).orElse(ReputationTier.NEUTRAL);
+        Component title = FactionVisuals.tierTitle(tier).withColor(UiReputation.textOnWood(tier));
+        return Component.empty().append(faction).append(UiStrings.separator().withColor(UiTheme.TEXT_FAINT))
                 .append(title);
     }
 

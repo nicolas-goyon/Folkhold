@@ -1,7 +1,10 @@
 package io.github.nicolasgoyon.folkhold.core.sim.group;
 
+import io.github.nicolasgoyon.folkhold.core.sim.SerializedName;
+import java.util.Optional;
+
 /** The role of a member in a mobile group. */
-public enum MemberRole {
+public enum MemberRole implements SerializedName {
     /** The leader of the group. When the merchant dies, the group is lost. */
     MERCHANT("merchant"),
     /** An animal that carries a part of the cargo. */
@@ -16,22 +19,18 @@ public enum MemberRole {
     }
 
     /** The name in the saved data. */
+    @Override
     public String serializedName() {
         return serializedName;
     }
 
     /**
-     * The role with a name.
+     * The role with a serialized name.
      *
      * @param name the name in the saved data
-     * @return the role. An unknown name gives {@link #GUARD}.
+     * @return the role, or empty for an unknown name
      */
-    public static MemberRole fromSerializedName(String name) {
-        for (MemberRole role : values()) {
-            if (role.serializedName.equals(name)) {
-                return role;
-            }
-        }
-        return GUARD;
+    public static Optional<MemberRole> fromSerializedName(String name) {
+        return SerializedName.lookup(MemberRole.class, name);
     }
 }

@@ -12,21 +12,19 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
+import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,15 +32,14 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
  * What a player does with a caravan: trade on the road, or raid.
@@ -53,8 +50,8 @@ import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
  *       friends and the allies. A sale removes the items from the cargo. The emeralds go into the treasury of the
  *       faction of the caravan.</li>
  *   <li><b>Raid</b>: a player who hurts a member of the caravan, or who opens a mule chest, raids the caravan. The
- *       reputation of the player with the faction of the caravan goes down (once in each offense window), and the
- *       guards of the caravan attack the player.</li>
+ *       reputation of the player with the faction of the caravan goes down (once in each offense window), the
+ *       guards of the caravan attack the player, and the escort of the player on this caravan fails.</li>
  *   <li>A mule of a caravan does not carry a player. To open its chest, the player uses the secondary action (sneak
  *       and click).</li>
  * </ul>
@@ -64,7 +61,6 @@ public final class CaravanInteractions {
     private static final int MAX_OFFERS = 6;
     /** The maximum number of uses of one offer. */
     private static final int MAX_USES = 16;
-    private static final float PRICE_MULTIPLIER = 0.05F;
 
     /** Game time of the last raid of each player on each group, by "group|player". Not saved. */
     private static final Map<String, Long> LAST_RAIDS = new HashMap<>();
@@ -90,7 +86,7 @@ public final class CaravanInteractions {
         }
         if (target instanceof CaravanMerchant merchant) {
             ReputationTier tier = Reputations.tier(level.getServer(), player, group.get().factionId());
-            if (tier.ordinal() < ReputationTier.NEUTRAL.ordinal()) {
+            if (tier.isHostile()) {
                 player.displayClientMessage(Component.translatable("message.folkhold_world.merchant_refuses",
                         merchant.getDisplayName()), true);
                 merchant.playSound(SoundEvents.VILLAGER_NO, 1.0F, 1.0F);
@@ -111,7 +107,10 @@ public final class CaravanInteractions {
         }
     }
 
-    /** A trade with a caravan merchant removes the items from the cargo and fills the treasury. */
+    /**
+     * A trade with a caravan merchant removes the items from the cargo and fills the treasury. A trade that the
+     * cargo cannot pay is canceled. After the trade, the open screen shows what the cargo can pay now.
+     */
     public static void onTrade(TradeWithVillagerEvent event) {
         if (!(event.getAbstractVillager() instanceof CaravanMerchant merchant)
                 || !(merchant.level() instanceof ServerLevel level)) {
@@ -120,12 +119,18 @@ public final class CaravanInteractions {
         groupOf(level.getServer(), merchant).ifPresent(group -> {
             MerchantOffer offer = event.getMerchantOffer();
             ItemStack result = offer.getResult();
-            GroupMaterializer.removeCargo(level, group, BuiltInRegistries.ITEM.getKey(result.getItem()).toString(),
-                    result.getCount());
-            ItemStack cost = offer.getCostA();
-            if (cost.is(Items.EMERALD)) {
-                SettlementData.get(level.getServer()).addTreasury(group.factionId(), cost.getCount());
+            String item = ItemIds.id(result.getItem());
+            int count = result.getCount();
+            boolean paid = group.cargo().count(item) >= count
+                    && GroupMaterializer.removeCargo(level, group, item, count) == count;
+            if (!paid) {
+                if (event.getEntity() instanceof ServerPlayer player) {
+                    Merchants.cancel(player, offer);
+                }
+            } else if (offer.getCostA().is(Items.EMERALD)) {
+                SettlementData.get(level.getServer()).addTreasury(group.factionId(), offer.getCostA().getCount());
             }
+            Merchants.syncOffers(merchant, group.cargo()::count, 0L);
         });
     }
 
@@ -147,6 +152,7 @@ public final class CaravanInteractions {
      * @param group  the caravan
      */
     public static void raid(ServerLevel level, ServerPlayer player, MobileGroup group) {
+        Escorts.onRaid(level.getServer(), player, group);
         for (GroupMember member : group.members()) {
             if (member.role() == MemberRole.GUARD && level.getEntity(member.id()) instanceof FactionUnit guard
                     && guard.isAlive()) {
@@ -185,34 +191,21 @@ public final class CaravanInteractions {
         Optional<Settlement> origin = SettlementData.get(server).registry().byId(group.originId());
         EconomySettings settings = Economies.settings();
         double factor = Merchants.priceFactor(tier);
-        List<Map.Entry<String, Integer>> items = group.cargo().asMap().entrySet().stream()
-                .filter(entry -> item(entry.getKey()).filter(item -> item != Items.EMERALD).isPresent())
-                .sorted(Comparator.comparingDouble((Map.Entry<String, Integer> entry) ->
-                        EconomyData.catalog().info(entry.getKey()).price() * entry.getValue()).reversed())
-                .toList();
-        for (Map.Entry<String, Integer> entry : items) {
+        for (Map.Entry<String, Integer> entry : Merchants.sellable(group.cargo().asMap())) {
             if (offers.size() >= MAX_OFFERS) {
                 break;
             }
-            Item item = item(entry.getKey()).orElseThrow();
             ItemInfo info = EconomyData.catalog().info(entry.getKey());
             double price = origin.map(settlement -> Prices.sellPrice(info,
                     settlement.economy().stock().count(entry.getKey()), settlement.economy().population(), settings))
                     .orElse(info.price() * settings.sellMarkup()) * factor;
-            int maxStack = new ItemStack(item).getMaxStackSize();
-            int emeralds = price >= 1.0 ? (int) Math.min(64, Math.round(price)) : 1;
-            int quantity = price >= 1.0 ? 1 : (int) Math.max(1, Math.min(maxStack, Math.floor(1.0 / price)));
-            int uses = Math.min(MAX_USES, entry.getValue() / quantity);
-            if (uses > 0) {
-                offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, emeralds), Optional.empty(),
-                        new ItemStack(item, quantity), uses, 0, PRICE_MULTIPLIER));
-            }
+            Merchants.sellOffer(ItemIds.item(entry.getKey()).orElseThrow(), entry.getValue(), price, MAX_USES)
+                    .ifPresent(offers::add);
         }
         return offers;
     }
 
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location);
+    public static void onServerStopped(ServerStoppedEvent event) {
+        LAST_RAIDS.clear();
     }
 }

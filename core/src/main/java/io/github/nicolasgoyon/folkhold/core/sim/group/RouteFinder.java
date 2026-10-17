@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.core.sim.group;
 
+import io.github.nicolasgoyon.folkhold.core.sim.IntPair;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -83,17 +84,6 @@ public final class RouteFinder {
                 throw new IllegalArgumentException("Invalid route settings");
             }
         }
-
-        /**
-         * The same settings with another number of cells.
-         *
-         * @param nodes the maximum number of cells that the search examines
-         * @return the settings
-         */
-        public Settings withMaxNodes(int nodes) {
-            return new Settings(step, fordDepth, maxRise, slopeCost, fordCost, boats, boatCost, embarkCost, maxLength,
-                    nodes, weight);
-        }
     }
 
     /**
@@ -159,13 +149,13 @@ public final class RouteFinder {
         Map<Long, Double> bestCost = new HashMap<>();
         Map<Long, Long> parent = new HashMap<>();
         PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.estimate(), b.estimate()));
-        long startKey = key(0, 0);
+        long startKey = IntPair.pack(0, 0);
         bestCost.put(startKey, 0.0);
         open.add(new Node(0, 0, 0.0, settings.weight() * heuristic(0, 0, goalI, goalJ, settings.step())));
         int examined = 0;
         while (!open.isEmpty() && examined < settings.maxNodes()) {
             Node node = open.poll();
-            long nodeKey = key(node.i(), node.j());
+            long nodeKey = IntPair.pack(node.i(), node.j());
             if (node.cost() > bestCost.getOrDefault(nodeKey, Double.MAX_VALUE)) {
                 continue;
             }
@@ -183,7 +173,7 @@ public final class RouteFinder {
                     continue;
                 }
                 double cost = node.cost() + moveCost;
-                long neighborKey = key(ni, nj);
+                long neighborKey = IntPair.pack(ni, nj);
                 if (cost < bestCost.getOrDefault(neighborKey, Double.MAX_VALUE)) {
                     bestCost.put(neighborKey, cost);
                     parent.put(neighborKey, nodeKey);
@@ -243,7 +233,7 @@ public final class RouteFinder {
         List<long[]> cells = new ArrayList<>();
         Long current = goalKey;
         while (current != null) {
-            cells.add(new long[] {cellI(current), cellJ(current)});
+            cells.add(new long[] {IntPair.first(current), IntPair.second(current)});
             current = parent.get(current);
         }
         Collections.reverse(cells);
@@ -284,18 +274,6 @@ public final class RouteFinder {
         return step * Math.hypot(goalI - i, goalJ - j);
     }
 
-    private static long key(int i, int j) {
-        return ((long) i << 32) | (j & 0xFFFFFFFFL);
-    }
-
-    private static int cellI(long key) {
-        return (int) (key >> 32);
-    }
-
-    private static int cellJ(long key) {
-        return (int) key;
-    }
-
     /** The cells of one search, with their columns and their place in the corridor. */
     private static final class Grid {
         private final int startX;
@@ -315,7 +293,7 @@ public final class RouteFinder {
         }
 
         Column column(int i, int j) {
-            return columns.computeIfAbsent(key(i, j),
+            return columns.computeIfAbsent(IntPair.pack(i, j),
                     k -> heights.column(startX + i * settings.step(), startZ + j * settings.step()));
         }
 
@@ -327,7 +305,7 @@ public final class RouteFinder {
             if (corridor == null) {
                 return true;
             }
-            return inCorridor.computeIfAbsent(key(i, j), k -> corridor.route().distanceTo(
+            return inCorridor.computeIfAbsent(IntPair.pack(i, j), k -> corridor.route().distanceTo(
                     startX + i * settings.step(), startZ + j * settings.step()) <= corridor.width());
         }
 

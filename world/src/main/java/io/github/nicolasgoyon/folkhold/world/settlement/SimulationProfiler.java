@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
  * Time measurements of the systems of the simulation, for the benchmarks.
@@ -89,6 +90,10 @@ public final class SimulationProfiler {
     }
 
     /** Clears all measurements. */
+    public static void onServerStopped(ServerStoppedEvent event) {
+        reset();
+    }
+
     public static synchronized void reset() {
         STATS.clear();
     }

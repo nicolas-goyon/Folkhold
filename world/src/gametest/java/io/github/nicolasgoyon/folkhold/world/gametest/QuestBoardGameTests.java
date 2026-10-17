@@ -262,6 +262,7 @@ public final class QuestBoardGameTests {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement village = village(helper);
         ServerPlayer player = TestSupport.mockPlayer(helper);
+        player.teleportTo(village.x() + 2.5, village.heartY(), village.z() + 0.5);
         ReputationData reputation = ReputationData.get(server);
         reputation.get(player.getUUID()).setFaction(village.factionId(), 0);
         reputation.get(player.getUUID()).setVillage(village.id(), 0);

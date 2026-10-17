@@ -16,6 +16,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
+import io.github.nicolasgoyon.folkhold.world.group.CaravanInteractions;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
@@ -237,6 +238,29 @@ public final class EscortGameTests {
         helper.succeed();
     }
 
+    /** The player of an escort raids the caravan: the escort fails, and the treasury pays nothing. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "escort_raid")
+    public static void raidFailsTheEscort(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement origin = village(helper);
+        SettlementData settlements = SettlementData.get(server);
+        long treasury = settlements.treasury(origin.factionId());
+        MobileGroup caravan = caravan(helper, origin);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        Quest quest = acceptedEscort(helper, origin, caravan, player);
+
+        CaravanInteractions.raid(helper.getLevel(), player, caravan);
+
+        QuestState state = quest.state();
+        long paid = treasury - settlements.treasury(origin.factionId());
+        server.getPlayerList().remove(player);
+        settlements.addTreasury(origin.factionId(), treasury - settlements.treasury(origin.factionId()));
+        clear(helper, caravan, quest);
+        helper.assertTrue(state == QuestState.FAILED, "The escort must fail: " + state);
+        helper.assertTrue(paid == 0, "The treasury must pay nothing: " + paid);
+        helper.succeed();
+    }
+
     /** An ambush of monsters appears in front of the caravan and attacks the merchant. */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "escort_ambush")
     public static void ambushAttacksTheMerchant(GameTestHelper helper) {
@@ -262,20 +286,6 @@ public final class EscortGameTests {
         helper.assertTrue(plan.size() >= 1 && plan.size() <= 3, "An escort has 1 to 3 ambushes: " + plan.size());
         helper.assertTrue(Escorts.ambushSize(400, 1) == 2 && Escorts.ambushSize(1600, 10) == 7
                 && Escorts.ambushSize(10_000, 20) == 8, "The size of an ambush follows the route and the level");
-        helper.succeed();
-    }
-
-    /** The time of an escort comes from the length of its route, with the configured time as the minimum. */
-    @GameTest(template = "empty", timeoutTicks = 20, batch = "escort_time")
-    public static void escortTimeFollowsTheRouteLength(GameTestHelper helper) {
-        long minimum = WorldConfig.QUEST_ESCORT_MINUTES.get();
-        long shortRoute = Escorts.escortMinutes(100);
-        long longRoute = Escorts.escortMinutes(20_000);
-        long expected = (long) Math.ceil(20_000.0 / WorldConfig.QUEST_ESCORT_BLOCKS_PER_MINUTE.get()) + 10;
-
-        helper.assertTrue(shortRoute == minimum, "A short route must give the minimum time: " + shortRoute);
-        helper.assertTrue(longRoute == Math.max(minimum, expected),
-                "A long route must give more time: " + longRoute + " minutes");
         helper.succeed();
     }
 }

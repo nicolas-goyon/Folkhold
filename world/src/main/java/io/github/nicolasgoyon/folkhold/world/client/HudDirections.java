@@ -39,6 +39,6 @@ final class HudDirections {
 
     /** The arrow and the distance: "↗ 120 m". */
     static Component toward(LocalPlayer player, double x, double z) {
-        return Component.literal(arrow(player, x, z) + " ").append(distanceText(distance(player, x, z)));
+        return Component.translatable(KEY + "toward", arrow(player, x, z), distanceText(distance(player, x, z)));
     }
 }

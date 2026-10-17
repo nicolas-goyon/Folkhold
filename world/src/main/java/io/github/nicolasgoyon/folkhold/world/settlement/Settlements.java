@@ -6,14 +6,17 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
-import io.github.nicolasgoyon.folkhold.world.faction.Culture;
-import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.faction.Culture;
+import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
+import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
+import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -22,10 +25,10 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
@@ -86,14 +89,22 @@ public final class Settlements {
      * @return the start level
      */
     public static int startLevel(String id) {
-        long seed;
+        return LevelTables.get().startLevel(seed(id));
+    }
+
+    /**
+     * A random seed from the id of a settlement. The same id gives the same seed.
+     *
+     * @param id the id of the settlement, a UUID in most cases
+     * @return the seed
+     */
+    public static long seed(String id) {
         try {
             UUID uuid = UUID.fromString(id);
-            seed = uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+            return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
         } catch (IllegalArgumentException e) {
-            seed = id.hashCode();
+            return id.hashCode();
         }
-        return LevelTables.get().startLevel(seed);
     }
 
     /**
@@ -173,7 +184,7 @@ public final class Settlements {
             if (discovered != null && heart.getFactionId() == null) {
                 settlement = discovered;
             } else if (discovered != null) {
-                data.registry().changeId(discovered.id(), heartId);
+                changeId(server, discovered, heartId);
                 discovered.setFactionId(heart.getFactionId());
                 settlement = discovered;
                 String heartName = heart.getVillageName();
@@ -249,6 +260,26 @@ public final class Settlements {
     }
 
     /**
+     * Changes the id of a settlement everywhere: in the registry, in the mobile groups and their routes, and in
+     * the quests. The routes on the way with the old id are dropped.
+     *
+     * @param server     the server
+     * @param settlement the settlement
+     * @param newId      the new id
+     */
+    public static void changeId(MinecraftServer server, Settlement settlement, String newId) {
+        String oldId = settlement.id();
+        if (oldId.equals(newId)) {
+            return;
+        }
+        SettlementData.get(server).registry().changeId(oldId, newId);
+        CaravanRoutes.forgetPending(server, oldId);
+        MobileGroupData.get(server).renameSettlement(oldId, newId);
+        QuestData.get(server).renameSettlement(oldId, newId);
+        SettlementData.get(server).setDirty();
+    }
+
+    /**
      * Makes a settlement in ruins active again:
      * <ul>
      *   <li>the settlement goes to the state {@link SettlementState#ACTIVE};</li>
@@ -256,13 +287,18 @@ public final class Settlements {
      *   <li>the items of the bank chests go back into the stock and the treasury
      *       ({@link BankChests#recoverFromRuins}).</li>
      * </ul>
-     * The garrison and the villagers come back when a player is near the heart, as in each village.
+     * The garrison and the villagers come back when a player is near the heart, as in each village. The chunk of
+     * the heart loads first when it is not loaded.
      *
      * @param level      the level of the village
      * @param settlement the settlement
      * @return the position of the heart
      */
     public static BlockPos restore(ServerLevel level, Settlement settlement) {
+        BlockPos center = new BlockPos(settlement.x(), 0, settlement.z());
+        if (!level.isLoaded(center)) {
+            level.getChunk(center);
+        }
         BlockPos surface = new BlockPos(settlement.x(), level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 settlement.x(), settlement.z()), settlement.z());
         BlockPos heartPos = heartPos(settlement, surface);
@@ -284,5 +320,18 @@ public final class Settlements {
     /** The position of the heart of a settlement. A settlement with no known heart uses the given position. */
     private static BlockPos heartPos(Settlement settlement, BlockPos fallback) {
         return settlement.hasHeart() ? new BlockPos(settlement.x(), settlement.heartY(), settlement.z()) : fallback;
+    }
+
+    /**
+     * The position of a settlement in the overworld: its heart, or the sea level at its center when the heart is
+     * not known.
+     */
+    public static BlockPos position(MinecraftServer server, Settlement settlement) {
+        return heartPos(settlement, new BlockPos(settlement.x(), seaLevel(server.overworld()), settlement.z()));
+    }
+
+    /** The sea level of the generator of a level. */
+    public static int seaLevel(ServerLevel level) {
+        return level.getChunkSource().getGenerator().getSeaLevel();
     }
 }

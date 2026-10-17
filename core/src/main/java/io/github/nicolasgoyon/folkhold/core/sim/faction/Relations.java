@@ -1,8 +1,9 @@
 package io.github.nicolasgoyon.folkhold.core.sim.faction;
 
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Relation values between factions, from -100 to +100. A relation is symmetric: the value of (a, b) is the
@@ -12,7 +13,7 @@ public final class Relations {
     public static final int MIN = -100;
     public static final int MAX = 100;
 
-    private final Map<String, Integer> values = new HashMap<>();
+    private final Map<String, Integer> values = new TreeMap<>();
 
     /**
      * Makes the start relations from the attitudes of the factions to the players.
@@ -81,9 +82,11 @@ public final class Relations {
         set(a, b, get(a, b) + delta);
     }
 
-    /** All stored values. The keys have the form {@code a|b} with a before b in alphabetical order. */
+    /**
+     * All stored values, in key order. The keys have the form {@code a|b} with a before b in alphabetical order.
+     */
     public Map<String, Integer> asMap() {
-        return Map.copyOf(values);
+        return Collections.unmodifiableMap(new TreeMap<>(values));
     }
 
     /** Puts a stored value back, for example from the save data. */

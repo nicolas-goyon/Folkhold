@@ -4,11 +4,10 @@ import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Optional;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -38,36 +37,33 @@ public final class Deliveries {
     }
 
     /**
-     * The player gives the items of an accepted delivery quest to the village of the quest.
+     * The player gives the items of an accepted delivery quest at the quest screen of a village. The village must
+     * be the village of the quest.
      *
      * @param player  the player
      * @param questId the id of the quest
-     * @return true if the quest is complete
+     * @param here    the village of the screen
+     * @return the result: done when the quest is complete
      */
-    public static boolean deliver(ServerPlayer player, String questId) {
+    public static QuestBoards.Outcome deliver(ServerPlayer player, String questId, Settlement here) {
         Optional<Quest> found = QuestData.get(player.server).quests().byId(questId)
-                .filter(quest -> quest.kind() == QuestKind.DELIVERY && quest.state() == QuestState.ACCEPTED
-                        && player.getUUID().equals(quest.playerId()));
-        if (found.isEmpty()) {
-            return false;
+                .filter(quest -> canDeliverAt(quest, here) && player.getUUID().equals(quest.playerId()));
+        Optional<Item> item = found.flatMap(quest -> ItemIds.item(quest.target()));
+        if (found.isEmpty() || item.isEmpty() || !here.isActive()) {
+            return QuestBoards.Outcome.of(false, "quest_gone");
         }
         Quest quest = found.get();
-        Optional<Settlement> village = SettlementData.get(player.server).registry().byId(quest.settlementId())
-                .filter(Settlement::isActive);
-        Optional<Item> item = item(quest.target());
-        if (village.isEmpty() || item.isEmpty()) {
-            return false;
-        }
         if (count(player.getInventory(), item.get()) < quest.count()) {
-            QuestBoards.message(player, "quest_missing_items", quest.count(),
+            return QuestBoards.Outcome.of(false, "quest_missing_items", quest.count(),
                     new ItemStack(item.get()).getHoverName());
-            return false;
         }
         remove(player.getInventory(), item.get(), quest.count());
-        int capacity = LevelTables.get().traits(village.get().level()).stockCapacity();
-        village.get().economy().stock().add(quest.target(), quest.count(), capacity);
+        int capacity = LevelTables.get().traits(here.level()).stockCapacity();
+        here.economy().stock().add(quest.target(), quest.count(), capacity);
         SettlementData.get(player.server).setDirty();
-        return QuestBoards.complete(player.server, quest);
+        return QuestBoards.complete(player.server, quest)
+                .map(message -> new QuestBoards.Outcome(true, message))
+                .orElse(QuestBoards.Outcome.of(false, "quest_gone"));
     }
 
     /** The number of items of a kind in an inventory. */
@@ -95,8 +91,4 @@ public final class Deliveries {
         inventory.setChanged();
     }
 
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location);
-    }
 }

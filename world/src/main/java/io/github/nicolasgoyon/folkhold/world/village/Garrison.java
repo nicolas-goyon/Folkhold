@@ -1,10 +1,12 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -17,6 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.neoforged.neoforge.event.EventHooks;
 
 /**
  * Garrison of a village: the list of its units, with a stable id for each unit.
@@ -27,7 +30,7 @@ import net.minecraft.world.entity.MobSpawnType;
  *       is still alive. This prevents duplicates after a chunk unload and reload.</li>
  *   <li>An entry becomes dead when its unit dies (the unit reports its death), or when the unit is missing
  *       for {@link #MISSING_TIMEOUT_TICKS} while the chunk of its last known position is loaded.</li>
- *   <li>The garrison replaces a dead unit after the refill delay, only when the village is calm.</li>
+ *   <li>The garrison spawns a new unit for a dead one after the refill delay, only when the village is calm.</li>
  *   <li>Archers get a free post of the village (see {@link VillageLayout}), if there is one. They spawn on it.
  *       The other units spawn on the ground near the heart (see {@link #groundSpawnPos}).</li>
  * </ul>
@@ -139,7 +142,7 @@ public final class Garrison {
      * <ol>
      *   <li>Updates the entries: last seen time and position of the loaded units, timeout of missing units.</li>
      *   <li>Adds entries until each role has its configured count. A new garrison spawns completely.</li>
-     *   <li>Replaces dead units after the refill delay, if the village is calm.</li>
+     *   <li>Spawns new units for the dead ones after the refill delay, if the village is calm.</li>
      * </ol>
      *
      * @param level     the level of the heart
@@ -230,7 +233,7 @@ public final class Garrison {
             unit.setHomePos(post);
             unit.setPostPos(post);
             unit.setVillagePos(heartPos);
-            unit.finalizeSpawn(level, level.getCurrentDifficultyAt(post), MobSpawnType.STRUCTURE, null);
+            EventHooks.finalizeMobSpawn(unit, level, level.getCurrentDifficultyAt(post), MobSpawnType.STRUCTURE, null);
             level.addFreshEntity(unit);
             return unit;
         }
@@ -238,7 +241,7 @@ public final class Garrison {
         unit.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, level.random.nextFloat() * 360.0F, 0.0F);
         unit.setHomePos(pos);
         unit.setVillagePos(heartPos);
-        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
+        EventHooks.finalizeMobSpawn(unit, level, level.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
         level.addFreshEntity(unit);
         return unit;
     }
@@ -301,11 +304,16 @@ public final class Garrison {
         entries.clear();
         for (int i = 0; i < list.size(); i++) {
             CompoundTag tag = list.getCompound(i);
-            GarrisonRole role = GarrisonRole.fromSerializedName(tag.getString("Role"));
-            if (role == null || !tag.hasUUID("Id")) {
+            Optional<GarrisonRole> role = GarrisonRole.fromSerializedName(tag.getString("Role"));
+            if (role.isEmpty()) {
+                FolkholdWorld.LOGGER.warn("Unknown garrison role '{}': the unit is not in the garrison",
+                        tag.getString("Role"));
                 continue;
             }
-            Entry entry = new Entry(tag.getUUID("Id"), role);
+            if (!tag.hasUUID("Id")) {
+                continue;
+            }
+            Entry entry = new Entry(tag.getUUID("Id"), role.get());
             entry.dead = tag.getBoolean("Dead");
             entry.deadSince = tag.getLong("DeadSince");
             entry.lastSeen = tag.getLong("LastSeen");

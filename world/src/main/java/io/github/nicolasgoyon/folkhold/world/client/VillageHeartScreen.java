@@ -11,10 +11,12 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload.Service;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
+import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -76,7 +78,7 @@ public class VillageHeartScreen extends UiScreen {
     }
 
     private ReputationTier tier() {
-        return ReputationTier.bySerializedName(heart.playerTier());
+        return ReputationTier.fromSerializedName(heart.playerTier()).orElse(ReputationTier.NEUTRAL);
     }
 
     private boolean hostile() {
@@ -108,12 +110,9 @@ public class VillageHeartScreen extends UiScreen {
             badges.add(Badge.of(Component.translatable(KEY + "level_badge", heart.level(), heart.tier()),
                     UiTone.GOLD));
         }
-        UiTone tone = switch (heart.alert()) {
-            case "assault" -> UiTone.BAD;
-            case "alert" -> UiTone.WARN;
-            default -> UiTone.GOOD;
-        };
-        badges.add(Badge.of(Component.translatable(KEY + "alert." + heart.alert()), tone));
+        AlertState alert = AlertState.fromSerializedName(heart.alert()).orElse(AlertState.CALM);
+        badges.add(Badge.of(Component.translatable(KEY + "alert." + alert.serializedName()),
+                AdminScreen.alertTone(alert)));
         return badges;
     }
 
@@ -293,9 +292,7 @@ public class VillageHeartScreen extends UiScreen {
 
     /** The reputation chip of the player, with a bar below on parchment. */
     private void renderChip(GuiGraphics graphics, ReputationTier tier, int x, int y, boolean withBar) {
-        Component text = Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
-                .append(" · " + heart.reputation());
+        Component text = Component.translatable(KEY + "chip", FactionVisuals.tierTitle(tier), heart.reputation());
         int width = Math.min(font.width(text) + 8, CHIP_AREA);
         int chipX = x + CHIP_AREA - width;
         UiRect chip = new UiRect(chipX, y, width, UiTheme.BADGE);

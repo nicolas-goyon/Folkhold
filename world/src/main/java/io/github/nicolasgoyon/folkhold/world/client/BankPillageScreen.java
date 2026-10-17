@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiHoldButton;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageConfirmPayload;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageRequestPayload;
 import net.minecraft.network.chat.Component;
@@ -34,20 +35,18 @@ public final class BankPillageScreen {
                 .bullet(Component.translatable(KEY + "garrison", payload.guards(), payload.archers()))
                 .bullet(Component.translatable(KEY + "attack"))
                 .hold(UiHoldButton.DEFAULT_HOLD_MILLIS)
-                .note(UiStrings.HOLD_HINT)
+                .note(UiStrings.holdHint(UiHoldButton.DEFAULT_HOLD_MILLIS))
                 .confirm(Component.translatable(KEY + "confirm"),
                         () -> PacketDistributor.sendToServer(new BankPillageConfirmPayload(payload.pos())))
                 .open();
     }
 
     private static UiDialog.Chip chip(Component caption, ReputationTier tier, int value) {
-        Component text = Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
-                .append(" " + value);
+        Component text = Component.translatable(KEY + "chip", FactionVisuals.tierTitle(tier), value);
         return new UiDialog.Chip(caption, text, UiReputation.background(tier), UiReputation.text(tier));
     }
 
     private static ReputationTier tier(String name) {
-        return ReputationTier.bySerializedName(name);
+        return ReputationTier.fromSerializedName(name).orElse(ReputationTier.NEUTRAL);
     }
 }

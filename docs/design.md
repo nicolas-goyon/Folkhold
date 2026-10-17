@@ -25,26 +25,29 @@ Design principles:
 
 The pack targets **NeoForge 1.21.1**. **packwiz** manages it: a versioned list in Git, updated with one command (`packwiz update --all`), exported as a `.mrpack` file. Prism Launcher and the Modrinth app import a `.mrpack` file in one click.
 
-| Category | Mod | Modrinth slug | 1.21.1 status (Modrinth, 2026-10-11) |
-| --- | --- | --- | --- |
-| Performance | Sodium | `sodium` | NeoForge release available |
-| Performance | Lithium | `lithium` | NeoForge release available (`0.15.4`) |
-| Performance | ModernFix | `modernfix` | NeoForge release available |
-| Performance | FerriteCore | `ferrite-core` | NeoForge release available |
-| Performance | ImmediatelyFast | `immediatelyfast` | NeoForge release available |
-| Performance | Entity Culling | `entityculling` | NeoForge release available |
-| Nature | Dynamic Trees | `dynamictrees` | NeoForge release available (1.7.x) |
-| Nature | Serene Seasons | `serene-seasons` | Beta only, requires GlitchCore |
-| Nature | Smart Feeding Troughs | `4dEFIhvD` (ID) | NeoForge release available. Confirm that this is the intended mod. |
-| Weather | Weather, Storms & Tornadoes | `weather-storms-tornadoes` | NeoForge release available |
-| Weather | Expanded Weather2 Dynamics | `expanded-weather2-dynamics` | NeoForge release available, optional |
-| Terrain | The Roads More Travelled | `74oZhrEe` (ID) | Beta |
-| Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | Beta, unofficial port |
-| Navigation | Small Ships | `small-ships` | Beta, last update November 2024 |
-| Terrain | Tectonic | `tectonic` | NeoForge release available. Large continents, deep oceans, mountain ranges |
-| Light | LambDynamicLights | `lambdynamiclights` | NeoForge release available (4.8.x for 1.21.1), client only |
-| Library | GeckoLib | `geckolib` | NeoForge release available. Required by `folkhold_world` |
-| Comfort | JEI, Jade | `jei`, `jade` | Recommended for development |
+The pinned versions are in `modpack/mods/*.pw.toml`.
+
+| Category | Mod | Modrinth slug | Pinned version | Note |
+| --- | --- | --- | --- | --- |
+| Performance | Sodium | `sodium` | 0.8.13 | Client only |
+| Performance | Lithium | `lithium` | 0.15.4 | |
+| Performance | ModernFix | `modernfix` | 5.27.26 | |
+| Performance | FerriteCore | `ferrite-core` | 7.0.3 | |
+| Performance | ImmediatelyFast | `immediatelyfast` | 1.6.14 | Client only |
+| Performance | Entity Culling | `entityculling` | 1.11.3 | Client only |
+| Profiling | spark | `spark` | 1.10.124 | Measures the cost of each system for each tick |
+| Nature | Dynamic Trees | `dynamictrees` | 1.7.2 | |
+| Nature | Serene Seasons | `serene-seasons` | 10.1.0.9 | Requires GlitchCore |
+| Nature | Smart Feeding Troughs | `smart-feeding-troughs` | 1.2.0 | Requires Dirigo |
+| Weather | Weather, Storms & Tornadoes | `weather-storms-tornadoes` | 2.8.7 | Requires CoroUtil |
+| Weather | Expanded Weather2 Dynamics | `expanded-weather2-dynamics` | 1.06.3 | Optional |
+| Terrain | The Roads More Travelled | `the-roads-more-travelled` | 0.5.1 | Beta |
+| Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | 1.0.4 | Beta, unofficial port; requires Moonlight Lib |
+| Navigation | Small Ships | `small-ships` | 2.0.0-b2.1 | Beta |
+| Terrain | Tectonic | `tectonic` | 3.0.28 | Large continents, deep oceans, mountain ranges; requires Lithostitched |
+| Light | LambDynamicLights | `lambdynamiclights` | 4.8.11 | Client only |
+| Library | GeckoLib | `geckolib` | 4.9.3 | Required by `folkhold_world` |
+| Comfort | JEI, Jade | `jei`, `jade` | 19.57.0.451, 15.10.6 | For development |
 
 packwiz resolves most dependencies automatically (for example CoroUtil for Weather2). Some mods do not declare a required library in their Modrinth metadata. Add these libraries explicitly:
 
@@ -86,13 +89,13 @@ The balance mod has no dependency on `core` and stays usable alone. When the wor
 
 ## World mod: factions, diplomacy, territories
 
-When a new world starts, the mod creates 5 to 7 factions:
+When a new world starts, the mod creates 5 to 7 factions (`FactionGenerator.Settings.DEFAULT`):
 
 - 1 or 2 factions that are allies of the player.
 - 1 neutral faction.
 - The other factions are hostile.
 
-Each faction has 3 to 8 villages, spread across the territory cells.
+The villages come from the vanilla structure placement (random spread, spacing 40 chunks, separation 16). A village belongs to the faction with the nearest territory center, so the number of villages of a faction depends on the world.
 
 ### Glossary
 
@@ -123,13 +126,13 @@ Each faction has 3 to 8 villages, spread across the territory cells.
 | `MobileGroup` | id, kind (caravan, traveling merchant), faction, origin, destination, route, progress, cargo, members (stable UUID, role, health), state |
 | `Quest` | id, kind (delivery, escort), giver, player, success condition, deadline, reward, state |
 
-The mod stores all of this in a `SavedData` of the Overworld level. `Codec` objects serialize it to NBT.
+The mod stores all of this in `SavedData` of the Overworld level (settlements, mobile groups, quests, factions, reputations), written to NBT by hand with a version number.
 
 ### Simulation rules (abstract tick every 2,400 ticks = 2 minutes)
 
 **Phase 1: living territories, no wars between NPCs.** Territories change mostly because of the player and because of the growth of the villages. The only military content is the defense of the villages. There are no patrols, no bandits and no armies.
 
-Rules of J3:
+**Implemented**:
 
 - **Claim**: each village claims the territory cells around it. The claim radius comes from the level of the village: 1 cell for a hamlet, up to 9 cells for a city. A cell that two villages claim belongs to the nearest village. At equal distance, the village with the higher level gets the cell.
 - **Unclaimed cell**: a cell that no village claims.
@@ -137,13 +140,11 @@ Rules of J3:
 
 The faction of a new village is the faction with the nearest territory center.
 
-Rules of J4:
-
 - **Trade**: each trade between two villages creates a caravan. The goods arrive with the caravan (see "Trade between villages").
 - **Relations**: each caravan that arrives raises the relation between the two factions a little.
 - **Abstract caravans**: a caravan with no player near has no risk. It always arrives.
 
-Rules of later milestones:
+**Planned**:
 
 - **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in an unclaimed territory cell.
 - **Rally a village**: with sufficient reputation and a quest, a village can change its banner and join a different faction.
@@ -155,11 +156,11 @@ Rules of later milestones:
 
 ### Cultures
 
-A culture is a template for factions: name, colors, banner, name syllables (for faction and village names). In J2, the cultures are Java definitions. When they are stable, each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
+A culture is a template for factions: name, colors, banner, name syllables (for faction and village names). **Implemented**: the cultures are Java definitions (`Cultures`). **Planned**: each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
 
 The factions of a world are not static content. The mod creates them when the world starts, from the cultures, and saves them in the world.
 
-In J2, all cultures are human. Non-human cultures (illagers, piglins) come later.
+All cultures are human. **Planned**: non-human cultures (illagers, piglins).
 
 ## World mod: villages, NPCs, defense
 
@@ -169,7 +170,7 @@ Each faction village has fortifications and guards. A player in iron armor with 
 
 - Generated as *jigsaw* structures, one set for each culture (building pools: center, houses, workshops, wall, towers, gates).
 - The size follows the abstract state: a hamlet has a palisade, a city has a stone wall and archer towers.
-- Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation (J3) uses the same method to know the villages of a region before the player goes there. The discovery covers 1024 blocks around each player and the world spawn (`discoveryRadius`), and the simulation runs on all the discovered villages: the world around the player changes with no visit. The admin screen lists these villages, with the name in italics while the game did not generate them.
+- Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation uses the same method to know the villages of a region before the player goes there. The discovery covers 1024 blocks around each player and the world spawn (`discoveryRadius`), and the simulation runs on all the discovered villages: the world around the player changes with no visit. The admin screen lists these villages, with the name in italics while the game did not generate them.
 - Materialization: when the player comes near, the mod creates the garrison and the inhabitants from the `Settlement` state. When the player goes away, the mod removes them and writes their state back (health, deaths, equipment).
 
 ### Village styles and terrain
@@ -201,16 +202,16 @@ Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are n
 - **Loss**: a shortage of food, a pillage of the bank or the death of the captain removes experience. A settlement can go down one level.
 - **Level event**: the mod sends an event when the level changes. Other systems use it: the garrison from the level, the physical growth.
 
-In J3, the level does not change the blocks of the village. The variants of the village are simple and do not change the structure.
+**Implemented**: the level does not change the blocks of the village. The variants of the village are simple and do not change the structure.
 
-**Physical growth (later milestone)**: the village grows in the world. New buildings, larger walls, farms, mills, fields, a forge. Each building, wall section and defense has a minimum level. This milestone also contains the construction and the repair of the village.
+**Physical growth (planned)**: the village grows in the world. New buildings, larger walls, farms, mills, fields, a forge. Each building, wall section and defense has a minimum level. This milestone also contains the construction and the repair of the village.
 
 ### Construction
 
-This section describes the physical growth (later milestone). New elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
+This section describes the physical growth (planned). New elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
 
 - **Chunks not loaded**: the construction progresses in the abstract simulation. The mod cannot change blocks in a chunk that is not loaded. It applies the finished elements when the chunk loads, before the player can see them.
-- **Chunks loaded** (planned for a later milestone): builder villagers do the construction block by block. The player sees the village grow. This is useful when the player often comes back to the same village.
+- **Chunks loaded** (planned): builder villagers do the construction block by block. The player sees the village grow. This is useful when the player often comes back to the same village.
 
 ### Reputation and welcome
 
@@ -348,8 +349,8 @@ A surplus lowers the price down to ×0.5. A shortage raises the price up to ×3.
 
 ### Professions and offers
 
-- Rails and minecarts (rail, powered rail, detector rail, activator rail, minecart variants). J6.
-- **Lumberjack**: logs and planks of different wood types. J6.
+- Rails and minecarts (rail, powered rail, detector rail, activator rail, minecart variants), from the tinker.
+- **Lumberjack**: logs and planks of different wood types.
 - **Traveling merchant**: rare items, very expensive, small quantities, slow restock (as the wandering trader). See "Traveling merchant".
 - No overpowered enchanted books (for example Mending) in the offers.
 
@@ -481,13 +482,13 @@ Spread: an action toward faction A changes the reputation with the allies of A (
 
 ### Quests from the state of the world
 
-| Quest | Milestone | Description |
+| Quest | State | Description |
 | --- | --- | --- |
-| Delivery | J4 | A village with a shortage asks for an item. Linked to the economy. The reward follows the local price. |
-| Escort | J4 | A real caravan leaves. The player protects it to its destination (against monsters in phase 1). |
-| Hunt | Later | Monsters attack a trade route. In phase 2, also bandits. |
-| Diplomacy | Later | Carry a message to improve the relation between two factions. |
-| Defense | Phase 2 | An army on the road threatens an allied village. |
+| Delivery | Implemented | A village with a shortage asks for an item. Linked to the economy. The reward follows the local price. |
+| Escort | Implemented | A real caravan leaves. The player protects it to its destination (against monsters in phase 1). |
+| Hunt | Planned | Monsters attack a trade route. In phase 2, also bandits. |
+| Diplomacy | Planned | Carry a message to improve the relation between two factions. |
+| Defense | Planned (phase 2) | An army on the road threatens an allied village. |
 
 A quest has a giver, a success condition that the mod checks on the state of the world, a deadline and a reward (emeralds, items, reputation).
 
@@ -617,7 +618,7 @@ The strategy:
 ### Work found on the internet
 
 - Sources: Planet Minecraft, GrabCraft, minecraft-schematics.com.
-- Always check the license. Much work is "all rights reserved". Keep a register, `docs/ASSETS_LICENSES.md` (source, author, license, file), for each import.
+- Always check the license. Much work is "all rights reserved". The register `docs/ASSETS_LICENSES.md` (source, author, license, file) gets a row for each import. The assets of the project are under CC BY 4.0: an import must permit this distribution.
 - Prefer Creative Commons work (CC0, CC-BY), or get the permission of the author, especially if we publish the mod.
 - During the shared work sessions, Claude can search for work, check its license and convert a schematic into a structure.
 
@@ -634,7 +635,6 @@ Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the 
 | Project base | NeoForge MDK (ModDevGradle) | Official generator on the NeoForge site |
 | Readable names | Mojang mappings + Parchment | Named parameters and Javadoc |
 | IDE | VS Code or IntelliJ IDEA, in a dev container | See `docs/getting-started.md` |
-| Data | NeoForge datagen | Generates recipes, loot tables, tags, models, translations |
 | Tests | GameTest (built in) + JUnit for pure simulation | The abstract simulation is testable without the game |
 | Profiling | Spark | Measures the cost of each system for each tick |
 | Config | `ModConfigSpec` (TOML) | One file for each mod |
@@ -653,7 +653,7 @@ Folkhold/
   dev/           development runtime that loads all mods together
   modpack/       packwiz (pack.toml, index.toml, mods/)
   tools/         scripts that generate structures (.nbt)
-  docs/          this document, getting started, balance notes, asset licenses
+  docs/          this document, getting started, the UI framework, the asset licenses
 ```
 
 ### Advice for a Java/C# developer who is new to modding
@@ -664,7 +664,7 @@ Folkhold/
 
 ## Roadmap and milestones
 
-The project moves forward in milestones. Each milestone gives a playable world. This keeps the motivation and lets us test the balance early. Each milestone is a GitHub milestone.
+The project moves forward in milestones. Each milestone gives a playable world. This keeps the motivation and lets us test the balance early. Each milestone is a GitHub milestone: the state of each one (open, closed) is on GitHub, not in this document. The sections above say what is implemented and what is planned.
 
 | Milestone | Scope | Playable result |
 | --- | --- | --- |
@@ -673,8 +673,8 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
 | J3 · Abstract simulation | `SavedData`, abstract tick, village level, territory claims, economy, bank, merchant | Villages grow, territories change owner |
 | J4 · Caravans, quests | Trade between villages, caravans, traveling merchants, materialization, delivery and escort quests | The player meets convoys and can escort them |
-| J5 · Additional mods | Balance mod (possible from J2): farms, trades, anvil. Earthquakes and collapses | Farms have limits, the anvil has no cap, first earthquakes |
-| J6 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment from the village level, healer, rail and lumberjack trades | Villages repair and improve themselves |
+| J5 · Additional mods | Balance mod: farms, trades, anvil. Earthquakes and collapses | Farms have limits, the anvil has no cap, first earthquakes |
+| J6 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment from the village level, healer | Villages repair and improve themselves |
 | J7 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages | Each faction has its own look, villages fit the terrain |
 | J8 · Maps and journal | Territories on the maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
 
@@ -693,16 +693,16 @@ flowchart TB
 
 Notes:
 
-- J1 and J2 give a mod that is interesting to play.
-- J3 is the core of the project and the milestone with the highest risk. Prototype it first in pure Java with JUnit tests.
-- Wars between factions come after J4, in phase 2.
-- Version 1 contains J0 to J8. J6, J7 and J8 depend on J2 and J3, not on each other: their order can change.
+- The guard, the village, the factions and the reputation (the first milestones) give a mod that is interesting to play.
+- The abstract simulation is the core of the project and the part with the highest risk: it is pure Java with JUnit tests.
+- Wars between factions come in phase 2, after the caravans and the quests.
+- Version 1 contains the milestones of the table. The living villages, the architecture and the maps depend on the factions and the abstract simulation, not on each other: their order can change.
 
 ## Risks and open questions
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Size of the project (world mod) | Abandon before there is something playable | Playable milestones from J1, abstract simulation only in J3 |
+| Size of the project (world mod) | Abandon before there is something playable | Playable milestones from the first guard; the abstract simulation comes after the village |
 | CPU cost of the simulation | TPS loss | Abstract tick every 2 minutes, time budget in ms for each tick, Spark profiling |
 | Inconsistent materialization | NPCs that disappear or duplicate | Stable identifier for each unit, GameTest tests for entry and exit of the area |
 | Beta mods in the pack (TRMT, Immersive Weathering: Renewed, Small Ships) | Crash or world corruption | Pinned versions, backups before each update |
@@ -711,9 +711,9 @@ Notes:
 
 ### Open questions
 
-- [x] Are hostile factions only human, or also non-human cultures (illagers, piglins)? Human only in J2. Non-human cultures later.
+- [x] Are hostile factions only human, or also non-human cultures (illagers, piglins)? Human only. Non-human cultures are planned.
 - [ ] Can the player found a faction, or join an existing faction?
 - [ ] Is a multiplayer mode necessary, or is single-player sufficient? (The data already uses the player UUID.)
-- [ ] Publish the mods on Modrinth later, or personal use only? (This changes the asset licenses.)
-- [ ] Select a license for the code and the assets, before the first public release.
+- [ ] Publish the mods on Modrinth later, or personal use only?
+- [x] Select a license for the code and the assets: MIT for the code, CC BY 4.0 for the assets (see `docs/ASSETS_LICENSES.md`).
 - [x] Does Lithium have a reliable NeoForge 1.21.1 version? Yes: `mc1.21.1-0.15.4-neoforge` (June 2026).

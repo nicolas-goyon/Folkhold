@@ -54,8 +54,9 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *       {@link #ARRIVAL_RADIUS} blocks or less from the heart of the destination. If the heart of the destination is
  *       not known, the group arrives when its merchant is at the end of the route.</li>
  *   <li>Each second, the home position of the guards of a group goes to the position of its merchant.</li>
- *   <li>The entities of an arrived group stay in the village for some time (see {@link #release}). Then they
- *       disappear when no player is near, or after {@link #LINGER_MAX_TICKS}.</li>
+ *   <li>A group with entities arrives at once (see {@link MobileGroupSystem#arrive}): the entities stay in the
+ *       village for some time (see {@link #release}). Then they disappear when no player is near, or after
+ *       {@link #LINGER_MAX_TICKS}.</li>
  *   <li>When no player is in the materialization distance plus a margin, the mod writes back the state of the
  *       members and removes the entities (except for a kept group, see {@link #keep(String, boolean)}). It also
  *       does this when the chunk of one entity unloads, and when the server stops.</li>
@@ -143,20 +144,21 @@ public final class GroupMaterializer {
         updateLingering(level, players);
         for (MobileGroup group : new ArrayList<>(data.groups().all())) {
             boolean materialized = isMaterialized(group);
-            if (group.isFinished()) {
-                if (materialized) {
-                    dematerialize(level, group, false);
+            if (!group.isFinished()) {
+                Route.Position position = group.position();
+                double nearest = nearestPlayer(players, position);
+                if (materialized && nearest > removeDistance && !KEPT.contains(group.id())) {
+                    dematerialize(level, group, true);
+                } else if (materialized) {
+                    sync(level, group);
+                } else if (nearest <= distance) {
+                    materialize(level, group);
                 }
-                continue;
             }
-            Route.Position position = group.position();
-            double nearest = nearestPlayer(players, position);
-            if (materialized && nearest > removeDistance && !KEPT.contains(group.id())) {
-                dematerialize(level, group, true);
-            } else if (materialized) {
-                sync(level, group);
-            } else if (nearest <= distance) {
-                materialize(level, group);
+            if (group.state() == GroupState.ARRIVED) {
+                MobileGroupSystem.arrive(server, group);
+            } else if (group.state() == GroupState.LOST && isMaterialized(group)) {
+                dematerialize(level, group, false);
             }
         }
     }
@@ -577,7 +579,10 @@ public final class GroupMaterializer {
         return nearest;
     }
 
-    /** The ground at a position. The chunk must be loaded: a height in a chunk that is not loaded loads it. */
+    /**
+     * The ground at a position. The chunk must be loaded: the height of a position in a chunk that is not loaded
+     * is the minimum build height.
+     */
     private static BlockPos ground(ServerLevel level, int x, int z) {
         return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
     }

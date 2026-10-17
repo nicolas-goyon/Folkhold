@@ -55,11 +55,6 @@ public class UiTabs extends AbstractWidget {
         return selected;
     }
 
-    /** The number of tabs. */
-    public int count() {
-        return labels.size();
-    }
-
     /** Changes the labels, for example a count in a label. */
     public void setLabels(List<Component> labels) {
         this.labels = List.copyOf(labels);
@@ -103,7 +98,7 @@ public class UiTabs extends AbstractWidget {
     }
 
     @Override
-    public void onClick(double mouseX, double mouseY) {
+    public void onClick(double mouseX, double mouseY, int button) {
         Font font = Minecraft.getInstance().font;
         for (int i = 0; i < labels.size(); i++) {
             if (tab(i, font).contains(mouseX, mouseY)) {

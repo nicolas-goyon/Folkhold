@@ -103,7 +103,7 @@ public abstract class UiScreen extends Screen {
         return null;
     }
 
-    /** The badges at the right of the header. */
+    /** The badges at the right of the header. The screen calls this method once for each frame. */
     protected List<Badge> badges() {
         return List.of();
     }
@@ -193,7 +193,7 @@ public abstract class UiScreen extends Screen {
     // ------------------------------------------------------------------ status line
 
     /**
-     * Shows a status line above the footer for some seconds: the result of an action. It replaces a chat message.
+     * Shows a status line above the footer for some seconds: the result of an action, in place of a chat message.
      *
      * @param text the text
      * @param tone {@link UiTone#GOOD} for a success, {@link UiTone#BAD} for a refusal
@@ -205,6 +205,13 @@ public abstract class UiScreen extends Screen {
     }
 
     // ------------------------------------------------------------------ input
+
+    /** Advances the hold buttons of the screen. A screen with its own tick calls this method. */
+    @Override
+    public void tick() {
+        super.tick();
+        UiHoldButton.tickAll(children());
+    }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
@@ -242,8 +249,10 @@ public abstract class UiScreen extends Screen {
             left += 15;
         }
         int right = header.right() - UiTheme.PADDING - 16 - UiTheme.GAP;
-        for (int i = badges().size() - 1; i >= 0; i--) {
-            Badge badge = badges().get(i);
+        // One call for each frame: a screen can build its badges from its data.
+        List<Badge> badges = badges();
+        for (int i = badges.size() - 1; i >= 0; i--) {
+            Badge badge = badges.get(i);
             int badgeWidth = UiDraw.badgeWidth(font, badge.text());
             if (right - badgeWidth < left + 60) {
                 break;

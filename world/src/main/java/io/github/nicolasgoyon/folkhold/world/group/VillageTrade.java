@@ -24,7 +24,6 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -221,31 +220,33 @@ public final class VillageTrade {
             return;
         }
         double maxLength = WorldConfig.ROUTE_MAX_LENGTH.get();
-        List<Settlement[]> missing = new ArrayList<>();
+        List<Link> missing = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (Participant seller : participants) {
             for (Participant buyer : participants) {
                 if (seller == buyer || seller.surpluses().keySet().stream().noneMatch(buyer.needs()::containsKey)) {
                     continue;
                 }
-                String key = seller.id().compareTo(buyer.id()) < 0 ? seller.id() + "|" + buyer.id()
-                        : buyer.id() + "|" + seller.id();
+                String key = Route.pairKey(seller.id(), buyer.id());
                 Settlement from = settlements.get(seller.id());
                 Settlement to = settlements.get(buyer.id());
-                if (!seen.add(key) || Math.sqrt(from.distanceSquared(to.x(), to.z())) > maxLength
+                long distanceSquared = from.distanceSquared(to.x(), to.z());
+                if (!seen.add(key) || Math.sqrt((double) distanceSquared) > maxLength
                         || relations.state(from.factionId(), to.factionId()) == RelationState.WAR
                         || CaravanRoutes.cached(server, from, to) != null) {
                     continue;
                 }
-                missing.add(new Settlement[] {from, to});
+                missing.add(new Link(from, to, distanceSquared));
             }
         }
-        Map<Settlement[], Long> distances = new HashMap<>();
-        missing.forEach(pair -> distances.put(pair, pair[0].distanceSquared(pair[1].x(), pair[1].z())));
-        missing.sort(Comparator.comparingLong(distances::get));
+        missing.sort(Comparator.comparingLong(Link::distanceSquared));
         int requests = Math.min(budget - CaravanRoutes.pending(), missing.size());
         for (int i = 0; i < requests; i++) {
-            CaravanRoutes.request(server, missing.get(i)[0], missing.get(i)[1]);
+            CaravanRoutes.request(server, missing.get(i).from(), missing.get(i).to());
         }
+    }
+
+    /** A pair of settlements with no route in the data, with the square of their direct distance. */
+    private record Link(Settlement from, Settlement to, long distanceSquared) {
     }
 }

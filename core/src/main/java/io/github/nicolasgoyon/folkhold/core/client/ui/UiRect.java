@@ -105,17 +105,6 @@ public record UiRect(int x, int y, int width, int height) {
     }
 
     /**
-     * The rectangle above a bottom part and a gap.
-     *
-     * @param size the height of the bottom part
-     * @param gap  the gap before the bottom part
-     * @return the rest of the rectangle
-     */
-    public UiRect aboveBottom(int size, int gap) {
-        return new UiRect(x, y, width, height - Math.min(size + gap, height));
-    }
-
-    /**
      * The rectangle on the right of a left part and a gap.
      *
      * @param size the width of the left part

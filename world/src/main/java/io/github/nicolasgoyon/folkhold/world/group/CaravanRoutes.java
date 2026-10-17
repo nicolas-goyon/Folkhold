@@ -22,7 +22,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
-import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
 /**
  * The routes between the settlements.
@@ -198,7 +198,7 @@ public final class CaravanRoutes {
                 long nanos = System.nanoTime() - startTime;
                 Optional<Route> detail = result.route();
                 server.execute(() -> {
-                    if (!PENDING_DETAILS.remove(groupId)) {
+                    if (!server.isSameThread() || !PENDING_DETAILS.remove(groupId)) {
                         return;
                     }
                     SimulationProfiler.record(DETAIL_PROFILER_NAME, nanos);
@@ -222,9 +222,20 @@ public final class CaravanRoutes {
         return PENDING_DETAILS.size();
     }
 
-    /** True if the detailed route of a group is on the way. */
-    public static boolean isDetailPending(MobileGroup group) {
-        return PENDING_DETAILS.contains(group.id());
+    /**
+     * Forgets the routes on the way that use an id of settlement: a result that comes back with the old id is
+     * dropped. The simulation asks for the routes again with the new id.
+     *
+     * @param server the server
+     * @param oldId  the id that the settlement had
+     */
+    public static void forgetPending(MinecraftServer server, String oldId) {
+        PENDING.removeIf(key -> key.startsWith(oldId + "|") || key.endsWith("|" + oldId));
+        for (MobileGroup group : MobileGroupData.get(server).groups().all()) {
+            if (group.originId().equals(oldId) || group.destinationId().equals(oldId)) {
+                PENDING_DETAILS.remove(group.id());
+            }
+        }
     }
 
     /** Gives a detailed route to a group that still waits for it, on the same journey. */
@@ -274,7 +285,24 @@ public final class CaravanRoutes {
      * @return true if the route is on the way (new or earlier request)
      */
     public static boolean request(MinecraftServer server, Settlement from, Settlement to) {
-        String key = key(from.id(), to.id());
+        return request(server, from, to, heights(server.overworld()));
+    }
+
+    /**
+     * Requests the calculation of a route on the worker thread, with the given heights. The result goes into the
+     * data on the server thread, some ticks later. When the search fails, the data gets "no route" for the pair,
+     * so the simulation does not ask for the same route again. The result is dropped when the server stops before
+     * the worker thread finishes.
+     *
+     * @param server  the server
+     * @param from    the settlement at the start
+     * @param to      the settlement at the end
+     * @param heights the heights of the terrain
+     * @return true if the route is on the way (new or earlier request)
+     */
+    public static boolean request(MinecraftServer server, Settlement from, Settlement to,
+            RouteFinder.HeightSource heights) {
+        String key = Route.pairKey(from.id(), to.id());
         if (!PENDING.add(key)) {
             return true;
         }
@@ -284,32 +312,35 @@ public final class CaravanRoutes {
         int fromZ = from.z();
         int toX = to.x();
         int toZ = to.z();
-        RouteFinder.HeightSource heights = heights(server.overworld());
         RouteFinder.Settings settings = settings();
         try {
             worker().execute(() -> {
                 long start = System.nanoTime();
-                RouteFinder.Result result;
-                try {
-                    result = RouteFinder.find(fromX, fromZ, toX, toZ, heights, settings);
-                } catch (RuntimeException e) {
-                    FolkholdWorld.LOGGER.error("Route calculation failed: {} -> {}", fromId, toId, e);
-                    PENDING.remove(key);
-                    return;
-                }
+                Optional<Route> route = find(fromId, toId, fromX, fromZ, toX, toZ, heights, settings);
                 long nanos = System.nanoTime() - start;
                 server.execute(() -> {
-                    if (PENDING.remove(key)) {
-                        MobileGroupData.get(server).putRoute(new RouteEntry(fromId, toId, fromX, fromZ, toX, toZ,
-                                result.route()));
-                        SimulationProfiler.record(PROFILER_NAME, nanos);
+                    if (!server.isSameThread() || !PENDING.remove(key)) {
+                        return;
                     }
+                    MobileGroupData.get(server).putRoute(new RouteEntry(fromId, toId, fromX, fromZ, toX, toZ, route));
+                    SimulationProfiler.record(PROFILER_NAME, nanos);
                 });
             });
             return true;
         } catch (RejectedExecutionException e) {
             PENDING.remove(key);
             return false;
+        }
+    }
+
+    /** The route of a search, or "no route" when the search fails. */
+    private static Optional<Route> find(String fromId, String toId, int fromX, int fromZ, int toX, int toZ,
+            RouteFinder.HeightSource heights, RouteFinder.Settings settings) {
+        try {
+            return RouteFinder.find(fromX, fromZ, toX, toZ, heights, settings).route();
+        } catch (RuntimeException e) {
+            FolkholdWorld.LOGGER.error("Route calculation failed: {} -> {}. The pair gets no route.", fromId, toId, e);
+            return Optional.empty();
         }
     }
 
@@ -351,8 +382,11 @@ public final class CaravanRoutes {
                 WorldConfig.ROUTE_DETAIL_MAX_NODES.get(), DETAIL_HEURISTIC_WEIGHT);
     }
 
-    /** Stops the worker thread and forgets the routes on the way. */
-    public static void onServerStopped(ServerStoppedEvent event) {
+    /**
+     * Before the server saves the world: stops the worker thread and forgets the routes on the way. A result that
+     * the worker thread hands back after this point is dropped (see {@link #request}).
+     */
+    public static synchronized void onServerStopping(ServerStoppingEvent event) {
         if (worker != null) {
             worker.shutdownNow();
             worker = null;
@@ -377,15 +411,10 @@ public final class CaravanRoutes {
             worker = Executors.newSingleThreadExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "Folkhold routes");
                 thread.setDaemon(true);
-                thread.setPriority(Thread.MIN_PRIORITY);
                 return thread;
             });
         }
         return worker;
-    }
-
-    private static String key(String firstId, String secondId) {
-        return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
     }
 
     private static boolean far(Route.Point a, Route.Point b, int tolerance) {

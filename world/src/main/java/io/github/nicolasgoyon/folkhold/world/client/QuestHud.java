@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
@@ -135,9 +136,9 @@ public final class QuestHud {
         MutableComponent progress = Component.translatable(KEY + "progress", Math.min(have, entry.count()),
                 entry.count());
         if (ready) {
-            progress.append(" ✓");
+            progress = Component.translatable(KEY + "done", progress);
         }
-        return Component.empty().append(entry.name()).append(Component.literal(" · ").withColor(UiTheme.TEXT_FAINT))
+        return Component.empty().append(entry.name()).append(UiStrings.separator().withColor(UiTheme.TEXT_FAINT))
                 .append(progress.withColor(ready ? UiTheme.TEXT_GOOD : UiTheme.TEXT_MUTED));
     }
 

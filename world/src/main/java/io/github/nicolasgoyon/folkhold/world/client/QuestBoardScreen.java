@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiButton;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiDialog;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiMenu;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiOverlay;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiScreen;
@@ -12,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Active;
@@ -23,6 +25,7 @@ import java.util.Locale;
 import java.util.function.IntConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -58,6 +61,7 @@ public class QuestBoardScreen extends UiScreen {
                 .reversed())),
         KIND(Comparator.comparing(Offer::kind).thenComparing(Comparator.comparingInt(Offer::emeralds).reversed()));
 
+        @SuppressWarnings("ImmutableEnumChecker") // The comparators have no state.
         private final Comparator<Offer> comparator;
 
         Sort(Comparator<Offer> comparator) {
@@ -103,13 +107,13 @@ public class QuestBoardScreen extends UiScreen {
      */
     public static void open(QuestBoardPayload board) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen instanceof QuestBoardScreen screen
-                && screen.board.settlementId().equals(board.settlementId())) {
+        Screen root = UiOverlay.rootScreen();
+        if (root instanceof QuestBoardScreen screen && screen.board.settlementId().equals(board.settlementId())) {
             screen.update(board);
             return;
         }
         QuestBoardScreen screen = new QuestBoardScreen(board);
-        if (minecraft.screen instanceof VillageHeartScreen heart) {
+        if (root instanceof VillageHeartScreen heart) {
             // Opened from the heart screen: the back button opens it again.
             screen.setPrevious(heart);
         }
@@ -129,15 +133,14 @@ public class QuestBoardScreen extends UiScreen {
     }
 
     private ReputationTier tier() {
-        return ReputationTier.bySerializedName(board.tier());
+        return ReputationTier.fromSerializedName(board.tier()).orElse(ReputationTier.NEUTRAL);
     }
 
     @Override
     protected List<Badge> badges() {
         ReputationTier tier = tier();
-        Component text = Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()));
-        return List.of(Badge.chip(text, UiReputation.background(tier), UiReputation.text(tier)));
+        return List.of(Badge.chip(FactionVisuals.tierTitle(tier), UiReputation.background(tier),
+                UiReputation.text(tier)));
     }
 
     @Override

@@ -69,6 +69,26 @@ public final class MobileGroup {
         return destinationId;
     }
 
+    /**
+     * Replaces the id of a settlement in the origin and the destination of the group.
+     *
+     * @param oldId the current id of the settlement
+     * @param newId the new id
+     * @return true if the group had the old id
+     */
+    public boolean renameSettlement(String oldId, String newId) {
+        boolean changed = false;
+        if (originId.equals(oldId)) {
+            originId = Objects.requireNonNull(newId);
+            changed = true;
+        }
+        if (destinationId.equals(oldId)) {
+            destinationId = Objects.requireNonNull(newId);
+            changed = true;
+        }
+        return changed;
+    }
+
     public Route route() {
         return route;
     }
@@ -100,7 +120,7 @@ public final class MobileGroup {
     }
 
     /**
-     * Replaces the route of the group, with the same origin and destination. The progress goes back to 0.
+     * Gives a new route to the group, with the same origin and destination. The progress goes back to 0.
      *
      * @param route the new route
      */
@@ -154,7 +174,6 @@ public final class MobileGroup {
         this.payment = Math.max(0, payment);
     }
 
-    /** The goods that the group carries. */
     public Stock cargo() {
         return cargo;
     }

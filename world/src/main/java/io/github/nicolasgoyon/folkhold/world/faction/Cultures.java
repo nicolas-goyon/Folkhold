@@ -6,8 +6,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.entity.BannerPatterns;
 
 /**
- * The cultures of the world mod. In J2, the cultures are Java definitions. They move to JSON files when they
- * are stable (see {@code docs/design.md}, section "Cultures").
+ * The cultures of the world mod: Java definitions (see {@code docs/design.md}, section "Cultures").
  */
 public final class Cultures {
     /** Blue, spruce and stone. Northern names. */

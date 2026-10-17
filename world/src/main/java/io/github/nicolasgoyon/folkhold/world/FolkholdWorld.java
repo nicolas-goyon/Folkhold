@@ -31,6 +31,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
@@ -70,6 +71,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(BankChests::onBlockBreak);
         NeoForge.EVENT_BUS.addListener(BankChests::onLeftClickBlock);
         NeoForge.EVENT_BUS.addListener(BankChests::onExplosion);
+        NeoForge.EVENT_BUS.addListener(BankChests::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(Merchants::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(VillageFolk::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(Merchants::onTrade);
@@ -87,7 +89,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerStopped);
-        NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopping);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onServerTick);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onEntityLeave);
@@ -102,6 +104,8 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(CaravanInteractions::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(CaravanInteractions::onTrade);
         NeoForge.EVENT_BUS.addListener(CaravanInteractions::onDamage);
+        NeoForge.EVENT_BUS.addListener(CaravanInteractions::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(SimulationProfiler::onServerStopped);
         NeoForge.EVENT_BUS.addListener(LevelTables::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(EconomyData::onAddReloadListener);
         SimulationTicker.addSystem("economy", Economies::tick);

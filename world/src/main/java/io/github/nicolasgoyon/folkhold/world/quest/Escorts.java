@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import java.util.ArrayDeque;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.UUID;
+import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -37,6 +39,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -52,8 +55,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *   <li>Each escort has 1 to 3 ambushes of vanilla monsters at random points of the route. The length of the route
  *       and the level of the origin village set the size of an ambush.</li>
  *   <li>Success: the caravan arrives and its merchant is alive. The reward comes from the value of the cargo.</li>
- *   <li>Failure: the merchant dies, the player stays away too long, or the deadline ends. The time of an escort
- *       comes from the length of its route ({@link #escortMinutes}).</li>
+ *   <li>Failure: the merchant dies, the player stays away too long, the player raids the caravan, or the deadline
+ *       ends. The time of an escort comes from the length of its route ({@link #escortMinutes}).</li>
  *   <li>Each second, the player of an escort gets the state of the caravan in the quest HUD.</li>
  * </ul>
  */
@@ -61,7 +64,6 @@ public final class Escorts {
     /** Key in the persistent data of an ambush monster. */
     public static final String AMBUSH_TAG = "folkhold_world:ambush";
     private static final int CHECK_INTERVAL = 20;
-    private static final long TICKS_PER_MINUTE = 1200L;
     /** The minutes that the time of an escort adds to the travel: the departure, the stops, the ambushes. */
     private static final long EXTRA_MINUTES = 10L;
     /** The ambushes are between these shares of the route. */
@@ -102,7 +104,7 @@ public final class Escorts {
         Quest quest = new Quest(UUID.randomUUID().toString(), QuestKind.ESCORT, origin.id(), origin.factionId(),
                 caravan.id(), 0, reward, WorldConfig.QUEST_ESCORT_REPUTATION.get(),
                 QuestGenerator.minTier(reward, QuestSystem.settings()), offerEnd,
-                escortMinutes(caravan.route().length()) * TICKS_PER_MINUTE);
+                escortMinutes(caravan.route().length()) * SharedConstants.TICKS_PER_MINUTE);
         QuestData data = QuestData.get(server);
         data.quests().add(quest);
         data.setDirty();
@@ -178,8 +180,23 @@ public final class Escorts {
             }
             boolean merchantAlive = group.merchant().filter(merchant -> merchant.isAlive()).isPresent();
             if (group.state() == GroupState.ARRIVED && merchantAlive) {
-                QuestBoards.complete(server, quest);
+                QuestBoards.completeAndNotify(server, quest);
             } else {
+                QuestBoards.fail(server, quest);
+            }
+        }
+    }
+
+    /**
+     * A player raids a caravan: the escort of this player on this caravan fails.
+     *
+     * @param server the server
+     * @param player the player
+     * @param group  the caravan
+     */
+    public static void onRaid(MinecraftServer server, ServerPlayer player, MobileGroup group) {
+        for (Quest quest : active(server)) {
+            if (quest.target().equals(group.id()) && player.getUUID().equals(quest.playerId())) {
                 QuestBoards.fail(server, quest);
             }
         }
@@ -224,7 +241,7 @@ public final class Escorts {
             MobileGroup group = found.get();
             if (group.state() == GroupState.ARRIVED) {
                 if (group.merchant().filter(merchant -> merchant.isAlive()).isPresent()) {
-                    QuestBoards.complete(server, quest);
+                    QuestBoards.completeAndNotify(server, quest);
                 } else {
                     QuestBoards.fail(server, quest);
                 }
@@ -318,7 +335,7 @@ public final class Escorts {
             Route.Position position = group.position();
             int x = (int) Math.floor(position.x());
             int z = (int) Math.floor(position.z());
-            return new BlockPos(x, server.overworld().getSeaLevel(), z);
+            return new BlockPos(x, Settlements.seaLevel(server.overworld()), z);
         });
     }
 
@@ -357,7 +374,7 @@ public final class Escorts {
                 continue;
             }
             mob.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, random.nextFloat() * 360.0F, 0.0F);
-            mob.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
+            EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
             if (type != EntityType.SPIDER) {
                 // A helmet protects the monster from the sun, so the ambush also works in the day.
                 mob.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
@@ -423,7 +440,7 @@ public final class Escorts {
         double x;
         double z;
         Optional<Entity> merchant = group.merchant().map(member -> level.getEntity(member.id()));
-        if (merchant.isPresent() && merchant.get() != null) {
+        if (merchant.isPresent()) {
             x = merchant.get().getX();
             z = merchant.get().getZ();
         } else {

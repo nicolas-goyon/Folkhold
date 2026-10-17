@@ -5,13 +5,16 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.ReturnToAnchorGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
-import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -101,9 +104,9 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /** A path goes to the target when its end is nearer than this distance to the target, in blocks. */
     private static final double PATH_TARGET_DISTANCE = 3.0;
     /** A unit on the way to its post moves to it after this time with no path. */
-    static final int NO_PATH_TICKS = 60;
+    static final int NO_PATH_TICKS = 100;
     /** A unit on the way to its post moves to it after this time. */
-    static final int POST_TRAVEL_MAX_TICKS = 600;
+    static final int POST_TRAVEL_MAX_TICKS = 1200;
     private static final double POST_ARRIVED_SQR = 4.0;
     /** Radius around the post while the village is not calm, in blocks. */
     private static final int POST_RADIUS = 2;
@@ -118,6 +121,13 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final int GREETING_COOLDOWN = 600;
     private static final double GREETING_DISTANCE = 5.0;
     private long lastGreetingTick = -GREETING_COOLDOWN;
+    /** A cached reputation tier stays valid for this time, in ticks. */
+    private static final int TIER_CACHE_TICKS = 20;
+    @Nullable
+    private UUID cachedTierPlayer;
+    private ReputationTier cachedTier = ReputationTier.NEUTRAL;
+    private long cachedTierVersion = -1;
+    private long cachedTierTime;
     /** Id of the faction of the unit, or null. */
     @Nullable
     private String factionId;
@@ -176,8 +186,14 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return postPos;
     }
 
+    /** Sets the post of the unit. A new post starts the travel to the post again (see {@link #updatePostTravel}). */
     public void setPostPos(@Nullable BlockPos pos) {
-        postPos = pos == null ? null : pos.immutable();
+        BlockPos post = pos == null ? null : pos.immutable();
+        if (!Objects.equals(post, postPos)) {
+            postTravelTicks = 0;
+            noPathTicks = 0;
+        }
+        postPos = post;
     }
 
     /**
@@ -239,11 +255,6 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         super.setTarget(target);
     }
 
-    /** True if the unit has a village and the village is not calm. */
-    public boolean isVillageAlerted() {
-        return getVillageHeart().map(heart -> heart.getAlertState() != AlertState.CALM).orElse(false);
-    }
-
     /** The id of the faction of the unit, or null if the unit has no faction. */
     @Nullable
     public String getFactionId() {
@@ -257,15 +268,28 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /**
      * The reputation tier of a player for this unit: the effective tier in its village, else the tier with its
      * faction. {@link ReputationTier#NEUTRAL} for a unit without a faction.
+     *
+     * <p>The unit keeps the tier of the last player for {@link #TIER_CACHE_TICKS} ticks, or until the reputation
+     * data changes (see {@link ReputationData#version()}): the AI asks for it on each tick.
      */
     public ReputationTier tierOf(Player player) {
         MinecraftServer server = level().getServer();
         if (server == null || factionId == null) {
             return ReputationTier.NEUTRAL;
         }
-        return getVillageHeart()
+        long now = level().getGameTime();
+        if (player.getUUID().equals(cachedTierPlayer) && cachedTierVersion == ReputationData.version()
+                && now - cachedTierTime < TIER_CACHE_TICKS) {
+            return cachedTier;
+        }
+        ReputationTier tier = getVillageHeart()
                 .map(heart -> Reputations.tier(server, player, heart))
                 .orElseGet(() -> Reputations.tier(server, player, factionId));
+        cachedTierPlayer = player.getUUID();
+        cachedTier = tier;
+        cachedTierVersion = ReputationData.version();
+        cachedTierTime = now;
+        return tier;
     }
 
     /**
@@ -339,7 +363,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /**
      * A unit on the way to its post walks to it. The towers of the village have stairs, so the path finder can find
      * a path to the post. If the unit has no path for {@link #NO_PATH_TICKS} (for example a post with a ladder
-     * only), or is on the way for {@link #POST_TRAVEL_MAX_TICKS}, it moves directly to the post.
+     * only), or is on the way for {@link #POST_TRAVEL_MAX_TICKS}, it moves directly to the post. The ticks with
+     * no path include the waits of {@link ReturnToAnchorGoal} between two path searches.
      */
     private void updatePostTravel(@Nullable LivingEntity target) {
         BlockPos post = getPostPos();
@@ -349,8 +374,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             return;
         }
         postTravelTicks++;
-        Path path = getNavigation().getPath();
-        if (path == null || getNavigation().isDone()) {
+        if (getNavigation().getPath() == null) {
             noPathTicks++;
         } else {
             noPathTicks = 0;
@@ -514,6 +538,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     protected void unitServerAiStep(@Nullable LivingEntity target) {
     }
 
+    /** Override only: callers use {@link net.neoforged.neoforge.event.EventHooks#finalizeMobSpawn}. */
+    @Deprecated
     @Override
     @Nullable
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty,
@@ -593,10 +619,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return false;
     }
 
-    /** Units do not pick up items. */
     /**
-     * The ambient sound of a calm unit: the vanilla villager sound for now. A unit with a target makes no ambient
-     * sound.
+     * The ambient sound of a calm unit: the vanilla villager sound. A unit with a target makes no ambient sound.
      */
     @Override
     @Nullable
@@ -614,6 +638,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return SoundEvents.VILLAGER_DEATH;
     }
 
+    /** Units do not pick up items. */
     @Override
     public boolean canPickUpLoot() {
         return false;

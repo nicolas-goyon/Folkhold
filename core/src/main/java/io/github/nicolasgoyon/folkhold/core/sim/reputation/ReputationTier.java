@@ -1,6 +1,8 @@
 package io.github.nicolasgoyon.folkhold.core.sim.reputation;
 
+import io.github.nicolasgoyon.folkhold.core.sim.SerializedName;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Tier of a reputation value (-1000 to +1000).
@@ -15,7 +17,7 @@ import java.util.Locale;
  *   <tr><td>{@link #ALLY}</td><td>+601 to +1000</td></tr>
  * </table>
  */
-public enum ReputationTier {
+public enum ReputationTier implements SerializedName {
     SWORN_ENEMY,
     HOSTILE,
     NEUTRAL,
@@ -54,32 +56,13 @@ public enum ReputationTier {
         return this == FRIEND || this == ALLY;
     }
 
-    /**
-     * The glyph of the tier: crosses for danger, a dash for neutral, ticks and arrows for safety. A text shows the
-     * glyph with the name of the tier, so the color never gives the tier alone.
-     */
-    public String glyph() {
-        return switch (this) {
-            case SWORN_ENEMY -> "✕✕";
-            case HOSTILE -> "✕";
-            case NEUTRAL -> "–";
-            case FRIEND -> "✓";
-            case ALLY -> "⇈";
-        };
-    }
-
-    /** The RGB color of the tier for a text on a dark background: the HUD, the chat, a title, a dark panel. */
-    public int color() {
-        return switch (this) {
-            case SWORN_ENEMY -> 0xFF7A66;
-            case HOSTILE -> 0xE8846F;
-            case NEUTRAL -> 0xA89F8C;
-            case FRIEND -> 0x9AD07E;
-            case ALLY -> 0x8FC2F0;
-        };
+    /** True if this tier is the given tier or a better one. */
+    public boolean isAtLeast(ReputationTier other) {
+        return compareTo(other) >= 0;
     }
 
     /** Lower-case name, for translation keys and save data. */
+    @Override
     public String serializedName() {
         return name().toLowerCase(Locale.ROOT);
     }
@@ -88,14 +71,9 @@ public enum ReputationTier {
      * Gives the tier with a serialized name.
      *
      * @param name a name from {@link #serializedName()}
-     * @return the tier, or {@link #NEUTRAL} for an unknown name
+     * @return the tier, or empty for an unknown name
      */
-    public static ReputationTier bySerializedName(String name) {
-        for (ReputationTier tier : values()) {
-            if (tier.serializedName().equals(name)) {
-                return tier;
-            }
-        }
-        return NEUTRAL;
+    public static Optional<ReputationTier> fromSerializedName(String name) {
+        return SerializedName.lookup(ReputationTier.class, name);
     }
 }

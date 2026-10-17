@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.PostRangedAttackGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.ReturnToAnchorGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitHurtByTargetGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UsePassageGoal;
@@ -36,7 +37,9 @@ import net.minecraft.world.level.Level;
  * <p>Behavior (see also {@link FactionUnit}):
  * <ul>
  *   <li>It shoots arrows at monsters in range and at attackers.</li>
- *   <li>When the archer has a post (a tower or a wall), it stays there.</li>
+ *   <li>When the archer has a post (a tower or a wall), it stays there: it shoots from the post and does not go to
+ *       a target (see {@link PostRangedAttackGoal}). An archer with no post, for example in a caravan, goes to its
+ *       target as a vanilla ranged mob.</li>
  *   <li>The arrow damage comes from the "attackDamage" value of the archer config.</li>
  * </ul>
  */
@@ -67,7 +70,18 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
     protected void registerGoals() {
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(1, new UsePassageGoal(this));
-        goalSelector.addGoal(2, new RangedAttackGoal(this, 1.0, ATTACK_INTERVAL, ATTACK_RADIUS));
+        goalSelector.addGoal(2, new PostRangedAttackGoal(this, ATTACK_INTERVAL, ATTACK_RADIUS));
+        goalSelector.addGoal(3, new RangedAttackGoal(this, 1.0, ATTACK_INTERVAL, ATTACK_RADIUS) {
+            @Override
+            public boolean canUse() {
+                return getPostPos() == null && super.canUse();
+            }
+
+            @Override
+            public boolean canContinueToUse() {
+                return getPostPos() == null && super.canContinueToUse();
+            }
+        });
         goalSelector.addGoal(4, new ReturnToAnchorGoal(this, 1.0));
         goalSelector.addGoal(5, new AnchorStrollGoal(this, 0.6));
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
@@ -88,7 +102,7 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
 
     @Override
     public void performRangedAttack(LivingEntity target, float velocity) {
-        ItemStack bow = getItemInHand(ProjectileUtil.getWeaponHoldingHand(this, Items.BOW));
+        ItemStack bow = getItemInHand(ProjectileUtil.getWeaponHoldingHand(this, item -> item == Items.BOW));
         ItemStack ammo = new ItemStack(Items.ARROW);
         AbstractArrow arrow = ProjectileUtil.getMobArrow(this, ammo, velocity, bow);
         arrow.setBaseDamage(getAttributeValue(Attributes.ATTACK_DAMAGE));

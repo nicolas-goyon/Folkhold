@@ -76,7 +76,8 @@ public final class GroupSimulation {
             Predicate<MobileGroup> frozen, Listener listener) {
         int moved = 0;
         List<MobileGroup> finished = new ArrayList<>();
-        for (MobileGroup group : groups.all()) {
+        // The listener can add or remove groups: the loop runs on a snapshot.
+        for (MobileGroup group : List.copyOf(groups.all())) {
             if (group.isFinished()) {
                 finished.add(group);
                 continue;

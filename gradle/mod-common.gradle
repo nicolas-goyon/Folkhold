@@ -3,6 +3,8 @@
 // and must set mod_id, mod_name and mod_description in its gradle.properties.
 
 apply from: rootProject.file('gradle/repositories.gradle')
+apply plugin: 'com.diffplug.spotless'
+apply plugin: 'net.ltgt.errorprone'
 
 version = mod_version
 group = mod_group_id
@@ -41,6 +43,7 @@ configurations {
 }
 
 dependencies {
+    errorprone "com.google.errorprone:error_prone_core:${errorprone_version}"
     testImplementation platform("org.junit:junit-bom:${junit_version}")
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -54,7 +57,7 @@ tasks.named('test', Test) {
 }
 
 tasks.named('check') {
-    dependsOn ':checkTranslations'
+    dependsOn ':checkTranslations', ':spotlessCheck'
     // The build compiles the GameTests, so a compile error shows before the GameTest server runs.
     dependsOn 'compileGametestJava'
 }
@@ -101,6 +104,7 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             mod_license            : mod_license,
             mod_version            : mod_version,
             mod_authors            : mod_authors,
+            geckolib_version       : geckolib_version,
     ]
     inputs.properties replaceProperties
     expand replaceProperties
@@ -112,6 +116,35 @@ neoForge.ideSyncTask generateModMetadata
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    // All the javac lints are errors. The 'this-escape' lint is off: the Minecraft entities, widgets and block
+    // entities set their state in the constructor through the methods of the super class.
+    options.compilerArgs.addAll(['-Xlint:all,-this-escape', '-Werror'])
+    options.errorprone {
+        disableWarningsInGeneratedCode = true
+        // The registry objects of Minecraft (items, entity types, professions) and the entities are compared
+        // by identity: this is the convention of the game code.
+        disable('ReferenceEquality')
+    }
+}
+
+// Format checks. The style is the style of the sources: four spaces, imports in one group in ASCII order, static
+// imports first. `spotlessApply` fixes the files.
+spotless {
+    java {
+        target 'src/*/java/**/*.java'
+        importOrder('\\#', '')
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        leadingTabsToSpaces(4)
+        endWithNewline()
+    }
+    format('misc') {
+        target 'src/*/resources/**/*.json', 'src/*/resources/**/*.toml'
+        // The data generators write their own format.
+        targetExclude 'src/generated/**'
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
 }
 
 publishing {

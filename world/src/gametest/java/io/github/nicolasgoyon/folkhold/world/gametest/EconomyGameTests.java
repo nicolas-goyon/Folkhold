@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -102,6 +103,16 @@ public final class EconomyGameTests {
 
         helper.assertTrue(start == WorldConfig.ECONOMY_START_TREASURY.get(), "Wrong start treasury: " + start);
         helper.assertTrue(after == 0, "The treasury must not go below 0");
+        helper.succeed();
+    }
+
+    /** The text of a price has two decimals at most and no trailing zero. */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "economy_price_text")
+    public static void priceTextHasTwoDecimalsAtMost(GameTestHelper helper) {
+        helper.assertTrue(Merchants.priceText(2.0).equals("2"), "2.0 -> " + Merchants.priceText(2.0));
+        helper.assertTrue(Merchants.priceText(0.85).equals("0.85"), "0.85 -> " + Merchants.priceText(0.85));
+        helper.assertTrue(Merchants.priceText(12.5).equals("12.5"), "12.5 -> " + Merchants.priceText(12.5));
+        helper.assertTrue(Merchants.priceText(1.999).equals("2"), "1.999 -> " + Merchants.priceText(1.999));
         helper.succeed();
     }
 }

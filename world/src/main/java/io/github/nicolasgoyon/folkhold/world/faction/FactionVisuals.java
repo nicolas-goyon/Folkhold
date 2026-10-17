@@ -1,20 +1,22 @@
 package io.github.nicolasgoyon.folkhold.world.faction;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
+import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.Block;
@@ -26,11 +28,23 @@ import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Visual elements of a faction: color, banner, name.
+ * Visual elements of a faction: color, banner, name, and the texts of the reputation tiers of the players.
  */
 public final class FactionVisuals {
+    /** The translation key of the name of a reputation tier, followed by the serialized name of the tier. */
+    public static final String TIER_KEY = "folkhold_world.reputation_tier_title.";
 
     private FactionVisuals() {
+    }
+
+    /** The name of a reputation tier with a capital letter: "Friend". */
+    public static MutableComponent tierName(ReputationTier tier) {
+        return Component.translatable(TIER_KEY + tier.serializedName());
+    }
+
+    /** The title of a reputation tier: its glyph and its name, "✓ Friend". The caller sets the color. */
+    public static MutableComponent tierTitle(ReputationTier tier) {
+        return Component.literal(UiReputation.glyph(tier) + " ").append(tierName(tier));
     }
 
     /** The faction, if the id is known on this server. */

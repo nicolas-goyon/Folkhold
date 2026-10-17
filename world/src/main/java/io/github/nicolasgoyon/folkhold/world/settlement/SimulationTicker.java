@@ -19,7 +19,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * end of the abstract tick, it calls each {@link WorldSystem} once. {@link SimulationProfiler} records the time of
  * each call.
  *
- * <p>The tick number and the time of the next abstract tick are saved in {@link SettlementData}.
+ * <p>The tick number and the time of the next abstract tick are saved in {@link SettlementData}. A failure in the
+ * systems of one settlement is logged and the abstract tick continues with the other settlements.
  *
  * <p>The GameTest server has no automatic abstract tick: the tests call the systems directly, and an abstract tick
  * between two steps of a test would change its settlements.
@@ -74,7 +75,7 @@ public final class SimulationTicker {
         TickScheduler<String> current = scheduler(data);
         StepResult result = current.step(server.overworld().getGameTime(), () -> activeIds(data),
                 (id, tick) -> data.registry().byId(id).filter(Settlement::isActive)
-                        .ifPresent(settlement -> runSystems(server, settlement, tick)),
+                        .ifPresent(settlement -> runSystemsSafely(server, settlement, tick)),
                 System::nanoTime, settings());
         if (result.finished() != null) {
             SimulationProfiler.record(SETTLEMENTS_TICK, result.tickNanos());
@@ -91,15 +92,6 @@ public final class SimulationTicker {
     }
 
     /**
-     * Starts the next abstract tick at the next server tick.
-     *
-     * @param server the server
-     */
-    public static void runNow(MinecraftServer server) {
-        scheduler(SettlementData.get(server)).runNow(server.overworld().getGameTime());
-    }
-
-    /**
      * Runs the systems for one settlement, now.
      *
      * @param server     the server
@@ -109,6 +101,19 @@ public final class SimulationTicker {
     public static void runSystems(MinecraftServer server, Settlement settlement, TickInfo tick) {
         for (Named<SettlementSystem> named : SYSTEMS) {
             SimulationProfiler.time(named.name(), () -> named.system().tick(server, settlement, tick));
+        }
+    }
+
+    /**
+     * Runs the systems for one settlement in the abstract tick. A failure of a system is logged with the settlement
+     * and does not stop the abstract tick: the other settlements run.
+     */
+    private static void runSystemsSafely(MinecraftServer server, Settlement settlement, TickInfo tick) {
+        try {
+            runSystems(server, settlement, tick);
+        } catch (RuntimeException e) {
+            FolkholdWorld.LOGGER.error("The simulation of the settlement {} failed in the abstract tick {}",
+                    settlement.id(), tick.number(), e);
         }
     }
 

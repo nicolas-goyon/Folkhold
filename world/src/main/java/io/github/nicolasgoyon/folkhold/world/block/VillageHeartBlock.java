@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
 import com.mojang.serialization.MapCodec;
+import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.village.VillageInfo;
 import javax.annotation.Nullable;
@@ -16,7 +17,6 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Village heart: the block at the center of a faction village. It holds the state of the village.
@@ -64,7 +64,7 @@ public class VillageHeartBlock extends BaseEntityBlock {
         if (player instanceof ServerPlayer serverPlayer
                 && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
             heart.ensureSettlement();
-            PacketDistributor.sendToPlayer(serverPlayer, VillageInfo.build(heart, serverPlayer));
+            ModNetwork.send(serverPlayer, VillageInfo.build(heart, serverPlayer));
         }
         return InteractionResult.sidedSuccess(level.isClientSide());
     }

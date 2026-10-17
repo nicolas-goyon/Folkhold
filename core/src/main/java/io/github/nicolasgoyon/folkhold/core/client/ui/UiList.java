@@ -60,11 +60,6 @@ public abstract class UiList<T> extends AbstractWidget {
         return this;
     }
 
-    /** The index of the selected row, or -1. */
-    public int selectedIndex() {
-        return selected;
-    }
-
     /** The selected item, or null. */
     @Nullable
     public T selectedItem() {
@@ -141,7 +136,7 @@ public abstract class UiList<T> extends AbstractWidget {
     }
 
     @Override
-    public void onClick(double mouseX, double mouseY) {
+    public void onClick(double mouseX, double mouseY, int button) {
         UiRect rows = rowsRect();
         int y = rows.y() - scroll;
         for (int i = 0; i < items.size(); i++) {

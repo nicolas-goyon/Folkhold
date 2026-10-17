@@ -103,6 +103,38 @@ class EconomyTest {
     }
 
     @Test
+    void activeJobsTakeTurnsWhenTheWorkersAreFew() {
+        // Two workers for one job: the smelter blocks the farmer without the rotation.
+        EconomyState state = state(2, "smelter", "farmer");
+        state.stock().add("ore", 100, 1000);
+        state.stock().add("coal", 100, 1000);
+        state.stock().add("bread", 100, 1000);
+
+        CycleReport first = Economy.runCycle(state, List.of(SMELTER, FARMER), 2, 1000, CATALOG, SETTINGS,
+                new SplittableRandom(1));
+        CycleReport second = Economy.runCycle(state, List.of(SMELTER, FARMER), 2, 1000, CATALOG, SETTINGS,
+                new SplittableRandom(1));
+        CycleReport third = Economy.runCycle(state, List.of(SMELTER, FARMER), 2, 1000, CATALOG, SETTINGS,
+                new SplittableRandom(1));
+
+        assertEquals(1, first.activeJobs());
+        assertTrue(first.produced().containsKey("ingot"), "Cycle 1 runs the first job: " + first.produced());
+        assertTrue(second.produced().containsKey("wheat"), "Cycle 2 runs the second job: " + second.produced());
+        assertTrue(third.produced().containsKey("ingot"), "Cycle 3 runs the first job again");
+        assertEquals(3, state.cycles());
+    }
+
+    @Test
+    void emptyPopulationGetsANewcomer() {
+        EconomyState state = state(0);
+
+        CycleReport report = Economy.runCycle(state, List.of(), 5, 100, CATALOG, SETTINGS, new SplittableRandom(1));
+
+        assertEquals(1.0, report.foodCovered(), "No inhabitant: no food need");
+        assertEquals(1, state.population());
+    }
+
+    @Test
     void fedPopulationGrowsAndHungryPopulationShrinks() {
         EconomyState fed = state(10);
         fed.stock().add("bread", 100, 1000);
@@ -171,5 +203,25 @@ class EconomyTest {
         }
         assertTrue(cycles > 1 && cycles < 1000, "The tool must wear after some cycles, not " + cycles);
         assertEquals(cycles, with.stock().count("ore"));
+    }
+
+    /**
+     * With no population, no job works and nothing is eaten. The need of food is covered, so the village gets its
+     * first inhabitant.
+     */
+    @Test
+    void emptyVillageRunsACycle() {
+        EconomyState state = state(0, "farmer");
+        state.stock().add("bread", 10, 100);
+
+        CycleReport report = Economy.runCycle(state, List.of(FARMER), 10, 100, CATALOG, SETTINGS,
+                new SplittableRandom(1));
+
+        assertEquals(0, report.activeJobs());
+        assertEquals(0, report.workingJobs());
+        assertTrue(report.produced().isEmpty(), "No job works with no workers");
+        assertEquals(10, state.stock().count("bread"), "Nobody eats");
+        assertEquals(1.0, report.foodCovered());
+        assertEquals(1, report.population(), "The village gets its first inhabitant");
     }
 }

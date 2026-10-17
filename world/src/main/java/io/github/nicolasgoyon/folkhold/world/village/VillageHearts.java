@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -8,6 +9,7 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 
 /**
  * Positions of the village hearts that are loaded, for each dimension. Server side only.
@@ -18,7 +20,22 @@ import net.minecraft.world.level.Level;
 public final class VillageHearts {
     private static final Map<ResourceKey<Level>, Set<BlockPos>> LOADED = new HashMap<>();
 
+    /** The vertical half-size of the area of a village, in blocks. */
+    private static final double AREA_HEIGHT = 32.0;
+
     private VillageHearts() {
+    }
+
+    /**
+     * The area of a village: the village radius around its heart, 32 blocks up and down. The entities of the
+     * village are in this area.
+     *
+     * @param heartPos the position of the heart
+     * @return the area
+     */
+    public static AABB area(BlockPos heartPos) {
+        double radius = WorldConfig.VILLAGE_RADIUS.get();
+        return new AABB(heartPos).inflate(radius, AREA_HEIGHT, radius);
     }
 
     public static void register(Level level, BlockPos pos) {

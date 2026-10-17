@@ -1,6 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.core.sim.faction.Attitude;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
+import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionTrait;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
@@ -9,10 +11,15 @@ import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.component.DyedItemColor;
@@ -40,6 +47,34 @@ public final class FactionGameTests {
         helper.assertTrue(factions.stream().allMatch(f -> Cultures.byId(f.cultureId()).isPresent()),
                 "Each faction must have a known culture");
         helper.assertTrue(!data.relations().asMap().isEmpty(), "The factions must have start relations");
+        helper.succeed();
+    }
+
+    /** The faction data loads with an unknown trait name (skipped) and an unknown attitude name (neutral). */
+    @GameTest(template = "empty", batch = "faction_data_lenient")
+    public static void unknownNamesDoNotStopTheLoad(GameTestHelper helper) {
+        CompoundTag entry = new CompoundTag();
+        entry.putString("Id", "test_faction_284");
+        entry.putString("Culture", "test_culture");
+        entry.putString("Name", "Lenienthold");
+        entry.putInt("Color", 0x123456);
+        entry.putString("Attitude", "no_such_attitude");
+        ListTag traits = new ListTag();
+        traits.add(StringTag.valueOf("no_such_trait"));
+        traits.add(StringTag.valueOf(FactionTrait.MERCHANT.name().toLowerCase(Locale.ROOT)));
+        entry.put("Traits", traits);
+        ListTag factions = new ListTag();
+        factions.add(entry);
+        CompoundTag tag = new CompoundTag();
+        tag.put("Factions", factions);
+
+        FactionData data = FactionData.load(tag, helper.getLevel().registryAccess());
+
+        FactionSpec faction = data.byId("test_faction_284").orElse(null);
+        helper.assertTrue(faction != null, "The faction must load");
+        helper.assertTrue(faction.attitude() == Attitude.NEUTRAL, "An unknown attitude gives neutral");
+        helper.assertTrue(faction.traits().equals(Set.of(FactionTrait.MERCHANT)),
+                "The known trait stays and the unknown trait is skipped: " + faction.traits());
         helper.succeed();
     }
 

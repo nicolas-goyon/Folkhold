@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroups;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +32,11 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public final class MobileGroupData extends SavedData {
     private static final String FILE_ID = "folkhold_groups";
+    /**
+     * The version of the saved format. {@code load} reads the tag of an earlier version (a tag with no version is
+     * version 0) and the data saves with the current version. A tag of a later version loads with a warning.
+     */
+    static final int VERSION = 1;
 
     private final MobileGroups groups = new MobileGroups();
     private final Map<String, RouteEntry> routes = new HashMap<>();
@@ -76,7 +82,7 @@ public final class MobileGroupData extends SavedData {
      * @return the entry, or null if the route was not calculated
      */
     public RouteEntry routeEntry(String firstId, String secondId) {
-        return routes.get(routeKey(firstId, secondId));
+        return routes.get(Route.pairKey(firstId, secondId));
     }
 
     /**
@@ -85,13 +91,8 @@ public final class MobileGroupData extends SavedData {
      * @param entry the entry
      */
     public void putRoute(RouteEntry entry) {
-        routes.put(routeKey(entry.fromId(), entry.toId()), entry);
+        routes.put(Route.pairKey(entry.fromId(), entry.toId()), entry);
         setDirty();
-    }
-
-    /** The number of calculated routes, with the results "no route". */
-    public int routeCount() {
-        return routes.size();
     }
 
     /**
@@ -102,7 +103,7 @@ public final class MobileGroupData extends SavedData {
      * @return the entry, or null if the detailed route was not calculated
      */
     public RouteEntry detailedRouteEntry(String firstId, String secondId) {
-        return detailedRoutes.get(routeKey(firstId, secondId));
+        return detailedRoutes.get(Route.pairKey(firstId, secondId));
     }
 
     /**
@@ -111,21 +112,42 @@ public final class MobileGroupData extends SavedData {
      * @param entry the entry
      */
     public void putDetailedRoute(RouteEntry entry) {
-        detailedRoutes.put(routeKey(entry.fromId(), entry.toId()), entry);
+        detailedRoutes.put(Route.pairKey(entry.fromId(), entry.toId()), entry);
         setDirty();
     }
 
-    /** The number of calculated detailed routes, with the results "no route". */
-    public int detailedRouteCount() {
-        return detailedRoutes.size();
+    /**
+     * Replaces the id of a settlement in the groups, the routes and the detailed routes.
+     *
+     * @param oldId the current id of the settlement
+     * @param newId the new id
+     */
+    public void renameSettlement(String oldId, String newId) {
+        groups.renameSettlement(oldId, newId);
+        renameSettlement(routes, oldId, newId);
+        renameSettlement(detailedRoutes, oldId, newId);
+        setDirty();
     }
 
-    private static String routeKey(String firstId, String secondId) {
-        return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
+    private static void renameSettlement(Map<String, RouteEntry> entries, String oldId, String newId) {
+        List<RouteEntry> renamed = new ArrayList<>();
+        for (RouteEntry entry : entries.values()) {
+            if (entry.fromId().equals(oldId) || entry.toId().equals(oldId)) {
+                renamed.add(entry);
+            }
+        }
+        for (RouteEntry entry : renamed) {
+            entries.remove(Route.pairKey(entry.fromId(), entry.toId()));
+            RouteEntry replaced = new RouteEntry(entry.fromId().equals(oldId) ? newId : entry.fromId(),
+                    entry.toId().equals(oldId) ? newId : entry.toId(), entry.fromX(), entry.fromZ(), entry.toX(),
+                    entry.toZ(), entry.route());
+            entries.put(Route.pairKey(replaced.fromId(), replaced.toId()), replaced);
+        }
     }
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+        tag.putInt("Version", VERSION);
         ListTag list = new ListTag();
         for (MobileGroup group : groups.all()) {
             list.add(saveGroup(group));
@@ -164,7 +186,7 @@ public final class MobileGroupData extends SavedData {
                     : Optional.empty();
             RouteEntry entry = new RouteEntry(routeTag.getString("From"), routeTag.getString("To"), ends[0], ends[1],
                     ends[2], ends[3], route);
-            entries.put(routeKey(entry.fromId(), entry.toId()), entry);
+            entries.put(Route.pairKey(entry.fromId(), entry.toId()), entry);
         }
     }
 
@@ -177,6 +199,11 @@ public final class MobileGroupData extends SavedData {
      */
     public static MobileGroupData load(CompoundTag tag, HolderLookup.Provider registries) {
         MobileGroupData data = new MobileGroupData();
+        int version = tag.getInt("Version");
+        if (version > VERSION) {
+            FolkholdWorld.LOGGER.warn("{} has the format version {}, this version of the mod reads version {}",
+                    FILE_ID, version, VERSION);
+        }
         ListTag list = tag.getList("Groups", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             MobileGroup group = loadGroup(list.getCompound(i));
@@ -258,16 +285,29 @@ public final class MobileGroupData extends SavedData {
         return Optional.of(new Route(points, surfaces));
     }
 
-    /** Reads one group. A group with an invalid route gives null. */
+    /**
+     * Reads one group. A group with an invalid route or an unknown kind gives null. A group with an unknown state
+     * travels; a member with an unknown role is not in the group.
+     */
     private static MobileGroup loadGroup(CompoundTag tag) {
         Optional<Route> route = loadRoute(tag.getIntArray("Route"), tag.getByteArray("RouteSurfaces"));
         if (route.isEmpty()) {
             return null;
         }
-        MobileGroup group = new MobileGroup(tag.getString("Id"), GroupKind.fromSerializedName(tag.getString("Kind")),
-                tag.getString("Faction"), tag.getString("Origin"), tag.getString("Destination"), route.get());
+        Optional<GroupKind> kind = GroupKind.fromSerializedName(tag.getString("Kind"));
+        if (kind.isEmpty()) {
+            FolkholdWorld.LOGGER.warn("Unknown kind '{}' for the group {}: the group is dropped",
+                    tag.getString("Kind"), tag.getString("Id"));
+            return null;
+        }
+        MobileGroup group = new MobileGroup(tag.getString("Id"), kind.get(), tag.getString("Faction"),
+                tag.getString("Origin"), tag.getString("Destination"), route.get());
         group.setProgress(tag.getDouble("Progress"));
-        group.setState(GroupState.fromSerializedName(tag.getString("State")));
+        group.setState(GroupState.fromSerializedName(tag.getString("State")).orElseGet(() -> {
+            FolkholdWorld.LOGGER.warn("Unknown state '{}' for the group {}: the group travels",
+                    tag.getString("State"), group.id());
+            return GroupState.TRAVELING;
+        }));
         group.setDepartureTick(tag.getLong("DepartureTick"));
         group.setPayment(tag.getLong("Payment"));
         group.setRouteReady(!tag.contains("RouteReady") || tag.getBoolean("RouteReady"));
@@ -278,9 +318,14 @@ public final class MobileGroupData extends SavedData {
         ListTag members = tag.getList("Members", Tag.TAG_COMPOUND);
         for (int i = 0; i < members.size(); i++) {
             CompoundTag entry = members.getCompound(i);
+            Optional<MemberRole> role = MemberRole.fromSerializedName(entry.getString("Role"));
+            if (role.isEmpty()) {
+                FolkholdWorld.LOGGER.warn("Unknown role '{}' in the group {}: the member is dropped",
+                        entry.getString("Role"), group.id());
+                continue;
+            }
             if (entry.hasUUID("Id") && group.member(entry.getUUID("Id")).isEmpty()) {
-                group.addMember(new GroupMember(entry.getUUID("Id"),
-                        MemberRole.fromSerializedName(entry.getString("Role")), entry.getFloat("Health")));
+                group.addMember(new GroupMember(entry.getUUID("Id"), role.get(), entry.getFloat("Health")));
             }
         }
         return group;

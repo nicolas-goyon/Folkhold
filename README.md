@@ -8,8 +8,8 @@ The project has one shared library and three mods:
 | --- | --- | --- |
 | `core` | `folkhold_core` | Shared library: abstract simulation, regions, scheduler |
 | `world` | `folkhold_world` | Factions, villages, economy, caravans, quests |
-| `balance` | `folkhold_balance` | Farm limits, villager budgets, chunk loading |
-| `events` | `folkhold_events` | Earthquakes, collapses |
+| `balance` | `folkhold_balance` | Planned: farm limits, villager budgets, chunk loading. The mod is empty. |
+| `events` | `folkhold_events` | Planned: earthquakes, collapses. The mod is empty. |
 
 A packwiz modpack (`modpack/`) adds existing mods for performance, nature and weather.
 
@@ -24,8 +24,9 @@ Supported languages: English, French.
 
 ## Status
 
-Early development. See the [issues](https://github.com/nicolas-goyon/Folkhold/issues) and the roadmap review in #6.
+Early development. See the [milestones](https://github.com/nicolas-goyon/Folkhold/milestones) and the [issues](https://github.com/nicolas-goyon/Folkhold/issues).
 
 ## License
 
-All Rights Reserved, until the owner selects a license (see #7).
+The code is under the [MIT License](LICENSE). The assets (textures, models, animations, structures) are under
+[CC BY 4.0](docs/ASSETS_LICENSES.md).

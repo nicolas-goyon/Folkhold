@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.quest;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
@@ -9,9 +10,12 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
+import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Active;
@@ -24,10 +28,9 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
-import javax.annotation.Nullable;
+import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -44,7 +47,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * The quest boards and the quest log of the players.
@@ -54,17 +56,16 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *       and the active quests of the player (see {@link QuestBoardPayload}). A captain does not talk to a hostile
  *       player.</li>
  *   <li>The player accepts an offer, gives the items of a delivery (see {@link Deliveries}) or abandons an active
- *       quest with the buttons of the screen. The server checks the action, sends a message and updates the
- *       screen.</li>
+ *       quest with the buttons of the screen. The server checks that the player is in the village and not hostile,
+ *       does the action, shows the result on the status line of the screen and updates the screen.</li>
  *   <li>A completed quest gives its reward: emeralds from the treasury of the faction of the village, and
- *       reputation (see {@link #complete(MinecraftServer, Quest)}).</li>
+ *       reputation (see {@link #complete(MinecraftServer, Quest)}). A player who is not in the game gets the
+ *       reward at the next login.</li>
  *   <li>The player gets a message when a quest starts, succeeds or fails. The quest HUD shows the active quests
  *       (see {@link QuestLogPayload}).</li>
  * </ul>
  */
 public final class QuestBoards {
-    private static final long TICKS_PER_MINUTE = 1200L;
-    private static final long TICKS_PER_SECOND = 20L;
     /** The item of the icon of an escort. */
     private static final String ESCORT_ICON = "minecraft:chest";
     /** Colors of the texts on the parchment of the screen. */
@@ -74,17 +75,22 @@ public final class QuestBoards {
     /** Colors of the texts on the wood of the screen. */
     private static final int TEXT_GOOD = 0x9AD07E;
     private static final int TEXT_WARN = 0xE0A635;
-    /** The keys of the messages of a success. */
-    private static final Set<String> GOOD_MESSAGES = Set.of("quest_accepted", "quest_abandoned");
-
-    /** The player of a screen action: its messages go to the status line of the screen, not to the chat. */
-    @Nullable
-    private static ServerPlayer capturePlayer;
-    @Nullable
-    private static Component capturedMessage;
-    private static boolean capturedGood;
+    /** A player this far outside the village radius can still use the quest screen: the reach of a click. */
+    private static final double ACTION_MARGIN = 8.0;
     private static final List<BiConsumer<ServerPlayer, Quest>> ACCEPT_LISTENERS = new ArrayList<>();
     private static final List<BiConsumer<MinecraftServer, Quest>> END_LISTENERS = new ArrayList<>();
+
+    /**
+     * The result of an action of the quest screen.
+     *
+     * @param done    true if the action succeeded
+     * @param message the message for the status line of the screen
+     */
+    public record Outcome(boolean done, Component message) {
+        static Outcome of(boolean done, String key, Object... args) {
+            return new Outcome(done, Component.translatable("message.folkhold_world." + key, args));
+        }
+    }
 
     private QuestBoards() {
     }
@@ -130,9 +136,7 @@ public final class QuestBoards {
 
     /** Opens the quest screen of a village. A client with no channel for the screen gets nothing. */
     public static void open(ServerPlayer player, Settlement settlement) {
-        if (player.connection.hasChannel(QuestBoardPayload.TYPE)) {
-            PacketDistributor.sendToPlayer(player, board(player, settlement));
-        }
+        ModNetwork.send(player, board(player, settlement));
     }
 
     /**
@@ -143,21 +147,23 @@ public final class QuestBoards {
      * @param settlementId the id of the village
      */
     public static void request(ServerPlayer player, String settlementId) {
-        MinecraftServer server = player.server;
-        Optional<Settlement> village = SettlementData.get(server).registry().byId(settlementId)
-                .filter(Settlement::isActive);
-        if (village.isEmpty()) {
-            return;
+        SettlementData.get(player.server).registry().byId(settlementId)
+                .filter(Settlement::isActive)
+                .filter(village -> canAct(player, village))
+                .ifPresent(village -> open(player, village));
+    }
+
+    /**
+     * True if the player can use the quest screen of a village: the player is in the village radius (plus the
+     * reach of a click), and the village is not hostile to the player.
+     */
+    public static boolean canAct(ServerPlayer player, Settlement village) {
+        double radius = WorldConfig.VILLAGE_RADIUS.get() + ACTION_MARGIN;
+        if (village.distanceSquared(player.getBlockX(), player.getBlockZ()) > radius * radius) {
+            return false;
         }
-        double radius = WorldConfig.VILLAGE_RADIUS.get();
-        if (village.get().distanceSquared(player.getBlockX(), player.getBlockZ()) > radius * radius) {
-            return;
-        }
-        boolean hostile = Reputations.effective(server, player, village.get().factionId(), settlementId)
+        return !Reputations.effective(player.server, player, village.factionId(), village.id())
                 .map(ReputationTier::of).map(ReputationTier::isHostile).orElse(false);
-        if (!hostile) {
-            open(player, village.get());
-        }
     }
 
     /** A click on a captain opens the quest screen of its village. */
@@ -181,59 +187,83 @@ public final class QuestBoards {
         open(player, village.get());
     }
 
-    /** A player who joins gets the quest HUD. */
+    /** A player who joins gets the rewards of the quests that completed while the player was away, and the HUD. */
     public static void onLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            for (QuestData.Reward reward : QuestData.get(player.server).takePendingRewards(player.getUUID())) {
+                Notices.send(player, pay(player, reward), null, Notices.Tone.GOOD);
+            }
             sendLog(player);
         }
     }
 
     /**
-     * A button of the quest screen.
+     * A button of the quest screen. The action happens only when the player is in the village of the screen and
+     * the village is not hostile (see {@link #canAct}). Then the screen shows the result.
      *
      * @param player  the player
      * @param payload the action
      */
     public static void handle(ServerPlayer player, QuestActionPayload payload) {
         MinecraftServer server = player.server;
-        QuestData data = QuestData.get(server);
-        Quests quests = data.quests();
-        Optional<Quest> quest = quests.byId(payload.questId());
-        capturePlayer = player;
-        capturedMessage = null;
-        try {
-            switch (payload.action()) {
-                case QuestBoardPayload.ACTION_ACCEPT -> accept(player, payload.questId());
-                case QuestBoardPayload.ACTION_DELIVER -> Deliveries.deliver(player, payload.questId());
-                case QuestBoardPayload.ACTION_ABANDON -> {
-                    if (quest.isPresent() && quests.abandon(payload.questId(), player.getUUID())) {
-                        message(player, "quest_abandoned", name(server, quest.get()));
-                        END_LISTENERS.forEach(listener -> listener.accept(server, quest.get()));
-                    }
-                }
-                default -> {
-                }
-            }
-        } finally {
-            capturePlayer = null;
-        }
-        data.setDirty();
-        Component status = capturedMessage;
-        boolean good = capturedGood;
-        capturedMessage = null;
         Optional<Settlement> village = SettlementData.get(server).registry().byId(payload.settlementId())
                 .filter(Settlement::isActive);
-        if (village.isPresent() && player.connection.hasChannel(QuestBoardPayload.TYPE)) {
+        Optional<Outcome> outcome;
+        if (village.isEmpty() || !canAct(player, village.get())) {
+            outcome = Optional.of(Outcome.of(false, "quest_gone"));
+        } else {
+            outcome = switch (payload.action()) {
+                case QuestBoardPayload.ACTION_ACCEPT -> Optional.of(acceptAt(player, payload.questId(), village.get()));
+                case QuestBoardPayload.ACTION_DELIVER ->
+                        Optional.of(Deliveries.deliver(player, payload.questId(), village.get()));
+                case QuestBoardPayload.ACTION_ABANDON -> Optional.of(abandon(player, payload.questId()));
+                default -> Optional.empty();
+            };
+        }
+        QuestData.get(server).setDirty();
+        boolean shown = false;
+        if (village.isPresent()) {
             QuestBoardPayload board = board(player, village.get());
-            PacketDistributor.sendToPlayer(player, status == null ? board : board.withStatus(status, good));
-        } else if (status != null) {
-            player.displayClientMessage(status, false);
+            shown = ModNetwork.send(player,
+                    outcome.map(result -> board.withStatus(result.message(), result.done())).orElse(board));
+        }
+        if (!shown) {
+            outcome.ifPresent(result -> player.displayClientMessage(result.message(), false));
         }
         sendLog(player);
     }
 
+    /** A player accepts an offer of the quest screen of a village. The offer must come from this village. */
+    private static Outcome acceptAt(ServerPlayer player, String questId, Settlement village) {
+        MinecraftServer server = player.server;
+        Optional<Quest> quest = QuestData.get(server).quests().byId(questId)
+                .filter(found -> found.settlementId().equals(village.id()));
+        if (quest.isEmpty()) {
+            return Outcome.of(false, "quest_gone");
+        }
+        return switch (accept(player, questId)) {
+            case ACCEPTED -> Outcome.of(true, "quest_accepted", name(server, quest.get()));
+            case TIER_TOO_LOW -> Outcome.of(false, "quest_tier_too_low");
+            case TOO_MANY -> Outcome.of(false, "quest_too_many", WorldConfig.QUEST_MAX_ACTIVE.get());
+            default -> Outcome.of(false, "quest_gone");
+        };
+    }
+
+    /** A player abandons an active quest. */
+    private static Outcome abandon(ServerPlayer player, String questId) {
+        MinecraftServer server = player.server;
+        QuestData data = QuestData.get(server);
+        Optional<Quest> quest = data.quests().byId(questId);
+        if (quest.isEmpty() || !data.quests().abandon(questId, player.getUUID())) {
+            return Outcome.of(false, "quest_gone");
+        }
+        data.setDirty();
+        END_LISTENERS.forEach(listener -> listener.accept(server, quest.get()));
+        return Outcome.of(true, "quest_abandoned", name(server, quest.get()));
+    }
+
     /**
-     * A player accepts an offer.
+     * A player accepts an offer. The caller shows the result to the player.
      *
      * @param player  the player
      * @param questId the id of the quest
@@ -247,14 +277,8 @@ public final class QuestBoards {
         long now = server.overworld().getGameTime();
         Quests.AcceptResult result = data.quests().accept(questId, player.getUUID(), tier, now,
                 WorldConfig.QUEST_MAX_ACTIVE.get());
-        switch (result) {
-            case ACCEPTED -> {
-                message(player, "quest_accepted", name(server, quest.get()));
-                ACCEPT_LISTENERS.forEach(listener -> listener.accept(player, quest.get()));
-            }
-            case TIER_TOO_LOW -> message(player, "quest_tier_too_low");
-            case TOO_MANY -> message(player, "quest_too_many", WorldConfig.QUEST_MAX_ACTIVE.get());
-            default -> message(player, "quest_gone");
+        if (result == Quests.AcceptResult.ACCEPTED) {
+            ACCEPT_LISTENERS.forEach(listener -> listener.accept(player, quest.get()));
         }
         data.setDirty();
         return result;
@@ -277,7 +301,8 @@ public final class QuestBoards {
         if (result != Quests.AcceptResult.ACCEPTED) {
             return false;
         }
-        message(player, "quest_accepted", name(server, quest.get()));
+        player.displayClientMessage(Component.translatable("message.folkhold_world.quest_accepted",
+                name(server, quest.get())), false);
         ACCEPT_LISTENERS.forEach(listener -> listener.accept(player, quest.get()));
         data.setDirty();
         sendLog(player);
@@ -286,33 +311,66 @@ public final class QuestBoards {
 
     /**
      * Completes an accepted quest: the player gets the emeralds (from the treasury of the faction of the village) and
-     * the reputation.
+     * the reputation. A player who is not in the game gets the reward at the next login: the treasury pays at that
+     * time.
      *
      * @param server the server
      * @param quest  the quest
-     * @return true if the quest was accepted
+     * @return the message of the reward when the player got it now, or empty
      */
-    public static boolean complete(MinecraftServer server, Quest quest) {
+    public static Optional<Component> complete(MinecraftServer server, Quest quest) {
         UUID playerId = quest.playerId();
         QuestData data = QuestData.get(server);
         if (playerId == null || !data.quests().finish(quest.id(), QuestState.COMPLETED)) {
-            return false;
+            return Optional.empty();
         }
         data.setDirty();
-        SettlementData settlements = SettlementData.get(server);
-        long emeralds = Math.min(quest.rewardEmeralds(), settlements.treasury(quest.factionId()));
-        settlements.addTreasury(quest.factionId(), -emeralds);
+        QuestData.Reward reward = new QuestData.Reward(playerId, quest.factionId(), quest.settlementId(),
+                quest.rewardEmeralds(), quest.rewardReputation(), name(server, quest));
         ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+        Optional<Component> message = Optional.empty();
         if (player != null) {
-            giveEmeralds(player, emeralds);
-            Reputations.apply(server, player, quest.factionId(), quest.settlementId(), quest.rewardReputation());
-            notice(player, Notices.Tone.GOOD,
-                    Component.translatable("message.folkhold_world.quest_completed", name(server, quest)),
-                    Component.translatable("message.folkhold_world.quest_reward", emeralds));
+            message = Optional.of(pay(player, reward));
             sendLog(player);
+        } else {
+            data.addPendingReward(reward);
         }
         END_LISTENERS.forEach(listener -> listener.accept(server, quest));
-        return true;
+        return message;
+    }
+
+    /**
+     * Completes an accepted quest and sends the message of the reward to the player (see {@link #complete}). For
+     * the code that runs with no quest screen open.
+     *
+     * @param server the server
+     * @param quest  the quest
+     */
+    public static void completeAndNotify(MinecraftServer server, Quest quest) {
+        complete(server, quest).ifPresent(message -> {
+            ServerPlayer player = server.getPlayerList().getPlayer(quest.playerId());
+            if (player != null) {
+                Notices.send(player, message, null, Notices.Tone.GOOD);
+            }
+        });
+    }
+
+    /**
+     * Pays a reward to a player: the emeralds, up to the treasury of the faction, and the reputation.
+     *
+     * @param player the player
+     * @param reward the reward
+     * @return the message of the reward
+     */
+    private static Component pay(ServerPlayer player, QuestData.Reward reward) {
+        MinecraftServer server = player.server;
+        SettlementData settlements = SettlementData.get(server);
+        long emeralds = Math.min(reward.emeralds(), settlements.treasury(reward.factionId()));
+        settlements.addTreasury(reward.factionId(), -emeralds);
+        giveEmeralds(player, emeralds);
+        Reputations.apply(server, player, reward.factionId(), reward.settlementId(), reward.reputation());
+        return Notices.asText(Component.translatable("message.folkhold_world.quest_completed", reward.name()),
+                Component.translatable("message.folkhold_world.quest_reward", emeralds));
     }
 
     /**
@@ -343,8 +401,8 @@ public final class QuestBoards {
         if (quest.state() == QuestState.FAILED && quest.playerId() != null) {
             ServerPlayer player = server.getPlayerList().getPlayer(quest.playerId());
             if (player != null) {
-                notice(player, Notices.Tone.BAD,
-                        Component.translatable("message.folkhold_world.quest_failed", name(server, quest)), null);
+                Notices.send(player, Component.translatable("message.folkhold_world.quest_failed",
+                        name(server, quest)), null, Notices.Tone.BAD);
                 sendLog(player);
             }
         }
@@ -355,10 +413,7 @@ public final class QuestBoards {
 
     /** Sends the active quests of a player to the quest HUD. A client with no channel for the HUD gets nothing. */
     public static void sendLog(ServerPlayer player) {
-        if (!player.connection.hasChannel(QuestLogPayload.TYPE)) {
-            return;
-        }
-        PacketDistributor.sendToPlayer(player, log(player));
+        ModNetwork.send(player, log(player));
     }
 
     /**
@@ -372,12 +427,10 @@ public final class QuestBoards {
         long now = server.overworld().getGameTime();
         List<QuestLogPayload.Entry> entries = new ArrayList<>();
         for (Quest quest : QuestData.get(server).quests().active(player.getUUID())) {
-            int secondsLeft = (int) Math.max(0, (quest.deadline() - now) / TICKS_PER_SECOND);
+            int secondsLeft = (int) Math.max(0, (quest.deadline() - now) / SharedConstants.TICKS_PER_SECOND);
             if (quest.kind() == QuestKind.DELIVERY) {
                 Optional<BlockPos> village = SettlementData.get(server).registry().byId(quest.settlementId())
-                        .map(settlement -> new BlockPos(settlement.x(),
-                                settlement.hasHeart() ? settlement.heartY() : server.overworld().getSeaLevel(),
-                                settlement.z()));
+                        .map(settlement -> Settlements.position(server, settlement));
                 entries.add(new QuestLogPayload.Entry(quest.id(), quest.target(),
                         Component.translatable("quest.folkhold_world.active.delivery", quest.count(),
                                 itemName(quest.target())),
@@ -429,7 +482,7 @@ public final class QuestBoards {
 
     private static Offer offer(MinecraftServer server, ServerPlayer player, Quest quest, long now,
             ReputationTier playerTier, int activeCount, int maxActive) {
-        int minutes = (int) (quest.duration() / TICKS_PER_MINUTE);
+        int minutes = (int) (quest.duration() / SharedConstants.TICKS_PER_MINUTE);
         Component kind = Component.translatable("quest.folkhold_world.kind." + quest.kind().serializedName());
         Component info;
         Component progress = Component.empty();
@@ -438,14 +491,14 @@ public final class QuestBoards {
         if (quest.kind() == QuestKind.DELIVERY) {
             icon = quest.target();
             info = Component.translatable("quest.folkhold_world.info.delivery", kind, minutes);
-            int have = Deliveries.count(player.getInventory(), item(quest.target()).orElse(Items.AIR));
+            int have = Deliveries.count(player.getInventory(), ItemIds.item(quest.target()).orElse(Items.AIR));
             progress = Component.translatable("quest.folkhold_world.have", have, quest.count())
                     .withColor(have >= quest.count() ? INK_GOOD : have > 0 ? INK_BAD : INK_MUTED);
         } else {
             icon = ESCORT_ICON;
             long blocks = Escorts.caravan(server, quest).map(group -> Math.round(group.route().length())).orElse(0L);
             info = Component.translatable("quest.folkhold_world.info.escort", kind, blocks, minutes);
-            countdown = (int) Math.max(0, (quest.offerEnd() - now) / TICKS_PER_SECOND);
+            countdown = (int) Math.max(0, (quest.offerEnd() - now) / SharedConstants.TICKS_PER_SECOND);
         }
         if (quest.minTier() != ReputationTier.NEUTRAL) {
             info = Component.translatable("quest.folkhold_world.info.tier", info, tierMark(quest.minTier()));
@@ -454,9 +507,9 @@ public final class QuestBoards {
         if (activeCount >= maxActive) {
             blocked = Optional.of(Component.translatable("quest.folkhold_world.blocked.full", activeCount,
                     maxActive));
-        } else if (playerTier.ordinal() < quest.minTier().ordinal()) {
+        } else if (!playerTier.isAtLeast(quest.minTier())) {
             blocked = Optional.of(Component.translatable("quest.folkhold_world.blocked.tier",
-                    tierTitle(quest.minTier())));
+                    FactionVisuals.tierName(quest.minTier())));
         }
         return new Offer(quest.id(), quest.kind().serializedName(), icon, name(server, quest), info,
                 Component.translatable("quest.folkhold_world.reward", quest.rewardEmeralds(),
@@ -466,18 +519,21 @@ public final class QuestBoards {
 
     private static Active active(MinecraftServer server, ServerPlayer player, Quest quest, long now,
             Settlement here) {
-        int secondsLeft = (int) Math.max(0, (quest.deadline() - now) / TICKS_PER_SECOND);
+        int secondsLeft = (int) Math.max(0, (quest.deadline() - now) / SharedConstants.TICKS_PER_SECOND);
         MutableComponent info = Component.translatable("quest.folkhold_world.active.info",
                 villageName(server, quest.settlementId()), quest.rewardEmeralds());
         int action = QuestBoardPayload.ACTION_NONE;
         Optional<Component> blocked = Optional.empty();
         boolean ready = false;
         if (quest.kind() == QuestKind.DELIVERY) {
-            Optional<Item> item = item(quest.target());
+            Optional<Item> item = ItemIds.item(quest.target());
             int have = Deliveries.count(player.getInventory(), item.orElse(Items.AIR));
-            info.append(" · ").append(Component.translatable("quest.folkhold_world.active.progress",
-                    Math.min(have, quest.count()), quest.count(), have >= quest.count() ? " ✓" : "")
-                    .withColor(have >= quest.count() ? TEXT_GOOD : 0xA89F8C));
+            MutableComponent progress = Component.translatable("quest.folkhold_world.active.progress",
+                    Math.min(have, quest.count()), quest.count());
+            if (have >= quest.count()) {
+                progress = Component.translatable("quest.folkhold_world.active.done", progress);
+            }
+            info.append(UiStrings.separator()).append(progress.withColor(have >= quest.count() ? TEXT_GOOD : 0xA89F8C));
             if (Deliveries.canDeliverAt(quest, here)) {
                 action = QuestBoardPayload.ACTION_DELIVER;
                 ready = have >= quest.count();
@@ -495,7 +551,7 @@ public final class QuestBoards {
                     info, secondsLeft, action, blocked, ready);
         }
         Optional<MobileGroup> caravan = Escorts.caravan(server, quest);
-        caravan.map(QuestBoards::caravanState).ifPresent(state -> info.append(" · ").append(state));
+        caravan.map(QuestBoards::caravanState).ifPresent(state -> info.append(UiStrings.separator()).append(state));
         String destination = caravan.map(MobileGroup::destinationId).orElse("");
         return new Active(quest.id(), ESCORT_ICON,
                 Component.translatable("quest.folkhold_world.active.escort", villageName(server, destination)),
@@ -515,19 +571,9 @@ public final class QuestBoards {
 
     /** The minimum tier of an offer: a tick and the name of the tier, in green. */
     private static Component tierMark(ReputationTier tier) {
-        return Component.literal("✓ ").append(tierTitle(tier)).withColor(INK_GOOD);
+        return Component.literal("✓ ").append(FactionVisuals.tierName(tier)).withColor(INK_GOOD);
     }
 
-    /** The name of a tier with a capital letter, for a title or a chip. */
-    public static Component tierTitle(ReputationTier tier) {
-        return Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName());
-    }
-
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location)
-                .filter(found -> found != Items.AIR);
-    }
 
     /** The text of a quest: what to do. */
     public static Component name(MinecraftServer server, Quest quest) {
@@ -568,32 +614,5 @@ public final class QuestBoards {
             }
             remaining -= count;
         }
-    }
-
-    /**
-     * Sends a notice to a player: the result of a quest. During a screen action of this player, the notice goes to
-     * the status line of the screen.
-     */
-    private static void notice(ServerPlayer player, Notices.Tone tone, Component title, @Nullable Component details) {
-        if (player == capturePlayer) {
-            capturedMessage = Notices.asText(title, details);
-            capturedGood = tone == Notices.Tone.GOOD;
-            return;
-        }
-        Notices.send(player, title, details, tone);
-    }
-
-    /**
-     * Sends a message to a player. During a screen action of this player, the message goes to the status line of
-     * the screen.
-     */
-    static void message(ServerPlayer player, String key, Object... args) {
-        Component text = Component.translatable("message.folkhold_world." + key, args);
-        if (player == capturePlayer) {
-            capturedMessage = text;
-            capturedGood = GOOD_MESSAGES.contains(key);
-            return;
-        }
-        player.displayClientMessage(text, false);
     }
 }

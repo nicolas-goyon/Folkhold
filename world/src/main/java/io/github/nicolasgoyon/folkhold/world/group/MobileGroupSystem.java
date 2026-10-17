@@ -1,8 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.group;
 
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
-import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupSimulation;
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
@@ -30,6 +30,8 @@ import net.minecraft.server.MinecraftServer;
  *   <li>The entities of an arrived group stay in the village for some time (see
  *       {@link GroupMaterializer#release}). The entities of a lost group disappear. The escort quest of the group
  *       ends (see {@link Escorts#onGroupFinished}).</li>
+ *   <li>A group with entities arrives as soon as its merchant reaches the destination (see {@link #arrive}), not
+ *       on the abstract tick.</li>
  * </ul>
  */
 public final class MobileGroupSystem {
@@ -59,12 +61,7 @@ public final class MobileGroupSystem {
 
                     @Override
                     public void onArrival(MobileGroup group) {
-                        Escorts.onGroupFinished(server, group);
-                        GroupMaterializer.release(server.overworld(), group);
-                        deliver(server, group);
-                        if (group.kind() == GroupKind.CARAVAN) {
-                            VillageTrade.onArrival(server, group);
-                        }
+                        arrive(server, group);
                     }
 
                     @Override
@@ -77,6 +74,27 @@ public final class MobileGroupSystem {
         if (report.moved() > 0 || report.arrived() > 0 || report.lost() > 0) {
             data.setDirty();
         }
+    }
+
+    /**
+     * A group arrives at its destination: the escort quest of the group ends, the entities of the group stay in
+     * the village for some time (see {@link GroupMaterializer#release}), the cargo goes into the stock of the
+     * destination, the destination pays the origin (caravan), and the group leaves the registry. A group with
+     * entities arrives at once (see {@link GroupMaterializer#update}), the other groups arrive on the abstract tick.
+     *
+     * @param server the server
+     * @param group  the group, in the state {@link GroupState#ARRIVED}
+     */
+    public static void arrive(MinecraftServer server, MobileGroup group) {
+        Escorts.onGroupFinished(server, group);
+        GroupMaterializer.release(server.overworld(), group);
+        deliver(server, group);
+        if (group.kind() == GroupKind.CARAVAN) {
+            VillageTrade.onArrival(server, group);
+        }
+        MobileGroupData data = MobileGroupData.get(server);
+        data.groups().remove(group.id());
+        data.setDirty();
     }
 
     /**

@@ -1,7 +1,10 @@
 package io.github.nicolasgoyon.folkhold.core.sim.quest;
 
+import io.github.nicolasgoyon.folkhold.core.sim.SerializedName;
+import java.util.Optional;
+
 /** The state of a quest. */
-public enum QuestState {
+public enum QuestState implements SerializedName {
     /** On the quest board of its village. No player has it. */
     OFFERED("offered"),
     /** A player has it. The deadline runs. */
@@ -20,6 +23,7 @@ public enum QuestState {
     }
 
     /** The name in the saved data and in the translation keys. */
+    @Override
     public String serializedName() {
         return serializedName;
     }
@@ -30,17 +34,12 @@ public enum QuestState {
     }
 
     /**
-     * The state with a name.
+     * The state with a serialized name.
      *
      * @param name the name in the saved data
-     * @return the state. An unknown name gives {@link #EXPIRED}.
+     * @return the state, or empty for an unknown name
      */
-    public static QuestState fromSerializedName(String name) {
-        for (QuestState state : values()) {
-            if (state.serializedName.equals(name)) {
-                return state;
-            }
-        }
-        return EXPIRED;
+    public static Optional<QuestState> fromSerializedName(String name) {
+        return SerializedName.lookup(QuestState.class, name);
     }
 }

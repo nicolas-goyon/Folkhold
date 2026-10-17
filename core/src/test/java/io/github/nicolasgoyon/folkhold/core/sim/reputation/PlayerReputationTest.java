@@ -60,6 +60,18 @@ class PlayerReputationTest {
     }
 
     @Test
+    void storedValuesAreInIdOrder() {
+        PlayerReputation reputation = new PlayerReputation();
+        reputation.setFaction("north", 1);
+        reputation.setFaction("east", 2);
+        reputation.setVillage("village_b", 3);
+        reputation.setVillage("village_a", 4);
+
+        assertEquals(List.of("east", "north"), List.copyOf(reputation.factionValues().keySet()));
+        assertEquals(List.of("village_a", "village_b"), List.copyOf(reputation.villageValues().keySet()));
+    }
+
+    @Test
     void valuesAreClamped() {
         PlayerReputation reputation = new PlayerReputation();
         reputation.setFaction("hostile", -5000);

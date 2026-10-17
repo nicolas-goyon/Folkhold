@@ -22,9 +22,9 @@ import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -104,6 +104,8 @@ public final class GroupCommandGameTests {
         Settlement village = Settlements.of(server, heart).orElseThrow();
         village.economy().setPopulation(10);
         village.economy().setInitialized(true);
+        // With no stock, the village needs its items: it offers deliveries.
+        TestSupport.emptyStock(village);
         ServerPlayer player = TestSupport.mockPlayer(helper);
         BlockPos pos = helper.absolutePos(HEART.east(2));
         player.teleportTo(pos.getX(), pos.getY(), pos.getZ());

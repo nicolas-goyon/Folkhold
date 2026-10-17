@@ -162,7 +162,6 @@ public final class Settlement {
         this.biome = Objects.requireNonNull(biome);
     }
 
-    /** The economic state: population, jobs, stock. */
     public EconomyState economy() {
         return economy;
     }

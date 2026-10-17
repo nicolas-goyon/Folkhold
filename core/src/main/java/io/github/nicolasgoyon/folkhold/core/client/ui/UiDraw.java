@@ -132,20 +132,6 @@ public final class UiDraw {
         return width;
     }
 
-    /**
-     * Draws a chip: a small box with no border, and a text. For example the reputation tier.
-     *
-     * @return the width of the chip
-     */
-    public static int chip(GuiGraphics graphics, Font font, int x, int y, Component text, int background,
-            int textColor) {
-        int width = font.width(text) + 8;
-        UiRect rect = new UiRect(x, y, width, UiTheme.BADGE);
-        fill(graphics, rect, background);
-        graphics.drawString(font, text, x + 4, UiText.textY(rect), textColor, false);
-        return width;
-    }
-
     /** Draws a small square mark, for example the color of a toast. */
     public static void mark(GuiGraphics graphics, int x, int y, int size, int color) {
         graphics.fill(x, y, x + size, y + size, color);

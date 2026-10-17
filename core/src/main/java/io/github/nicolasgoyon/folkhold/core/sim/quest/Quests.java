@@ -53,6 +53,23 @@ public final class Quests {
         return Optional.ofNullable(quests.get(id));
     }
 
+    /**
+     * Replaces the id of a village in all quests.
+     *
+     * @param oldId the current id of the village
+     * @param newId the new id
+     * @return the number of quests that had the old id
+     */
+    public int renameSettlement(String oldId, String newId) {
+        int count = 0;
+        for (Quest quest : quests.values()) {
+            if (quest.renameSettlement(oldId, newId)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     /** All quests, in the order of addition. */
     public Collection<Quest> all() {
         return Collections.unmodifiableCollection(quests.values());
@@ -98,7 +115,7 @@ public final class Quests {
         if (quest.state() != QuestState.OFFERED) {
             return AcceptResult.NOT_OFFERED;
         }
-        if (tier.ordinal() < quest.minTier().ordinal()) {
+        if (!tier.isAtLeast(quest.minTier())) {
             return AcceptResult.TIER_TOO_LOW;
         }
         if (active(playerId).size() >= maxActive) {
@@ -130,8 +147,12 @@ public final class Quests {
      * @param questId the id of the quest
      * @param state   {@link QuestState#COMPLETED} or {@link QuestState#FAILED}
      * @return true if the quest was accepted
+     * @throws IllegalArgumentException for another state
      */
     public boolean finish(String questId, QuestState state) {
+        if (state != QuestState.COMPLETED && state != QuestState.FAILED) {
+            throw new IllegalArgumentException("An accepted quest ends as completed or failed, not " + state);
+        }
         Quest quest = quests.get(questId);
         if (quest == null || quest.state() != QuestState.ACCEPTED) {
             return false;

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class SettlementRegistryTest {
@@ -53,18 +54,6 @@ class SettlementRegistryTest {
     }
 
     @Test
-    void withinGivesTheNearestFirst() {
-        SettlementRegistry registry = new SettlementRegistry();
-        registry.add(settlement("far", 10, 0));
-        registry.add(settlement("near", 1, 0));
-        registry.add(settlement("out", 100, 0));
-
-        List<Settlement> found = registry.within(0, 0, 200);
-
-        assertEquals(List.of("near", "far"), found.stream().map(Settlement::id).toList());
-    }
-
-    @Test
     void changeIdKeepsTheSettlementAndItsStartChunk() {
         SettlementRegistry registry = new SettlementRegistry();
         Settlement a = settlement("a", 2, 2);
@@ -105,7 +94,7 @@ class SettlementRegistryTest {
     @Test
     void stateHasAStableSavedName() {
         assertEquals("ruins", SettlementState.RUINS.serializedName());
-        assertEquals(SettlementState.RUINS, SettlementState.fromSerializedName("ruins"));
-        assertEquals(SettlementState.ACTIVE, SettlementState.fromSerializedName("unknown"));
+        assertEquals(Optional.of(SettlementState.RUINS), SettlementState.fromSerializedName("ruins"));
+        assertEquals(Optional.empty(), SettlementState.fromSerializedName("unknown"));
     }
 }

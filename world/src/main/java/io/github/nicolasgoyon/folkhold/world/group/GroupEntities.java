@@ -23,6 +23,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.horse.Mule;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.neoforged.neoforge.event.EventHooks;
 
 /**
  * Makes the entity of a member of a mobile group. The entity is not in the level yet.
@@ -76,7 +77,7 @@ public final class GroupEntities {
             guard.setFactionId(group.factionId());
             guard.setHomePos(pos);
         }
-        mob.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
+        EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
         if (mob instanceof GuardEntity guard) {
             // The spawn can find a village heart near the origin. A guard of a group has no village.
             guard.setVillagePos(null);

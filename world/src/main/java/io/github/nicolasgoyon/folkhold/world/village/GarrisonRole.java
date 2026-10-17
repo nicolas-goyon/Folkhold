@@ -1,28 +1,27 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.core.sim.SerializedName;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import java.util.Locale;
-import java.util.function.Supplier;
+import java.util.Optional;
 import net.minecraft.world.entity.EntityType;
 
 /**
  * Role of a unit in a garrison. Each role has an entity type and a configured count.
  */
-public enum GarrisonRole {
-    GUARD(ModEntities.GUARD::get),
-    ARCHER(ModEntities.ARCHER::get),
-    CAPTAIN(ModEntities.CAPTAIN::get);
-
-    private final Supplier<? extends EntityType<? extends FactionUnit>> entityType;
-
-    GarrisonRole(Supplier<? extends EntityType<? extends FactionUnit>> entityType) {
-        this.entityType = entityType;
-    }
+public enum GarrisonRole implements SerializedName {
+    GUARD,
+    ARCHER,
+    CAPTAIN;
 
     public EntityType<? extends FactionUnit> entityType() {
-        return entityType.get();
+        return switch (this) {
+            case GUARD -> ModEntities.GUARD.get();
+            case ARCHER -> ModEntities.ARCHER.get();
+            case CAPTAIN -> ModEntities.CAPTAIN.get();
+        };
     }
 
     /** Number of units of this role in a full garrison, from the config. */
@@ -34,6 +33,7 @@ public enum GarrisonRole {
         };
     }
 
+    @Override
     public String serializedName() {
         return name().toLowerCase(Locale.ROOT);
     }
@@ -42,14 +42,9 @@ public enum GarrisonRole {
      * Reads a role from its serialized name.
      *
      * @param name the serialized name
-     * @return the role, or null if the name is unknown
+     * @return the role, or empty for an unknown name
      */
-    public static GarrisonRole fromSerializedName(String name) {
-        for (GarrisonRole role : values()) {
-            if (role.serializedName().equals(name)) {
-                return role;
-            }
-        }
-        return null;
+    public static Optional<GarrisonRole> fromSerializedName(String name) {
+        return SerializedName.lookup(GarrisonRole.class, name);
     }
 }

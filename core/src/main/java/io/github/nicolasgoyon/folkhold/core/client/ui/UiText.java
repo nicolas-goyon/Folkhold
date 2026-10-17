@@ -82,11 +82,6 @@ public final class UiText {
         return result;
     }
 
-    /** The number of lines of a text in a width. */
-    public static int lineCount(Font font, FormattedText text, int width) {
-        return font.getSplitter().splitLines(text, Math.max(1, width), Style.EMPTY).size();
-    }
-
     /**
      * Draws a line of text from a left edge: at its size if it fits, smaller if it fits at {@link #MIN_SCALE}, else
      * smaller and cut with "…".
