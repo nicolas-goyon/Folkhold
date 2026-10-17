@@ -91,7 +91,7 @@ Each mod has:
 - `src/main/java/io/github/nicolasgoyon/folkhold/<module>/`: Java code.
 - `src/main/resources/assets/<mod_id>/lang/en_us.json` and `fr_fr.json`: translations.
 - `src/main/templates/META-INF/neoforge.mods.toml`: mod metadata. Gradle replaces the `${...}` values.
-- `src/test/java/`: JUnit tests.
+- `src/test/java/`: JUnit tests. In `world`, the tests run with the game runtime (registries and mods loaded, no server): a test that reads the config loads it with `TestConfig.loadWorldConfig()`. Pure logic, data and codecs go here. A test that needs a world is a GameTest.
 - `gradle.properties`: `mod_id`, `mod_name`, `mod_description`.
 
 The shared versions are in the root `gradle.properties`.
@@ -103,7 +103,7 @@ Run these commands in the container.
 | Command | Result |
 | --- | --- |
 | `./gradlew build` | Compiles, runs the JUnit tests and the translation check, makes the jars in `<module>/build/libs/`. |
-| `./gradlew test` | JUnit tests only. |
+| `./gradlew test` | JUnit tests only. For `core`, the coverage report of JaCoCo is in `core/build/reports/jacoco/test/html/index.html`. |
 | `./gradlew :core:test --tests '*RegionPosTest'` | One test class. |
 | `./gradlew checkTranslations` | Checks that `en_us.json` and `fr_fr.json` have the same keys. |
 | `./gradlew :dev:runGameTestServer` | Runs all GameTests in a server. |
@@ -219,7 +219,7 @@ The CI makes the same file for each pull request (artifact `folkhold-modpack`).
 
 ## Continuous integration and releases
 
-- Each push and pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars (and the `.mrpack` file, when the modpack exists) are available as artifacts of the run.
+- Each push and pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars (and the `.mrpack` file, when the modpack exists) and the coverage report of `core` are available as artifacts of the run.
 - A change to `.devcontainer/` runs the workflow **Dev container**: it builds the image and checks the tools.
 - To make a release, push a tag on `main`:
 
@@ -228,7 +228,7 @@ The CI makes the same file for each pull request (artifact `folkhold-modpack`).
   git push origin v0.1.0
   ```
 
-  The workflow **Release** publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`) and creates a GitHub Release with the jars and the `.mrpack` file. A version with a suffix (for example `v0.1.0-beta.1`) is a pre-release.
+  The workflow **Release** checks that the tag is on `main`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). A version with a suffix (for example `v0.1.0-beta.1`) is a pre-release. The release uses the same packwiz commit as the CI, so two runs on the same tag give the same `.mrpack` content.
 
 ## Clean up
 

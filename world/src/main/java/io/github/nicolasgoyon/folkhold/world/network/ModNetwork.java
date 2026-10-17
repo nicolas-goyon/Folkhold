@@ -12,18 +12,39 @@ import io.github.nicolasgoyon.folkhold.world.client.TerritoryTitleHud;
 import io.github.nicolasgoyon.folkhold.world.client.VillageHeartScreen;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 /**
  * Network payloads of the world mod. The handlers of the client payloads run only on the client. The lambdas
  * refer to the client classes only in their bodies, so this class also loads on a dedicated server.
+ *
+ * <p>The server sends its payloads with {@link #send(ServerPlayer, CustomPacketPayload)}, which checks the channel
+ * of the connection first.
  */
 public final class ModNetwork {
     private static final String VERSION = "1";
 
     private ModNetwork() {
+    }
+
+    /**
+     * Sends a payload to a player. A connection with no channel for the payload (a vanilla client, a mock player
+     * of the GameTests) gets nothing: the payload is dropped.
+     *
+     * @param player  the player
+     * @param payload the payload
+     * @return true if the payload is sent, false if the connection has no channel for it
+     */
+    public static boolean send(ServerPlayer player, CustomPacketPayload payload) {
+        if (player.connection == null || !player.connection.hasChannel(payload)) {
+            return false;
+        }
+        PacketDistributor.sendToPlayer(player, payload);
+        return true;
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {

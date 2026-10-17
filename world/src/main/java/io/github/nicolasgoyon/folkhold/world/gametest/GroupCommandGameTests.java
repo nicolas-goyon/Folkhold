@@ -104,6 +104,8 @@ public final class GroupCommandGameTests {
         Settlement village = Settlements.of(server, heart).orElseThrow();
         village.economy().setPopulation(10);
         village.economy().setInitialized(true);
+        // With no stock, the village needs its items: it offers deliveries.
+        TestSupport.emptyStock(village);
         ServerPlayer player = TestSupport.mockPlayer(helper);
         BlockPos pos = helper.absolutePos(HEART.east(2));
         player.teleportTo(pos.getX(), pos.getY(), pos.getZ());

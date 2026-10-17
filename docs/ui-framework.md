@@ -9,7 +9,7 @@ The classes are client classes. Only client code (screens, HUD, network handlers
 - **Sizes.** A screen works at the minimum size of 320 × 240 GUI pixels (a panel of 308 × 228 pixels). It can use more space when it is available. The vanilla font has a line of 9 pixels.
 - **Texts.** All texts come from translation keys, in English and in French. A French text is often 15 % to 30 % longer. A text that does not fit ends with "…", and the tooltip shows the complete text.
 - **No pause.** The screens do not pause the game, and the game stays visible behind the panel. Keep the screens compact.
-- **Server data.** The server owns all data. A button sends an action to the server, and shows the waiting state until the answer comes (`UiButton.setPending`).
+- **Server data.** The server owns all data. A button sends an action to the server, and shows the waiting state until the answer comes (`UiButton.setPending`), or for 5 seconds at most when the server does not answer.
 - **Colors.** A color never gives a meaning alone: add a word or a glyph (✓, ✕, ▲, ●).
 - **Dangerous actions** need a confirmation (`UiDialog`).
 - **Keyboard.** Escape closes, Tab moves the focus, Enter clicks the focused button, the left and right arrow keys change the section tabs.
@@ -76,7 +76,9 @@ public class ExampleScreen extends UiScreen {
 - `UiText.draw`, `drawRight`, `drawLeft` and `drawCentered` draw a text that is a little too wide smaller (down to 75 %), and cut it with "…" only below this size. A text with more words (consequences, notes, descriptions) wraps on more lines (`UiText.wrap`, `drawWrapped`).
 - Draw the content that is not a widget in `renderBody`. It is behind the widgets.
 - `showStatus(text, tone)` shows the result of an action in the screen, in place of a chat message. The status line covers the bottom of the body for some seconds.
-- A menu or a dialog is a screen above its parent. A network handler that updates the parent finds it below the overlays: follow `UiOverlay.parent()` while the current screen is an overlay.
+- A menu or a dialog is a screen above its parent. A network handler that updates or replaces the parent finds it below the overlays with `UiOverlay.rootScreen()`.
+- A widget does not change the screen and does not send a packet in a render method. A hold button ends its hold in `tick()`: `UiScreen` and `UiOverlay` call it on each game tick.
+- The client forgets the state of a world when the player leaves it (`FolkholdWorldClient.onLoggingOut`): a static field that keeps a state between two openings of a screen needs a `clear()` method called from there.
 - A menu action runs after the parent screen made its widgets again. If the action changes the state of the screen, call `rebuildWidgets()` in the action.
 
 ## A drop-down menu

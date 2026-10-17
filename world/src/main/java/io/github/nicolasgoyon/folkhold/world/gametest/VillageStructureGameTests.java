@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
@@ -68,6 +69,7 @@ public final class VillageStructureGameTests {
      * template block and the relative positions of {@link GameTestHelper} do not always agree.
      */
     private static VillageHeartBlockEntity findHeart(GameTestHelper helper) {
+        TestSupport.sweep(helper);
         TestSupport.retireEarlierSettlements(helper);
         AABB bounds = helper.getBounds();
         for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
@@ -302,10 +304,13 @@ public final class VillageStructureGameTests {
 
     /**
      * An archer with a new tower walks to it: down the stair of its tower, across the compound and up the stair of
-     * the new tower. The archer does not move directly to the post.
+     * the new tower. The archer does not move directly to the post. The heart does not rotate the archers during
+     * the test: a second tower on the way would make the travel longer than the limit of the direct move.
      */
     @GameTest(template = "village/center", timeoutTicks = 1200, batch = "village_archer_walk")
     public static void archerWalksToANewTower(GameTestHelper helper) {
+        int rotationSeconds = WorldConfig.ARCHER_ROTATION_SECONDS.get();
+        WorldConfig.ARCHER_ROTATION_SECONDS.set(0);
         VillageHeartBlockEntity heart = findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         List<ArcherEntity> archers = heart.getUnits().stream()
@@ -357,12 +362,17 @@ public final class VillageStructureGameTests {
             }
         });
         helper.succeedWhen(() -> {
-            helper.assertFalse(seen[1], "The archer must walk, not move directly to the post" + jump[0]);
+            if (seen[1]) {
+                WorldConfig.ARCHER_ROTATION_SECONDS.set(rotationSeconds);
+                helper.fail("The archer must walk, not move directly to the post" + jump[0]);
+            }
             BlockPos post = archer.getPostPos();
             helper.assertTrue(post != null && !post.equals(start), "The archer must have another tower");
             helper.assertTrue(archer.distanceToSqr(Vec3.atBottomCenterOf(post)) <= 4.0,
-                    "The archer must arrive at the new post");
+                    "The archer must arrive at the new post " + post.toShortString() + " ("
+                            + String.join(" | ", history) + ")");
             helper.assertTrue(seen[0], "The archer must walk on the ground of the compound");
+            WorldConfig.ARCHER_ROTATION_SECONDS.set(rotationSeconds);
             archer.discard();
         });
     }

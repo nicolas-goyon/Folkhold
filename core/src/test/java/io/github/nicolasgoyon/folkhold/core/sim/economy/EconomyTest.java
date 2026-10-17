@@ -172,4 +172,24 @@ class EconomyTest {
         assertTrue(cycles > 1 && cycles < 1000, "The tool must wear after some cycles, not " + cycles);
         assertEquals(cycles, with.stock().count("ore"));
     }
+
+    /**
+     * With no population, no job works and nothing is eaten. The need of food is covered, so the village gets its
+     * first inhabitant.
+     */
+    @Test
+    void emptyVillageRunsACycle() {
+        EconomyState state = state(0, "farmer");
+        state.stock().add("bread", 10, 100);
+
+        CycleReport report = Economy.runCycle(state, List.of(FARMER), 10, 100, CATALOG, SETTINGS,
+                new SplittableRandom(1));
+
+        assertEquals(0, report.activeJobs());
+        assertEquals(0, report.workingJobs());
+        assertTrue(report.produced().isEmpty(), "No job works with no workers");
+        assertEquals(10, state.stock().count("bread"), "Nobody eats");
+        assertEquals(1.0, report.foodCovered());
+        assertEquals(1, report.population(), "The village gets its first inhabitant");
+    }
 }

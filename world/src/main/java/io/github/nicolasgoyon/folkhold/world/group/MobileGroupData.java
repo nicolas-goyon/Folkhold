@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroups;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +32,11 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public final class MobileGroupData extends SavedData {
     private static final String FILE_ID = "folkhold_groups";
+    /**
+     * The version of the saved format. {@code load} reads the tag of an earlier version (a tag with no version is
+     * version 0) and the data saves with the current version. A tag of a later version loads with a warning.
+     */
+    static final int VERSION = 1;
 
     private final MobileGroups groups = new MobileGroups();
     private final Map<String, RouteEntry> routes = new HashMap<>();
@@ -120,12 +126,42 @@ public final class MobileGroupData extends SavedData {
         return detailedRoutes.size();
     }
 
+    /**
+     * Replaces the id of a settlement in the groups, the routes and the detailed routes.
+     *
+     * @param oldId the current id of the settlement
+     * @param newId the new id
+     */
+    public void renameSettlement(String oldId, String newId) {
+        groups.renameSettlement(oldId, newId);
+        renameSettlement(routes, oldId, newId);
+        renameSettlement(detailedRoutes, oldId, newId);
+        setDirty();
+    }
+
+    private static void renameSettlement(Map<String, RouteEntry> entries, String oldId, String newId) {
+        List<RouteEntry> renamed = new ArrayList<>();
+        for (RouteEntry entry : entries.values()) {
+            if (entry.fromId().equals(oldId) || entry.toId().equals(oldId)) {
+                renamed.add(entry);
+            }
+        }
+        for (RouteEntry entry : renamed) {
+            entries.remove(routeKey(entry.fromId(), entry.toId()));
+            RouteEntry replaced = new RouteEntry(entry.fromId().equals(oldId) ? newId : entry.fromId(),
+                    entry.toId().equals(oldId) ? newId : entry.toId(), entry.fromX(), entry.fromZ(), entry.toX(),
+                    entry.toZ(), entry.route());
+            entries.put(routeKey(replaced.fromId(), replaced.toId()), replaced);
+        }
+    }
+
     private static String routeKey(String firstId, String secondId) {
         return firstId.compareTo(secondId) <= 0 ? firstId + "|" + secondId : secondId + "|" + firstId;
     }
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+        tag.putInt("Version", VERSION);
         ListTag list = new ListTag();
         for (MobileGroup group : groups.all()) {
             list.add(saveGroup(group));
@@ -177,6 +213,11 @@ public final class MobileGroupData extends SavedData {
      */
     public static MobileGroupData load(CompoundTag tag, HolderLookup.Provider registries) {
         MobileGroupData data = new MobileGroupData();
+        int version = tag.getInt("Version");
+        if (version > VERSION) {
+            FolkholdWorld.LOGGER.warn("{} has the format version {}, this version of the mod reads version {}",
+                    FILE_ID, version, VERSION);
+        }
         ListTag list = tag.getList("Groups", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             MobileGroup group = loadGroup(list.getCompound(i));

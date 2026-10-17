@@ -58,6 +58,14 @@ jobs:
             dev/run/logs
           if-no-files-found: ignore
 
+      - name: Upload the coverage report of core
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: folkhold-core-coverage
+          path: core/build/reports/jacoco/test/html
+          if-no-files-found: ignore
+
       - name: Upload the mod jars
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
