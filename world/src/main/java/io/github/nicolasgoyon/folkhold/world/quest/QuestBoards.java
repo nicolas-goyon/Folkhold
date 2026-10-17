@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
+import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload.Active;
@@ -42,7 +43,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * The quest boards and the quest log of the players.
@@ -134,9 +134,7 @@ public final class QuestBoards {
 
     /** Opens the quest screen of a village. A client with no channel for the screen gets nothing. */
     public static void open(ServerPlayer player, Settlement settlement) {
-        if (player.connection.hasChannel(QuestBoardPayload.TYPE)) {
-            PacketDistributor.sendToPlayer(player, board(player, settlement));
-        }
+        ModNetwork.send(player, board(player, settlement));
     }
 
     /**
@@ -221,11 +219,13 @@ public final class QuestBoards {
             };
         }
         QuestData.get(server).setDirty();
-        if (village.isPresent() && player.connection.hasChannel(QuestBoardPayload.TYPE)) {
+        boolean shown = false;
+        if (village.isPresent()) {
             QuestBoardPayload board = board(player, village.get());
-            PacketDistributor.sendToPlayer(player,
+            shown = ModNetwork.send(player,
                     outcome.map(result -> board.withStatus(result.message(), result.done())).orElse(board));
-        } else {
+        }
+        if (!shown) {
             outcome.ifPresent(result -> player.displayClientMessage(result.message(), false));
         }
         sendLog(player);
@@ -411,10 +411,7 @@ public final class QuestBoards {
 
     /** Sends the active quests of a player to the quest HUD. A client with no channel for the HUD gets nothing. */
     public static void sendLog(ServerPlayer player) {
-        if (!player.connection.hasChannel(QuestLogPayload.TYPE)) {
-            return;
-        }
-        PacketDistributor.sendToPlayer(player, log(player));
+        ModNetwork.send(player, log(player));
     }
 
     /**
