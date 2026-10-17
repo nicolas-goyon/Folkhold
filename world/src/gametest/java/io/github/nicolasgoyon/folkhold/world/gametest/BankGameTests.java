@@ -66,10 +66,13 @@ public final class BankGameTests {
 
     /**
      * A heart with its settlement, a bank chest, 10 bread in the stock, a treasury that puts {@link #SHARE} emeralds
-     * in the chest, and a player next to the chest.
+     * in the chest, and a player next to the chest. The bank chests of earlier tests near the test area go away: in
+     * the scan area of the heart, such a chest is a page of the bank, and the chest of the test then shows another
+     * part of the stock.
      */
     private static Scene scene(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
+        TestSupport.removeEarlierBankChests(helper);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
         helper.setBlock(CHEST, ModBlocks.BANK_CHEST.get());
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
