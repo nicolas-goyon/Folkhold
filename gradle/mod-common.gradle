@@ -25,10 +25,21 @@ sourceSets.main.resources {
     exclude '.cache'
 }
 
+// GameTests: in-game tests in src/gametest. The dev project loads this source set with the mod in its runs
+// (see dev/build.gradle). The jar and the sources jar of the mod do not contain it.
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
 configurations {
     // Dependencies for local runs only. They are not published.
     localRuntime
     runtimeClasspath.extendsFrom localRuntime
+    gametestImplementation.extendsFrom implementation
+    gametestRuntimeOnly.extendsFrom runtimeOnly
 }
 
 dependencies {
@@ -36,6 +47,9 @@ dependencies {
     testImplementation platform("org.junit:junit-bom:${junit_version}")
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // The assertions of JUnit, for the helpers of the GameTests.
+    gametestImplementation platform("org.junit:junit-bom:${junit_version}")
+    gametestImplementation 'org.junit.jupiter:junit-jupiter-api'
 }
 
 tasks.named('test', Test) {
@@ -44,6 +58,8 @@ tasks.named('test', Test) {
 
 tasks.named('check') {
     dependsOn ':checkTranslations', ':spotlessCheck'
+    // The build compiles the GameTests, so a compile error shows before the GameTest server runs.
+    dependsOn 'compileGametestJava'
 }
 
 neoForge {
@@ -53,6 +69,8 @@ neoForge {
         mappingsVersion = parchment_mappings_version
         minecraftVersion = parchment_minecraft_version
     }
+
+    addModdingDependenciesTo(sourceSets.gametest)
 
     mods {
         "${mod_id}" {
