@@ -188,7 +188,7 @@ public final class SettlementCommands {
         source.sendSuccess(() -> Component.translatable(KEY + "settlement.info.level", settlement.level(),
                 SettlementLevels.tierName(settlement.level()), settlement.experience(), needed), false);
         source.sendSuccess(() -> Component.translatable(KEY + "settlement.info.position", settlement.x(),
-                settlement.z(), settlement.biome(), data.claims().cellCount(settlement.id())), false);
+                settlement.z(), settlement.biome(), data.claims().chunkCount(settlement.id())), false);
         source.sendSuccess(() -> Component.translatable(KEY + "settlement.info.economy", economy.population(),
                 Math.round(economy.foodCovered() * 100), Math.round(economy.jobsWorking() * 100),
                 data.treasury(settlement.factionId())), false);
