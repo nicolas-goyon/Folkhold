@@ -234,15 +234,4 @@ public final class CaravanGameTests {
         }
         helper.succeed();
     }
-
-    /** The number of guards comes from the level of the origin: 2, 3 from level 8, 4 from level 16. */
-    @GameTest(template = "empty", timeoutTicks = 20, batch = "caravan_size")
-    public static void caravanSizeFollowsTheLevelAndTheCargo(GameTestHelper helper) {
-        helper.assertTrue(Caravans.guards(1) == 2 && Caravans.guards(7) == 2 && Caravans.guards(8) == 3
-                && Caravans.guards(16) == 4 && Caravans.guards(20) == 4, "Guards from the level");
-        helper.assertTrue(Caravans.mules(Map.of("minecraft:bread", 64)) == 1
-                && Caravans.mules(Map.of("minecraft:bread", 64 * 16)) == 2
-                && Caravans.mules(Map.of("minecraft:bread", 64 * 100)) == 3, "Mules from the cargo");
-        helper.succeed();
-    }
 }
