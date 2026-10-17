@@ -1,10 +1,11 @@
-# Checks that the generated files are up to date: the structures, the block models and the textures come from
-# the scripts of tools/. A change to a script or to a generated file must come with the output of the scripts.
+# Checks the scripts. The tests of scripts/version.py run, and the generated files are up to date: the structures,
+# the block models and the textures come from the scripts of tools/. A change to a script or to a generated file must
+# come with the output of the scripts.
 name: Generated files
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
   workflow_dispatch:
 
@@ -24,6 +25,9 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.12'
+
+      - name: Tests of the version script
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: Install Pillow
         run: pip install pillow
