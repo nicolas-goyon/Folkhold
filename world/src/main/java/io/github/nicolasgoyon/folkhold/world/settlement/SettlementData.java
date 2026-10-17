@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -27,7 +28,7 @@ import net.minecraft.world.level.saveddata.SavedData;
  * checked. Saved in the Overworld data ({@code folkhold_settlements.dat}).
  *
  * <p>The territory claims come from the settlements (position, level, state). The data calculates them again
- * after each change ({@link #setDirty()}), when the next call needs them.
+ * when one of these changes, at the next call that needs them. The other changes (a treasury, a stock) keep them.
  */
 public final class SettlementData extends SavedData {
     private static final String FILE_ID = "folkhold_settlements";
@@ -41,7 +42,10 @@ public final class SettlementData extends SavedData {
     private final Set<Long> checkedRegions = new HashSet<>();
     private long tickNumber;
     private long nextTickAt = -1;
+    @Nullable
     private TerritoryClaims claims;
+    /** The claimants of the cached claims. */
+    private List<Claimant> claimants = List.of();
     private final Map<String, Long> treasuries = new HashMap<>();
 
     private SettlementData() {
@@ -87,24 +91,18 @@ public final class SettlementData extends SavedData {
 
     /** The territory cells that the active settlements claim. */
     public TerritoryClaims claims() {
-        if (claims == null) {
-            List<Claimant> claimants = new ArrayList<>();
-            for (Settlement settlement : registry.all()) {
-                if (settlement.isActive()) {
-                    claimants.add(new Claimant(settlement.id(), settlement.x(), settlement.z(), settlement.level(),
-                            LevelTables.get().traits(settlement.level()).claimCells()));
-                }
+        List<Claimant> current = new ArrayList<>();
+        for (Settlement settlement : registry.all()) {
+            if (settlement.isActive()) {
+                current.add(new Claimant(settlement.id(), settlement.x(), settlement.z(), settlement.level(),
+                        LevelTables.get().traits(settlement.level()).claimCells()));
             }
-            claims = TerritoryClaims.compute(claimants);
+        }
+        if (claims == null || !current.equals(claimants)) {
+            claims = TerritoryClaims.compute(current);
+            claimants = current;
         }
         return claims;
-    }
-
-    /** Marks the data as changed. The territory claims are calculated again at the next call. */
-    @Override
-    public void setDirty() {
-        super.setDirty();
-        claims = null;
     }
 
     /** True if the discovery checked this placement region. */

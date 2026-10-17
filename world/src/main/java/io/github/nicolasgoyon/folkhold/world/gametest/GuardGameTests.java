@@ -6,8 +6,10 @@ import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -118,19 +120,49 @@ public final class GuardGameTests {
                         + ", second guard target: " + other.getTarget()), attacked, other, attacker);
     }
 
-    /** A hostile monster targets a guard before the guard attacks it. */
+    /**
+     * A hostile monster targets a guard before the guard attacks it. The monster looks for a guard only near a
+     * loaded village heart: the test registers one.
+     */
     @GameTest(template = "arena", timeoutTicks = 200, batch = "monster_targets_guard")
     public static void monsterTargetsGuardFirst(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
+        BlockPos heart = helper.absolutePos(new BlockPos(1, 1, 1));
+        VillageHearts.register(helper.getLevel(), heart);
         GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(3, 1, 3));
         // The guard has no AI in this test. Then only the husk can start the fight,
         // and the guard cannot kill the husk before the check.
         guard.setNoAi(true);
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(10, 1, 10));
 
-        TestSupport.succeedWhenAndRemove(helper, () -> helper.assertTrue(husk.getTarget() == guard,
-                "The husk must target the guard. Husk target: " + husk.getTarget()
-                        + ", husk alive: " + husk.isAlive()), guard, husk);
+        TestSupport.succeedWhenAndRemove(helper, () -> {
+            boolean targeted = husk.getTarget() == guard;
+            if (targeted) {
+                VillageHearts.unregister(helper.getLevel(), heart);
+            }
+            helper.assertTrue(targeted, "The husk must target the guard. Husk target: " + husk.getTarget()
+                    + ", husk alive: " + husk.isAlive());
+        }, guard, husk);
+    }
+
+    /** A hostile monster far from every village heart does not look for a guard. */
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "monster_far_from_villages")
+    public static void monsterFarFromTheVillagesIgnoresGuards(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
+        boolean heartNear = VillageHearts.findNearest(helper.getLevel(), center,
+                MonsterTargeting.gateRadius()).isPresent();
+        GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(3, 1, 3));
+        guard.setNoAi(true);
+        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(10, 1, 10));
+
+        helper.runAfterDelay(60, () -> {
+            boolean targeted = husk.getTarget() == guard;
+            guard.discard();
+            husk.discard();
+            helper.assertTrue(heartNear || !targeted, "A monster far from the hearts must not target a guard");
+            helper.succeed();
+        });
     }
 
     /**
