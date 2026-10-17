@@ -60,7 +60,7 @@ import net.minecraft.world.item.Item;
  *   <li><b>garrison</b>: for each role, the units alive and dead, and the configured count (segments);</li>
  *   <li><b>economy</b>: population (bar), jobs, food, treasury of the faction, and the main stocks with their
  *       price;</li>
- *   <li><b>territory</b>: number of claimed territory cells.</li>
+ *   <li><b>territory</b>: number of claimed territory chunks.</li>
  * </ul>
  * The services, the economy and the territory need the settlement of the village.
  */
@@ -304,9 +304,9 @@ public final class VillageInfo {
     }
 
     private static Section territorySection(MinecraftServer server, Settlement settlement) {
-        int cells = SettlementData.get(server).claims().cellCount(settlement.id());
+        int chunks = SettlementData.get(server).claims().chunkCount(settlement.id());
         return new Section(Component.translatable(KEY + "territory"),
-                List.of(row("claimed_cells", Component.literal(String.valueOf(cells)))));
+                List.of(row("claimed_chunks", Component.literal(String.valueOf(chunks)))));
     }
 
     private static Component itemName(String id) {

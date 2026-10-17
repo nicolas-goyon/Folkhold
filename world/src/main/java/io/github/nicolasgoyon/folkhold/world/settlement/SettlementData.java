@@ -89,13 +89,18 @@ public final class SettlementData extends SavedData {
         return value;
     }
 
-    /** The territory cells that the active settlements claim. */
+    /**
+     * The territory chunks that the active settlements claim. The claim radius comes from the level, and it is never
+     * smaller than {@link TerritoryClaims#minimumRadius} of the village radius ({@link WorldConfig#VILLAGE_RADIUS}).
+     */
     public TerritoryClaims claims() {
+        int minimumRadius = TerritoryClaims.minimumRadius(WorldConfig.VILLAGE_RADIUS.get());
         List<Claimant> current = new ArrayList<>();
         for (Settlement settlement : registry.all()) {
             if (settlement.isActive()) {
+                int radius = Math.max(minimumRadius, LevelTables.get().traits(settlement.level()).claimRadius());
                 current.add(new Claimant(settlement.id(), settlement.x(), settlement.z(), settlement.level(),
-                        LevelTables.get().traits(settlement.level()).claimCells()));
+                        radius));
             }
         }
         if (claims == null || !current.equals(claimants)) {

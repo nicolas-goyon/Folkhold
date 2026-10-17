@@ -1,7 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
-import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -19,7 +18,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class CommandGameTests {
-    private static final int CELL = TerritoryClaims.CELL_BLOCKS;
+    /** Grid of the test positions in blocks, so that the test settlements are far from each other. */
+    private static final int GRID = 256;
 
     private CommandGameTests() {
     }
@@ -34,7 +34,7 @@ public final class CommandGameTests {
     public static void commandsChangeTheSettlement(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         String faction = FactionData.get(server).factions().get(0).id();
-        int x = 800 * CELL + CELL / 2;
+        int x = 800 * GRID + GRID / 2;
         Settlement settlement = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Commandton", x,
                 100);
         settlement.setBiome("minecraft:plains");

@@ -4,7 +4,6 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.Economy;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Recipe;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
-import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
@@ -29,7 +28,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class JobDataGameTests {
-    private static final int CELL = TerritoryClaims.CELL_BLOCKS;
+    /** Grid of the test positions in blocks, so that the test settlements are far from each other. */
+    private static final int GRID = 256;
     private static final int CYCLES = 60;
 
     private JobDataGameTests() {
@@ -86,7 +86,7 @@ public final class JobDataGameTests {
     public static void hamletWithAFarmerAndABakerDoesNotStarve(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         String faction = FactionData.get(server).factions().get(0).id();
-        int x = 700 * CELL + CELL / 2;
+        int x = 700 * GRID + GRID / 2;
         Settlement hamlet = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Breadby", x, 100);
         hamlet.setProgress(1, 0);
         hamlet.setBiome("minecraft:plains");
@@ -111,7 +111,7 @@ public final class JobDataGameTests {
     public static void minerAndSmelterGiveIronIngots(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         String faction = FactionData.get(server).factions().get(0).id();
-        int x = 710 * CELL + CELL / 2;
+        int x = 710 * GRID + GRID / 2;
         Settlement village = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Ironby", x, 100);
         village.setProgress(4, 0);
         village.setBiome("minecraft:plains");
@@ -138,7 +138,7 @@ public final class JobDataGameTests {
     public static void townWithAFullChainProducesIronArmor(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         String faction = FactionData.get(server).factions().get(0).id();
-        int x = 720 * CELL + CELL / 2;
+        int x = 720 * GRID + GRID / 2;
         Settlement town = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Smithton", x, 100);
         town.setProgress(9, 0);
         town.setBiome("minecraft:plains");

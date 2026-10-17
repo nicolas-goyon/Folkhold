@@ -214,8 +214,8 @@ public final class Settlements {
     private static final double DESTRUCTION_MESSAGE_RADIUS = 128.0;
 
     /**
-     * Destroys a settlement: the settlement goes to the state {@link SettlementState#RUINS}. Its territory cells
-     * become unclaimed, and the simulation ignores it. The blocks of the village stay in the world.
+     * Destroys a settlement: the settlement goes to the state {@link SettlementState#RUINS}. Its territory becomes
+     * unclaimed, and the simulation ignores it. The blocks of the village stay in the world.
      *
      * <ul>
      *   <li>The stock and the share of the treasury go into the bank chests as real items

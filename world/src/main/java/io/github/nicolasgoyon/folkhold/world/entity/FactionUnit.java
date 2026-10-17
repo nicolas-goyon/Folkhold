@@ -386,7 +386,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
 
     /**
      * True if the position is not in the territory of another faction: the territory of the faction of the unit, or
-     * an unclaimed cell. Also true if the unit has no faction.
+     * an unclaimed chunk. Also true if the unit has no faction.
      */
     private boolean isInTerritory(BlockPos pos) {
         MinecraftServer server = level().getServer();
