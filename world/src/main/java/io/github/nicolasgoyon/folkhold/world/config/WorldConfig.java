@@ -194,7 +194,7 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "garrisonCaptains")
                 .defineInRange("captains", 1, 0, 4);
         GARRISON_REFILL_DELAY_SECONDS = builder
-                .comment("Time in seconds before the village replaces a dead unit. The village must be calm.")
+                .comment("Time in seconds before the village spawns a new unit for a dead one. The village must be calm.")
                 .translation(KEY_PREFIX + "garrisonRefillDelaySeconds")
                 .defineInRange("refillDelaySeconds", 300, 10, 86400);
         GARRISON_ACTIVATION_RADIUS = builder

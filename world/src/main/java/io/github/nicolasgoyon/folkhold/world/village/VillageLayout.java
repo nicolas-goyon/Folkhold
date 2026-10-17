@@ -147,7 +147,7 @@ public final class VillageLayout {
     }
 
     /**
-     * Scans the blocks around the heart and replaces the lists.
+     * Scans the blocks around the heart and fills the lists again.
      *
      * @param level    the level
      * @param heartPos the position of the heart

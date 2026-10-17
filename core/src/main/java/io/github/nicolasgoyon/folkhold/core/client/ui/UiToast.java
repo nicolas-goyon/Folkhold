@@ -11,7 +11,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 /**
- * A toast: a small parchment note at the top right of the screen for some seconds. It replaces a chat message for
+ * A toast: a small parchment note at the top right of the screen for some seconds, in place of a chat message for
  * an important event (a warning of a guard, the result of a quest).
  *
  * <p>A colored square at the left gives the tone. The title has at most 2 lines, the second text at most 2 lines.

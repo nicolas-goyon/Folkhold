@@ -13,7 +13,7 @@ import net.minecraft.network.chat.Component;
 
 /**
  * The territory banner: when the player enters a territory, a small banner at the top of the screen shows the
- * faction banner, the name of the territory and the tier of the player for some seconds. It replaces the vanilla
+ * faction banner, the name of the territory and the tier of the player for some seconds, in place of the vanilla
  * title, which is too large for this information.
  */
 public final class TerritoryTitleHud {

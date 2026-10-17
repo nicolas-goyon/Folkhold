@@ -24,9 +24,7 @@ import java.util.function.Supplier;
  */
 public final class TickScheduler<T> {
     private final Deque<T> pending = new ArrayDeque<>();
-    /** Number of the last abstract tick that started. */
     private long tickNumber;
-    /** Game time of the next abstract tick, or -1 before the first step. */
     private long nextTickAt = -1;
     private TickInfo current;
     private long currentNanos;

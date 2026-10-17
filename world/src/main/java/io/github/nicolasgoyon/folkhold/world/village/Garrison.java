@@ -30,7 +30,7 @@ import net.neoforged.neoforge.event.EventHooks;
  *       is still alive. This prevents duplicates after a chunk unload and reload.</li>
  *   <li>An entry becomes dead when its unit dies (the unit reports its death), or when the unit is missing
  *       for {@link #MISSING_TIMEOUT_TICKS} while the chunk of its last known position is loaded.</li>
- *   <li>The garrison replaces a dead unit after the refill delay, only when the village is calm.</li>
+ *   <li>The garrison spawns a new unit for a dead one after the refill delay, only when the village is calm.</li>
  *   <li>Archers get a free post of the village (see {@link VillageLayout}), if there is one. They spawn on it.
  *       The other units spawn on the ground near the heart (see {@link #groundSpawnPos}).</li>
  * </ul>
@@ -142,7 +142,7 @@ public final class Garrison {
      * <ol>
      *   <li>Updates the entries: last seen time and position of the loaded units, timeout of missing units.</li>
      *   <li>Adds entries until each role has its configured count. A new garrison spawns completely.</li>
-     *   <li>Replaces dead units after the refill delay, if the village is calm.</li>
+     *   <li>Spawns new units for the dead ones after the refill delay, if the village is calm.</li>
      * </ol>
      *
      * @param level     the level of the heart

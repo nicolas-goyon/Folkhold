@@ -579,7 +579,10 @@ public final class GroupMaterializer {
         return nearest;
     }
 
-    /** The ground at a position. The chunk must be loaded: a height in a chunk that is not loaded loads it. */
+    /**
+     * The ground at a position. The chunk must be loaded: the height of a position in a chunk that is not loaded
+     * is the minimum build height.
+     */
     private static BlockPos ground(ServerLevel level, int x, int z) {
         return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
     }

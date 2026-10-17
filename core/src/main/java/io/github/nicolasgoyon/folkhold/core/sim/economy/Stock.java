@@ -11,7 +11,6 @@ import java.util.TreeMap;
 public final class Stock {
     private final Map<String, Integer> items = new TreeMap<>();
 
-    /** The quantity of an item. */
     public int count(String item) {
         return items.getOrDefault(item, 0);
     }

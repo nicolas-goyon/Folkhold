@@ -6,8 +6,6 @@ import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
  * The last quest log that the server sent to this client, and the game time when it came. The quest HUD shows it.
  *
  * <p>The times of the log go down with the game time of the client level, so they stop while the game is paused.
- *
- * <p>This class does not use client classes: the network registration refers to it on both sides.
  */
 public final class ClientQuestLog {
     private static final long TICKS_PER_SECOND = 20L;

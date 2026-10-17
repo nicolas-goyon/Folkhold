@@ -102,7 +102,6 @@ public final class Route {
         }
     }
 
-    /** The points, from the origin to the destination. */
     public List<Point> points() {
         return points;
     }

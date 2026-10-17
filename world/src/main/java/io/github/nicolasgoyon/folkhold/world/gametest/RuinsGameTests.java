@@ -97,8 +97,7 @@ public final class RuinsGameTests {
     }
 
     /**
-     * A village with a bank chest, 10 bread in the stock and 100 emeralds in the treasury. The captain dies, then
-     * the heart breaks: the village becomes ruins.
+     * A village in ruins with its bank chest.
      *
      * @param village  the village
      * @param share    the emeralds of the treasury in the bank before the ruin
@@ -113,6 +112,10 @@ public final class RuinsGameTests {
         }
     }
 
+    /**
+     * Makes a village with a bank chest, 10 bread in the stock and 100 emeralds in the treasury, and ruins it: the
+     * captain dies, then the heart breaks.
+     */
     private static RuinedBank ruinedVillageWithBank(GameTestHelper helper) {
         TestSupport.removeEarlierBankChests(helper);
         Village village = village(helper);
