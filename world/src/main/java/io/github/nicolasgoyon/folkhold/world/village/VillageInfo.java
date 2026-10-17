@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemInfo;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
@@ -31,7 +32,6 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -181,8 +181,7 @@ public final class VillageInfo {
         }
         double factor = Merchants.priceFactor(tier);
         Component state = factor < 1.0
-                ? available(Component.translatable(KEY + "trade.discount",
-                        String.format(Locale.ROOT, "%.2f", factor).replaceAll("0+$", "").replaceAll("\\.$", "")))
+                ? available(Component.translatable(KEY + "trade.discount", Merchants.priceText(factor)))
                 : available(Component.translatable(KEY + "trade.normal"));
         Component details = Component.translatable(KEY + "trade.merchants", Merchants.merchantCount(settlement));
         List<String> needs = List.of();
@@ -271,7 +270,8 @@ public final class VillageInfo {
             int configured = role.configuredCount();
             MutableComponent value = Component.translatable(KEY + "units_alive", alive, configured);
             if (dead > 0) {
-                value.append(" · ").append(Component.translatable(KEY + "units_dead", dead).withColor(TEXT_BAD));
+                value.append(UiStrings.separator())
+                        .append(Component.translatable(KEY + "units_dead", dead).withColor(TEXT_BAD));
             }
             rows.add(Row.segments(role.entityType().getDescription(), value, Math.min(alive, configured),
                     Math.max(configured, alive + dead), Math.min(dead, Math.max(0, configured - alive))));
@@ -298,7 +298,7 @@ public final class VillageInfo {
                     double price = Prices.sellPrice(info, entry.getValue(), economy.population(),
                             Economies.settings());
                     rows.add(new Row(itemName(entry.getKey()), Component.translatable(KEY + "stock_value",
-                            entry.getValue(), String.format(Locale.ROOT, "%.2f", price))));
+                            entry.getValue(), Merchants.priceText(price))));
                 });
         return new Section(Component.translatable(KEY + "economy"), rows);
     }

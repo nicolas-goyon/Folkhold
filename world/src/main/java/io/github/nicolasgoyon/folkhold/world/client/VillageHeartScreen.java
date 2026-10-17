@@ -292,7 +292,7 @@ public class VillageHeartScreen extends UiScreen {
 
     /** The reputation chip of the player, with a bar below on parchment. */
     private void renderChip(GuiGraphics graphics, ReputationTier tier, int x, int y, boolean withBar) {
-        Component text = FactionVisuals.tierTitle(tier).append(" · " + heart.reputation());
+        Component text = Component.translatable(KEY + "chip", FactionVisuals.tierTitle(tier), heart.reputation());
         int width = Math.min(font.width(text) + 8, CHIP_AREA);
         int chipX = x + CHIP_AREA - width;
         UiRect chip = new UiRect(chipX, y, width, UiTheme.BADGE);

@@ -39,6 +39,7 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentUtils;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -190,7 +191,10 @@ public final class GroupCommands {
                     Component.translatable(KEY + "caravan.role." + member.role().serializedName()),
                     String.format(Locale.ROOT, "%.1f", member.health()), member.id().toString()), false);
         }
-        source.sendSuccess(() -> Component.translatable(KEY + "caravan.info.cargo", group.cargo().asMap().toString(),
+        source.sendSuccess(() -> Component.translatable(KEY + "caravan.info.cargo",
+                ComponentUtils.formatList(group.cargo().asMap().entrySet(),
+                        entry -> Component.translatable(KEY + "caravan.info.cargo_item", entry.getKey(),
+                                entry.getValue())),
                 group.payment()), false);
         return 1;
     }

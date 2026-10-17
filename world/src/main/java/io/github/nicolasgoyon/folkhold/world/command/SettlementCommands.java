@@ -17,6 +17,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
@@ -38,6 +39,7 @@ import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentUtils;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 
@@ -192,7 +194,9 @@ public final class SettlementCommands {
                 data.treasury(settlement.factionId())), false);
         Map<String, Integer> jobs = new TreeMap<>();
         economy.jobs().forEach(job -> jobs.merge(job, 1, Integer::sum));
-        source.sendSuccess(() -> Component.translatable(KEY + "settlement.info.jobs", jobs.toString()), false);
+        source.sendSuccess(() -> Component.translatable(KEY + "settlement.info.jobs",
+                ComponentUtils.formatList(jobs.entrySet(), entry -> Component.translatable(KEY + "settlement.info.job",
+                        entry.getKey(), entry.getValue()))), false);
         List<Map.Entry<String, Integer>> stocks = economy.stock().asMap().entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .limit(INFO_STOCKS)
@@ -201,7 +205,7 @@ public final class SettlementCommands {
             ItemInfo item = EconomyData.catalog().info(stock.getKey());
             double price = Prices.price(item, stock.getValue(), economy.population(), Economies.settings());
             source.sendSuccess(() -> Component.translatable(KEY + "settlement.info.stock", stock.getKey(),
-                    stock.getValue(), String.format("%.2f", price)), false);
+                    stock.getValue(), Merchants.priceText(price)), false);
         }
         return 1;
     }

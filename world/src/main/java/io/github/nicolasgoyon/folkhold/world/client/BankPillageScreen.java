@@ -35,14 +35,14 @@ public final class BankPillageScreen {
                 .bullet(Component.translatable(KEY + "garrison", payload.guards(), payload.archers()))
                 .bullet(Component.translatable(KEY + "attack"))
                 .hold(UiHoldButton.DEFAULT_HOLD_MILLIS)
-                .note(UiStrings.HOLD_HINT)
+                .note(UiStrings.holdHint(UiHoldButton.DEFAULT_HOLD_MILLIS))
                 .confirm(Component.translatable(KEY + "confirm"),
                         () -> PacketDistributor.sendToServer(new BankPillageConfirmPayload(payload.pos())))
                 .open();
     }
 
     private static UiDialog.Chip chip(Component caption, ReputationTier tier, int value) {
-        Component text = FactionVisuals.tierTitle(tier).append(" " + value);
+        Component text = Component.translatable(KEY + "chip", FactionVisuals.tierTitle(tier), value);
         return new UiDialog.Chip(caption, text, UiReputation.background(tier), UiReputation.text(tier));
     }
 

@@ -687,9 +687,12 @@ public class AdminScreen extends UiScreen {
         }
         UiText.draw(graphics, font, shown.title(), header.x(), header.y() + 2, right - header.x() - UiTheme.GAP,
                 shown.active() ? UiTheme.TEXT : UiTheme.TEXT_FAINT);
-        String id = shown.id().length() > 6 ? shown.id().substring(0, 6) + "…" : shown.id();
-        Component subtitle = Component.translatable(KEY + "subtitle", shown.faction(), id,
-                shown.biome().isEmpty() ? "-" : shown.biome());
+        Component id = shown.id().length() > 6
+                ? Component.translatable(KEY + "id_short", shown.id().substring(0, 6))
+                : Component.literal(shown.id());
+        Component biome = shown.biome().isEmpty() ? Component.translatable(KEY + "no_biome")
+                : Component.literal(shown.biome());
+        Component subtitle = Component.translatable(KEY + "subtitle", shown.faction(), id, biome);
         UiText.draw(graphics, font, subtitle, header.x(), header.y() + 14, header.width(), UiTheme.TEXT_MUTED);
     }
 
@@ -703,7 +706,7 @@ public class AdminScreen extends UiScreen {
                 break;
             }
             UiDraw.itemSlot(graphics, UiDraw.stack(stock.itemId()), x, stockStrip.y());
-            String count = stock.count() >= 1000 ? stock.count() / 1000 + "k" : String.valueOf(stock.count());
+            Component count = stockCount(stock.count());
             graphics.pose().pushPose();
             graphics.pose().translate(0.0F, 0.0F, 200.0F);
             graphics.drawString(font, count, x + SLOT - 1 - font.width(count), stockStrip.y() + SLOT - 8,
@@ -715,6 +718,14 @@ public class AdminScreen extends UiScreen {
             Component more = Component.translatable(KEY + "stock.more", shown.moreStocks());
             graphics.drawString(font, more, x + 1, UiText.textY(stockStrip), UiTheme.TEXT_MUTED, false);
         }
+    }
+
+    /** The count on a stock slot: the number, or thousands with one decimal from 1000 ("1.9k"). */
+    private static Component stockCount(int count) {
+        if (count < 1000) {
+            return Component.literal(Integer.toString(count));
+        }
+        return Component.translatable(KEY + "stock.thousands", count / 1000, count % 1000 / 100);
     }
 
     @Override
@@ -729,7 +740,8 @@ public class AdminScreen extends UiScreen {
         }
         Stock stock = details.stocks().get(index);
         ItemStack item = UiDraw.stack(stock.itemId());
-        Component name = item.isEmpty() ? Component.literal(stock.itemId()) : item.getHoverName();
+        Component name = item.isEmpty() ? Component.translatable(KEY + "stock.unknown", stock.itemId())
+                : item.getHoverName();
         graphics.renderComponentTooltip(font, List.of(name,
                 Component.translatable(KEY + "stock.count", stock.count())), mouseX, mouseY);
     }
