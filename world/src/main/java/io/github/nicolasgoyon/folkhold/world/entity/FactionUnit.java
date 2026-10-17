@@ -5,8 +5,11 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.ReturnToAnchorGoal;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitHurtByTargetGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.UsePassageGoal;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
@@ -31,13 +34,20 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.FloatGoal;
+import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
+import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
+import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
+import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.ItemStack;
@@ -160,6 +170,32 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
 
     /** Puts the equipment of this unit type in the equipment slots. */
     protected abstract void equip();
+
+    /**
+     * Adds the goals of all unit types and the attack goals of this unit type ({@link #registerAttackGoals}).
+     * A unit swims, goes through the passages, goes back to its anchor, walks near its anchor and looks around.
+     * Its targets are its attackers, the hostile players and the monsters (not the creepers) that it can attack
+     * from its home.
+     */
+    @Override
+    protected void registerGoals() {
+        goalSelector.addGoal(0, new FloatGoal(this));
+        goalSelector.addGoal(1, new UsePassageGoal(this));
+        registerAttackGoals();
+        goalSelector.addGoal(4, new ReturnToAnchorGoal(this, 1.0));
+        goalSelector.addGoal(5, new AnchorStrollGoal(this, 0.6));
+        goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
+        goalSelector.addGoal(9, new RandomLookAroundGoal(this));
+
+        targetSelector.addGoal(1, new UnitHurtByTargetGoal(this).setAlertOthers());
+        targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, 10, true, false,
+                target -> target instanceof Player player && canTargetFromHome(player) && isHostileTo(player)));
+        targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, Mob.class, 5, true, false,
+                target -> target instanceof Enemy && !(target instanceof Creeper) && canTargetFromHome(target)));
+    }
+
+    /** Adds the attack goals of this unit type to the goal selector, at the priorities 2 and 3. */
+    protected abstract void registerAttackGoals();
 
     /** The home position. The patrol and the chase limit use it. */
     public BlockPos getHomePos() {
