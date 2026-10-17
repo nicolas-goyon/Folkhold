@@ -129,6 +129,67 @@ public final class RouteGameTests {
     }
 
     /**
+     * An error (not an exception) in the search gives no result: nothing stays on the way, and the data has no
+     * result for the pair, so the simulation can ask again. The worker thread calculates the next routes.
+     */
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "route_error")
+    public static void errorInSearchLetsThePairAskAgain(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<Settlement> ends = settlements(server, 12_000);
+        Settlement from = ends.get(0);
+        Settlement to = ends.get(1);
+        RouteFinder.HeightSource broken = (x, z) -> {
+            throw new OutOfMemoryError("Test: no memory for the heights");
+        };
+
+        helper.assertTrue(CaravanRoutes.request(server, from, to, broken), "The request must start");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(CaravanRoutes.pending() == 0,
+                        "No route must stay on the way"))
+                .thenExecute(() -> {
+                    helper.assertTrue(CaravanRoutes.cached(server, from, to) == null,
+                            "After an error, the data must have no result for the pair");
+                    helper.assertTrue(CaravanRoutes.request(server, from, to), "A new request must start");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(CaravanRoutes.cached(server, from, to) != null,
+                        "The worker thread must calculate the next route"))
+                .thenSucceed();
+    }
+
+    /**
+     * An error in the calculation of a detailed route does not block the group: the group continues with its coarse
+     * route, and nothing stays on the way.
+     */
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "route_detail_error")
+    public static void errorInDetailedRouteReleasesTheGroup(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<Settlement> ends = settlements(server, 14_000);
+        Settlement from = ends.get(0);
+        Settlement to = ends.get(1);
+        Route coarse = CaravanRoutes.route(server, from, to).orElseThrow();
+        MobileGroupData data = MobileGroupData.get(server);
+        MobileGroup group = new MobileGroup(UUID.randomUUID().toString(), GroupKind.CARAVAN, "test_faction",
+                from.id(), to.id(), coarse);
+        group.addMember(new GroupMember(UUID.randomUUID(), MemberRole.MERCHANT, 20.0F));
+        group.setRouteReady(false);
+        data.groups().add(group);
+        RouteFinder.HeightSource broken = (x, z) -> {
+            throw new OutOfMemoryError("Test: no memory for the heights");
+        };
+
+        helper.assertTrue(CaravanRoutes.requestDetail(server, group, broken), "The request must start");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(group.isRouteReady() && CaravanRoutes.pendingDetails() == 0,
+                        "The group must not wait for its detailed route after an error"))
+                .thenExecute(() -> {
+                    data.groups().remove(group.id());
+                    helper.assertTrue(group.route().points().equals(coarse.points()),
+                            "The group must continue with its coarse route");
+                })
+                .thenSucceed();
+    }
+
+    /**
      * A new group waits for its detailed route. The worker thread calculates it, and the group gets it: the route
      * goes from the origin to the destination. A second group between the same settlements gets the
      * detailed route at once.
