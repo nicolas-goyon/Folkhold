@@ -99,8 +99,7 @@ public final class RuinsGameTests {
     /**
      * A village with a bank chest, 10 bread in the stock and 100 emeralds in the treasury. The captain dies, then
      * the heart breaks: the village becomes ruins.
-     */
-    /**
+     *
      * @param village  the village
      * @param share    the emeralds of the treasury in the bank before the ruin
      * @param treasury the treasury of the faction before the test: each test puts it back at the end, because the

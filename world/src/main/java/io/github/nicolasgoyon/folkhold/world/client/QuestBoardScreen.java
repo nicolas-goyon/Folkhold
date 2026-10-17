@@ -60,6 +60,7 @@ public class QuestBoardScreen extends UiScreen {
                 .reversed())),
         KIND(Comparator.comparing(Offer::kind).thenComparing(Comparator.comparingInt(Offer::emeralds).reversed()));
 
+        @SuppressWarnings("ImmutableEnumChecker") // The comparators have no state.
         private final Comparator<Offer> comparator;
 
         Sort(Comparator<Offer> comparator) {

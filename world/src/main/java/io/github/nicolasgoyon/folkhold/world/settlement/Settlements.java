@@ -6,11 +6,11 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
-import io.github.nicolasgoyon.folkhold.world.faction.Culture;
-import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.faction.Culture;
+import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
@@ -25,10 +25,10 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
@@ -312,5 +312,18 @@ public final class Settlements {
     /** The position of the heart of a settlement. A settlement with no known heart uses the given position. */
     private static BlockPos heartPos(Settlement settlement, BlockPos fallback) {
         return settlement.hasHeart() ? new BlockPos(settlement.x(), settlement.heartY(), settlement.z()) : fallback;
+    }
+
+    /**
+     * The position of a settlement in the overworld: its heart, or the sea level at its center when the heart is
+     * not known.
+     */
+    public static BlockPos position(MinecraftServer server, Settlement settlement) {
+        return heartPos(settlement, new BlockPos(settlement.x(), seaLevel(server.overworld()), settlement.z()));
+    }
+
+    /** The sea level of the generator of a level. */
+    public static int seaLevel(ServerLevel level) {
+        return level.getChunkSource().getGenerator().getSeaLevel();
     }
 }

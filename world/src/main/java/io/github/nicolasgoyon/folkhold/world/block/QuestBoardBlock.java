@@ -305,7 +305,7 @@ public class QuestBoardBlock extends HorizontalDirectionalBlock {
         if (mirror == Mirror.NONE) {
             return state;
         }
-        return state.rotate(mirror.getRotation(state.getValue(FACING)))
+        return rotate(state, mirror.getRotation(state.getValue(FACING)))
                 .setValue(COLUMN, SIZE - 1 - state.getValue(COLUMN));
     }
 

@@ -87,6 +87,8 @@ public class VillageCat extends Cat {
         return false;
     }
 
+    /** Override only: callers use {@link net.neoforged.neoforge.event.EventHooks#finalizeMobSpawn}. */
+    @Deprecated
     @Override
     @Nullable
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor level, DifficultyInstance difficulty,

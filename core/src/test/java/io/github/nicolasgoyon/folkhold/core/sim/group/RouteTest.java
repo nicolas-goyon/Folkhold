@@ -109,4 +109,3 @@ class RouteTest {
         assertEquals(Route.Surface.LAND, Route.Surface.fromCode(99));
     }
 }
-

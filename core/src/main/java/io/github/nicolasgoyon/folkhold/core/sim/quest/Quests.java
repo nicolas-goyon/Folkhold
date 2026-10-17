@@ -115,7 +115,7 @@ public final class Quests {
         if (quest.state() != QuestState.OFFERED) {
             return AcceptResult.NOT_OFFERED;
         }
-        if (tier.ordinal() < quest.minTier().ordinal()) {
+        if (!tier.isAtLeast(quest.minTier())) {
             return AcceptResult.TIER_TOO_LOW;
         }
         if (active(playerId).size() >= maxActive) {

@@ -3,6 +3,8 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import com.mojang.authlib.GameProfile;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Stock;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
@@ -10,8 +12,6 @@ import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
-import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
-import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
@@ -35,6 +35,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.EventHooks;
 
 /**
  * Helpers for the GameTests of the world mod.
@@ -157,7 +158,7 @@ final class TestSupport {
     /** Spawns a unit as a spawn egg or a command does: equipment, configured values, home, village. */
     static <T extends FactionUnit> T spawnUnit(GameTestHelper helper, EntityType<T> type, BlockPos relativePos) {
         T unit = helper.spawn(type, relativePos);
-        unit.finalizeSpawn(helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(unit.blockPosition()),
+        EventHooks.finalizeMobSpawn(unit, helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(unit.blockPosition()),
                 MobSpawnType.COMMAND, null);
         return unit;
     }

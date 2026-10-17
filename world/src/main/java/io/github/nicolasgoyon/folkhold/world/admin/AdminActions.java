@@ -14,7 +14,6 @@ import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload.Summary;
 import io.github.nicolasgoyon.folkhold.world.network.AdminResultPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
-import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
@@ -192,30 +191,30 @@ public final class AdminActions {
         }
         Settlement settlement = found.get();
         Component name = Component.literal(settlement.name());
-        switch (action) {
+        return switch (action) {
             case "teleport" -> {
                 if (player == null) {
-                    return Optional.empty();
+                    yield Optional.empty();
                 }
                 ServerLevel level = server.overworld();
                 BlockPos target = teleportTarget(level, settlement);
                 player.teleportTo(level, target.getX() + 0.5, target.getY(), target.getZ() + 0.5, player.getYRot(),
                         player.getXRot());
-                return Optional.of(Result.done("teleport", name));
+                yield Optional.of(Result.done("teleport", name));
             }
             case "level_set" -> {
                 int level = LevelTables.get().clamp(payload.value());
                 SettlementLevels.setProgress(server, settlement, level, 0);
-                return Optional.of(Result.done("level_set", name, level,
+                yield Optional.of(Result.done("level_set", name, level,
                         SettlementLevels.tierName(level)));
             }
             case "experience_add" -> {
                 SettlementLevels.addExperience(server, settlement, payload.value());
-                return Optional.of(Result.done("experience_add", name, payload.value()));
+                yield Optional.of(Result.done("experience_add", name, payload.value()));
             }
             case "cycle" -> {
                 SimulationTicker.runSystems(server, settlement, new TickInfo(data.tickNumber() + 1, true));
-                return Optional.of(Result.done("cycle", name));
+                yield Optional.of(Result.done("cycle", name));
             }
             case "economy_reset" -> {
                 EconomyState economy = settlement.economy();
@@ -223,41 +222,38 @@ public final class AdminActions {
                 economy.setInitialized(false);
                 Settlements.startEconomy(server, settlement);
                 data.setDirty();
-                return Optional.of(Result.done("economy_reset", name));
+                yield Optional.of(Result.done("economy_reset", name));
             }
             case "ruin" -> {
                 if (!settlement.isActive()) {
-                    return Optional.of(Result.refused("already_ruins", name));
+                    yield Optional.of(Result.refused("already_ruins", name));
                 }
                 Settlements.ruin(server.overworld(), settlement.id(),
                         new BlockPos(settlement.x(), settlement.heartY(), settlement.z()), null);
-                return Optional.of(Result.done("ruin", name));
+                yield Optional.of(Result.done("ruin", name));
             }
             case "restore" -> {
                 if (settlement.isActive()) {
-                    return Optional.of(Result.refused("already_active", name));
+                    yield Optional.of(Result.refused("already_active", name));
                 }
                 Settlements.restore(server.overworld(), settlement);
-                return Optional.of(Result.done("restore", name));
+                yield Optional.of(Result.done("restore", name));
             }
             case "alert", "bells" -> {
                 Optional<VillageHeartBlockEntity> heart = loadedHeart(server, settlement);
                 if (heart.isEmpty()) {
-                    return Optional.of(Result.refused("heart_not_loaded", name));
+                    yield Optional.of(Result.refused("heart_not_loaded", name));
                 }
                 if (action.equals("bells")) {
                     heart.get().ringBells();
-                    return Optional.of(Result.done("bells", name));
+                    yield Optional.of(Result.done("bells", name));
                 }
-                AlertState[] states = AlertState.values();
-                AlertState state = states[Math.floorMod(payload.value(), states.length)];
+                AlertState state = AlertState.byIndex(payload.value());
                 heart.get().setAlertState(state);
-                return Optional.of(Result.done("alert", name, alertName(state)));
+                yield Optional.of(Result.done("alert", name, alertName(state)));
             }
-            default -> {
-                return Optional.of(Result.refused("unknown_action", action));
-            }
-        }
+            default -> Optional.of(Result.refused("unknown_action", action));
+        };
     }
 
     /**
@@ -274,7 +270,7 @@ public final class AdminActions {
                         factionName(server, settlement.factionId()), settlement.level(),
                         SettlementLevels.tierName(settlement.level()), settlement.isActive(), settlement.x(),
                         settlement.z(), settlement.economy().population(),
-                        (int) Math.round(Math.sqrt(settlement.distanceSquared(pos.getX(), pos.getZ()))),
+                        (int) Math.round(Math.sqrt((double) settlement.distanceSquared(pos.getX(), pos.getZ()))),
                         settlement.hasHeart()))
                 .toList();
         return new AdminListPayload(summaries);
@@ -338,7 +334,7 @@ public final class AdminActions {
                     .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                     .map(entry -> new Stock(entry.getKey(), entry.getValue()))
                     .toList();
-            int alert = heart.map(found -> found.getAlertState().ordinal()).orElse(AdminDetailsPayload.NO_ALERT);
+            int alert = heart.map(found -> found.getAlertState().index()).orElse(AdminDetailsPayload.NO_ALERT);
             return new AdminDetailsPayload(settlement.id(), Component.literal(settlement.name()),
                     settlement.isActive(), factionName(server, settlement.factionId()), settlement.biome(),
                     settlement.level(), SettlementLevels.tierName(settlement.level()), alert, settlement.x(),

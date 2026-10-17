@@ -124,8 +124,9 @@ public final class PostAssignment {
                 Position position = archers.get(archer);
                 for (int post : free) {
                     long distance = posts.get(post).distanceSquared(position.x(), position.y(), position.z());
-                    if (distance < bestDistance || distance == bestDistance && (archer < bestArcher
-                            || archer == bestArcher && post < bestPost)) {
+                    boolean sameDistance = distance == bestDistance
+                            && (archer < bestArcher || (archer == bestArcher && post < bestPost));
+                    if (distance < bestDistance || sameDistance) {
                         bestDistance = distance;
                         bestArcher = archer;
                         bestPost = post;

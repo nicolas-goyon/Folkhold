@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.network.QuestLogPayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import java.util.ArrayDeque;
@@ -37,6 +38,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -333,7 +335,7 @@ public final class Escorts {
             Route.Position position = group.position();
             int x = (int) Math.floor(position.x());
             int z = (int) Math.floor(position.z());
-            return new BlockPos(x, server.overworld().getSeaLevel(), z);
+            return new BlockPos(x, Settlements.seaLevel(server.overworld()), z);
         });
     }
 
@@ -372,7 +374,7 @@ public final class Escorts {
                 continue;
             }
             mob.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, random.nextFloat() * 360.0F, 0.0F);
-            mob.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
+            EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
             if (type != EntityType.SPIDER) {
                 // A helmet protects the monster from the sun, so the ambush also works in the day.
                 mob.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
@@ -438,7 +440,7 @@ public final class Escorts {
         double x;
         double z;
         Optional<Entity> merchant = group.merchant().map(member -> level.getEntity(member.id()));
-        if (merchant.isPresent() && merchant.get() != null) {
+        if (merchant.isPresent()) {
             x = merchant.get().getX();
             z = merchant.get().getZ();
         } else {

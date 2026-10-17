@@ -186,9 +186,7 @@ public final class TerritoryMessages {
         return new TerritoryStatusPayload(Optional.of(FactionVisuals.name(territory.get())), territory.get().color(),
                 Optional.of(tier.serializedName()),
                 nearest.<Component>map(settlement -> Component.literal(settlement.name())).or(() -> villageName),
-                nearest.map(settlement -> new BlockPos(settlement.x(),
-                        settlement.hasHeart() ? settlement.heartY() : server.overworld().getSeaLevel(), settlement.z()))
-                        .or(() -> villagePos));
+                nearest.map(settlement -> Settlements.position(server, settlement)).or(() -> villagePos));
     }
 
     /**

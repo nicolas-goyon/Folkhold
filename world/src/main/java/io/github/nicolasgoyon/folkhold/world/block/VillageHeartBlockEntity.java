@@ -56,6 +56,7 @@ import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.neoforged.neoforge.event.EventHooks;
 
 /**
  * State of a village: id, faction, alert state and garrison. The units of the village keep the position of this block.
@@ -543,7 +544,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         List<VillageCat> cats = getCats();
         int missing = catCount() - cats.size();
         long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
-        if (missing <= 0 || catsSpawned && now - lastCatSpawn < refill) {
+        if (missing <= 0 || (catsSpawned && now - lastCatSpawn < refill)) {
             return false;
         }
         List<BlockPos> anchors = catAnchors();
@@ -557,7 +558,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
                     serverLevel.random.nextFloat() * 360.0F, 0.0F);
             cat.setAnchorPos(anchor);
             cat.setVillagePos(worldPosition);
-            cat.finalizeSpawn(serverLevel, serverLevel.getCurrentDifficultyAt(anchor), MobSpawnType.STRUCTURE, null);
+            EventHooks.finalizeMobSpawn(cat, serverLevel, serverLevel.getCurrentDifficultyAt(anchor), MobSpawnType.STRUCTURE, null);
             serverLevel.addFreshEntity(cat);
         }
         catsSpawned = true;
@@ -588,8 +589,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         List<VillagerProfession> missingInhabitants =
                 VillageFolk.assign(VillageFolk.inhabitants(serverLevel, worldPosition), wanted);
         long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
-        if (missingMerchants <= 0 && missingInhabitants.isEmpty()
-                || villagersSpawned && now - lastVillagerSpawn < refill) {
+        if ((missingMerchants <= 0 && missingInhabitants.isEmpty())
+                || (villagersSpawned && now - lastVillagerSpawn < refill)) {
             return false;
         }
         for (int i = 0; i < missingMerchants; i++) {

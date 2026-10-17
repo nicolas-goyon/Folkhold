@@ -13,6 +13,23 @@ public enum AlertState {
     /** The village is under attack. The captain sets this state. */
     ASSAULT;
 
+    /** The index of the state in the network payloads. */
+    @SuppressWarnings("EnumOrdinal") // The index is the wire format of the state.
+    public int index() {
+        return ordinal();
+    }
+
+    /**
+     * Gives the state with an index from {@link #index()}.
+     *
+     * @param index the index; an index out of range wraps around
+     * @return the state
+     */
+    public static AlertState byIndex(int index) {
+        AlertState[] states = values();
+        return states[Math.floorMod(index, states.length)];
+    }
+
     /** Name in the save data. */
     public String serializedName() {
         return name().toLowerCase(Locale.ROOT);

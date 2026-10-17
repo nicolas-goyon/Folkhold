@@ -102,9 +102,10 @@ Run these commands in the container.
 
 | Command | Result |
 | --- | --- |
-| `./gradlew build` | Compiles, runs the JUnit tests and the translation check, makes the jars in `<module>/build/libs/`. |
+| `./gradlew build` | Compiles with the lints and Error Prone, runs the JUnit tests, the format check and the translation check, makes the jars in `<module>/build/libs/`. |
 | `./gradlew test` | JUnit tests only. For `core`, the coverage report of JaCoCo is in `core/build/reports/jacoco/test/html/index.html`. |
 | `./gradlew :core:test --tests '*RegionPosTest'` | One test class. |
+| `./gradlew spotlessApply` | Fixes the format of the sources (imports, trailing spaces, final newline). |
 | `./gradlew checkTranslations` | Checks that `en_us.json` and `fr_fr.json` have the same keys. |
 | `./gradlew :dev:runGameTestServer` | Runs all GameTests in a server. |
 | `./gradlew :world:runData` | Data generation for one mod. Output: `world/src/generated/resources/`. |

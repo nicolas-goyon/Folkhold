@@ -141,7 +141,7 @@ public abstract class UiList<T> extends AbstractWidget {
     }
 
     @Override
-    public void onClick(double mouseX, double mouseY) {
+    public void onClick(double mouseX, double mouseY, int button) {
         UiRect rows = rowsRect();
         int y = rows.y() - scroll;
         for (int i = 0; i < items.size(); i++) {

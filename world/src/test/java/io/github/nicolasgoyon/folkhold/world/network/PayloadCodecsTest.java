@@ -12,6 +12,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
+import net.neoforged.neoforge.network.connection.ConnectionType;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -20,7 +21,8 @@ import org.junit.jupiter.api.Test;
  */
 class PayloadCodecsTest {
     private static <T> T roundTrip(StreamCodec<RegistryFriendlyByteBuf, T> codec, T value) {
-        RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY);
+        RegistryFriendlyByteBuf buf = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY,
+                ConnectionType.NEOFORGE);
         codec.encode(buf, value);
         T read = codec.decode(buf);
         assertEquals(0, buf.readableBytes(), "The codec must read all the bytes that it wrote");

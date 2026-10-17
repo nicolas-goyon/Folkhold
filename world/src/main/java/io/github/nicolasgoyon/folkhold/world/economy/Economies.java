@@ -13,11 +13,13 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
 import net.minecraft.core.registries.Registries;
@@ -80,8 +82,8 @@ public final class Economies {
      */
     public static void initialize(MinecraftServer server, Settlement settlement) {
         if (settlement.biome().isEmpty()) {
-            settlement.setBiome(biomeAt(server.overworld(), settlement.x(), settlement.hasHeart()
-                    ? settlement.heartY() : server.overworld().getSeaLevel(), settlement.z()));
+            BlockPos pos = Settlements.position(server, settlement);
+            settlement.setBiome(biomeAt(server.overworld(), pos.getX(), pos.getY(), pos.getZ()));
         }
         LevelTraits traits = LevelTables.get().traits(settlement.level());
         EconomyState state = settlement.economy();

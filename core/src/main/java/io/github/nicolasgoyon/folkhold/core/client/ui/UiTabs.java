@@ -103,7 +103,7 @@ public class UiTabs extends AbstractWidget {
     }
 
     @Override
-    public void onClick(double mouseX, double mouseY) {
+    public void onClick(double mouseX, double mouseY, int button) {
         Font font = Minecraft.getInstance().font;
         for (int i = 0; i < labels.size(); i++) {
             if (tab(i, font).contains(mouseX, mouseY)) {
