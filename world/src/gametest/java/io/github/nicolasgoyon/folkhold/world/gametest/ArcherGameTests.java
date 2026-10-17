@@ -2,15 +2,18 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -82,6 +85,43 @@ public final class ArcherGameTests {
                     archer.discard();
                     husk.discard();
                     helper.assertTrue(distance < 1.5, "The archer must shoot from its post, distance: " + distance);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A player in creative mode is not a target. A guard and an archer on its post drop the player when the player
+     * goes to creative mode, and they do not accept the player as a target again.
+     */
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "archer_creative")
+    public static void unitsDropAPlayerInCreativeMode(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ArcherEntity archer = TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 2));
+        archer.setPostPos(helper.absolutePos(new BlockPos(2, 1, 2)));
+        GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(4, 1, 4));
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        BlockPos at = helper.absolutePos(new BlockPos(10, 1, 10));
+        player.teleportTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
+        archer.setTarget(player);
+        guard.setTarget(player);
+        boolean targetInSurvival = archer.getTarget() == player && guard.getTarget() == player;
+
+        player.setGameMode(GameType.CREATIVE);
+
+        helper.startSequence()
+                .thenExecuteAfter(5, () -> {
+                    helper.assertTrue(targetInSurvival, "A player in survival mode must be a target");
+                    helper.assertTrue(archer.getTarget() == null, "The archer must drop a player in creative mode");
+                    helper.assertTrue(guard.getTarget() == null, "The guard must drop a player in creative mode");
+                    archer.setTarget(player);
+                    guard.setTarget(player);
+                    helper.assertTrue(archer.getTarget() == null && guard.getTarget() == null,
+                            "A player in creative mode must not be a target");
+                })
+                .thenExecute(() -> {
+                    helper.getLevel().getServer().getPlayerList().remove(player);
+                    archer.discard();
+                    guard.discard();
                 })
                 .thenSucceed();
     }

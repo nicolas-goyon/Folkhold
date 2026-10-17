@@ -282,10 +282,15 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         super.setTarget(null);
     }
 
-    /** A routed unit, or a unit that stopped a chase, does not accept a target. */
+    /**
+     * A routed unit, or a unit that stopped a chase, does not accept a target. A unit also does not accept a target
+     * that it cannot attack ({@link #canAttack(LivingEntity)}): a player in creative or spectator mode, or a player
+     * in the Peaceful difficulty. The other units and the village heart give targets with this method, so the rule
+     * applies to all targets.
+     */
     @Override
     public void setTarget(@Nullable LivingEntity target) {
-        if (target != null && (isRouted() || level().getGameTime() < gaveUpUntil)) {
+        if (target != null && (isRouted() || level().getGameTime() < gaveUpUntil || !canAttack(target))) {
             return;
         }
         super.setTarget(target);
@@ -517,7 +522,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             setTarget(null);
             target = null;
         }
-        if (target != null && !target.isAlive()) {
+        // A player who goes to creative or spectator mode stops to be a target.
+        if (target != null && (!target.isAlive() || !canAttack(target))) {
             setTarget(null);
             target = null;
         }
