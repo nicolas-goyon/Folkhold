@@ -28,4 +28,5 @@ Early development. See the [issues](https://github.com/nicolas-goyon/Folkhold/is
 
 ## License
 
-All Rights Reserved, until the owner selects a license (see #7).
+The code is under the [MIT License](LICENSE). The assets (textures, models, animations, structures) are under
+[CC BY 4.0](docs/ASSETS_LICENSES.md).
