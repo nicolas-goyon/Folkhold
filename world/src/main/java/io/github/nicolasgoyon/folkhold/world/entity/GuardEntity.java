@@ -2,27 +2,15 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
-import io.github.nicolasgoyon.folkhold.world.entity.ai.ReturnToAnchorGoal;
-import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitHurtByTargetGoal;
-import io.github.nicolasgoyon.folkhold.world.entity.ai.UsePassageGoal;
 import javax.annotation.Nullable;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.ai.goal.FloatGoal;
-import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
-import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
-import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
-import net.minecraft.world.entity.monster.Creeper;
-import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
@@ -66,20 +54,8 @@ public class GuardEntity extends FactionUnit {
     }
 
     @Override
-    protected void registerGoals() {
-        goalSelector.addGoal(0, new FloatGoal(this));
-        goalSelector.addGoal(1, new UsePassageGoal(this));
+    protected void registerAttackGoals() {
         goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.0, false));
-        goalSelector.addGoal(4, new ReturnToAnchorGoal(this, 1.0));
-        goalSelector.addGoal(5, new AnchorStrollGoal(this, 0.6));
-        goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
-        goalSelector.addGoal(9, new RandomLookAroundGoal(this));
-
-        targetSelector.addGoal(1, new UnitHurtByTargetGoal(this).setAlertOthers());
-        targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, 10, true, false,
-                target -> target instanceof Player player && canTargetFromHome(player) && isHostileTo(player)));
-        targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(this, Mob.class, 5, true, false,
-                target -> target instanceof Enemy && !(target instanceof Creeper) && canTargetFromHome(target)));
     }
 
     @Override
