@@ -391,8 +391,8 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "routeMaxLength")
                 .defineInRange("routeMaxLength", 3000, 100, 20000);
         ROUTE_MAX_NODES = builder
-                .comment("Maximum number of grid cells that the calculation of one route examines. Each cell reads 2",
-                        "heights from the terrain noise on the route worker thread.")
+                .comment("Maximum number of grid cells that the calculation of one route examines. Each cell reads a",
+                        "column of the terrain noise on the route worker thread.")
                 .translation(KEY_PREFIX + "routeMaxNodes")
                 .defineInRange("routeMaxNodes", 1500, 100, 100000);
         ROUTE_BOATS = builder
