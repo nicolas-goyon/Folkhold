@@ -33,14 +33,4 @@ public final class NoticeGameTests {
         helper.assertTrue(other, "Another kind of warning must show");
         helper.succeed();
     }
-
-    /** The two texts of a notice make one line for the chat. */
-    @GameTest(template = "empty", timeoutTicks = 20, batch = "notice_text")
-    public static void noticeTextJoinsTheTwoTexts(GameTestHelper helper) {
-        String joined = Notices.asText(Component.literal("Title"), Component.literal("Details")).getString();
-        String alone = Notices.asText(Component.literal("Title"), null).getString();
-        helper.assertTrue(joined.equals("Title Details"), "Expected the two texts: " + joined);
-        helper.assertTrue(alone.equals("Title"), "Expected the title alone: " + alone);
-        helper.succeed();
-    }
 }

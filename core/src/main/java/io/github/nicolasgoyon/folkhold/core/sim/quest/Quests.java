@@ -53,6 +53,23 @@ public final class Quests {
         return Optional.ofNullable(quests.get(id));
     }
 
+    /**
+     * Replaces the id of a village in all quests.
+     *
+     * @param oldId the current id of the village
+     * @param newId the new id
+     * @return the number of quests that had the old id
+     */
+    public int renameSettlement(String oldId, String newId) {
+        int count = 0;
+        for (Quest quest : quests.values()) {
+            if (quest.renameSettlement(oldId, newId)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     /** All quests, in the order of addition. */
     public Collection<Quest> all() {
         return Collections.unmodifiableCollection(quests.values());

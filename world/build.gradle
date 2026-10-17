@@ -20,4 +20,10 @@ neoForge {
             sourceSet(project(':core').sourceSets.main)
         }
     }
+
+    // JUnit tests with the game runtime: the registries and the mods are loaded, there is no server.
+    unitTest {
+        enable()
+        testedMod = mods.folkhold_world
+    }
 }

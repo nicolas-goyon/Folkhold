@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload.Stock;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload.Summary;
 import io.github.nicolasgoyon.folkhold.world.network.AdminResultPayload;
+import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -39,7 +41,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * The server side of the admin screen. An operator (permission level 2) sees all settlements of the world, also
@@ -101,6 +102,9 @@ public final class AdminActions {
         }
     }
 
+    /** The actions that change the details of a settlement and not the list: the list is not sent again. */
+    private static final Set<String> DETAILS_ONLY_ACTIONS = Set.of("details", "alert", "bells");
+
     /**
      * True if the player can use the admin screen.
      *
@@ -113,7 +117,7 @@ public final class AdminActions {
 
     /** Opens the admin screen of the player, or updates it: sends the list of the settlements. */
     public static void sendList(ServerPlayer player) {
-        PacketDistributor.sendToPlayer(player, list(player.server, player.blockPosition()));
+        ModNetwork.send(player, list(player.server, player.blockPosition()));
     }
 
     /**
@@ -129,22 +133,19 @@ public final class AdminActions {
             return;
         }
         if (payload.action().equals("groups")) {
-            if (player.connection.hasChannel(VillageInfoPayload.TYPE)) {
-                PacketDistributor.sendToPlayer(player, GroupOverview.build(player.server));
-            }
+            ModNetwork.send(player, GroupOverview.build(player.server));
             return;
         }
         perform(player.server, player, payload).ifPresent(result -> {
-            if (player.connection.hasChannel(AdminResultPayload.TYPE)) {
-                PacketDistributor.sendToPlayer(player, new AdminResultPayload(result.message(), result.success()));
-            } else {
+            if (!ModNetwork.send(player, new AdminResultPayload(result.message(), result.success()))) {
                 player.sendSystemMessage(result.message());
             }
         });
-        sendList(player);
+        if (!DETAILS_ONLY_ACTIONS.contains(payload.action())) {
+            sendList(player);
+        }
         if (!payload.settlementId().isEmpty()) {
-            details(player.server, payload.settlementId())
-                    .ifPresent(details -> PacketDistributor.sendToPlayer(player, details));
+            details(player.server, payload.settlementId()).ifPresent(details -> ModNetwork.send(player, details));
         }
     }
 

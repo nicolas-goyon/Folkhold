@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryTitlePayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -31,7 +32,6 @@ import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * Territory and village information for the players:
@@ -108,7 +108,7 @@ public final class TerritoryMessages {
                 ? status(server, player, territory, village)
                 : TerritoryStatusPayload.NONE;
         if (previous == null || !status.equals(previous.status())) {
-            PacketDistributor.sendToPlayer(player, status);
+            ModNetwork.send(player, status);
         }
         STATES.put(player.getUUID(), new State(territoryId, villagePos, status));
     }
@@ -125,9 +125,7 @@ public final class TerritoryMessages {
      * @param color    the color of the faction, or -1
      */
     private static void showTitle(ServerPlayer player, Component title, @Nullable Component subtitle, int color) {
-        if (player.connection.hasChannel(TerritoryTitlePayload.TYPE)) {
-            PacketDistributor.sendToPlayer(player, new TerritoryTitlePayload(title, Optional.ofNullable(subtitle),
-                    color));
+        if (ModNetwork.send(player, new TerritoryTitlePayload(title, Optional.ofNullable(subtitle), color))) {
             return;
         }
         player.connection.send(new ClientboundSetTitlesAnimationPacket(TITLE_FADE_IN, TITLE_STAY, TITLE_FADE_OUT));

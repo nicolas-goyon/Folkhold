@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.core.client.ui;
 
 import java.util.function.Consumer;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -89,19 +90,39 @@ public class UiHoldButton extends UiButton {
         }
     }
 
+    /**
+     * Advances the hold. The screen calls this method on each game tick (see {@link UiScreen#tick()} and
+     * {@link UiOverlay#tick()}). The hold stops when the button is not active or the mouse left the button. The
+     * action runs when the hold is complete.
+     */
+    public void tick() {
+        if (!isHolding()) {
+            return;
+        }
+        if (!active || (byMouse && !isHovered())) {
+            holdStart = -1L;
+            return;
+        }
+        if (progress() >= 1.0) {
+            holdStart = -1L;
+            onPress();
+        }
+    }
+
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (isHolding() && (!active || (byMouse && !isHovered()))) {
-            holdStart = -1L;
-        }
         super.renderWidget(graphics, mouseX, mouseY, partialTick);
         if (isHolding()) {
-            double progress = progress();
             UiDraw.fill(graphics, new UiRect(getX() + 1, getY() + height - 2,
-                    (int) Math.round((width - 2) * progress), 1), UiTheme.GOLD);
-            if (progress >= 1.0) {
-                holdStart = -1L;
-                onPress();
+                    (int) Math.round((width - 2) * progress()), 1), UiTheme.GOLD);
+        }
+    }
+
+    /** Advances the hold of the hold buttons among the children of a screen. */
+    static void tickAll(Iterable<? extends GuiEventListener> children) {
+        for (GuiEventListener child : children) {
+            if (child instanceof UiHoldButton hold) {
+                hold.tick();
             }
         }
     }

@@ -57,7 +57,7 @@ public final class Caravans {
         for (int i = 0; i < mules(cargo); i++) {
             caravan.addMember(new GroupMember(UUID.randomUUID(), MemberRole.PACK_ANIMAL, MULE_HEALTH));
         }
-        float guardHealth = (float) (WorldConfig.GUARD.health() * WorldConfig.HEALTH_MULTIPLIER.get());
+        float guardHealth = (float) WorldConfig.GUARD.health();
         for (int i = 0; i < guards(origin.level()); i++) {
             caravan.addMember(new GroupMember(UUID.randomUUID(), MemberRole.GUARD, guardHealth));
         }

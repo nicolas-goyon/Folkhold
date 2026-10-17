@@ -23,6 +23,8 @@ import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
  *   <li>The path finder searches in a radius of at least {@link #MIN_PATH_RANGE} blocks, with
  *       {@link #NODES_MULTIPLIER} times more nodes than a vanilla mob. A unit can go around a wall or through a
  *       gate of the village to reach a target behind the wall.</li>
+ *   <li>The navigation counts its path searches ({@link #searches()}): a search is costly, and the goals of the
+ *       units wait between two searches when a path fails.</li>
  * </ul>
  */
 public class UnitNavigation extends GroundPathNavigation {
@@ -31,16 +33,24 @@ public class UnitNavigation extends GroundPathNavigation {
     /** Multiplier of the maximum number of nodes that the path finder visits. */
     public static final float NODES_MULTIPLIER = 4.0F;
 
+    private long searches;
+
     public UnitNavigation(Mob mob, Level level) {
         super(mob, level);
         setCanOpenDoors(true);
         setMaxVisitedNodesMultiplier(NODES_MULTIPLIER);
     }
 
+    /** The number of path searches of this navigation. */
+    public long searches() {
+        return searches;
+    }
+
     @Override
     @Nullable
     protected Path createPath(Set<BlockPos> targets, int regionOffset, boolean offsetUpward, int accuracy,
             float followRange) {
+        searches++;
         return super.createPath(targets, regionOffset, offsetUpward, accuracy, Math.max(followRange, MIN_PATH_RANGE));
     }
 

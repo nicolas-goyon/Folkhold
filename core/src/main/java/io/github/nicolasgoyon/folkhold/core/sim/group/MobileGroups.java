@@ -67,6 +67,23 @@ public final class MobileGroups {
         return result;
     }
 
+    /**
+     * Replaces the id of a settlement in the origin and the destination of all groups.
+     *
+     * @param oldId the current id of the settlement
+     * @param newId the new id
+     * @return the number of groups that had the old id
+     */
+    public int renameSettlement(String oldId, String newId) {
+        int count = 0;
+        for (MobileGroup group : groups.values()) {
+            if (group.renameSettlement(oldId, newId)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     /** All groups, in the order of addition. */
     public Collection<MobileGroup> all() {
         return Collections.unmodifiableCollection(groups.values());

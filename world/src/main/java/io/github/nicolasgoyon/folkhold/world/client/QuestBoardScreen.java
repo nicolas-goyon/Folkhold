@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiButton;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiDialog;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiMenu;
+import io.github.nicolasgoyon.folkhold.core.client.ui.UiOverlay;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiScreen;
@@ -23,6 +24,7 @@ import java.util.Locale;
 import java.util.function.IntConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -104,13 +106,13 @@ public class QuestBoardScreen extends UiScreen {
      */
     public static void open(QuestBoardPayload board) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen instanceof QuestBoardScreen screen
-                && screen.board.settlementId().equals(board.settlementId())) {
+        Screen root = UiOverlay.rootScreen();
+        if (root instanceof QuestBoardScreen screen && screen.board.settlementId().equals(board.settlementId())) {
             screen.update(board);
             return;
         }
         QuestBoardScreen screen = new QuestBoardScreen(board);
-        if (minecraft.screen instanceof VillageHeartScreen heart) {
+        if (root instanceof VillageHeartScreen heart) {
             // Opened from the heart screen: the back button opens it again.
             screen.setPrevious(heart);
         }

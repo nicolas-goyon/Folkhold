@@ -70,6 +70,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(BankChests::onBlockBreak);
         NeoForge.EVENT_BUS.addListener(BankChests::onLeftClickBlock);
         NeoForge.EVENT_BUS.addListener(BankChests::onExplosion);
+        NeoForge.EVENT_BUS.addListener(BankChests::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(Merchants::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(VillageFolk::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(Merchants::onTrade);
@@ -87,7 +88,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerStopped);
-        NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopping);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onServerTick);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onEntityLeave);

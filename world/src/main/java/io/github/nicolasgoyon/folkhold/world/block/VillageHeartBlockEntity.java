@@ -738,13 +738,18 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
     }
 
+    /**
+     * The periodic work of a heart. The gates of the intervals have an offset from the position of the heart, so
+     * the hearts of a world do their work on different ticks.
+     */
     public static void serverTick(Level level, BlockPos pos, BlockState state, VillageHeartBlockEntity heart) {
-        if (level.getGameTime() % CHECK_INTERVAL != 0) {
+        long time = level.getGameTime() + Math.floorMod(pos.hashCode(), ROTATION_INTERVAL);
+        if (time % CHECK_INTERVAL != 0) {
             return;
         }
         // The registration in onLoad can happen before the level is ready. Register again: it costs nothing.
         VillageHearts.register(level, pos);
-        if (level.getGameTime() % GARRISON_INTERVAL == 0) {
+        if (time % GARRISON_INTERVAL == 0) {
             double activation = WorldConfig.GARRISON_ACTIVATION_RADIUS.get();
             if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {
                 heart.ensureGarrison(level.getGameTime());
@@ -752,7 +757,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         int rotationSeconds = WorldConfig.ARCHER_ROTATION_SECONDS.get();
         if (rotationSeconds > 0 && heart.alertState == AlertState.CALM && heart.layout.isScanned()
-                && level.getGameTime() % ROTATION_INTERVAL == 0) {
+                && time % ROTATION_INTERVAL == 0) {
             heart.rotateArchers(level.random, (double) ROTATION_INTERVAL / (rotationSeconds * 20.0));
         }
         if (heart.layout.isScanned() && level.isNight() != heart.nightMode) {

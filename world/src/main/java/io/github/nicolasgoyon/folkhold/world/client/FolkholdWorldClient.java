@@ -31,9 +31,16 @@ public final class FolkholdWorldClient {
         modContainer.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         modEventBus.addListener(FolkholdWorldClient::onRegisterRenderers);
         modEventBus.addListener(FolkholdWorldClient::onRegisterGuiLayers);
-        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientTerritory.clear());
-        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientQuestLog.clear());
+        NeoForge.EVENT_BUS.addListener(FolkholdWorldClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(QuestTargetMarker::onRenderLiving);
+    }
+
+    /** The player leaves a world or a server: the client forgets what it knows about the world. */
+    private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        ClientTerritory.clear();
+        ClientQuestLog.clear();
+        TerritoryTitleHud.clear();
+        AdminScreen.clear();
     }
 
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {

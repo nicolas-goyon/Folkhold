@@ -617,7 +617,7 @@ The strategy:
 ### Work found on the internet
 
 - Sources: Planet Minecraft, GrabCraft, minecraft-schematics.com.
-- Always check the license. Much work is "all rights reserved". Keep a register, `docs/ASSETS_LICENSES.md` (source, author, license, file), for each import.
+- Always check the license. Much work is "all rights reserved". The register `docs/ASSETS_LICENSES.md` (source, author, license, file) gets a row for each import. The assets of the project are under CC BY 4.0: an import must permit this distribution.
 - Prefer Creative Commons work (CC0, CC-BY), or get the permission of the author, especially if we publish the mod.
 - During the shared work sessions, Claude can search for work, check its license and convert a schematic into a structure.
 
@@ -714,6 +714,6 @@ Notes:
 - [x] Are hostile factions only human, or also non-human cultures (illagers, piglins)? Human only in J2. Non-human cultures later.
 - [ ] Can the player found a faction, or join an existing faction?
 - [ ] Is a multiplayer mode necessary, or is single-player sufficient? (The data already uses the player UUID.)
-- [ ] Publish the mods on Modrinth later, or personal use only? (This changes the asset licenses.)
-- [ ] Select a license for the code and the assets, before the first public release.
+- [ ] Publish the mods on Modrinth later, or personal use only?
+- [x] Select a license for the code and the assets: MIT for the code, CC BY 4.0 for the assets (see `docs/ASSETS_LICENSES.md`).
 - [x] Does Lithium have a reliable NeoForge 1.21.1 version? Yes: `mc1.21.1-0.15.4-neoforge` (June 2026).
