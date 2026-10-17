@@ -10,7 +10,8 @@ import net.minecraft.world.entity.monster.RangedAttackMob;
 
 /**
  * Ranged attack of a unit on a post. The unit does not move: it shoots the target when the target is in the attack
- * radius and in sight, and looks at it otherwise. A target that stays out of the attack radius, or out of sight,
+ * radius and in sight, and looks at it otherwise. The unit does not shoot a target that it cannot attack, for
+ * example a player in creative mode. A target that stays out of the attack radius, or out of sight,
  * for {@link #GIVE_UP_TICKS} is dropped, so the unit can take a nearer target. A unit with no post uses the
  * vanilla ranged attack goal.
  */
@@ -49,7 +50,7 @@ public class PostRangedAttackGoal extends Goal {
     @Override
     public boolean canUse() {
         LivingEntity found = unit.getTarget();
-        if (unit.getPostPos() == null || found == null || !found.isAlive()) {
+        if (unit.getPostPos() == null || found == null || !found.isAlive() || !unit.canAttack(found)) {
             return false;
         }
         target = found;
