@@ -198,7 +198,7 @@ python3 tools/models/quest_board.py
 
 ## Textures from a script
 
-The textures of the building signs and of the villager professions come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the lang keys and the tag of the signs. Change a script, then run it:
+The textures of the building signs and of the villager and zombie villager professions come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the lang keys and the tag of the signs. Change a script, then run it:
 
 ```bash
 python3 tools/textures/building_signs.py
