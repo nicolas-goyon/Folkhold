@@ -324,18 +324,22 @@ def stand_model(kind):
 
 
 def update_tag(path, ids):
+    """Puts the sign ids in the tag. An id that is in the tag keeps its place; the others go at the end."""
     with open(path, encoding="utf-8") as file:
         tag = json.load(file)
-    values = [value for value in tag["values"] if not value.startswith(f"{NS}:building_sign_")]
-    tag["values"] = values + ids
+    values = [value for value in tag["values"] if not value.startswith(f"{NS}:building_sign_") or value in ids]
+    tag["values"] = values + [value for value in ids if value not in values]
     write_json(path, tag)
 
 
 def update_lang(path, names):
+    """Puts the sign names in the lang file. A key that is in the file keeps its place; the others go at the end."""
     with open(path, encoding="utf-8") as file:
         lang = json.load(file)
-    lang = {key: value for key, value in lang.items() if not key.startswith(f"block.{NS}.building_sign_")}
-    lang.update(names)
+    lang = {key: (names[key] if key in names else value) for key, value in lang.items()
+            if not key.startswith(f"block.{NS}.building_sign_") or key in names}
+    for key, value in names.items():
+        lang.setdefault(key, value)
     write_json(path, lang)
 
 
