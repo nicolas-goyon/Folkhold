@@ -7,7 +7,7 @@ The classes are client classes. Only client code (screens, HUD, network handlers
 ## Rules
 
 - **Sizes.** A screen works at the minimum size of 320 × 240 GUI pixels (a panel of 308 × 228 pixels). It can use more space when it is available. The vanilla font has a line of 9 pixels.
-- **Texts.** All texts come from translation keys, in English and in French. A French text is often 15 % to 30 % longer. A text that does not fit ends with "…", and the tooltip shows the complete text.
+- **Texts.** All texts come from translation keys, in English and in French. A French text is often 15 % to 30 % longer. A text that does not fit ends with "…". A button shows its complete label in its tooltip. The other elements (lists, cards, HUD) do not show the cut part: give them the space for the French text.
 - **No pause.** The screens do not pause the game, and the game stays visible behind the panel. Keep the screens compact.
 - **Server data.** The server owns all data. A button sends an action to the server, and shows the waiting state until the answer comes (`UiButton.setPending`), or for 5 seconds at most when the server does not answer.
 - **Colors.** A color never gives a meaning alone: add a word or a glyph (✓, ✕, ▲, ●).
