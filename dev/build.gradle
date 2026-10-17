@@ -47,8 +47,14 @@ neoForge {
         configureEach {
             gameDirectory = project.file('run')
             systemProperty 'neoforge.enabledGameTestNamespaces', gameTestNamespaces
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-            logLevel = org.slf4j.event.Level.DEBUG
+            // The CI reads the logs through tee: INFO keeps them short. A developer gets DEBUG and the registry
+            // markers.
+            if (System.getenv('CI') != null) {
+                logLevel = org.slf4j.event.Level.INFO
+            } else {
+                systemProperty 'forge.logging.markers', 'REGISTRIES'
+                logLevel = org.slf4j.event.Level.DEBUG
+            }
             if (debugPort != null) {
                 // Listen on all interfaces, so that an IDE outside the container can attach.
                 jvmArgument "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:${debugPort}"
