@@ -1,10 +1,12 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -302,11 +304,16 @@ public final class Garrison {
         entries.clear();
         for (int i = 0; i < list.size(); i++) {
             CompoundTag tag = list.getCompound(i);
-            GarrisonRole role = GarrisonRole.fromSerializedName(tag.getString("Role"));
-            if (role == null || !tag.hasUUID("Id")) {
+            Optional<GarrisonRole> role = GarrisonRole.fromSerializedName(tag.getString("Role"));
+            if (role.isEmpty()) {
+                FolkholdWorld.LOGGER.warn("Unknown garrison role '{}': the unit is not in the garrison",
+                        tag.getString("Role"));
                 continue;
             }
-            Entry entry = new Entry(tag.getUUID("Id"), role);
+            if (!tag.hasUUID("Id")) {
+                continue;
+            }
+            Entry entry = new Entry(tag.getUUID("Id"), role.get());
             entry.dead = tag.getBoolean("Dead");
             entry.deadSince = tag.getLong("DeadSince");
             entry.lastSeen = tag.getLong("LastSeen");

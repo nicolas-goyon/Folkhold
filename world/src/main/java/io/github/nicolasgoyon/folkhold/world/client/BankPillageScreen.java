@@ -48,6 +48,6 @@ public final class BankPillageScreen {
     }
 
     private static ReputationTier tier(String name) {
-        return ReputationTier.bySerializedName(name);
+        return ReputationTier.fromSerializedName(name).orElse(ReputationTier.NEUTRAL);
     }
 }

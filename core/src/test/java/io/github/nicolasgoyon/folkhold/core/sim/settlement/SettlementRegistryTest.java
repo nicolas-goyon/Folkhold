@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class SettlementRegistryTest {
@@ -105,7 +106,7 @@ class SettlementRegistryTest {
     @Test
     void stateHasAStableSavedName() {
         assertEquals("ruins", SettlementState.RUINS.serializedName());
-        assertEquals(SettlementState.RUINS, SettlementState.fromSerializedName("ruins"));
-        assertEquals(SettlementState.ACTIVE, SettlementState.fromSerializedName("unknown"));
+        assertEquals(Optional.of(SettlementState.RUINS), SettlementState.fromSerializedName("ruins"));
+        assertEquals(Optional.empty(), SettlementState.fromSerializedName("unknown"));
     }
 }

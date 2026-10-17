@@ -144,7 +144,7 @@ public final class VillageInfo {
                 faction.<Component>map(FactionVisuals::name).orElse(Component.empty()), culture,
                 faction.map(FactionSpec::color).orElse(-1), level,
                 level > 0 ? SettlementLevels.tierName(level) : Component.empty(),
-                heart.getAlertState().name().toLowerCase(Locale.ROOT), tier.serializedName(), effective,
+                heart.getAlertState().serializedName(), tier.serializedName(), effective,
                 villageValue, factionValue, (int) Math.round(settings.villageWeight() * 100.0), welcome, services,
                 advice, adviceDanger, sections);
     }

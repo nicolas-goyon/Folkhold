@@ -1,7 +1,10 @@
 package io.github.nicolasgoyon.folkhold.core.sim.group;
 
+import io.github.nicolasgoyon.folkhold.core.sim.SerializedName;
+import java.util.Optional;
+
 /** The state of a mobile group. */
-public enum GroupState {
+public enum GroupState implements SerializedName {
     /** The group is at its origin. It leaves at its departure tick. */
     WAITING("waiting"),
     /** The group moves on its route. */
@@ -20,22 +23,18 @@ public enum GroupState {
     }
 
     /** The name in the saved data. */
+    @Override
     public String serializedName() {
         return serializedName;
     }
 
     /**
-     * The state with a name.
+     * The state with a serialized name.
      *
      * @param name the name in the saved data
-     * @return the state. An unknown name gives {@link #TRAVELING}.
+     * @return the state, or empty for an unknown name
      */
-    public static GroupState fromSerializedName(String name) {
-        for (GroupState state : values()) {
-            if (state.serializedName.equals(name)) {
-                return state;
-            }
-        }
-        return TRAVELING;
+    public static Optional<GroupState> fromSerializedName(String name) {
+        return SerializedName.lookup(GroupState.class, name);
     }
 }

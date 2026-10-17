@@ -147,8 +147,12 @@ public final class Quests {
      * @param questId the id of the quest
      * @param state   {@link QuestState#COMPLETED} or {@link QuestState#FAILED}
      * @return true if the quest was accepted
+     * @throws IllegalArgumentException for another state
      */
     public boolean finish(String questId, QuestState state) {
+        if (state != QuestState.COMPLETED && state != QuestState.FAILED) {
+            throw new IllegalArgumentException("An accepted quest ends as completed or failed, not " + state);
+        }
         Quest quest = quests.get(questId);
         if (quest == null || quest.state() != QuestState.ACCEPTED) {
             return false;

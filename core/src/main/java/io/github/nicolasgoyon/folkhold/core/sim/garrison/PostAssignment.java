@@ -65,16 +65,16 @@ public final class PostAssignment {
      */
     public static OptionalInt pickCalm(List<Post> posts, Set<Integer> taken, int current, int minView,
             RandomGenerator random) {
-        int total = 0;
+        long sum = 0;
         for (int i = 0; i < posts.size(); i++) {
             if (isCandidate(posts, taken, current, minView, i)) {
-                total += posts.get(i).view();
+                sum += posts.get(i).view();
             }
         }
-        if (total <= 0) {
+        if (sum <= 0) {
             return OptionalInt.empty();
         }
-        int roll = random.nextInt(total);
+        int roll = random.nextInt(Math.toIntExact(sum));
         for (int i = 0; i < posts.size(); i++) {
             if (isCandidate(posts, taken, current, minView, i)) {
                 roll -= posts.get(i).view();

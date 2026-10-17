@@ -14,14 +14,17 @@ import java.util.random.RandomGenerator;
  *
  * <ol>
  *   <li><b>Production</b>: the number of active jobs is {@code population / workersPerJob}, with a maximum of the
- *       number of jobs. Each active job consumes its inputs and produces its outputs. A job with a missing input
- *       produces nothing, and the input goes into the needs. An input with a chance below 1 (a tool) must be in the
- *       stock, and the job consumes each unit with this chance.</li>
+ *       number of jobs. The active jobs start at the index {@link EconomyState#cycles()} of the job list, modulo
+ *       its size, so each job works in turn when the workers are few. Each active job consumes its inputs and
+ *       produces its outputs. A job with a missing input produces nothing, and the input goes into the needs. An
+ *       input with a chance below 1 (a tool) must be in the stock, and the job consumes each unit with this
+ *       chance.</li>
  *   <li><b>Consumption</b>: the population eats {@code foodPerInhabitant} food points for each inhabitant. It
  *       eats the food with the largest stock first.</li>
  *   <li><b>Decay</b>: each stock loses {@code decayRate} of its quantity (rounded).</li>
  *   <li><b>Population</b>: a fed population (90 % or more) grows by {@code growthRate}, up to the maximum. A
- *       hungry population (below 50 %) loses one inhabitant.</li>
+ *       hungry population (below 50 %) loses one inhabitant. A population of 0 has no food need: a newcomer
+ *       arrives at each cycle, so a village that lost all its inhabitants lives again.</li>
  * </ol>
  *
  * <p>The stock capacity limits the quantity of each item.
@@ -56,9 +59,10 @@ public final class Economy {
         Set<String> needs = new LinkedHashSet<>();
 
         int active = Math.min(jobs.size(), state.population() / settings.workersPerJob());
+        int first = jobs.isEmpty() ? 0 : state.cycles() % jobs.size();
         int working = 0;
         for (int i = 0; i < active; i++) {
-            Recipe recipe = jobs.get(i).recipe();
+            Recipe recipe = jobs.get((first + i) % jobs.size()).recipe();
             List<String> missing = new ArrayList<>();
             for (Recipe.Input input : recipe.inputs()) {
                 if (stock.count(input.item()) < input.count()) {
@@ -94,6 +98,7 @@ public final class Economy {
         CycleReport report = new CycleReport(produced, consumed, active, working, List.copyOf(needs), foodCovered,
                 state.population());
         state.setLastCycle(foodCovered, report.jobsWorking());
+        state.setCycles(state.cycles() + 1);
         return report;
     }
 
@@ -116,7 +121,7 @@ public final class Economy {
         return result;
     }
 
-    /** The population eats. Returns the share of the need that it ate. */
+    /** The population eats. Returns the share of the need that it ate: 1 for a population with no need. */
     private static double eat(EconomyState state, ItemCatalog catalog, EconomySettings settings,
             Map<String, Integer> consumed) {
         int need = state.population() * settings.foodPerInhabitant();

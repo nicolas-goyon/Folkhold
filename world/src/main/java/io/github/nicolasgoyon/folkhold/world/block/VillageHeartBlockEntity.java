@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.block;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
@@ -824,7 +825,13 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (tag.hasUUID(ID_TAG)) {
             villageId = tag.getUUID(ID_TAG);
         }
-        alertState = AlertState.fromSerializedName(tag.getString(ALERT_TAG));
+        alertState = AlertState.fromSerializedName(tag.getString(ALERT_TAG)).orElseGet(() -> {
+            if (tag.contains(ALERT_TAG)) {
+                FolkholdWorld.LOGGER.warn("Unknown alert state '{}' at {}: the village is calm",
+                        tag.getString(ALERT_TAG), worldPosition);
+            }
+            return AlertState.CALM;
+        });
         lastThreatTick = tag.getLong(LAST_THREAT_TAG);
         garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
         layout.load(tag.getCompound(LAYOUT_TAG));

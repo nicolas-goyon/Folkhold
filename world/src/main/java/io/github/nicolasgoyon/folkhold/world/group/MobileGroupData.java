@@ -299,16 +299,29 @@ public final class MobileGroupData extends SavedData {
         return Optional.of(new Route(points, surfaces));
     }
 
-    /** Reads one group. A group with an invalid route gives null. */
+    /**
+     * Reads one group. A group with an invalid route or an unknown kind gives null. A group with an unknown state
+     * travels; a member with an unknown role is not in the group.
+     */
     private static MobileGroup loadGroup(CompoundTag tag) {
         Optional<Route> route = loadRoute(tag.getIntArray("Route"), tag.getByteArray("RouteSurfaces"));
         if (route.isEmpty()) {
             return null;
         }
-        MobileGroup group = new MobileGroup(tag.getString("Id"), GroupKind.fromSerializedName(tag.getString("Kind")),
-                tag.getString("Faction"), tag.getString("Origin"), tag.getString("Destination"), route.get());
+        Optional<GroupKind> kind = GroupKind.fromSerializedName(tag.getString("Kind"));
+        if (kind.isEmpty()) {
+            FolkholdWorld.LOGGER.warn("Unknown kind '{}' for the group {}: the group is dropped",
+                    tag.getString("Kind"), tag.getString("Id"));
+            return null;
+        }
+        MobileGroup group = new MobileGroup(tag.getString("Id"), kind.get(), tag.getString("Faction"),
+                tag.getString("Origin"), tag.getString("Destination"), route.get());
         group.setProgress(tag.getDouble("Progress"));
-        group.setState(GroupState.fromSerializedName(tag.getString("State")));
+        group.setState(GroupState.fromSerializedName(tag.getString("State")).orElseGet(() -> {
+            FolkholdWorld.LOGGER.warn("Unknown state '{}' for the group {}: the group travels",
+                    tag.getString("State"), group.id());
+            return GroupState.TRAVELING;
+        }));
         group.setDepartureTick(tag.getLong("DepartureTick"));
         group.setPayment(tag.getLong("Payment"));
         group.setRouteReady(!tag.contains("RouteReady") || tag.getBoolean("RouteReady"));
@@ -319,9 +332,14 @@ public final class MobileGroupData extends SavedData {
         ListTag members = tag.getList("Members", Tag.TAG_COMPOUND);
         for (int i = 0; i < members.size(); i++) {
             CompoundTag entry = members.getCompound(i);
+            Optional<MemberRole> role = MemberRole.fromSerializedName(entry.getString("Role"));
+            if (role.isEmpty()) {
+                FolkholdWorld.LOGGER.warn("Unknown role '{}' in the group {}: the member is dropped",
+                        entry.getString("Role"), group.id());
+                continue;
+            }
             if (entry.hasUUID("Id") && group.member(entry.getUUID("Id")).isEmpty()) {
-                group.addMember(new GroupMember(entry.getUUID("Id"),
-                        MemberRole.fromSerializedName(entry.getString("Role")), entry.getFloat("Health")));
+                group.addMember(new GroupMember(entry.getUUID("Id"), role.get(), entry.getFloat("Health")));
             }
         }
         return group;

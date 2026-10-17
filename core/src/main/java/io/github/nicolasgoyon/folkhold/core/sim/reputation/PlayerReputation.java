@@ -4,9 +4,10 @@ import io.github.nicolasgoyon.folkhold.core.sim.faction.Attitude;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.RelationState;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.Relations;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Reputation of one player with each faction and each village. Values from {@link #MIN} to {@link #MAX}.
@@ -21,8 +22,8 @@ public final class PlayerReputation {
     public static final int MIN = -1000;
     public static final int MAX = 1000;
 
-    private final Map<String, Integer> factions = new HashMap<>();
-    private final Map<String, Integer> villages = new HashMap<>();
+    private final Map<String, Integer> factions = new TreeMap<>();
+    private final Map<String, Integer> villages = new TreeMap<>();
 
     /** Start value with a faction of the given attitude. */
     public static int startValue(Attitude attitude) {
@@ -123,13 +124,13 @@ public final class PlayerReputation {
         }
     }
 
-    /** Stored faction values (factions without a stored value use the start value). */
+    /** Stored faction values, in id order (factions without a stored value use the start value). */
     public Map<String, Integer> factionValues() {
-        return Map.copyOf(factions);
+        return Collections.unmodifiableMap(new TreeMap<>(factions));
     }
 
-    /** Stored village values. */
+    /** Stored village values, in id order. */
     public Map<String, Integer> villageValues() {
-        return Map.copyOf(villages);
+        return Collections.unmodifiableMap(new TreeMap<>(villages));
     }
 }

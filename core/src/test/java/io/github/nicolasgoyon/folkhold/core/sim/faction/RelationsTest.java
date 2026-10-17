@@ -38,6 +38,16 @@ class RelationsTest {
     }
 
     @Test
+    void storedValuesAreInKeyOrder() {
+        Relations relations = new Relations();
+        relations.set("c", "b", 10);
+        relations.set("b", "a", 20);
+        relations.putRaw("a|c", 30);
+
+        assertEquals(List.of("a|b", "a|c", "b|c"), List.copyOf(relations.asMap().keySet()));
+    }
+
+    @Test
     void statesHaveTheDocumentedThresholds() {
         assertEquals(RelationState.ALLIANCE, RelationState.of(50));
         assertEquals(RelationState.PEACE, RelationState.of(0));

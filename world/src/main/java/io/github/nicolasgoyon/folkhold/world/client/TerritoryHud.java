@@ -83,7 +83,7 @@ public final class TerritoryHud {
 
     /** The faction and the tier of the player: "Ashmark · ✓ Friend". */
     private static Component factionLine(Component faction, String tierName) {
-        ReputationTier tier = ReputationTier.bySerializedName(tierName);
+        ReputationTier tier = ReputationTier.fromSerializedName(tierName).orElse(ReputationTier.NEUTRAL);
         Component title = Component.literal(UiReputation.glyph(tier) + " ")
                 .append(Component.translatable("folkhold_world.reputation_tier_title." + tierName))
                 .withColor(UiReputation.textOnWood(tier));

@@ -5,6 +5,8 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 /**
  * The look of the reputation tiers: a scale from danger (dark red) to safety (blue). The color never gives the tier
  * alone: a chip also has a glyph and the name of the tier.
+ *
+ * <p>This class has no dependency on the client: the server also uses it for the chat messages and the titles.
  */
 public final class UiReputation {
     private UiReputation() {
@@ -32,13 +34,33 @@ public final class UiReputation {
         };
     }
 
-    /** The color of the tier for a text on wood or on the HUD. */
-    public static int textOnWood(ReputationTier tier) {
-        return 0xFF000000 | tier.color();
+    /** The RGB color of the tier for a text on a dark background: the HUD, the chat, a title, a dark panel. */
+    public static int color(ReputationTier tier) {
+        return switch (tier) {
+            case SWORN_ENEMY -> 0xFF7A66;
+            case HOSTILE -> 0xE8846F;
+            case NEUTRAL -> 0xA89F8C;
+            case FRIEND -> 0x9AD07E;
+            case ALLY -> 0x8FC2F0;
+        };
     }
 
-    /** The glyph of the tier: crosses for danger, a dash for neutral, ticks and arrows for safety. */
+    /** The color of the tier for a text on wood or on the HUD, with the alpha. */
+    public static int textOnWood(ReputationTier tier) {
+        return 0xFF000000 | color(tier);
+    }
+
+    /**
+     * The glyph of the tier: crosses for danger, a dash for neutral, ticks and arrows for safety. A text shows the
+     * glyph with the name of the tier, so the color never gives the tier alone.
+     */
     public static String glyph(ReputationTier tier) {
-        return tier.glyph();
+        return switch (tier) {
+            case SWORN_ENEMY -> "✕✕";
+            case HOSTILE -> "✕";
+            case NEUTRAL -> "–";
+            case FRIEND -> "✓";
+            case ALLY -> "⇈";
+        };
     }
 }

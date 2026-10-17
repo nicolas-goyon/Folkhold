@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.core.sim.quest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quests.AcceptResult;
@@ -84,6 +85,17 @@ class QuestsTest {
         assertTrue(quests.finish("b", QuestState.COMPLETED));
         assertFalse(quests.finish("b", QuestState.FAILED), "A finished quest does not change");
         assertEquals(QuestState.COMPLETED, quests.byId("b").orElseThrow().state());
+    }
+
+    @Test
+    void finishAcceptsOnlyCompletedAndFailed() {
+        Quests quests = new Quests();
+        quests.add(quest("a", ReputationTier.NEUTRAL));
+        quests.accept("a", PLAYER, ReputationTier.NEUTRAL, 0, 5);
+
+        assertThrows(IllegalArgumentException.class, () -> quests.finish("a", QuestState.EXPIRED));
+        assertThrows(IllegalArgumentException.class, () -> quests.finish("a", QuestState.ACCEPTED));
+        assertEquals(QuestState.ACCEPTED, quests.byId("a").orElseThrow().state());
     }
 
     @Test
