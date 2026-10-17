@@ -240,16 +240,10 @@ The CI makes the same file for each pull request (artifact `folkhold-modpack`).
 
 ## Continuous integration and releases
 
-- Each push on `main` and each pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars, the `.mrpack` file and the coverage report of `core` are available as artifacts of the run. The workflow **Generated files** checks the output of the scripts of `tools/`.
+- Each push on `main` and on `develop` and each pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars, the `.mrpack` file and the coverage report of `core` are available as artifacts of the run. The workflow **Generated files** runs the tests of `scripts/version.py` and checks the output of the scripts of `tools/`.
+- The workflow **Pull request** checks the title of a pull request to `develop` (bump marker, see [CONTRIBUTING.md](../CONTRIBUTING.md#versions-and-releases)) and gives the version after the merge. For a pull request to `main`, it checks that the source branch is `develop` and gives the version and the notes of the release.
 - A change to `.devcontainer/` runs the workflow **Dev container**: it builds the image and checks the tools.
-- To make a release, push a tag on `main`:
-
-  ```bash
-  git tag v0.1.0
-  git push origin v0.1.0
-  ```
-
-  The workflow **Release** checks that the tag is on `main`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). A version with a suffix (for example `v0.1.0-beta.1`) is a pre-release. The release uses the same packwiz commit as the CI, so two runs on the same tag give the same `.mrpack` content.
+- To make a release, merge `develop` into `main`: a pull request from `develop` to `main`, with "Create a merge commit". The workflow **Release** calculates the version from the bump markers of the commits, tags the commit of `develop`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). When the tag of the version exists, the workflow makes no release. The release uses the same packwiz commit as the CI, so two runs on the same commit give the same `.mrpack` content.
 
 ## Clean up
 

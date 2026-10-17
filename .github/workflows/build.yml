@@ -2,14 +2,14 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A new push on a pull request cancels the run of the earlier push. A push on main is never cancelled.
+# A new push on a pull request cancels the run of the earlier push. A push on main or develop is never cancelled.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
