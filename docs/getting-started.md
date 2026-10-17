@@ -103,7 +103,7 @@ Run these commands in the container.
 | Command | Result |
 | --- | --- |
 | `./gradlew build` | Compiles, runs the JUnit tests and the translation check, makes the jars in `<module>/build/libs/`. |
-| `./gradlew test` | JUnit tests only. |
+| `./gradlew test` | JUnit tests only. For `core`, the coverage report of JaCoCo is in `core/build/reports/jacoco/test/html/index.html`. |
 | `./gradlew :core:test --tests '*RegionPosTest'` | One test class. |
 | `./gradlew checkTranslations` | Checks that `en_us.json` and `fr_fr.json` have the same keys. |
 | `./gradlew :dev:runGameTestServer` | Runs all GameTests in a server. |
@@ -219,7 +219,7 @@ The CI makes the same file for each pull request (artifact `folkhold-modpack`).
 
 ## Continuous integration and releases
 
-- Each push and pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars (and the `.mrpack` file, when the modpack exists) are available as artifacts of the run.
+- Each push and pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars (and the `.mrpack` file, when the modpack exists) and the coverage report of `core` are available as artifacts of the run.
 - A change to `.devcontainer/` runs the workflow **Dev container**: it builds the image and checks the tools.
 - To make a release, push a tag on `main`:
 

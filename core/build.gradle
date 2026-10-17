@@ -2,6 +2,20 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'net.neoforged.moddev'
+    id 'jacoco'
 }
 
 apply from: rootProject.file('gradle/mod-common.gradle')
+
+// Code coverage of the JUnit tests. The HTML report is in build/reports/jacoco/test/html.
+tasks.named('test') {
+    finalizedBy 'jacocoTestReport'
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn 'test'
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}

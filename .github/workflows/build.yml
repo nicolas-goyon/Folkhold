@@ -45,6 +45,14 @@ jobs:
         if: failure()
         run: scripts/ci-annotate-errors.sh build/ci-build.log build/ci-gametest.log
 
+      - name: Upload the coverage report of core
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: folkhold-core-coverage
+          path: core/build/reports/jacoco/test/html
+          if-no-files-found: ignore
+
       - name: Upload the mod jars
         uses: actions/upload-artifact@v7
         with:
