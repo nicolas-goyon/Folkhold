@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,9 +85,7 @@ public final class TerritoryHud {
     /** The faction and the tier of the player: "Ashmark · ✓ Friend". */
     private static Component factionLine(Component faction, String tierName) {
         ReputationTier tier = ReputationTier.fromSerializedName(tierName).orElse(ReputationTier.NEUTRAL);
-        Component title = Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tierName))
-                .withColor(UiReputation.textOnWood(tier));
+        Component title = FactionVisuals.tierTitle(tier).withColor(UiReputation.textOnWood(tier));
         return Component.empty().append(faction).append(Component.literal(" · ").withColor(UiTheme.TEXT_FAINT))
                 .append(title);
     }

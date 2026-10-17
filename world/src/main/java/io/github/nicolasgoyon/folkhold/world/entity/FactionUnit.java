@@ -11,7 +11,6 @@ import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
-import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Objects;
 import java.util.Optional;
@@ -254,11 +253,6 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             return;
         }
         super.setTarget(target);
-    }
-
-    /** True if the unit has a village and the village is not calm. */
-    public boolean isVillageAlerted() {
-        return getVillageHeart().map(heart -> heart.getAlertState() != AlertState.CALM).orElse(false);
     }
 
     /** The id of the faction of the unit, or null if the unit has no faction. */

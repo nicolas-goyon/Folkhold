@@ -85,10 +85,6 @@ public class UiButton extends AbstractButton {
         return new UiButton(rect, label, Style.DANGER, action);
     }
 
-    public Style style() {
-        return style;
-    }
-
     /** Changes the look. */
     public UiButton setStyle(Style style) {
         this.style = style;

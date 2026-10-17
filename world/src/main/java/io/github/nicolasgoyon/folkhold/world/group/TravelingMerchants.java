@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
@@ -22,8 +23,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.UUID;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -54,7 +53,6 @@ public final class TravelingMerchants {
     /** Number of near villages from which the merchant selects its next village. */
     private static final int NEAR_VILLAGES = 5;
     private static final int MAX_USES = 4;
-    private static final float PRICE_MULTIPLIER = 0.05F;
 
     /**
      * A rare item of the traveling merchants.
@@ -183,14 +181,14 @@ public final class TravelingMerchants {
         double factor = Merchants.priceFactor(tier);
         for (Map.Entry<String, Integer> entry : group.cargo().asMap().entrySet()) {
             Optional<RareItem> rare = rareItem(entry.getKey());
-            Optional<Item> item = item(entry.getKey());
+            Optional<Item> item = ItemIds.item(entry.getKey());
             if (rare.isEmpty() || item.isEmpty()) {
                 continue;
             }
             int emeralds = (int) Math.max(1, Math.min(64, Math.round(rare.get().price() * factor)));
             int uses = Math.min(MAX_USES, entry.getValue());
             offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, emeralds), Optional.empty(),
-                    new ItemStack(item.get()), uses, 0, PRICE_MULTIPLIER));
+                    new ItemStack(item.get()), uses, 0, Merchants.PRICE_MULTIPLIER));
         }
         return offers;
     }
@@ -272,8 +270,4 @@ public final class TravelingMerchants {
         }
     }
 
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location);
-    }
 }

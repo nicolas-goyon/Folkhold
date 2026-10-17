@@ -414,14 +414,6 @@ public class AdminScreen extends UiScreen {
         rebuild();
     }
 
-    /** The distance in blocks, or in kilometers with one decimal. */
-    private static Component distance(int blocks) {
-        if (blocks < 1000) {
-            return Component.translatable(KEY + "distance.m", blocks);
-        }
-        return Component.translatable(KEY + "distance.km", blocks / 1000, blocks % 1000 / 100);
-    }
-
     /** The list of the settlements. */
     private final class SettlementList extends UiList<Summary> {
         SettlementList(UiRect rect) {
@@ -446,7 +438,8 @@ public class AdminScreen extends UiScreen {
             }
             UiRect text = rect.inset(UiTheme.PADDING, 0);
             int y = UiText.textY(text);
-            Component info = Component.translatable(KEY + "entry", item.level(), distance(item.distance()));
+            Component info = Component.translatable(KEY + "entry", item.level(),
+                    HudDirections.distanceText(item.distance()));
             int infoWidth = UiText.drawRight(graphics, font, info, text.right(), y, text.width() / 2,
                     UiTheme.TEXT_MUTED);
             MutableComponent name = item.active() ? Component.literal(item.name())

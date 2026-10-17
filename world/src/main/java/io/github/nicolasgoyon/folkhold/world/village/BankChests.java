@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
@@ -31,9 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -288,7 +287,7 @@ public final class BankChests {
         List<ItemStack> stacks = new ArrayList<>();
         addStacks(stacks, Items.EMERALD, emeraldShare(server, settlement));
         for (Map.Entry<String, Integer> entry : settlement.economy().stock().asMap().entrySet()) {
-            item(entry.getKey()).ifPresent(item -> addStacks(stacks, item, entry.getValue()));
+            ItemIds.item(entry.getKey()).ifPresent(item -> addStacks(stacks, item, entry.getValue()));
         }
         return stacks;
     }
@@ -314,17 +313,12 @@ public final class BankChests {
         }
     }
 
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location);
-    }
-
     private static Map<String, Integer> count(BankChestBlockEntity chest) {
         Map<String, Integer> counts = new HashMap<>();
         for (int slot = 0; slot < chest.container().getContainerSize(); slot++) {
             ItemStack stack = chest.container().getItem(slot);
             if (!stack.isEmpty()) {
-                counts.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(),
+                counts.merge(ItemIds.id(stack.getItem()), stack.getCount(),
                         Integer::sum);
             }
         }
@@ -394,7 +388,7 @@ public final class BankChests {
             Map<String, Integer> after) {
         SettlementData data = SettlementData.get(server);
         Stock stock = settlement.economy().stock();
-        String emerald = BuiltInRegistries.ITEM.getKey(Items.EMERALD).toString();
+        String emerald = ItemIds.id(Items.EMERALD);
         Set<String> items = new HashSet<>(before.keySet());
         items.addAll(after.keySet());
         for (String item : items) {
@@ -450,7 +444,7 @@ public final class BankChests {
         addStacks(treasury, Items.EMERALD, emeraldShare(server, settlement));
         List<ItemStack> stock = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : settlement.economy().stock().asMap().entrySet()) {
-            item(entry.getKey()).ifPresent(item -> addStacks(stock, item, entry.getValue()));
+            ItemIds.item(entry.getKey()).ifPresent(item -> addStacks(stock, item, entry.getValue()));
         }
         int used = 0;
         int treasuryIndex = 0;
@@ -467,7 +461,7 @@ public final class BankChests {
                     data.addTreasury(settlement.factionId(), -stack.getCount());
                 } else if (stockIndex < stock.size()) {
                     stack = stock.get(stockIndex++);
-                    settlement.economy().stock().remove(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                    settlement.economy().stock().remove(ItemIds.id(stack.getItem()),
                             stack.getCount());
                 } else {
                     break;
@@ -504,7 +498,7 @@ public final class BankChests {
                 if (stack.is(Items.EMERALD)) {
                     data.addTreasury(settlement.factionId(), stack.getCount());
                 } else {
-                    settlement.economy().stock().add(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                    settlement.economy().stock().add(ItemIds.id(stack.getItem()),
                             stack.getCount(), Integer.MAX_VALUE);
                 }
             }

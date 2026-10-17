@@ -1,9 +1,9 @@
 package io.github.nicolasgoyon.folkhold.core.sim.settlement;
 
+import io.github.nicolasgoyon.folkhold.core.sim.IntPair;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,7 +28,7 @@ public final class SettlementRegistry {
      * @return the key
      */
     public static long chunkKey(int chunkX, int chunkZ) {
-        return ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+        return IntPair.pack(chunkX, chunkZ);
     }
 
     /**
@@ -69,26 +69,6 @@ public final class SettlementRegistry {
 
     public int size() {
         return byId.size();
-    }
-
-    /**
-     * The settlements in a horizontal radius around a position, nearest first.
-     *
-     * @param blockX block X of the center
-     * @param blockZ block Z of the center
-     * @param radius radius in blocks
-     * @return the settlements in the radius
-     */
-    public List<Settlement> within(int blockX, int blockZ, int radius) {
-        long max = (long) radius * radius;
-        List<Settlement> result = new ArrayList<>();
-        for (Settlement settlement : byId.values()) {
-            if (settlement.distanceSquared(blockX, blockZ) <= max) {
-                result.add(settlement);
-            }
-        }
-        result.sort(Comparator.comparingLong(settlement -> settlement.distanceSquared(blockX, blockZ)));
-        return result;
     }
 
     /**

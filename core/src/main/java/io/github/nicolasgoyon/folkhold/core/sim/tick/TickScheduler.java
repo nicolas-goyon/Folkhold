@@ -151,15 +151,4 @@ public final class TickScheduler<T> {
         pending.clear();
         current = null;
     }
-
-    /**
-     * Starts the next abstract tick at the next step, with no wait.
-     *
-     * @param gameTime the current game time
-     */
-    public void runNow(long gameTime) {
-        if (current == null) {
-            nextTickAt = gameTime;
-        }
-    }
 }

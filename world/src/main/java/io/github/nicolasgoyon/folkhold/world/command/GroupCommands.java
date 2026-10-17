@@ -15,6 +15,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
@@ -60,7 +61,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
  */
 public final class GroupCommands {
     private static final String KEY = "commands.folkhold_world.";
-    private static final int OPERATOR_LEVEL = 2;
     private static final int SPAWN_CARGO = 32;
     private static final int SHORT_ID = 8;
 
@@ -80,7 +80,7 @@ public final class GroupCommands {
     static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("folkhold")
                 .then(Commands.literal("caravan")
-                        .requires(source -> source.hasPermission(OPERATOR_LEVEL))
+                        .requires(source -> source.hasPermission(AdminActions.PERMISSION_LEVEL))
                         .then(Commands.literal("list").executes(GroupCommands::list))
                         .then(Commands.literal("info").then(groupArgument().executes(GroupCommands::info)))
                         .then(Commands.literal("spawn")
@@ -91,7 +91,7 @@ public final class GroupCommands {
                         .then(Commands.literal("tp").then(groupArgument().executes(GroupCommands::teleport)))
                         .then(Commands.literal("remove").then(groupArgument().executes(GroupCommands::remove))))
                 .then(Commands.literal("quest")
-                        .requires(source -> source.hasPermission(OPERATOR_LEVEL))
+                        .requires(source -> source.hasPermission(AdminActions.PERMISSION_LEVEL))
                         .then(Commands.literal("list")
                                 .executes(context -> listQuests(context, context.getSource().getPlayerOrException()))
                                 .then(Commands.argument("player", EntityArgument.player())

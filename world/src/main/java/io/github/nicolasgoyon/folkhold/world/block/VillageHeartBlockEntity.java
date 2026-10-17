@@ -56,7 +56,6 @@ import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.EventHooks;
 
 /**
@@ -390,9 +389,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level == null) {
             return List.of();
         }
-        double radius = WorldConfig.VILLAGE_RADIUS.get();
-        AABB area = new AABB(worldPosition).inflate(radius, 32.0, radius);
-        return level.getEntitiesOfClass(FactionUnit.class, area, unit -> worldPosition.equals(unit.getVillagePos()));
+        return level.getEntitiesOfClass(FactionUnit.class, VillageHearts.area(worldPosition),
+                unit -> worldPosition.equals(unit.getVillagePos()));
     }
 
     public Garrison getGarrison() {
@@ -496,9 +494,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level == null) {
             return List.of();
         }
-        double radius = WorldConfig.VILLAGE_RADIUS.get();
-        AABB area = new AABB(worldPosition).inflate(radius, 32.0, radius);
-        return level.getEntitiesOfClass(VillageCat.class, area, cat -> worldPosition.equals(cat.getVillagePos()));
+        return level.getEntitiesOfClass(VillageCat.class, VillageHearts.area(worldPosition),
+                cat -> worldPosition.equals(cat.getVillagePos()));
     }
 
     /**
@@ -623,11 +620,6 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level != null && garrison.onUnitDied(unitId, level.getGameTime())) {
             setChanged();
         }
-    }
-
-    /** True if the heart applied the night state (gates closed, braziers lit). */
-    public boolean isNightMode() {
-        return nightMode;
     }
 
     /**

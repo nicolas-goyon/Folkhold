@@ -89,14 +89,22 @@ public final class Settlements {
      * @return the start level
      */
     public static int startLevel(String id) {
-        long seed;
+        return LevelTables.get().startLevel(seed(id));
+    }
+
+    /**
+     * A random seed from the id of a settlement. The same id gives the same seed.
+     *
+     * @param id the id of the settlement, a UUID in most cases
+     * @return the seed
+     */
+    public static long seed(String id) {
         try {
             UUID uuid = UUID.fromString(id);
-            seed = uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+            return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
         } catch (IllegalArgumentException e) {
-            seed = id.hashCode();
+            return id.hashCode();
         }
-        return LevelTables.get().startLevel(seed);
     }
 
     /**

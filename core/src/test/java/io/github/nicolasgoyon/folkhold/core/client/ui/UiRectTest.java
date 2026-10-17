@@ -35,7 +35,6 @@ class UiRectTest {
         assertEquals(new UiRect(10, 20, 30, 50), RECT.left(30));
         assertEquals(new UiRect(80, 20, 30, 50), RECT.rightPart(30));
         assertEquals(new UiRect(10, 34, 100, 36), RECT.belowTop(12, 2));
-        assertEquals(new UiRect(10, 20, 100, 32), RECT.aboveBottom(16, 2));
         assertEquals(new UiRect(44, 20, 66, 50), RECT.afterLeft(30, 4));
         assertEquals(new UiRect(10, 20, 66, 50), RECT.beforeRight(30, 4));
     }

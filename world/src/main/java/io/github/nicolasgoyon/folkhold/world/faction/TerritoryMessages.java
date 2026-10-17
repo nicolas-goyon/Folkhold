@@ -207,9 +207,7 @@ public final class TerritoryMessages {
 
     /** The tier with its glyph, in its color: "✓ Friend". */
     private static Component tierLabel(ReputationTier tier) {
-        return Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
-                .withColor(UiReputation.color(tier));
+        return FactionVisuals.tierTitle(tier).withColor(UiReputation.color(tier));
     }
 
     public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {

@@ -2,7 +2,6 @@
   "fml.menu.mods.info.description.folkhold_core": "Shared library of Folkhold: abstract simulation, regions and scheduler.",
   "ui.folkhold_core.waiting": "Sending…",
   "ui.folkhold_core.close": "Close",
-  "ui.folkhold_core.cancel": "Cancel",
   "ui.folkhold_core.cancel_key": "Cancel (Esc)",
   "ui.folkhold_core.ok": "OK",
   "ui.folkhold_core.empty": "No information",

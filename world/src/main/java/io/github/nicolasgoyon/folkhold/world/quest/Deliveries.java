@@ -4,11 +4,10 @@ import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Optional;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -49,7 +48,7 @@ public final class Deliveries {
     public static QuestBoards.Outcome deliver(ServerPlayer player, String questId, Settlement here) {
         Optional<Quest> found = QuestData.get(player.server).quests().byId(questId)
                 .filter(quest -> canDeliverAt(quest, here) && player.getUUID().equals(quest.playerId()));
-        Optional<Item> item = found.flatMap(quest -> item(quest.target()));
+        Optional<Item> item = found.flatMap(quest -> ItemIds.item(quest.target()));
         if (found.isEmpty() || item.isEmpty() || !here.isActive()) {
             return QuestBoards.Outcome.of(false, "quest_gone");
         }
@@ -92,8 +91,4 @@ public final class Deliveries {
         inventory.setChanged();
     }
 
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location);
-    }
 }

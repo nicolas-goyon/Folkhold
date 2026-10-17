@@ -13,8 +13,6 @@ public final class UiTheme {
     public static final int WOOD = 0xFF241C13;
     /** The header, the tab bar and the footer. */
     public static final int WOOD_DARK = 0xFF1A140D;
-    /** A side column or a tool bar. */
-    public static final int WOOD_DEEP = 0xFF1F1810;
     /** One row of two in a list, and the cards on wood. */
     public static final int WOOD_ROW = 0xFF2B2218;
     /** A button, a chip, a selected row. */
@@ -60,8 +58,6 @@ public final class UiTheme {
     public static final int INK_FAINT = 0xFF7A6A50;
     /** The wax: red on parchment, the pins of the quest board. */
     public static final int WAX = 0xFF8E2F22;
-    /** A good value on parchment. */
-    public static final int INK_GOOD = 0xFF3F6B28;
 
     // ------------------------------------------------------------------ text on wood
 
@@ -76,8 +72,6 @@ public final class UiTheme {
     public static final int TEXT_BAD = 0xFFE8846F;
     /** A time that is almost over, on wood. */
     public static final int TEXT_URGENT = 0xFFFF9A86;
-    /** A warning, on wood. */
-    public static final int TEXT_WARN = 0xFFE0A635;
     /** The text on a primary button. */
     public static final int TEXT_ON_GILT = 0xFF1F1810;
 
@@ -123,16 +117,5 @@ public final class UiTheme {
     public static final int SCROLL_BAR = 3;
 
     private UiTheme() {
-    }
-
-    /**
-     * A color with another alpha value.
-     *
-     * @param color an ARGB color
-     * @param alpha the new alpha, 0 to 255
-     * @return the color
-     */
-    public static int withAlpha(int color, int alpha) {
-        return (Math.max(0, Math.min(255, alpha)) << 24) | (color & 0x00FFFFFF);
     }
 }

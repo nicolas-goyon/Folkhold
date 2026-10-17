@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
@@ -20,14 +21,10 @@ import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -35,15 +32,14 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
  * What a player does with a caravan: trade on the road, or raid.
@@ -65,7 +61,6 @@ public final class CaravanInteractions {
     private static final int MAX_OFFERS = 6;
     /** The maximum number of uses of one offer. */
     private static final int MAX_USES = 16;
-    private static final float PRICE_MULTIPLIER = 0.05F;
 
     /** Game time of the last raid of each player on each group, by "group|player". Not saved. */
     private static final Map<String, Long> LAST_RAIDS = new HashMap<>();
@@ -124,7 +119,7 @@ public final class CaravanInteractions {
         groupOf(level.getServer(), merchant).ifPresent(group -> {
             MerchantOffer offer = event.getMerchantOffer();
             ItemStack result = offer.getResult();
-            String item = BuiltInRegistries.ITEM.getKey(result.getItem()).toString();
+            String item = ItemIds.id(result.getItem());
             int count = result.getCount();
             boolean paid = group.cargo().count(item) >= count
                     && GroupMaterializer.removeCargo(level, group, item, count) == count;
@@ -196,34 +191,21 @@ public final class CaravanInteractions {
         Optional<Settlement> origin = SettlementData.get(server).registry().byId(group.originId());
         EconomySettings settings = Economies.settings();
         double factor = Merchants.priceFactor(tier);
-        List<Map.Entry<String, Integer>> items = group.cargo().asMap().entrySet().stream()
-                .filter(entry -> item(entry.getKey()).filter(item -> item != Items.EMERALD).isPresent())
-                .sorted(Comparator.comparingDouble((Map.Entry<String, Integer> entry) ->
-                        EconomyData.catalog().info(entry.getKey()).price() * entry.getValue()).reversed())
-                .toList();
-        for (Map.Entry<String, Integer> entry : items) {
+        for (Map.Entry<String, Integer> entry : Merchants.sellable(group.cargo().asMap())) {
             if (offers.size() >= MAX_OFFERS) {
                 break;
             }
-            Item item = item(entry.getKey()).orElseThrow();
             ItemInfo info = EconomyData.catalog().info(entry.getKey());
             double price = origin.map(settlement -> Prices.sellPrice(info,
                     settlement.economy().stock().count(entry.getKey()), settlement.economy().population(), settings))
                     .orElse(info.price() * settings.sellMarkup()) * factor;
-            int maxStack = new ItemStack(item).getMaxStackSize();
-            int emeralds = price >= 1.0 ? (int) Math.min(64, Math.round(price)) : 1;
-            int quantity = price >= 1.0 ? 1 : (int) Math.max(1, Math.min(maxStack, Math.floor(1.0 / price)));
-            int uses = Math.min(MAX_USES, entry.getValue() / quantity);
-            if (uses > 0) {
-                offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, emeralds), Optional.empty(),
-                        new ItemStack(item, quantity), uses, 0, PRICE_MULTIPLIER));
-            }
+            Merchants.sellOffer(ItemIds.item(entry.getKey()).orElseThrow(), entry.getValue(), price, MAX_USES)
+                    .ifPresent(offers::add);
         }
         return offers;
     }
 
-    private static Optional<Item> item(String id) {
-        ResourceLocation location = ResourceLocation.tryParse(id);
-        return location == null ? Optional.empty() : BuiltInRegistries.ITEM.getOptional(location);
+    public static void onServerStopped(ServerStoppedEvent event) {
+        LAST_RAIDS.clear();
     }
 }

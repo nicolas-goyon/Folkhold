@@ -27,7 +27,6 @@ import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffers;
-import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
@@ -62,8 +61,7 @@ public final class VillageFolk {
 
     /** The loaded villagers of a village with a profession. */
     public static List<Villager> of(ServerLevel level, BlockPos heartPos, VillagerProfession profession) {
-        double radius = WorldConfig.VILLAGE_RADIUS.get();
-        return level.getEntitiesOfClass(Villager.class, new AABB(heartPos).inflate(radius, 32.0, radius),
+        return level.getEntitiesOfClass(Villager.class, VillageHearts.area(heartPos),
                 villager -> villager.getVillagerData().getProfession() == profession
                         && villager.getPersistentData().getLong(Merchants.VILLAGE_TAG) == heartPos.asLong()
                         && isVillageFolk(villager));
@@ -71,8 +69,7 @@ public final class VillageFolk {
 
     /** The loaded inhabitants of a village: its villagers that are not merchants. */
     public static List<Villager> inhabitants(ServerLevel level, BlockPos heartPos) {
-        double radius = WorldConfig.VILLAGE_RADIUS.get();
-        return level.getEntitiesOfClass(Villager.class, new AABB(heartPos).inflate(radius, 32.0, radius),
+        return level.getEntitiesOfClass(Villager.class, VillageHearts.area(heartPos),
                 villager -> villager.getVillagerData().getProfession() != ModProfessions.MERCHANT.get()
                         && villager.getPersistentData().getLong(Merchants.VILLAGE_TAG) == heartPos.asLong()
                         && isVillageFolk(villager));

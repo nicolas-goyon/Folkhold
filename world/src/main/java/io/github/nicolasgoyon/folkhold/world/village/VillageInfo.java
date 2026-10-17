@@ -176,7 +176,7 @@ public final class VillageInfo {
         Component name = Component.translatable(KEY + "service.trade");
         if (tier.isHostile()) {
             return new Service(name, refused(Component.translatable(KEY + "trade.refused",
-                    Component.translatable("folkhold_world.reputation_tier_title.neutral"))),
+                    FactionVisuals.tierName(ReputationTier.NEUTRAL))),
                     VillageHeartPayload.REFUSED, Component.empty(), List.of(), VillageHeartPayload.ACTION_NONE);
         }
         double factor = Merchants.priceFactor(tier);

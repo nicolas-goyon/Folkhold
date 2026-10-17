@@ -55,11 +55,6 @@ public class UiTabs extends AbstractWidget {
         return selected;
     }
 
-    /** The number of tabs. */
-    public int count() {
-        return labels.size();
-    }
-
     /** Changes the labels, for example a count in a label. */
     public void setLabels(List<Component> labels) {
         this.labels = List.copyOf(labels);

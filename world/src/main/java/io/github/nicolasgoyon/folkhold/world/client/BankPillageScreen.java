@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiHoldButton;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiReputation;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiStrings;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageConfirmPayload;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageRequestPayload;
 import net.minecraft.network.chat.Component;
@@ -41,9 +42,7 @@ public final class BankPillageScreen {
     }
 
     private static UiDialog.Chip chip(Component caption, ReputationTier tier, int value) {
-        Component text = Component.literal(UiReputation.glyph(tier) + " ")
-                .append(Component.translatable("folkhold_world.reputation_tier_title." + tier.serializedName()))
-                .append(" " + value);
+        Component text = FactionVisuals.tierTitle(tier).append(" " + value);
         return new UiDialog.Chip(caption, text, UiReputation.background(tier), UiReputation.text(tier));
     }
 
