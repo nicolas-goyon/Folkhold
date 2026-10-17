@@ -1,45 +1,97 @@
 name: Release
 
-# Push a tag vX.Y.Z on main to make a release:
-#   git tag v0.1.0 && git push origin v0.1.0
-# The workflow creates a GitHub Release with the jars and the modpack (.mrpack), then publishes the mod jars to
-# GitHub Packages (Maven). The release comes first: a Maven version is immutable, so a failed release step can run
-# again only when the publication did not happen.
+# A merge of develop into main makes a release. The version comes from the bump markers of the commits (see
+# scripts/version.py). The workflow tags the commit of develop, creates a GitHub Release with the jars and the
+# modpack (.mrpack), then publishes the mod jars to GitHub Packages (Maven). The release comes first: a Maven version
+# is immutable, so a failed release step can run again only when the publication did not happen.
+# When the tag of the version exists, the workflow makes no release. To run it again after a failure, use
+# "Run workflow" on main.
 
 on:
   push:
-    tags: ['v*.*.*']
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build and publish
+  version:
+    name: Version
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.commit.outputs.value }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      exists: ${{ steps.version.outputs.exists }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The history of main, to check that the tag is on main.
+          # The history and the tags, for the version.
           fetch-depth: 0
 
-      - name: Check that the tag is on main
+      # A merge of develop has two parents: the second parent is the commit of develop. The tag goes on it, so develop
+      # contains the tags of the releases.
+      - name: Find the commit of develop
+        id: commit
         run: |
-          git fetch origin main
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "The tag $GITHUB_REF_NAME is not on main. A release comes from main only." >&2
+          commit=$(git rev-parse HEAD)
+          if git rev-parse -q --verify 'HEAD^2' > /dev/null; then
+            commit=$(git rev-parse 'HEAD^2')
+          fi
+          if ! git diff --quiet HEAD "$commit"; then
+            echo "The files of main and of the commit $commit of develop are different. Merge main into develop." >&2
             exit 1
           fi
+          echo "value=$commit" >> "$GITHUB_OUTPUT"
 
-      - name: Read the version from the tag
+      - name: Calculate the version
         id: version
-        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        env:
+          COMMIT: ${{ steps.commit.outputs.value }}
+        run: |
+          python3 scripts/version.py version --rev "$COMMIT" --github-output build-version.txt
+          cat build-version.txt >> "$GITHUB_OUTPUT"
+          tag=$(sed -n 's/^tag=//p' build-version.txt)
+          if [ "$(sed -n 's/^exists=//p' build-version.txt)" = true ]; then
+            echo "The tag \`${tag}\` exists: no release." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Release: \`${tag}\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  release:
+    name: Build and publish
+    needs: version
+    if: needs.version.outputs.exists == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      packages: write
+    env:
+      COMMIT: ${{ needs.version.outputs.commit }}
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ needs.version.outputs.tag }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The history and the tags, for the release notes.
+          fetch-depth: 0
+
+      - name: Write the release notes
+        run: |
+          mkdir -p build
+          python3 scripts/version.py version --rev "$COMMIT" --repo "$GITHUB_REPOSITORY" --notes build/release-notes.md
 
       - name: Set up JDK 21
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: '21'
@@ -48,10 +100,10 @@ jobs:
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Build, unit tests and translation check
-        run: ./gradlew build -Pmod_version=${{ steps.version.outputs.value }} --stacktrace
+        run: ./gradlew build -Pmod_version="$VERSION" --stacktrace
 
       - name: GameTest server
-        run: ./gradlew :dev:runGameTestServer -Pmod_version=${{ steps.version.outputs.value }} --stacktrace
+        run: ./gradlew :dev:runGameTestServer -Pmod_version="$VERSION" --stacktrace
 
       - name: Check for a modpack
         id: modpack
@@ -80,12 +132,11 @@ jobs:
 
       - name: Export the modpack
         if: steps.modpack.outputs.present == 'true'
-        run: scripts/export-modpack.sh "build/folkhold-${{ steps.version.outputs.value }}.mrpack" "${{ steps.version.outputs.value }}"
+        run: scripts/export-modpack.sh "build/folkhold-${VERSION}.mrpack" "$VERSION"
 
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.value }}
         shell: bash
         run: |
           shopt -s nullglob
@@ -94,15 +145,13 @@ jobs:
             echo "No jar to release for the version ${VERSION}." >&2
             exit 1
           fi
-          prerelease=""
-          case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+          gh release create "$TAG" "${files[@]}" \
+            --target "$COMMIT" \
             --title "Folkhold ${VERSION}" \
-            --generate-notes \
-            $prerelease
+            --notes-file build/release-notes.md
 
       - name: Publish to GitHub Packages
-        run: ./gradlew publish -Pmod_version=${{ steps.version.outputs.value }} --stacktrace
+        run: ./gradlew publish -Pmod_version="$VERSION" --stacktrace
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

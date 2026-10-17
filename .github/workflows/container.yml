@@ -2,7 +2,7 @@ name: Dev container
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - '.devcontainer/**'
       - 'compose.yaml'

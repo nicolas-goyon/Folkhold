@@ -2,6 +2,7 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
     commit-message:
@@ -9,6 +10,7 @@ updates:
 
   - package-ecosystem: gradle
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
     commit-message:
@@ -19,6 +21,7 @@ updates:
 
   - package-ecosystem: docker
     directory: /.devcontainer
+    target-branch: develop
     schedule:
       interval: monthly
     commit-message:
