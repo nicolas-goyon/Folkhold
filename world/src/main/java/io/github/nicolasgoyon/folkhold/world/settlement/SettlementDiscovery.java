@@ -32,8 +32,10 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * Finds the faction villages of a region before the game generates its chunks.
  *
  * <p>The village structure uses a random spread placement: each placement region (a square of {@code spacing}
- * chunks) has one candidate chunk, from the seed. The discovery asks the structure manager if the village can
- * start in this chunk (biome and terrain), as the {@code /locate} command does. It does not generate chunks.
+ * chunks) has one candidate chunk, from the seed. The discovery applies the rules of the placement to the candidate
+ * chunk, as the chunk generation does: the exclusion zone removes a candidate near a possible vanilla village start.
+ * Then it asks the structure manager if the village can start in this chunk (biome and terrain), as the
+ * {@code /locate} command does. It does not generate chunks.
  *
  * <p>The discovery checks each region once and saves the result. Around each player and around the world spawn,
  * it puts the regions that it did not check in a queue. Each server tick checks a small number of regions. The
@@ -148,8 +150,8 @@ public final class SettlementDiscovery {
     }
 
     /**
-     * Checks one placement region. If a village can start in its candidate chunk and no settlement has this start
-     * chunk, the method adds a settlement.
+     * Checks one placement region. If the placement rules and the structure manager let a village start in its
+     * candidate chunk, and no settlement has this start chunk, the method adds a settlement.
      *
      * @param level  the Overworld
      * @param region the placement region
@@ -165,10 +167,14 @@ public final class SettlementDiscovery {
         int spacing = placement.get().spacing();
         ChunkPos candidate = placement.get().getPotentialStructureChunk(level.getSeed(),
                 region.minChunkX(spacing), region.minChunkZ(spacing));
-        StructureCheckResult result = level.structureManager()
-                .checkStructurePresence(candidate, structure.get(), placement.get(), false);
         SettlementData data = SettlementData.get(level.getServer());
         data.markRegionChecked(region.x(), region.z());
+        // The structure manager does not apply the exclusion zone. The chunk generation applies it.
+        if (!placement.get().isStructureChunk(level.getChunkSource().getGeneratorState(), candidate.x, candidate.z)) {
+            return Optional.empty();
+        }
+        StructureCheckResult result = level.structureManager()
+                .checkStructurePresence(candidate, structure.get(), placement.get(), false);
         // CHUNK_LOAD_NEEDED: the chunk is not generated, and the structure can start there.
         if (result == StructureCheckResult.START_NOT_PRESENT) {
             return Optional.empty();
