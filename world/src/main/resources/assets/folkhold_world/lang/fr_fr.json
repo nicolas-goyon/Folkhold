@@ -115,6 +115,7 @@
   "folkhold_world.configuration.villageMessageRadius": "Distance du message de village",
   "folkhold_world.configuration.simulation": "Simulation",
   "folkhold_world.configuration.discoveryRadius": "Rayon de découverte des villages",
+  "folkhold_world.configuration.adminDiscoveryRadius": "Rayon de découverte de l'écran admin",
   "folkhold_world.configuration.discoveryChecksPerTick": "Vérifications de découverte par tick",
   "folkhold_world.configuration.simulationIntervalTicks": "Intervalle du tick abstrait (ticks de jeu)",
   "folkhold_world.configuration.simulationCycleLength": "Ticks abstraits par cycle",

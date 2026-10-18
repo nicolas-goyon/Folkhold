@@ -52,6 +52,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue REPUTATION_RAID_CARAVAN;
 
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
+    public static final ModConfigSpec.IntValue ADMIN_DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue DISCOVERY_CHECKS_PER_TICK;
     public static final ModConfigSpec.IntValue SIMULATION_INTERVAL_TICKS;
     public static final ModConfigSpec.IntValue SIMULATION_CYCLE_LENGTH;
@@ -295,6 +296,11 @@ public final class WorldConfig {
                         "villages before the game generates their chunks.")
                 .translation(KEY_PREFIX + "discoveryRadius")
                 .defineInRange("discoveryRadius", 1024, 128, 8192);
+        ADMIN_DISCOVERY_RADIUS = builder
+                .comment("Distance in blocks in each direction around the operator for the discover action of the",
+                        "admin screen. The action checks all the regions in this distance at once.")
+                .translation(KEY_PREFIX + "adminDiscoveryRadius")
+                .defineInRange("adminDiscoveryRadius", 3000, 128, 16384);
         DISCOVERY_CHECKS_PER_TICK = builder
                 .comment("Maximum number of placement regions that the discovery checks in each server tick.")
                 .translation(KEY_PREFIX + "discoveryChecksPerTick")
