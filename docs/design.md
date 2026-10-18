@@ -424,7 +424,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 ### Traveling merchant
 
 - The neutral faction has traveling merchants: 1 merchant and 1 pack animal. A traveling merchant goes from village to village and stays near each village for some time.
-- It sells rare items: very expensive, small quantities, slow restock, as the wandering trader. No overpowered enchanted books.
+- It sells rare items: very expensive, small quantities, slow restock, as the wandering trader. No overpowered enchanted books, and no item from the Nether: the caravans and the traveling merchants carry only items of the Overworld.
 - Each traveling merchant sells 6 items of this list. At each cycle, it gets back one item of one offer.
 
 | Item | Price (emeralds) | Maximum |
@@ -432,7 +432,6 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 | Name tag | 12 | 2 |
 | Saddle | 10 | 1 |
 | Ender pearl | 6 | 4 |
-| Blaze rod | 8 | 2 |
 | Nautilus shell | 16 | 1 |
 | Golden apple | 14 | 1 |
 | Diamond | 12 | 2 |

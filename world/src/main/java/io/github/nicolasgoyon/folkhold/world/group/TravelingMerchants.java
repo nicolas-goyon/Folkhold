@@ -64,12 +64,11 @@ public final class TravelingMerchants {
     public record RareItem(String item, int price, int max) {
     }
 
-    /** The rare items. They are not in the jobs of the villages. No enchanted books. */
+    /** The rare items. They are not in the jobs of the villages. No enchanted books, no item from the Nether. */
     public static final List<RareItem> RARE_ITEMS = List.of(
             new RareItem("minecraft:name_tag", 12, 2),
             new RareItem("minecraft:saddle", 10, 1),
             new RareItem("minecraft:ender_pearl", 6, 4),
-            new RareItem("minecraft:blaze_rod", 8, 2),
             new RareItem("minecraft:nautilus_shell", 16, 1),
             new RareItem("minecraft:golden_apple", 14, 1),
             new RareItem("minecraft:diamond", 12, 2),
