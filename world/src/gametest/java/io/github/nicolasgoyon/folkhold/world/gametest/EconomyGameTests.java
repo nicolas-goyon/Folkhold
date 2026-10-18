@@ -3,7 +3,6 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.CycleReport;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
-import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
@@ -27,14 +26,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class EconomyGameTests {
-    private static final int CELL = TerritoryClaims.CELL_BLOCKS;
+    /** Grid of the test positions in blocks, so that the test settlements are far from each other. */
+    private static final int GRID = 256;
 
     private EconomyGameTests() {
     }
 
-    private static Settlement settlement(MinecraftServer server, int cellX, int level) {
+    private static Settlement settlement(MinecraftServer server, int gridX, int level) {
         String faction = FactionData.get(server).factions().get(0).id();
-        int x = cellX * CELL + CELL / 2;
+        int x = gridX * GRID + GRID / 2;
         Settlement settlement = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Marketon", x, 100);
         settlement.setProgress(level, 0);
         settlement.setBiome("minecraft:plains");

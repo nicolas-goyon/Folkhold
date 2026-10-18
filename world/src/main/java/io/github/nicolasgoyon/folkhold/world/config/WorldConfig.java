@@ -159,7 +159,8 @@ public final class WorldConfig {
                 .push("village");
         VILLAGE_RADIUS = builder
                 .comment("Radius in blocks of a village around its heart. Units in this radius join the village",
-                        "when they spawn. An alert reaches all units of the village in this radius.")
+                        "when they spawn. An alert reaches all units of the village in this radius. The territory of",
+                        "a village has a radius of at least 1.5 times this radius.")
                 .translation(KEY_PREFIX + "villageRadius")
                 .defineInRange("radius", 48, 8, 256);
         VILLAGE_MESSAGE_RADIUS = builder

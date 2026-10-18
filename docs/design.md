@@ -101,7 +101,7 @@ The villages come from the vanilla structure placement (random spread, spacing 4
 
 | Term | Meaning |
 | --- | --- |
-| Territory cell | Square of 16×16 chunks. Unit of territory ownership (world mod). |
+| Territory | Disc of chunks around a village. The chunk is the unit of territory ownership (world mod). |
 | Spawn cell | Square of 4×4 chunks. Unit of the spawn budget (balance mod). |
 | Abstract tick | One step of the abstract simulation: every 2,400 game ticks (2 minutes). |
 | Cycle | One game day (24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle. |
@@ -121,7 +121,7 @@ The villages come from the vanilla structure placement (random spread, spacing 4
 | --- | --- |
 | `Faction` | id, name, culture (village style, units), color and banner, treasury, military power, base attitude to the player, traits (expansionist, merchant, isolationist) |
 | `Relation` | pair of factions, value from -100 to +100, state (alliance, peace, tension, war), date of the last change |
-| `Territory` | territory cell, owner faction, linked village, current contest |
+| `Territory` | claimed chunks (a disc around the village), owner village and faction, current contest |
 | `Settlement` | id, faction, position, state (active or ruins), level, experience, tier (from the level), population, jobs, stocks, garrison |
 | `MobileGroup` | id, kind (caravan, traveling merchant), faction, origin, destination, route, progress, cargo, members (stable UUID, role, health), state |
 | `Quest` | id, kind (delivery, escort), giver, player, success condition, deadline, reward, state |
@@ -134,9 +134,9 @@ The mod stores all of this in `SavedData` of the Overworld level (settlements, m
 
 **Implemented**:
 
-- **Claim**: each village claims the territory cells around it. The claim radius comes from the level of the village: 1 cell for a hamlet, up to 9 cells for a city. A cell that two villages claim belongs to the nearest village. At equal distance, the village with the higher level gets the cell.
-- **Unclaimed cell**: a cell that no village claims.
-- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory cells become unclaimed. The ruins stay in the world.
+- **Claim**: each village claims a disc of chunks around its position (its heart when the village exists). A chunk is in the disc when the distance from the position to the center of the chunk is not more than the claim radius. The claim radius comes from the level of the village (`claim_radius` in `levels.json`): 9 chunks (144 blocks) for a hamlet, 27 chunks for a city, 33 chunks for a capital. The radius is never smaller than the radius that contains all the blocks at 1.5 times the village radius (server configuration), so the territory contains all of the village and a margin. A chunk that two villages claim belongs to the nearest village. At equal distance, the village with the higher level gets the chunk.
+- **Unclaimed land**: a chunk that no village claims.
+- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory becomes unclaimed. The ruins stay in the world.
 
 The faction of a new village is the faction with the nearest territory center.
 
@@ -146,9 +146,9 @@ The faction of a new village is the faction with the nearest territory center.
 
 **Planned**:
 
-- **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in an unclaimed territory cell.
+- **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in unclaimed land.
 - **Rally a village**: with sufficient reputation and a quest, a village can change its banner and join a different faction.
-- **Natural growth**: a prosperous faction slowly founds a hamlet in an adjacent unclaimed territory cell (maximum one each game week).
+- **Natural growth**: a prosperous faction slowly founds a hamlet in unclaimed land near its territory (maximum one each game week).
 - **Diplomacy**: relations change with trade and incidents. Relations decide which factions trade together.
 - **Decline**: a faction with no village disappears. Its ruins stay in the world.
 
@@ -646,7 +646,7 @@ Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the 
 
 ```
 Folkhold/
-  core/          shared library: abstract simulation, cells, scheduler
+  core/          shared library: abstract simulation, territories, scheduler
   world/         factions, villages, economy, caravans, quests
   balance/       farms, villagers, chunk loading
   events/        earthquakes, collapses

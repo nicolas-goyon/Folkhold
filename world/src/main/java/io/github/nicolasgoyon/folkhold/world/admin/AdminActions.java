@@ -298,8 +298,8 @@ public final class AdminActions {
                     : Component.translatable(KEY + "position_unknown_y", settlement.x(), settlement.z())));
             village.add(new Row(label("heart"),
                     Component.translatable(KEY + (heart.isPresent() ? "heart.loaded" : "heart.unloaded"))));
-            village.add(new Row(label("claimed_cells"),
-                    Component.literal(String.valueOf(data.claims().cellCount(settlement.id())))));
+            village.add(new Row(label("claimed_chunks"),
+                    Component.literal(String.valueOf(data.claims().chunkCount(settlement.id())))));
             village.add(Row.bar(label("population"), Component.translatable(KEY + "population_value",
                     economy.population(), traits.maxPopulation(), VillageFolk.inhabitantCount(settlement)),
                     economy.population(), traits.maxPopulation()));

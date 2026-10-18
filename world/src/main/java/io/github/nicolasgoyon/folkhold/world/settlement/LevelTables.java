@@ -30,7 +30,7 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  * <pre>
  * {
  *   "tiers": [{"id": "hamlet", "min_level": 1, "max_level": 4}, ...],
- *   "levels": [{"experience": 15, "claim_cells": 1, "max_population": 9, "job_slots": 2,
+ *   "levels": [{"experience": 15, "claim_radius": 9, "max_population": 9, "job_slots": 2,
  *               "stock_capacity": 128, "trade_offers": 3, "cats": 1}, ...],
  *   "start_levels": [{"min_level": 1, "max_level": 1, "weight": 40}, ...]
  * }
@@ -90,7 +90,7 @@ public final class LevelTables extends SimplePreparableReloadListener<LevelTable
         for (JsonElement element : GsonHelper.getAsJsonArray(json, "levels")) {
             JsonObject level = element.getAsJsonObject();
             levels.add(new LevelTraits(GsonHelper.getAsInt(level, "experience"),
-                    GsonHelper.getAsInt(level, "claim_cells"), GsonHelper.getAsInt(level, "max_population"),
+                    GsonHelper.getAsInt(level, "claim_radius"), GsonHelper.getAsInt(level, "max_population"),
                     GsonHelper.getAsInt(level, "job_slots"), GsonHelper.getAsInt(level, "stock_capacity"),
                     GsonHelper.getAsInt(level, "trade_offers"), GsonHelper.getAsInt(level, "cats")));
         }
