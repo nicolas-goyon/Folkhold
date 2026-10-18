@@ -17,8 +17,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Predicate;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.NoiseColumn;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
@@ -30,13 +33,17 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
  * <ul>
  *   <li>The mod calculates a route once (see {@link RouteFinder}) and keeps it in {@link MobileGroupData}. It also
  *       keeps the result "no route".</li>
- *   <li>The heights come from the chunk generator of the Overworld. The calculation does not generate chunks. The
- *       water depth is the difference between the surface height (water included) and the floor height.</li>
- *   <li>One height costs a calculation of the terrain noise, and a search reads thousands of heights. So the
+ *   <li>The heights come from the chunk generator of the Overworld. The calculation does not generate chunks. One
+ *       column of blocks from the terrain noise gives the 2 heights of a cell: the surface (water included) and the
+ *       floor. The water depth is the difference between the two.</li>
+ *   <li>One column costs a calculation of the terrain noise, and a search reads thousands of columns. So the
  *       simulation requests the routes ({@link #request}): one worker thread calculates them, and the server thread
  *       puts each result into the data. The simulation uses only the routes that are in the data
- *       ({@link #cached}). The chunk generator calculates the same heights on the world generation threads, so it
+ *       ({@link #cached}). The chunk generator calculates the same columns on the world generation threads, so it
  *       accepts calls from the worker thread.</li>
+ *   <li>When an error (not an exception) stops a calculation, the result is not put into the data: the pair or the
+ *       group can request the route again. A group that waits for its detailed route continues with its coarse
+ *       route.</li>
  *   <li>The commands of the operators calculate a route on the server thread ({@link #calculate}).</li>
  *   <li>A route is for the two directions. When the position of a settlement moves by more than one grid step (for
  *       example when its heart loads), the mod calculates the route again.</li>
@@ -171,6 +178,20 @@ public final class CaravanRoutes {
      * @return true if the route is on the way (new or earlier request)
      */
     public static boolean requestDetail(MinecraftServer server, MobileGroup group) {
+        return requestDetail(server, group, heights(server.overworld()));
+    }
+
+    /**
+     * Requests the detailed route of a waiting group on the worker thread, with the given heights (see
+     * {@link #requestDetail(MinecraftServer, MobileGroup)}).
+     *
+     * @param server  the server
+     * @param group   the group
+     * @param heights the heights of the terrain
+     * @return true if the route is on the way (new or earlier request)
+     */
+    public static boolean requestDetail(MinecraftServer server, MobileGroup group,
+            RouteFinder.HeightSource heights) {
         String groupId = group.id();
         if (!PENDING_DETAILS.add(groupId)) {
             return true;
@@ -180,41 +201,67 @@ public final class CaravanRoutes {
         Route coarse = group.route();
         Route.Point start = endpoint(server, originId, coarse.points().get(0));
         Route.Point end = endpoint(server, destinationId, coarse.points().get(coarse.points().size() - 1));
-        RouteFinder.HeightSource heights = heights(server.overworld());
         RouteFinder.Settings settings = detailSettings();
         double width = WorldConfig.ROUTE_CORRIDOR.get();
         try {
             worker().execute(() -> {
-                long startTime = System.nanoTime();
-                RouteFinder.Result result;
+                boolean delivered = false;
                 try {
-                    result = RouteFinder.refine(start.x(), start.z(), end.x(), end.z(), coarse, width,
-                            memoized(heights), settings);
-                } catch (RuntimeException e) {
-                    FolkholdWorld.LOGGER.error("Detailed route calculation failed: {} -> {}", originId,
-                            destinationId, e);
-                    result = new RouteFinder.Result(Optional.empty(), 0);
-                }
-                long nanos = System.nanoTime() - startTime;
-                Optional<Route> detail = result.route();
-                server.execute(() -> {
-                    if (!server.isSameThread() || !PENDING_DETAILS.remove(groupId)) {
-                        return;
+                    long startTime = System.nanoTime();
+                    RouteFinder.Result result;
+                    try {
+                        result = RouteFinder.refine(start.x(), start.z(), end.x(), end.z(), coarse, width,
+                                memoized(heights), settings);
+                    } catch (RuntimeException e) {
+                        FolkholdWorld.LOGGER.error("Detailed route calculation failed: {} -> {}", originId,
+                                destinationId, e);
+                        result = new RouteFinder.Result(Optional.empty(), 0);
                     }
-                    SimulationProfiler.record(DETAIL_PROFILER_NAME, nanos);
-                    MobileGroupData data = MobileGroupData.get(server);
-                    data.putDetailedRoute(new RouteEntry(originId, destinationId, start.x(), start.z(), end.x(),
-                            end.z(), detail));
-                    data.groups().byId(groupId).ifPresent(waiting ->
-                            applyDetail(waiting, originId, destinationId, detail));
-                    data.setDirty();
-                });
+                    long nanos = System.nanoTime() - startTime;
+                    Optional<Route> detail = result.route();
+                    server.execute(() -> {
+                        if (!server.isSameThread() || !PENDING_DETAILS.remove(groupId)) {
+                            return;
+                        }
+                        SimulationProfiler.record(DETAIL_PROFILER_NAME, nanos);
+                        MobileGroupData data = MobileGroupData.get(server);
+                        data.putDetailedRoute(new RouteEntry(originId, destinationId, start.x(), start.z(),
+                                end.x(), end.z(), detail));
+                        data.groups().byId(groupId).ifPresent(waiting ->
+                                applyDetail(waiting, originId, destinationId, detail));
+                        data.setDirty();
+                    });
+                    delivered = true;
+                } finally {
+                    if (!delivered) {
+                        releaseAfterError(server, groupId, originId, destinationId);
+                    }
+                }
             });
             return true;
         } catch (RejectedExecutionException e) {
             PENDING_DETAILS.remove(groupId);
             return false;
         }
+    }
+
+    /**
+     * After an error in the calculation of a detailed route: the group continues with its coarse route. The data gets
+     * no detailed route for the pair, so the next group between the two settlements requests it again.
+     */
+    private static void releaseAfterError(MinecraftServer server, String groupId, String originId,
+            String destinationId) {
+        PENDING_DETAILS.remove(groupId);
+        server.execute(() -> {
+            if (!server.isSameThread()) {
+                return;
+            }
+            MobileGroupData data = MobileGroupData.get(server);
+            data.groups().byId(groupId).ifPresent(waiting -> {
+                applyDetail(waiting, originId, destinationId, Optional.empty());
+                data.setDirty();
+            });
+        });
     }
 
     /** The number of detailed routes on the way. */
@@ -290,9 +337,10 @@ public final class CaravanRoutes {
 
     /**
      * Requests the calculation of a route on the worker thread, with the given heights. The result goes into the
-     * data on the server thread, some ticks later. When the search fails, the data gets "no route" for the pair,
-     * so the simulation does not ask for the same route again. The result is dropped when the server stops before
-     * the worker thread finishes.
+     * data on the server thread, some ticks later. When the search fails with an exception, the data gets "no route"
+     * for the pair, so the simulation does not ask for the same route again. After an error, the data gets no result,
+     * and the simulation can ask again. The result is dropped when the server stops before the worker thread
+     * finishes.
      *
      * @param server  the server
      * @param from    the settlement at the start
@@ -315,16 +363,26 @@ public final class CaravanRoutes {
         RouteFinder.Settings settings = settings();
         try {
             worker().execute(() -> {
-                long start = System.nanoTime();
-                Optional<Route> route = find(fromId, toId, fromX, fromZ, toX, toZ, heights, settings);
-                long nanos = System.nanoTime() - start;
-                server.execute(() -> {
-                    if (!server.isSameThread() || !PENDING.remove(key)) {
-                        return;
+                boolean delivered = false;
+                try {
+                    long start = System.nanoTime();
+                    Optional<Route> route = find(fromId, toId, fromX, fromZ, toX, toZ, heights, settings);
+                    long nanos = System.nanoTime() - start;
+                    server.execute(() -> {
+                        if (!server.isSameThread() || !PENDING.remove(key)) {
+                            return;
+                        }
+                        MobileGroupData.get(server).putRoute(new RouteEntry(fromId, toId, fromX, fromZ, toX, toZ,
+                                route));
+                        SimulationProfiler.record(PROFILER_NAME, nanos);
+                    });
+                    delivered = true;
+                } finally {
+                    if (!delivered) {
+                        // The data gets no result for the pair, so the simulation can request the route again.
+                        PENDING.remove(key);
                     }
-                    MobileGroupData.get(server).putRoute(new RouteEntry(fromId, toId, fromX, fromZ, toX, toZ, route));
-                    SimulationProfiler.record(PROFILER_NAME, nanos);
-                });
+                }
             });
             return true;
         } catch (RejectedExecutionException e) {
@@ -395,15 +453,45 @@ public final class CaravanRoutes {
         PENDING_DETAILS.clear();
     }
 
-    /** The heights of the Overworld from its chunk generator. The calculation generates no chunks. */
+    /**
+     * The heights of the Overworld from its chunk generator. The calculation generates no chunks. One column of the
+     * terrain noise gives the 2 heights, with the rules of the world generation heightmaps: the surface is above the
+     * highest block that is not air ({@link Heightmap.Types#WORLD_SURFACE_WG}), and the floor is above the highest
+     * block that blocks the motion ({@link Heightmap.Types#OCEAN_FLOOR_WG}).
+     */
     private static RouteFinder.HeightSource heights(ServerLevel level) {
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         RandomState randomState = level.getChunkSource().randomState();
-        return (x, z) -> {
-            int floor = generator.getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, level, randomState);
-            int surface = generator.getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, level, randomState);
-            return new RouteFinder.Column(floor - 1, surface - floor);
-        };
+        return (x, z) -> column(generator.getBaseColumn(x, z, level, randomState), level.getMinBuildHeight(),
+                level.getMaxBuildHeight());
+    }
+
+    /**
+     * The floor and the water depth of a column of blocks.
+     *
+     * @param blocks the column of blocks
+     * @param minY   the lowest Y of the level
+     * @param maxY   the Y above the highest block of the level
+     * @return the column for the route search
+     */
+    static RouteFinder.Column column(NoiseColumn blocks, int minY, int maxY) {
+        Predicate<BlockState> surfaceBlock = Heightmap.Types.WORLD_SURFACE_WG.isOpaque();
+        Predicate<BlockState> floorBlock = Heightmap.Types.OCEAN_FLOOR_WG.isOpaque();
+        int surface = minY;
+        int floor = minY;
+        boolean surfaceFound = false;
+        for (int y = maxY - 1; y >= minY; y--) {
+            BlockState state = blocks.getBlock(y);
+            if (!surfaceFound && surfaceBlock.test(state)) {
+                surface = y + 1;
+                surfaceFound = true;
+            }
+            if (floorBlock.test(state)) {
+                floor = y + 1;
+                break;
+            }
+        }
+        return new RouteFinder.Column(floor - 1, surface - floor);
     }
 
     private static synchronized ExecutorService worker() {
@@ -411,6 +499,8 @@ public final class CaravanRoutes {
             worker = Executors.newSingleThreadExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "Folkhold routes");
                 thread.setDaemon(true);
+                thread.setUncaughtExceptionHandler((stopped, error) ->
+                        FolkholdWorld.LOGGER.error("Error in the route worker thread", error));
                 return thread;
             });
         }
