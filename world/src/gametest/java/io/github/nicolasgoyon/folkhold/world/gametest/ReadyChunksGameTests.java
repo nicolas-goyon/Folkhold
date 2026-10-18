@@ -7,7 +7,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.ChunkPos;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -17,7 +16,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class ReadyChunksGameTests {
-    /** The distance from the test to the chunk of the test, in blocks: this chunk is not loaded. */
+    /** The center of the arena: the chunks of its scan area are ready when the test starts. */
+    private static final BlockPos CENTER = new BlockPos(8, 1, 8);
+    /** The distance from the test to a chunk that is not loaded, in blocks. */
     private static final int FAR = 20_000;
 
     private ReadyChunksGameTests() {
@@ -25,30 +26,25 @@ public final class ReadyChunksGameTests {
 
     /**
      * The layout scan around a position in a chunk that is not ready does not occur, and it does not load the
-     * chunk. When all the chunks of the scan area are ready, the scan occurs.
+     * chunk. The scan around the center of the test, where the chunks are ready, occurs.
      */
-    @GameTest(template = "empty", timeoutTicks = 400, batch = "ready_chunks")
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "ready_chunks")
     public static void scanOccursOnlyWhenTheChunksAreReady(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BlockPos heart = helper.absolutePos(BlockPos.ZERO).offset(FAR, 0, FAR);
-        ChunkPos chunk = new ChunkPos(heart);
-        boolean readyBefore = ReadyChunks.isReady(level, heart);
-        VillageLayout layout = new VillageLayout();
-        boolean scanned = layout.scan(level, heart);
-        boolean readyAfter = ReadyChunks.isReady(level, heart);
+        BlockPos near = helper.absolutePos(CENTER);
+        BlockPos far = near.offset(FAR, 0, FAR);
+        boolean farReadyBefore = ReadyChunks.isReady(level, far);
+        VillageLayout farLayout = new VillageLayout();
+        boolean farScanned = farLayout.scan(level, far);
+        boolean farReadyAfter = ReadyChunks.isReady(level, far);
+        VillageLayout nearLayout = new VillageLayout();
+        boolean nearScanned = nearLayout.scan(level, near);
 
-        helper.assertFalse(readyBefore, "A chunk far from the test must not be ready");
-        helper.assertFalse(scanned || layout.isScanned(), "The scan must not occur while a chunk is not ready");
-        helper.assertFalse(readyAfter, "The scan must not load the chunk");
-        level.setChunkForced(chunk.x, chunk.z, true);
-        helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(VillageLayout.isScanAreaReady(level, heart),
-                        "The chunks of the scan area must become ready"))
-                .thenExecute(() -> {
-                    boolean done = layout.scan(level, heart);
-                    level.setChunkForced(chunk.x, chunk.z, false);
-                    helper.assertTrue(done && layout.isScanned(), "The scan must occur when the chunks are ready");
-                })
-                .thenSucceed();
+        helper.assertFalse(farReadyBefore, "A chunk far from the test must not be ready");
+        helper.assertFalse(farScanned || farLayout.isScanned(), "The scan must not occur while a chunk is not ready");
+        helper.assertFalse(farReadyAfter, "The scan must not load the chunk");
+        helper.assertTrue(VillageLayout.isScanAreaReady(level, near), "The scan area of the test must be ready");
+        helper.assertTrue(nearScanned && nearLayout.isScanned(), "The scan must occur when the chunks are ready");
+        helper.succeed();
     }
 }
