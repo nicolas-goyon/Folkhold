@@ -590,6 +590,7 @@ This mod adds ground events and rare disasters. Players can protect their buildi
 | --- | --- | --- | --- |
 | Earthquake | Random, more frequent near mountains | Camera shake, unstable blocks fall (sand, gravel, cracked stone), cracks in the surface | Medium |
 | Collapse | Cavity below the surface + earthquake or rain | An area of 5 to 15 blocks collapses into falling blocks | Medium |
+| Storm | Random and rare: one storm every 15 to 30 game days on average | A strong wind tears up the fragile blocks, lightning, the wind throws and hurts the entities | Medium |
 | Landslide | Steep slope + long rain | Dirt and gravel slide down | Medium |
 | Wildfire | Summer (Serene Seasons, optional dependency) + lightning | Faster spread, ash, regrowth with Dynamic Trees | Low |
 | Flood | Heavy rain near rivers | Temporary rise of the water on the banks | Difficult |
@@ -601,7 +602,7 @@ This mod adds ground events and rare disasters. Players can protect their buildi
 - Batch updates: maximum N changed blocks for each tick, to keep the TPS stable.
 - Link with the world mod: a village that an event hits produces less and starts reconstruction quests.
 
-For the first milestone, only the earthquake with local collapses is planned. The other events come later.
+The milestone J8 · Additional mods contains the earthquake with local collapses and the storm. The other events come later.
 
 ## Assets and content for a non-artist
 
@@ -683,10 +684,10 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
 | J3 · Abstract simulation | `SavedData`, abstract tick, village level, territory claims, economy, bank, merchant | Villages grow, territories change owner |
 | J4 · Caravans, quests | Trade between villages, caravans, traveling merchants, materialization, delivery and escort quests | The player meets convoys and can escort them |
-| J5 · Additional mods | Balance mod: farms, trades, anvil. Earthquakes and collapses | Farms have limits, the anvil has no cap, first earthquakes |
-| J6 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment from the village level, healer | Villages repair and improve themselves |
-| J7 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages | Each faction has its own look, villages fit the terrain |
-| J8 · Maps and journal | Territories on the maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
+| J5 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment and garrison size from the village level, healer, raids against the villages | Villages repair and improve themselves, a large village resists a raid |
+| J6 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages | Each faction has its own look, villages fit the terrain |
+| J7 · Maps and journal | Territories on the maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
+| J8 · Additional mods | Balance mod: farms, trades, anvil. Events mod: earthquakes, collapses and storms | Farms have limits, the anvil has no cap, first earthquakes and storms |
 
 ```mermaid
 flowchart TB
@@ -694,11 +695,11 @@ flowchart TB
     J1 --> J2["J2 · Factions, reputation"]
     J2 --> J3["J3 · Abstract simulation"]
     J3 --> J4["J4 · Caravans, quests"]
-    J4 --> J5["J5 · Additional mods"]
-    J2 -. "balance mod can start here" .-> J5
-    J3 --> J6["J6 · Living villages"]
-    J2 --> J7["J7 · Village architecture"]
-    J2 --> J8["J8 · Maps and journal"]
+    J3 --> J5["J5 · Living villages"]
+    J2 --> J6["J6 · Village architecture"]
+    J2 --> J7["J7 · Maps and journal"]
+    J5 -- "villages repair the damage of the events" --> J8["J8 · Additional mods"]
+    J2 -. "balance mod can start here" .-> J8
 ```
 
 Notes:
@@ -707,6 +708,7 @@ Notes:
 - The abstract simulation is the core of the project and the part with the highest risk: it is pure Java with JUnit tests.
 - Wars between factions come in phase 2, after the caravans and the quests.
 - Version 1 contains the milestones of the table. The living villages, the architecture and the maps depend on the factions and the abstract simulation, not on each other: their order can change.
+- The additional mods come last. The balance mod removes comfort that comes from the farms and the vanilla trades. The villages, the trade and the NPCs give this comfort first. The natural events damage the villages, and the villages repair this damage (J5).
 
 ## Risks and open questions
 
