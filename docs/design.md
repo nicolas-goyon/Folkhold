@@ -39,8 +39,6 @@ The pinned versions are in `modpack/mods/*.pw.toml`.
 | Nature | Dynamic Trees | `dynamictrees` | 1.7.2 | |
 | Nature | Serene Seasons | `serene-seasons` | 10.1.0.9 | Requires GlitchCore |
 | Nature | Smart Feeding Troughs | `smart-feeding-troughs` | 1.2.0 | Requires Dirigo |
-| Weather | Weather, Storms & Tornadoes | `weather-storms-tornadoes` | 2.8.7 | Requires CoroUtil |
-| Weather | Expanded Weather2 Dynamics | `expanded-weather2-dynamics` | 1.06.3 | Optional |
 | Terrain | The Roads More Travelled | `the-roads-more-travelled` | 0.5.1 | Beta |
 | Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | 1.0.4 | Beta, unofficial port; requires Moonlight Lib |
 | Navigation | Small Ships | `small-ships` | 2.0.0-b2.1 | Beta |
@@ -49,7 +47,7 @@ The pinned versions are in `modpack/mods/*.pw.toml`.
 | Library | GeckoLib | `geckolib` | 4.9.3 | Required by `folkhold_world` |
 | Comfort | JEI, Jade | `jei`, `jade` | 19.57.0.451, 15.10.6 | For development |
 
-packwiz resolves most dependencies automatically (for example CoroUtil for Weather2). Some mods do not declare a required library in their Modrinth metadata. Add these libraries explicitly:
+packwiz resolves most dependencies automatically (for example GlitchCore for Serene Seasons). Some mods do not declare a required library in their Modrinth metadata. Add these libraries explicitly:
 
 - Immersive Weathering: Renewed requires Moonlight Lib.
 - Smart Feeding Troughs requires Dirigo (1.3.0 or later, before 2.0.0).
@@ -575,7 +573,7 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
 
 ## Events mod
 
-Weather2 keeps the tornadoes and storms. This mod adds ground events and rare disasters. Players can protect their buildings.
+This mod adds ground events and rare disasters. Players can protect their buildings.
 
 | Event | Trigger | Effect | Technical cost |
 | --- | --- | --- | --- |
@@ -588,7 +586,7 @@ Weather2 keeps the tornadoes and storms. This mod adds ground events and rare di
 ### Rules
 
 - An event occurs only in loaded chunks (technical limit). But the mod announces it: rumble sounds, animals run away, NPCs give an alert.
-- A **stabilizer** block (reinforced foundations) protects a radius of 16 blocks, as the Weather2 deflector does.
+- A **stabilizer** block (reinforced foundations) protects a radius of 16 blocks.
 - Batch updates: maximum N changed blocks for each tick, to keep the TPS stable.
 - Link with the world mod: a village that an event hits produces less and starts reconstruction quests.
 

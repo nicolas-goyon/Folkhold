@@ -1,11 +1,6 @@
 hash-format = "sha256"
 
 [[files]]
-file = "mods/coroutil.pw.toml"
-hash = "d901f874a1e09747b8d0d072c38c426eceead1f29c8ba36680f8f0082996b152"
-metafile = true
-
-[[files]]
 file = "mods/dirigo.pw.toml"
 hash = "7f0bf5166eb7a912e7b9db58a59b48a5837eaf0ec03ea48e28cab0d21d282363"
 metafile = true
@@ -18,11 +13,6 @@ metafile = true
 [[files]]
 file = "mods/entityculling.pw.toml"
 hash = "426238488c9ffd843f661f8bc74aa8e585fa6b4d342c43c4ba4cb8451298b725"
-metafile = true
-
-[[files]]
-file = "mods/expanded-weather2-dynamics.pw.toml"
-hash = "98ef153814c2f247edb2d851498800a8195ef5d4fb60e1d8aba0e85f74d6c0c7"
 metafile = true
 
 [[files]]
@@ -123,9 +113,4 @@ metafile = true
 [[files]]
 file = "mods/the-roads-more-travelled.pw.toml"
 hash = "df1aca50a423d91c384e8b1ec15b0f56bc14c320cfc08ab194b590fccdb32742"
-metafile = true
-
-[[files]]
-file = "mods/weather-storms-tornadoes.pw.toml"
-hash = "54d07601a6be738af7115e07b29d75de786b5ffdc98681a383d6c66f1bd6a6c9"
 metafile = true
