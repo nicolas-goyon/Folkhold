@@ -41,7 +41,7 @@ The reputation of the player decides how each village receives them.
 
 ## Installation
 
-The modpack is the simple way to play. It contains the Folkhold mods and a selection of mods for performance, nature and weather.
+The modpack is the simple way to play. It contains the Folkhold mods and a selection of mods for performance, nature and terrain.
 
 1. Download `folkhold-<version>.mrpack` from the [latest release](https://github.com/nicolas-goyon/Folkhold/releases).
 2. Import the file in a launcher that reads Modrinth packs, for example [Prism Launcher](https://prismlauncher.org) or the [Modrinth App](https://modrinth.com/app).
@@ -60,7 +60,7 @@ The project has one shared library and three mods. All mods share one version.
 | `balance` | `folkhold_balance` | Planned: farm limits, villager budgets, chunk loading. The mod is empty. |
 | `events` | `folkhold_events` | Planned: earthquakes, collapses. The mod is empty. |
 
-The packwiz modpack (`modpack/`) adds existing mods for performance, nature and weather.
+The packwiz modpack (`modpack/`) adds existing mods for performance, nature and terrain.
 
 ## Documentation
 

@@ -25,10 +25,6 @@ add serene-seasons
 add 4dEFIhvD                    # Smart Feeding Troughs (confirm, see issue #5)
 add dirigo                      # required by Smart Feeding Troughs, not declared on Modrinth
 
-# Weather
-add weather-storms-tornadoes
-add expanded-weather2-dynamics  # optional
-
 # Terrain and aging
 add 74oZhrEe                    # The Roads More Travelled (beta)
 add immersive-weather-renewed   # beta, unofficial port
