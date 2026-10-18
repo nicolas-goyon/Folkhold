@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Generate the villager profession textures of the world mod.
+"""Generate the villager and zombie villager profession textures of the world mod.
 
-Output: world/src/main/resources/assets/folkhold_world/textures/entity/villager/profession/*.png
+Output:
+- world/src/main/resources/assets/folkhold_world/textures/entity/villager/profession/*.png
+- world/src/main/resources/assets/folkhold_world/textures/entity/zombie_villager/profession/*.png
 
     python3 tools/textures/villager_professions.py
 
 A profession texture is an overlay on the villager type texture (64 x 64). It uses the texture areas of the vanilla
-villager model. The areas that a profession does not paint stay transparent:
+villager model. The zombie villager model uses the same areas, with its arms in place of the crossed arms. The areas
+that a profession does not paint stay transparent:
 
 - head: x 0..31, y 0..17; hat: x 32..63, y 0..17; nose: x 24..31, y 0..5
 - body: x 16..43, y 20..37 (front face: x 22..29, y 26..37)
@@ -15,6 +18,9 @@ villager model. The areas that a profession does not paint stay transparent:
 - crossed arms: x 40..63, y 22..49
 - hat brim: x 30..61, y 47..62. A pixel in this area shows a brim around the head.
 
+The zombie villager texture of a profession is the villager texture with darker colors, a green tint, and holes in
+the clothes of the body and of the robe.
+
 Requires Pillow.
 """
 import json
@@ -22,8 +28,10 @@ import os
 
 from PIL import Image
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "..", "world", "src", "main", "resources", "assets",
-                   "folkhold_world", "textures", "entity", "villager", "profession")
+TEXTURES = os.path.join(os.path.dirname(__file__), "..", "..", "world", "src", "main", "resources", "assets",
+                        "folkhold_world", "textures", "entity")
+OUT = os.path.join(TEXTURES, "villager", "profession")
+OUT_ZOMBIE = os.path.join(TEXTURES, "zombie_villager", "profession")
 
 SIZE = 64
 BODY = (16, 20, 44, 38)
@@ -142,6 +150,43 @@ HATS = {
 }
 
 
+def inside(area, x, y):
+    x1, y1, x2, y2 = area
+    return x1 <= x < x2 and y1 <= y < y2
+
+
+def zombie(image):
+    """The clothes of a zombie villager: darker colors with a green tint, dirt marks, and holes in the body and in
+    the robe."""
+    out = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    for x in range(SIZE):
+        for y in range(SIZE):
+            r, g, b, a = image.getpixel((x, y))
+            if a == 0:
+                continue
+            clothes = inside(BODY, x, y) or inside(ROBE, x, y)
+            if clothes and (x * 5 + y * 3) % 17 == 0:
+                continue
+            r, g, b = int(r * 0.62) + 20, int(g * 0.68) + 28, int(b * 0.55) + 14
+            if clothes and (x * 11 + y * 7) % 13 == 0:
+                r, g, b = int(r * 0.75), int(g * 0.75), int(b * 0.75)
+            out.putpixel((x, y), (min(r, 255), min(g, 255), min(b, 255), a))
+    return out
+
+
+def write(folder, name, image):
+    path = os.path.join(folder, name + ".png")
+    image.save(path)
+    meta = path + ".mcmeta"
+    if name in HATS:
+        with open(meta, "w", encoding="utf-8") as file:
+            json.dump({"villager": {"hat": HATS[name]}}, file, indent=2)
+            file.write("\n")
+    elif os.path.exists(meta):
+        os.remove(meta)
+    print("wrote", os.path.normpath(path))
+
+
 def check(name, image):
     x1, y1, x2, y2 = HAT_BRIM
     for x in range(x1, x2):
@@ -152,19 +197,12 @@ def check(name, image):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
+    os.makedirs(OUT_ZOMBIE, exist_ok=True)
     for name, build in PROFESSIONS.items():
         image = build()
         check(name, image)
-        path = os.path.join(OUT, name + ".png")
-        image.save(path)
-        meta = path + ".mcmeta"
-        if name in HATS:
-            with open(meta, "w", encoding="utf-8") as file:
-                json.dump({"villager": {"hat": HATS[name]}}, file, indent=2)
-                file.write("\n")
-        elif os.path.exists(meta):
-            os.remove(meta)
-        print("wrote", os.path.normpath(path))
+        write(OUT, name, image)
+        write(OUT_ZOMBIE, name, zombie(image))
 
 
 if __name__ == "__main__":
