@@ -23,11 +23,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FenceGateBlock;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -41,6 +44,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class CaravanGameTests {
     private static final BlockPos START = new BlockPos(1, 1, 8);
     private static final int ROUTE_LENGTH = 14;
+    /** Size of the template {@code arena_large}, in blocks. */
+    private static final int LARGE_ARENA = 32;
 
     private CaravanGameTests() {
     }
@@ -207,6 +212,131 @@ public final class CaravanGameTests {
                             + "found " + (bread - breadBefore));
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * A caravan leaves a walled area through a closed fence gate. The route crosses the wall at a position with no
+     * gate. The merchant goes to the gate, opens it and goes through it, and the mule follows it out.
+     */
+    @GameTest(template = "arena", timeoutTicks = 600, batch = "caravan_gate_departure")
+    public static void caravanLeavesThroughAClosedGate(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        // Walls of 3 blocks around x 8..14, z 3..12, and a closed gate of 3 fence gates in the west wall at z 9..11.
+        walls(helper, 8, 14, 3, 12);
+        BlockPos gate = new BlockPos(8, 1, 10);
+        gate(helper, gate, Direction.WEST, false);
+        BlockPos start = new BlockPos(11, 1, 5);
+        MobileGroup group = groundCaravan(helper, "test_destination", start, new BlockPos(1, 1, 5));
+        Entity merchant = entity(helper, group, 0);
+        Entity mule = entity(helper, group, 1);
+        int wallX = helper.absolutePos(gate).getX();
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(merchant.getX() < wallX && mule.getX() < wallX,
+                        "The merchant and the mule must go out through the gate. Merchant at "
+                                + merchant.blockPosition() + ", mule at " + mule.blockPosition() + ", gate at "
+                                + helper.absolutePos(gate)))
+                .thenExecute(() -> remove(helper, group))
+                .thenSucceed();
+    }
+
+    /**
+     * A caravan arrives at a walled village from a side with no gate. The merchant goes around the wall and through
+     * the gate to the heart, and the mule follows it into the village.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 1200, batch = "caravan_gate_arrival")
+    public static void caravanGoesThroughAGateToTheHeart(GameTestHelper helper) {
+        TestSupport.buildFloor(helper, LARGE_ARENA);
+        // Walls of 3 blocks around x 10..30, z 6..26 (10 blocks from the heart), and a gate of 3 fence gates in the
+        // north wall at x 19..21.
+        walls(helper, 10, 30, 6, 26);
+        gate(helper, new BlockPos(20, 1, 6), Direction.NORTH, false);
+        BlockPos heartPos = new BlockPos(20, 1, 16);
+        helper.setBlock(heartPos, ModBlocks.VILLAGE_HEART.get());
+        VillageHeartBlockEntity heart = helper.getBlockEntity(heartPos);
+        heart.ensureSettlement();
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement destination = Settlements.of(server, heart).orElseThrow();
+        MobileGroup group = groundCaravan(helper, destination.id(), new BlockPos(2, 1, 18), new BlockPos(3, 1, 18));
+        Entity merchant = entity(helper, group, 0);
+        Entity mule = entity(helper, group, 1);
+        BlockPos min = helper.absolutePos(new BlockPos(10, 1, 6));
+        BlockPos max = helper.absolutePos(new BlockPos(30, 1, 26));
+
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    GroupMaterializer.update(server);
+                    helper.assertTrue(group.state() == GroupState.ARRIVED && inside(mule, min, max),
+                            "The caravan must arrive with its mule in the village. Merchant at "
+                                    + merchant.blockPosition() + ", mule at " + mule.blockPosition());
+                })
+                .thenExecute(() -> {
+                    GroupMaterializer.keep(group.id(), false);
+                    merchant.discard();
+                    mule.discard();
+                    heart.getUnits().forEach(Entity::discard);
+                    heart.getCats().forEach(Entity::discard);
+                    destination.setState(SettlementState.RUINS);
+                    SettlementData.get(server).setDirty();
+                })
+                .thenSucceed();
+    }
+
+    /** Walls of 3 blocks on the border of a rectangle, on the floor of the test. */
+    private static void walls(GameTestHelper helper, int minX, int maxX, int minZ, int maxZ) {
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                if (x == minX || x == maxX || z == minZ || z == maxZ) {
+                    for (int y = 1; y <= 3; y++) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.COBBLESTONE);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A gate of 3 spruce fence gates in a wall, with its center at the position, and one block of air above it. A
+     * gate of the village has 3 fence gates: a mule is wider than one block.
+     */
+    private static void gate(GameTestHelper helper, BlockPos center, Direction facing, boolean open) {
+        for (int offset = -1; offset <= 1; offset++) {
+            BlockPos pos = center.relative(facing.getClockWise(), offset);
+            helper.setBlock(pos, Blocks.SPRUCE_FENCE_GATE.defaultBlockState().setValue(FenceGateBlock.FACING, facing)
+                    .setValue(FenceGateBlock.OPEN, open));
+            helper.setBlock(pos.above(), Blocks.AIR);
+        }
+    }
+
+    /**
+     * A traveling caravan with a merchant and a mule on a route from {@code start} to {@code end}. The entities stand
+     * on the floor of the test at the start: the materialization puts them on the highest block, and the GameTest
+     * server can put a frame of barriers over the test.
+     */
+    private static MobileGroup groundCaravan(GameTestHelper helper, String destinationId, BlockPos start,
+            BlockPos end) {
+        BlockPos from = helper.absolutePos(start);
+        BlockPos to = helper.absolutePos(end);
+        MobileGroup group = new MobileGroup(UUID.randomUUID().toString(), GroupKind.CARAVAN, "test_faction",
+                "test_origin", destinationId, new Route(List.of(new Route.Point(from.getX(), from.getZ()),
+                        new Route.Point(to.getX(), to.getZ()))));
+        group.setState(GroupState.TRAVELING);
+        group.addMember(new GroupMember(UUID.randomUUID(), MemberRole.MERCHANT, 20.0F));
+        group.addMember(new GroupMember(UUID.randomUUID(), MemberRole.PACK_ANIMAL, 20.0F));
+        MobileGroupData.get(helper.getLevel().getServer()).groups().add(group);
+        GroupMaterializer.keep(group.id(), true);
+        GroupMaterializer.materialize(helper.getLevel(), group);
+        for (int i = 0; i < group.members().size(); i++) {
+            Entity entity = entity(helper, group, i);
+            entity.teleportTo(from.getX() + 0.5 + i, from.getY(), from.getZ() + 0.5);
+        }
+        return group;
+    }
+
+    private static boolean inside(Entity entity, BlockPos min, BlockPos max) {
+        return entity.getX() > Math.min(min.getX(), max.getX()) && entity.getX() < Math.max(min.getX(), max.getX()) + 1
+                && entity.getZ() > Math.min(min.getZ(), max.getZ()) && entity.getZ() < Math.max(min.getZ(), max.getZ()) + 1
+                && Math.abs(entity.getY() - min.getY()) < 2.0;
     }
 
     /** A caravan guard has the health of a village guard, with the health multiplier of the config. */
