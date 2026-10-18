@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
@@ -7,7 +8,6 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevelChangedEvent;

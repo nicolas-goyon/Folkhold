@@ -1,7 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
-import io.github.nicolasgoyon.folkhold.world.block.QuestBoardBlock;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

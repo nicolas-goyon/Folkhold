@@ -472,7 +472,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
             paintBanners();
             setChanged();
         }
-        layout.questBoards().forEach(board -> QuestBoardBlock.startUpdates(serverLevel, board));
+        layout.questBoards().forEach(board -> QuestBoardFeature.startUpdates(serverLevel, board));
         if (!exitStairs && VillageExits.build(serverLevel, worldPosition, layout.gates()) >= 0) {
             exitStairs = true;
             setChanged();

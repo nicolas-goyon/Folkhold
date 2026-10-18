@@ -1,0 +1,14 @@
+{
+  "values": [
+    "folkhold_blocks:watch_post",
+    "folkhold_blocks:building_sign_house",
+    "folkhold_blocks:building_sign_barracks",
+    "folkhold_blocks:building_sign_forge",
+    "folkhold_blocks:building_sign_storehouse",
+    "folkhold_blocks:building_sign_bank",
+    "folkhold_blocks:building_sign_hall",
+    "folkhold_blocks:building_sign_farm",
+    "folkhold_blocks:building_sign_market",
+    "folkhold_blocks:quest_board"
+  ]
+}

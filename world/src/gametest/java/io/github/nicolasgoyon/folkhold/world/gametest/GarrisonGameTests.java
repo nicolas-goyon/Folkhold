@@ -1,10 +1,10 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import java.util.List;
 import net.minecraft.core.BlockPos;

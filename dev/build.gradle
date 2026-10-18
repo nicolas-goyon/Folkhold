@@ -12,7 +12,7 @@ plugins {
 
 apply from: rootProject.file('gradle/repositories.gradle')
 
-def modProjects = [':core', ':world', ':balance', ':events']
+def modProjects = [':core', ':blocks', ':world', ':balance', ':events']
 modProjects.each { evaluationDependsOn(it) }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)

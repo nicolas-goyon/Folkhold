@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -10,7 +11,6 @@ import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;

@@ -29,13 +29,15 @@ from nbt import Template  # noqa: E402
 OUT = os.path.join(os.path.dirname(__file__), "..", "..",
                    "world", "src", "main", "resources", "data", "folkhold_world", "structure", "village")
 
+# The namespace of the structure, the pools and the jigsaw names, and the namespace of the Folkhold blocks.
 NS = "folkhold_world"
-WATCH_POST = f"{NS}:watch_post"
-HEART = f"{NS}:village_heart"
+BLOCKS = "folkhold_blocks"
+WATCH_POST = f"{BLOCKS}:watch_post"
+HEART = f"{BLOCKS}:village_heart"
 HOUSE_POOL = f"{NS}:village/houses"
 BANK_POOL = f"{NS}:village/bank"
-BANK_CHEST = f"{NS}:bank_chest"
-BANK_WALL = f"{NS}:bank_wall"
+BANK_CHEST = f"{BLOCKS}:bank_chest"
+BANK_WALL = f"{BLOCKS}:bank_wall"
 PLOT = f"{NS}:plot"
 HOUSE_FRONT = f"{NS}:house_front"
 # The village heart gives the banner of the faction to each banner of the village.
@@ -320,7 +322,7 @@ def center():
     # path. The columns go in the clockwise direction of the facing (south for east).
     for column in range(3):
         for row in range(3):
-            t.set(TOWER - 1, 1 + row, MID - 1 + column, f"{NS}:quest_board",
+            t.set(TOWER - 1, 1 + row, MID - 1 + column, f"{BLOCKS}:quest_board",
                   {"facing": "east", "column": str(column), "row": str(row), "papers": "0"})
     for (x, z) in ((MID - 2, 7), (MID + 2, 7), (MID - 2, SIZE - 8), (MID + 2, SIZE - 8),
                    (7, MID - 2), (7, MID + 2), (SIZE - 8, MID - 2), (SIZE - 8, MID + 2)):
@@ -346,7 +348,7 @@ H = 10
 
 def building_sign(t, x, y, z, kind, facing="north"):
     """The building sign of a kind (see tools/textures/building_signs.py)."""
-    t.set(x, y, z, f"{NS}:building_sign_{kind}", {"facing": facing})
+    t.set(x, y, z, f"{BLOCKS}:building_sign_{kind}", {"facing": facing})
 
 
 def house_shell(rng, wall_lower, wall_upper, sign, door=True, wide_front=False):

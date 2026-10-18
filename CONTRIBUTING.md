@@ -18,7 +18,7 @@
 3. Make small commits. Use [Conventional Commits](https://www.conventionalcommits.org/):
    - `feat(world): add faction codec`
    - `fix(core): use floor division for negative region coordinates`
-   - Scopes: `core`, `world`, `balance`, `events`, `modpack`, `dev`, `ci`, `docs`.
+   - Scopes: `core`, `blocks`, `world`, `balance`, `events`, `modpack`, `dev`, `ci`, `docs`.
 4. Open a pull request to `develop`. Write `Closes #<issue>` in the description. The title follows Conventional
    Commits and ends with a bump marker (see [Versions and releases](#versions-and-releases)):
    - `fix(world): close the gates at night [patch]`
@@ -32,7 +32,7 @@ Do not push directly to `develop` or to `main`.
 ## Labels
 
 - Type: `type: feature`, `type: build`, `type: ci`, `type: docs`, `type: design`, `type: chore`, `bug`.
-- Area: `mod: core`, `mod: world`, `mod: balance`, `mod: events`, `modpack`, `i18n`, `dev-env`.
+- Area: `mod: core`, `mod: blocks`, `mod: world`, `mod: balance`, `mod: events`, `modpack`, `i18n`, `dev-env`.
 - Status: `needs discussion`.
 
 ## Translations
@@ -47,7 +47,7 @@ Do not push directly to `develop` or to `main`.
 `./gradlew build` runs these checks. The CI runs them on each pull request.
 
 - `javac` lints: all the lints are errors (`-Xlint:all -Werror`), except `this-escape`.
-- [Error Prone](https://errorprone.info): the bug patterns of the `core` and `world` mods are errors. `ReferenceEquality` is off, because the game compares the registry objects and the entities by identity. To silence one finding, use `@SuppressWarnings("<pattern>")` on the smallest element with a comment that gives the reason.
+- [Error Prone](https://errorprone.info): the bug patterns of the mods are errors. `ReferenceEquality` is off, because the game compares the registry objects and the entities by identity. To silence one finding, use `@SuppressWarnings("<pattern>")` on the smallest element with a comment that gives the reason.
 - [Spotless](https://github.com/diffplug/spotless): import order (one group in ASCII order, static imports first), unused imports, trailing spaces, tabs and the final newline. `./gradlew spotlessApply` fixes the files.
 
 ## Versions and releases

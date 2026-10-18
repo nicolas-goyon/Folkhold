@@ -4,13 +4,15 @@ plugins {
     id 'net.neoforged.moddev'
 }
 
-// The mods block below uses the source set of the core project.
+// The mods block below uses the source sets of the core and blocks projects.
 evaluationDependsOn(':core')
+evaluationDependsOn(':blocks')
 
 apply from: rootProject.file('gradle/mod-common.gradle')
 
 dependencies {
     api project(':core')
+    api project(':blocks')
     implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
 }
 
@@ -18,6 +20,9 @@ neoForge {
     mods {
         folkhold_core {
             sourceSet(project(':core').sourceSets.main)
+        }
+        folkhold_blocks {
+            sourceSet(project(':blocks').sourceSets.main)
         }
     }
 

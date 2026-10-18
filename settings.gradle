@@ -19,6 +19,7 @@ rootProject.name = 'folkhold'
 
 // One subproject for each mod.
 include 'core'
+include 'blocks'
 include 'world'
 include 'balance'
 include 'events'

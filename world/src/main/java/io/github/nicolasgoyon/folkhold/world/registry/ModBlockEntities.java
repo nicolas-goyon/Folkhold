@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.registry;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;

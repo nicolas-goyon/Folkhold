@@ -77,7 +77,8 @@ The scripts check that Docker runs. On Windows, if Docker Desktop is installed b
 | Folder | Content |
 | --- | --- |
 | `core/` | Mod `folkhold_core`: shared library. Pure-Java simulation code goes in `core/src/main/java/.../core/sim`. |
-| `world/` | Mod `folkhold_world`: factions, villages, economy, quests. Depends on `core`. |
+| `blocks/` | Mod `folkhold_blocks`: library of the blocks, with no game logic. No dependency. |
+| `world/` | Mod `folkhold_world`: factions, villages, economy, quests. Depends on `core` and `blocks`. |
 | `balance/` | Mod `folkhold_balance`: farms, villagers, chunk loading. No dependency. |
 | `events/` | Mod `folkhold_events`: earthquakes, collapses. Depends on `core`. |
 | `dev/` | No code. Loads all mods in one game instance (client, server, GameTest server). |
@@ -190,7 +191,7 @@ To see a village in the game: `/locate structure folkhold_world:village`, then `
 
 ## Block models from a script
 
-The models and the block states of the quest board come from a script, because the board has 9 parts. Change the script, then run it:
+The models and the block states of the quest board (library `blocks`) come from a script, because the board has 9 parts. Change the script, then run it:
 
 ```bash
 python3 tools/models/quest_board.py
@@ -198,7 +199,7 @@ python3 tools/models/quest_board.py
 
 ## Textures from a script
 
-The textures of the building signs and of the villager and zombie villager professions come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the lang keys and the tag of the signs. Change a script, then run it:
+The textures of the building signs (library `blocks`) and of the villager and zombie villager professions (world mod) come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the loot tables, the lang keys and the tag of the signs. Change a script, then run it:
 
 ```bash
 python3 tools/textures/building_signs.py

@@ -1,4 +1,4 @@
-// Shared configuration for each mod subproject (core, world, balance, events).
+// Shared configuration for each mod subproject (core, blocks, world, balance, events).
 // The subproject must apply the plugins 'java-library', 'maven-publish' and 'net.neoforged.moddev' first,
 // and must set mod_id, mod_name and mod_description in its gradle.properties.
 

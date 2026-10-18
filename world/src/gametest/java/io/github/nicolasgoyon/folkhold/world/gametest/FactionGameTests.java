@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.Attitude;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionTrait;
@@ -9,7 +10,6 @@ import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;

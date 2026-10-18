@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
@@ -14,7 +15,6 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.List;

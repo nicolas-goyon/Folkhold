@@ -1,7 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
-import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
@@ -13,7 +14,6 @@ import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import java.util.ArrayDeque;

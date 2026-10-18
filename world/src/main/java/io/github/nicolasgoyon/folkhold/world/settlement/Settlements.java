@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.settlement;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -17,7 +18,6 @@ import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Optional;

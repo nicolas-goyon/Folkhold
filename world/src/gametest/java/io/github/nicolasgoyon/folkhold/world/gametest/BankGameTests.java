@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.PlayerReputation;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
@@ -11,7 +12,6 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageRequestPayload;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;

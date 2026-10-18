@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupMember;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
@@ -24,7 +25,6 @@ import io.github.nicolasgoyon.folkhold.world.quest.Deliveries;
 import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.Deque;

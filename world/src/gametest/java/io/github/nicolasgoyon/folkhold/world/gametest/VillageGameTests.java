@@ -1,9 +1,9 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSpawnProtection;
