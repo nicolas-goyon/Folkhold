@@ -2,50 +2,68 @@ package io.github.nicolasgoyon.folkhold.core.sim.territory;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * The territory cells that the settlements claim.
+ * The territory chunks that the settlements claim.
  *
  * <p>Rules:
  * <ul>
- *   <li>Each settlement claims the {@code cells} cells nearest to its position (distance to the center of the
- *       cell). The first cell is the cell of the settlement.</li>
- *   <li>A cell that two settlements claim belongs to the nearest settlement. At equal distance, the settlement
- *       with the higher level gets the cell. Then the lower id.</li>
- *   <li>A cell that no settlement claims is unclaimed.</li>
+ *   <li>Each settlement claims a disc of chunks around its position. A chunk is in the disc when the distance from
+ *       the position of the settlement to the center of the chunk is not more than the claim radius.</li>
+ *   <li>A chunk that two settlements claim belongs to the nearest settlement (distance to the center of the chunk).
+ *       At equal distance, the settlement with the higher level gets the chunk. Then the lower id.</li>
+ *   <li>A chunk that no settlement claims is unclaimed.</li>
  * </ul>
+ *
+ * <p>The claims keep no map of the claimed chunks: a large settlement claims thousands of chunks. An index of the
+ * settlements by area gives the settlements that can claim a chunk.
  */
 public final class TerritoryClaims {
-    /** Size of a territory cell in chunks. */
-    public static final int CELL_CHUNKS = 16;
-    /** Size of a territory cell in blocks. */
-    public static final int CELL_BLOCKS = CELL_CHUNKS * 16;
+    /** The territory contains the village and a margin: this number of times the radius of the village. */
+    public static final double VILLAGE_MARGIN = 1.5;
+    /** Size of an area of the index, in chunks. */
+    private static final int AREA_CHUNKS = 64;
 
     /** No claims. */
-    public static final TerritoryClaims EMPTY = new TerritoryClaims(Map.of());
+    public static final TerritoryClaims EMPTY = new TerritoryClaims(List.of());
 
     /**
-     * One settlement that claims cells.
+     * One settlement that claims chunks.
      *
-     * @param id    the id of the settlement
-     * @param x     block X of the settlement
-     * @param z     block Z of the settlement
-     * @param level the level of the settlement
-     * @param cells the number of cells that the settlement claims
+     * @param id     the id of the settlement
+     * @param x      block X of the settlement
+     * @param z      block Z of the settlement
+     * @param level  the level of the settlement
+     * @param radius the claim radius in chunks
      */
-    public record Claimant(String id, int x, int z, int level, int cells) {
+    public record Claimant(String id, int x, int z, int level, int radius) {
     }
 
-    private final Map<CellPos, String> owners;
+    private final Map<String, Claimant> byId = new HashMap<>();
+    private final Map<Long, List<Claimant>> areas = new HashMap<>();
 
-    private TerritoryClaims(Map<CellPos, String> owners) {
-        this.owners = owners;
+    private TerritoryClaims(Collection<Claimant> claimants) {
+        for (Claimant claimant : claimants) {
+            if (claimant.radius() <= 0) {
+                continue;
+            }
+            byId.put(claimant.id(), claimant);
+            // The chunks of the disc are in this square, with a margin of one chunk.
+            int centerX = Math.floorDiv(claimant.x(), 16);
+            int centerZ = Math.floorDiv(claimant.z(), 16);
+            int reach = claimant.radius() + 1;
+            for (int areaX = Math.floorDiv(centerX - reach, AREA_CHUNKS);
+                    areaX <= Math.floorDiv(centerX + reach, AREA_CHUNKS); areaX++) {
+                for (int areaZ = Math.floorDiv(centerZ - reach, AREA_CHUNKS);
+                        areaZ <= Math.floorDiv(centerZ + reach, AREA_CHUNKS); areaZ++) {
+                    areas.computeIfAbsent(key(areaX, areaZ), k -> new ArrayList<>()).add(claimant);
+                }
+            }
+        }
     }
 
     /**
@@ -55,79 +73,110 @@ public final class TerritoryClaims {
      * @return the claims
      */
     public static TerritoryClaims compute(Collection<Claimant> claimants) {
-        Map<CellPos, Claimant> winners = new HashMap<>();
-        for (Claimant claimant : claimants) {
-            for (CellPos cell : nearestCells(claimant)) {
-                winners.merge(cell, claimant, (current, other) -> better(cell, current, other));
-            }
-        }
-        Map<CellPos, String> owners = new HashMap<>();
-        winners.forEach((cell, claimant) -> owners.put(cell, claimant.id()));
-        return new TerritoryClaims(owners);
-    }
-
-    /** The cells that a settlement wants: its {@code cells} nearest cells, nearest first. */
-    static List<CellPos> nearestCells(Claimant claimant) {
-        if (claimant.cells() <= 0) {
-            return List.of();
-        }
-        CellPos home = CellPos.ofBlock(claimant.x(), claimant.z());
-        int radius = (int) Math.ceil(Math.sqrt(claimant.cells())) + 1;
-        List<CellPos> candidates = new ArrayList<>();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                candidates.add(new CellPos(home.x() + dx, home.z() + dz));
-            }
-        }
-        candidates.sort(Comparator.<CellPos>comparingDouble(cell -> cell.distanceSquared(claimant.x(), claimant.z()))
-                .thenComparingInt(CellPos::x)
-                .thenComparingInt(CellPos::z));
-        // The cell of the settlement is always the first cell.
-        candidates.remove(home);
-        candidates.add(0, home);
-        return candidates.subList(0, Math.min(claimant.cells(), candidates.size()));
-    }
-
-    private static Claimant better(CellPos cell, Claimant a, Claimant b) {
-        int byDistance = Double.compare(cell.distanceSquared(a.x(), a.z()), cell.distanceSquared(b.x(), b.z()));
-        if (byDistance != 0) {
-            return byDistance < 0 ? a : b;
-        }
-        if (a.level() != b.level()) {
-            return a.level() > b.level() ? a : b;
-        }
-        return a.id().compareTo(b.id()) <= 0 ? a : b;
+        return new TerritoryClaims(claimants);
     }
 
     /**
-     * The settlement that owns the cell of a block position.
+     * The smallest claim radius for a village. With this radius, the territory contains all the blocks at
+     * {@link #VILLAGE_MARGIN} times the radius of the village or nearer: a block is at most 7.5·√2 blocks from the
+     * center of its chunk.
+     *
+     * @param villageRadius the radius of the village in blocks
+     * @return the radius in chunks
+     */
+    public static int minimumRadius(int villageRadius) {
+        return (int) Math.ceil((VILLAGE_MARGIN * villageRadius + 7.5 * Math.sqrt(2.0)) / 16.0);
+    }
+
+    /**
+     * True if a chunk is in the disc of a settlement.
+     *
+     * @param claimant the settlement
+     * @param chunkX   chunk X
+     * @param chunkZ   chunk Z
+     * @return true if the distance from the settlement to the center of the chunk is not more than its radius
+     */
+    static boolean inDisc(Claimant claimant, int chunkX, int chunkZ) {
+        long reach = 32L * claimant.radius();
+        return distanceSquared(claimant, chunkX, chunkZ) <= reach * reach;
+    }
+
+    /**
+     * The settlement that owns the chunk of a block position.
      *
      * @param blockX block X
      * @param blockZ block Z
-     * @return the id of the settlement, or empty if the cell is unclaimed
+     * @return the id of the settlement, or empty if the chunk is unclaimed
      */
     public Optional<String> ownerAt(int blockX, int blockZ) {
-        return Optional.ofNullable(owners.get(CellPos.ofBlock(blockX, blockZ)));
+        return ownerOfChunk(Math.floorDiv(blockX, 16), Math.floorDiv(blockZ, 16));
     }
 
-    /** The settlement that owns a cell, or empty if the cell is unclaimed. */
-    public Optional<String> owner(CellPos cell) {
-        return Optional.ofNullable(owners.get(cell));
+    /**
+     * The settlement that owns a chunk.
+     *
+     * @param chunkX chunk X
+     * @param chunkZ chunk Z
+     * @return the id of the settlement, or empty if the chunk is unclaimed
+     */
+    public Optional<String> ownerOfChunk(int chunkX, int chunkZ) {
+        List<Claimant> candidates = areas.get(key(Math.floorDiv(chunkX, AREA_CHUNKS), Math.floorDiv(chunkZ,
+                AREA_CHUNKS)));
+        if (candidates == null) {
+            return Optional.empty();
+        }
+        Claimant owner = null;
+        for (Claimant candidate : candidates) {
+            if (inDisc(candidate, chunkX, chunkZ) && (owner == null || better(chunkX, chunkZ, candidate, owner))) {
+                owner = candidate;
+            }
+        }
+        return owner == null ? Optional.empty() : Optional.of(owner.id());
     }
 
-    /** Number of cells that a settlement owns. */
-    public int cellCount(String settlementId) {
+    /** Number of chunks that a settlement owns. */
+    public int chunkCount(String settlementId) {
+        Claimant claimant = byId.get(settlementId);
+        if (claimant == null) {
+            return 0;
+        }
+        int centerX = Math.floorDiv(claimant.x(), 16);
+        int centerZ = Math.floorDiv(claimant.z(), 16);
         int count = 0;
-        for (String owner : owners.values()) {
-            if (owner.equals(settlementId)) {
-                count++;
+        for (int chunkX = centerX - claimant.radius() - 1; chunkX <= centerX + claimant.radius() + 1; chunkX++) {
+            for (int chunkZ = centerZ - claimant.radius() - 1; chunkZ <= centerZ + claimant.radius() + 1; chunkZ++) {
+                if (inDisc(claimant, chunkX, chunkZ)
+                        && ownerOfChunk(chunkX, chunkZ).map(settlementId::equals).orElse(false)) {
+                    count++;
+                }
             }
         }
         return count;
     }
 
-    /** All claimed cells and their owners. */
-    public Map<CellPos, String> asMap() {
-        return Collections.unmodifiableMap(owners);
+    /** True if {@code a} gets the chunk before {@code b}. */
+    private static boolean better(int chunkX, int chunkZ, Claimant a, Claimant b) {
+        int byDistance = Long.compare(distanceSquared(a, chunkX, chunkZ), distanceSquared(b, chunkX, chunkZ));
+        if (byDistance != 0) {
+            return byDistance < 0;
+        }
+        if (a.level() != b.level()) {
+            return a.level() > b.level();
+        }
+        return a.id().compareTo(b.id()) < 0;
+    }
+
+    /**
+     * The square of the distance from the center of the block of a settlement to the center of a chunk, in half
+     * blocks: the values are integers.
+     */
+    private static long distanceSquared(Claimant claimant, int chunkX, int chunkZ) {
+        long dx = 32L * chunkX + 16 - (2L * claimant.x() + 1);
+        long dz = 32L * chunkZ + 16 - (2L * claimant.z() + 1);
+        return dx * dx + dz * dz;
+    }
+
+    private static long key(int areaX, int areaZ) {
+        return ((long) areaX << 32) | (areaZ & 0xFFFFFFFFL);
     }
 }

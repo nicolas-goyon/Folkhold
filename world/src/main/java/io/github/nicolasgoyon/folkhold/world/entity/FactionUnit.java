@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.ai.UsePassageGoal;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Objects;
@@ -282,10 +283,15 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         super.setTarget(null);
     }
 
-    /** A routed unit, or a unit that stopped a chase, does not accept a target. */
+    /**
+     * A routed unit, or a unit that stopped a chase, does not accept a target. A unit also does not accept a target
+     * that it cannot attack ({@link #canAttack(LivingEntity)}): a player in creative or spectator mode, or a player
+     * in the Peaceful difficulty. The other units and the village heart give targets with this method, so the rule
+     * applies to all targets.
+     */
     @Override
     public void setTarget(@Nullable LivingEntity target) {
-        if (target != null && (isRouted() || level().getGameTime() < gaveUpUntil)) {
+        if (target != null && (isRouted() || level().getGameTime() < gaveUpUntil || !canAttack(target))) {
             return;
         }
         super.setTarget(target);
@@ -342,9 +348,12 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return tierOf(player).isFriendly();
     }
 
-    /** The heart of the village of this unit, if the unit has a village and the heart is loaded. */
+    /**
+     * The heart of the village of this unit, if the unit has a village and the chunk of the heart is ready (see
+     * {@link ReadyChunks}).
+     */
     public Optional<VillageHeartBlockEntity> getVillageHeart() {
-        if (villagePos == null || !level().isLoaded(villagePos)) {
+        if (villagePos == null || !ReadyChunks.isReady(level(), villagePos)) {
             return Optional.empty();
         }
         return level().getBlockEntity(villagePos) instanceof VillageHeartBlockEntity heart
@@ -386,7 +395,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
 
     /**
      * True if the position is not in the territory of another faction: the territory of the faction of the unit, or
-     * an unclaimed cell. Also true if the unit has no faction.
+     * an unclaimed chunk. Also true if the unit has no faction.
      */
     private boolean isInTerritory(BlockPos pos) {
         MinecraftServer server = level().getServer();
@@ -517,7 +526,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             setTarget(null);
             target = null;
         }
-        if (target != null && !target.isAlive()) {
+        // A player who goes to creative or spectator mode stops to be a target.
+        if (target != null && (!target.isAlive() || !canAttack(target))) {
             setTarget(null);
             target = null;
         }

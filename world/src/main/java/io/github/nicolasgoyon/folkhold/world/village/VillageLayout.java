@@ -1,7 +1,9 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
-import io.github.nicolasgoyon.folkhold.world.block.QuestBoardBlock;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,7 +26,8 @@ import net.minecraft.world.phys.Vec3;
  *   <li><b>posts</b>: the position above each watch post block (the archer stands there), with its view score
  *       (see {@link #viewScore});</li>
  *   <li><b>gates</b>: the fence gates;</li>
- *   <li><b>braziers</b>: the campfires;</li>
+ *   <li><b>braziers</b>: the braziers of the block library, and the campfires. The heart changes a campfire into a
+ *       brazier, which does not burn the entities;</li>
  *   <li><b>banners</b>: the banners (standing and on walls). The heart gives them the banner of the faction;</li>
  *   <li><b>bank chests</b>: the chests of the village bank, in the scan order;</li>
  *   <li><b>bells</b>: the alarm bells. The heart rings them in an alert;</li>
@@ -32,6 +35,9 @@ import net.minecraft.world.phys.Vec3;
  * </ul>
  *
  * <p>A saved layout with an other {@link #VERSION} is not valid: the heart scans the village again.
+ *
+ * <p>The scan reads only chunks that are ready (see {@link ReadyChunks}): it never waits for the generation of a
+ * chunk.
  */
 public final class VillageLayout {
     /** Horizontal scan radius around the heart, in blocks. The village structure is 39 × 39 blocks. */
@@ -88,14 +94,15 @@ public final class VillageLayout {
      * The view score of a post: the number of open lines of sight from the eyes of an archer, in
      * {@link #VIEW_DIRECTIONS} horizontal directions. A line of sight is open when no block with a collision shape
      * is on its first {@link #VIEW_DISTANCE} blocks. A post where an archer cannot stand (a solid block at the feet
-     * or at the head) has a score of 0. A block in a chunk that is not loaded does not close a line of sight.
+     * or at the head), or a post in a chunk that is not ready, has a score of 0. A block in a chunk that is not
+     * ready does not close a line of sight.
      *
      * @param level the level
      * @param stand the position where the archer stands
      * @return the score, from 0 to {@link #VIEW_DIRECTIONS}
      */
     public static int viewScore(Level level, BlockPos stand) {
-        if (!isFree(level, stand) || !isFree(level, stand.above())) {
+        if (!ReadyChunks.isReady(level, stand) || !isFree(level, stand) || !isFree(level, stand.above())) {
             return 0;
         }
         Vec3 eye = Vec3.atBottomCenterOf(stand).add(0.0, EYE_HEIGHT, 0.0);
@@ -108,7 +115,7 @@ public final class VillageLayout {
             for (double distance = 1.5; distance <= VIEW_DISTANCE && clear; distance += 0.5) {
                 BlockPos pos = BlockPos.containing(eye.x + dx * distance, eye.y - distance * VIEW_SLOPE,
                         eye.z + dz * distance);
-                clear = !level.isLoaded(pos) || isFree(level, pos);
+                clear = !ReadyChunks.isReady(level, pos) || isFree(level, pos);
             }
             if (clear) {
                 open++;
@@ -147,12 +154,29 @@ public final class VillageLayout {
     }
 
     /**
-     * Scans the blocks around the heart and fills the lists again.
+     * True if all the chunks of the scan area around the heart are ready (see {@link ReadyChunks}).
      *
      * @param level    the level
      * @param heartPos the position of the heart
+     * @return true if a scan does not wait for a chunk
      */
-    public void scan(Level level, BlockPos heartPos) {
+    public static boolean isScanAreaReady(Level level, BlockPos heartPos) {
+        return ReadyChunks.isAreaReady(level, heartPos.getX() - SCAN_RADIUS, heartPos.getZ() - SCAN_RADIUS,
+                heartPos.getX() + SCAN_RADIUS, heartPos.getZ() + SCAN_RADIUS);
+    }
+
+    /**
+     * Scans the blocks around the heart and fills the lists again. If a chunk of the scan area is not ready, the
+     * method does nothing (see {@link #isScanAreaReady}).
+     *
+     * @param level    the level
+     * @param heartPos the position of the heart
+     * @return true if the scan occurred
+     */
+    public boolean scan(Level level, BlockPos heartPos) {
+        if (!isScanAreaReady(level, heartPos)) {
+            return false;
+        }
         posts.clear();
         views.clear();
         gates.clear();
@@ -169,7 +193,7 @@ public final class VillageLayout {
                 posts.add(pos.above().immutable());
             } else if (state.getBlock() instanceof FenceGateBlock) {
                 gates.add(pos.immutable());
-            } else if (state.getBlock() instanceof CampfireBlock) {
+            } else if (state.getBlock() instanceof BrazierBlock || state.getBlock() instanceof CampfireBlock) {
                 braziers.add(pos.immutable());
             } else if (state.getBlock() instanceof AbstractBannerBlock) {
                 banners.add(pos.immutable());
@@ -185,6 +209,7 @@ public final class VillageLayout {
             views.add(viewScore(level, post));
         }
         scanned = true;
+        return true;
     }
 
     public CompoundTag save() {

@@ -1,0 +1,391 @@
+{
+  "multipart": [
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "north"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board"
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "north",
+        "papers": "1|2|3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_1"
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "north",
+        "papers": "2|3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_2"
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "north",
+        "papers": "3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_3"
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "north",
+        "papers": "4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_4"
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "north",
+        "papers": "5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_5"
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "north",
+        "papers": "6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_6"
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "north",
+        "papers": "7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_7"
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "east"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "east",
+        "papers": "1|2|3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_1",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "east",
+        "papers": "2|3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_2",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "east",
+        "papers": "3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_3",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "east",
+        "papers": "4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_4",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "east",
+        "papers": "5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_5",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "east",
+        "papers": "6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_6",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "east",
+        "papers": "7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_7",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "south"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "south",
+        "papers": "1|2|3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_1",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "south",
+        "papers": "2|3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_2",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "south",
+        "papers": "3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_3",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "south",
+        "papers": "4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_4",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "south",
+        "papers": "5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_5",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "south",
+        "papers": "6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_6",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "south",
+        "papers": "7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_7",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "west"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "west",
+        "papers": "1|2|3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_1",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "west",
+        "papers": "2|3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_2",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "west",
+        "papers": "3|4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_3",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "west",
+        "papers": "4|5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_4",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "west",
+        "papers": "5|6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_5",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "west",
+        "papers": "6|7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_6",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "column": "1",
+        "row": "1",
+        "facing": "west",
+        "papers": "7"
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_paper_7",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "OR": [
+          {
+            "column": "0|2"
+          },
+          {
+            "row": "0|2"
+          }
+        ]
+      },
+      "apply": {
+        "model": "folkhold_blocks:block/quest_board_part"
+      }
+    }
+  ]
+}

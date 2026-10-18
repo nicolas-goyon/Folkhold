@@ -18,16 +18,16 @@ add modernfix
 add ferrite-core
 add immediatelyfast
 add entityculling
+add c2me-neoforge               # alpha: chunk generation, I/O and loading on more CPU cores
+add scalablelux                 # alpha: faster light engine
+add noisiumforked               # faster noise generation
+add chunky                      # pre-generation of the world
 
 # Nature
 add dynamictrees
 add serene-seasons
 add 4dEFIhvD                    # Smart Feeding Troughs (confirm, see issue #5)
 add dirigo                      # required by Smart Feeding Troughs, not declared on Modrinth
-
-# Weather
-add weather-storms-tornadoes
-add expanded-weather2-dynamics  # optional
 
 # Terrain and aging
 add 74oZhrEe                    # The Roads More Travelled (beta)
@@ -70,6 +70,8 @@ pin_project 74oZhrEe
 pin_project immersive-weather-renewed
 pin_project small-ships
 pin_project serene-seasons
+pin_project c2me-neoforge
+pin_project scalablelux
 
 packwiz refresh
 echo

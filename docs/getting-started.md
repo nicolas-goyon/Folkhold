@@ -77,7 +77,8 @@ The scripts check that Docker runs. On Windows, if Docker Desktop is installed b
 | Folder | Content |
 | --- | --- |
 | `core/` | Mod `folkhold_core`: shared library. Pure-Java simulation code goes in `core/src/main/java/.../core/sim`. |
-| `world/` | Mod `folkhold_world`: factions, villages, economy, quests. Depends on `core`. |
+| `blocks/` | Mod `folkhold_blocks`: library of the blocks, with no game logic. No dependency. |
+| `world/` | Mod `folkhold_world`: factions, villages, economy, quests. Depends on `core` and `blocks`. |
 | `balance/` | Mod `folkhold_balance`: farms, villagers, chunk loading. No dependency. |
 | `events/` | Mod `folkhold_events`: earthquakes, collapses. Depends on `core`. |
 | `dev/` | No code. Loads all mods in one game instance (client, server, GameTest server). |
@@ -85,6 +86,7 @@ The scripts check that Docker runs. On Windows, if Docker Desktop is installed b
 | `scripts/` | Container shortcuts, client deployment, modpack export. |
 | `tools/` | Generators (for example structure files). |
 | `docs/` | Design document and guides. |
+| `site/` | Site of the project on GitHub Pages (see the workflow **Pages**). |
 
 Each mod has:
 
@@ -183,22 +185,23 @@ python3 tools/structures/village.py
 
 The village has:
 
-- a center piece (`center.nbt`): palisade, 4 corner towers with a watch post (archer post), 2 gates, paths, a plaza with the village heart, 4 braziers and the quest board, lamp posts and torches. White banners hang on the outer face of the palisade. The village heart gives them the banner of the faction;
+- a center piece (`center.nbt`): palisade, 4 corner towers with a watch post (archer post), 2 gates, paths, a plaza with the village heart, 4 braziers (`folkhold_blocks:brazier`) and the quest board, lamp posts and torches. White banners hang on the outer face of the palisade. The village heart gives them the banner of the faction;
 - house pieces (`house_*.nbt`). Jigsaw connectors put up to 4 houses next to the main path.
 
 To see a village in the game: `/locate structure folkhold_world:village`, then `/tp` to the position.
 
 ## Block models from a script
 
-The models and the block states of the quest board come from a script, because the board has 9 parts. Change the script, then run it:
+The models and the block states of the quest board and of the brazier (library `blocks`) come from scripts: the board has 9 parts, and the brazier has a lit model and a model that does not burn. Change a script, then run it:
 
 ```bash
 python3 tools/models/quest_board.py
+python3 tools/models/brazier.py
 ```
 
 ## Textures from a script
 
-The textures of the building signs and of the villager professions come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the lang keys and the tag of the signs. Change a script, then run it:
+The textures of the building signs (library `blocks`) and of the villager and zombie villager professions (world mod) come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the loot tables, the lang keys and the tag of the signs. Change a script, then run it:
 
 ```bash
 python3 tools/textures/building_signs.py
@@ -207,11 +210,12 @@ python3 tools/textures/villager_professions.py
 
 ## Test structures
 
-The GameTest templates `empty` and `arena` are boxes of air. The tests build their floor and their walls. The script writes a template:
+The GameTest templates `empty`, `arena` and `arena_large` are boxes of air. The tests build their floor and their walls. The script writes a template:
 
 ```bash
 python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/empty.nbt
 python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16
+python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena_large.nbt --size 32 4 32
 ```
 
 The workflow **Generated files** runs all the scripts of `tools/` and fails when their output differs from the repository: commit the output of a script with the script.
@@ -241,9 +245,10 @@ The CI makes the same file for each pull request (artifact `folkhold-modpack`).
 ## Continuous integration and releases
 
 - Each push on `main` and on `develop` and each pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars, the `.mrpack` file and the coverage report of `core` are available as artifacts of the run. The workflow **Generated files** runs the tests of `scripts/version.py` and checks the output of the scripts of `tools/`.
-- The workflow **Pull request** checks the title of a pull request to `develop` (bump marker, see [CONTRIBUTING.md](../CONTRIBUTING.md#versions-and-releases)) and gives the version after the merge. For a pull request to `main`, it checks that the source branch is `develop` and gives the version and the notes of the release.
+- The workflow **Pull request** checks the title of a pull request to `develop` or in a stack on `develop` (bump marker, see [CONTRIBUTING.md](../CONTRIBUTING.md#versions-and-releases)) and gives the version after the merge. For a pull request to `main`, it checks that the source branch is `develop` and gives the version and the notes of the release.
 - A change to `.devcontainer/` runs the workflow **Dev container**: it builds the image and checks the tools.
-- To make a release, merge `develop` into `main`: a pull request from `develop` to `main`, with "Create a merge commit". The workflow **Release** calculates the version from the bump markers of the commits, tags the commit of `develop`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). When the tag of the version exists, the workflow makes no release. The release uses the same packwiz commit as the CI, so two runs on the same commit give the same `.mrpack` content.
+- The workflow **Pages** publishes the site of the project to GitHub Pages from `develop`: the files of `site/`, and `version.json` with the version of the latest release. The version badge of the README reads this file, with no call to the GitHub API by shields.io. The workflow runs when the files of the site change, and after each release.
+- To make a release, merge `develop` into `main`: a pull request from `develop` to `main`, with "Create a merge commit". The workflow **Release** calculates the version from the bump markers of the commits, tags the commit of `develop`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). When the tag of the version exists, the workflow makes no release. The release uses the same packwiz commit as the CI, so two runs on the same commit give the same `.mrpack` content. After the release, the workflow starts the workflow **Pages**.
 
 ## Clean up
 

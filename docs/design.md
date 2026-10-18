@@ -35,12 +35,14 @@ The pinned versions are in `modpack/mods/*.pw.toml`.
 | Performance | FerriteCore | `ferrite-core` | 7.0.3 | |
 | Performance | ImmediatelyFast | `immediatelyfast` | 1.6.14 | Client only |
 | Performance | Entity Culling | `entityculling` | 1.11.3 | Client only |
+| Performance | C2ME (NeoForge) | `c2me-neoforge` | 0.4.0-alpha.0.123 | Alpha; chunk generation, I/O and loading on more CPU cores |
+| Performance | ScalableLux | `scalablelux` | 0.3.0-alpha.0.8 | Alpha; faster light engine |
+| Performance | NoisiumForked | `noisiumforked` | 2.7.0 | Faster noise generation |
+| Performance | Chunky | `chunky` | 1.4.23 | Pre-generation of the world before the play |
 | Profiling | spark | `spark` | 1.10.124 | Measures the cost of each system for each tick |
 | Nature | Dynamic Trees | `dynamictrees` | 1.7.2 | |
 | Nature | Serene Seasons | `serene-seasons` | 10.1.0.9 | Requires GlitchCore |
 | Nature | Smart Feeding Troughs | `smart-feeding-troughs` | 1.2.0 | Requires Dirigo |
-| Weather | Weather, Storms & Tornadoes | `weather-storms-tornadoes` | 2.8.7 | Requires CoroUtil |
-| Weather | Expanded Weather2 Dynamics | `expanded-weather2-dynamics` | 1.06.3 | Optional |
 | Terrain | The Roads More Travelled | `the-roads-more-travelled` | 0.5.1 | Beta |
 | Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | 1.0.4 | Beta, unofficial port; requires Moonlight Lib |
 | Navigation | Small Ships | `small-ships` | 2.0.0-b2.1 | Beta |
@@ -49,7 +51,7 @@ The pinned versions are in `modpack/mods/*.pw.toml`.
 | Library | GeckoLib | `geckolib` | 4.9.3 | Required by `folkhold_world` |
 | Comfort | JEI, Jade | `jei`, `jade` | 19.57.0.451, 15.10.6 | For development |
 
-packwiz resolves most dependencies automatically (for example CoroUtil for Weather2). Some mods do not declare a required library in their Modrinth metadata. Add these libraries explicitly:
+packwiz resolves most dependencies automatically (for example GlitchCore for Serene Seasons). Some mods do not declare a required library in their Modrinth metadata. Add these libraries explicitly:
 
 - Immersive Weathering: Renewed requires Moonlight Lib.
 - Smart Feeding Troughs requires Dirigo (1.3.0 or later, before 2.0.0).
@@ -78,7 +80,9 @@ flowchart TB
         abstract["Abstract layer<br/>always simulated, pure Java"]
         concrete["Concrete layer<br/>loaded chunks only"]
     end
+    blocks["blocks<br/>library of the blocks, no game logic"]
     world --> core
+    world --> blocks
     events --> core
     balance -. "optional integration" .-> world
     abstract -- "materialize near the player" --> concrete
@@ -86,6 +90,10 @@ flowchart TB
 ```
 
 The balance mod has no dependency on `core` and stays usable alone. When the world mod is present, the balance mod uses it through an optional interface (for example to read village stocks).
+
+The concrete layer reads the blocks only in chunks that are ready: loaded and complete (`ReadyChunks`). On the server, `Level.isLoaded` is also true for a chunk that has a ticket and a generation that is not complete. A read in such a chunk stops the server thread until the generation is complete. For example, the village heart does its work only when all the chunks of its scan area (24 blocks around the heart) are ready.
+
+The blocks of all the mods are in the library `blocks` (mod `folkhold_blocks`). It has no dependency, except Minecraft and NeoForge. A block of the library has only its definition: shape, block states, placement of the parts, light, model, item, loot table, tags and names. The features of a block come from the other mods: block entity, click, scheduled tick, and actions when the block goes into the level or away. A mod registers one `BlockFeature` for a block (`BlockFeatures.register`). For example, the world mod gives the village heart its block entity, its screen and the destruction of the village. The ids `folkhold_world:<block>` of the blocks of the library resolve to the blocks of the library (registry aliases).
 
 ## World mod: factions, diplomacy, territories
 
@@ -101,7 +109,7 @@ The villages come from the vanilla structure placement (random spread, spacing 4
 
 | Term | Meaning |
 | --- | --- |
-| Territory cell | Square of 16×16 chunks. Unit of territory ownership (world mod). |
+| Territory | Disc of chunks around a village. The chunk is the unit of territory ownership (world mod). |
 | Spawn cell | Square of 4×4 chunks. Unit of the spawn budget (balance mod). |
 | Abstract tick | One step of the abstract simulation: every 2,400 game ticks (2 minutes). |
 | Cycle | One game day (24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle. |
@@ -121,7 +129,7 @@ The villages come from the vanilla structure placement (random spread, spacing 4
 | --- | --- |
 | `Faction` | id, name, culture (village style, units), color and banner, treasury, military power, base attitude to the player, traits (expansionist, merchant, isolationist) |
 | `Relation` | pair of factions, value from -100 to +100, state (alliance, peace, tension, war), date of the last change |
-| `Territory` | territory cell, owner faction, linked village, current contest |
+| `Territory` | claimed chunks (a disc around the village), owner village and faction, current contest |
 | `Settlement` | id, faction, position, state (active or ruins), level, experience, tier (from the level), population, jobs, stocks, garrison |
 | `MobileGroup` | id, kind (caravan, traveling merchant), faction, origin, destination, route, progress, cargo, members (stable UUID, role, health), state |
 | `Quest` | id, kind (delivery, escort), giver, player, success condition, deadline, reward, state |
@@ -134,9 +142,9 @@ The mod stores all of this in `SavedData` of the Overworld level (settlements, m
 
 **Implemented**:
 
-- **Claim**: each village claims the territory cells around it. The claim radius comes from the level of the village: 1 cell for a hamlet, up to 9 cells for a city. A cell that two villages claim belongs to the nearest village. At equal distance, the village with the higher level gets the cell.
-- **Unclaimed cell**: a cell that no village claims.
-- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory cells become unclaimed. The ruins stay in the world.
+- **Claim**: each village claims a disc of chunks around its position (its heart when the village exists). A chunk is in the disc when the distance from the position to the center of the chunk is not more than the claim radius. The claim radius comes from the level of the village (`claim_radius` in `levels.json`): 9 chunks (144 blocks) for a hamlet, 27 chunks for a city, 33 chunks for a capital. The radius is never smaller than the radius that contains all the blocks at 1.5 times the village radius (server configuration), so the territory contains all of the village and a margin. A chunk that two villages claim belongs to the nearest village. At equal distance, the village with the higher level gets the chunk.
+- **Unclaimed land**: a chunk that no village claims.
+- **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory becomes unclaimed. The ruins stay in the world.
 
 The faction of a new village is the faction with the nearest territory center.
 
@@ -146,9 +154,9 @@ The faction of a new village is the faction with the nearest territory center.
 
 **Planned**:
 
-- **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in an unclaimed territory cell.
+- **Help a faction grow**: colonization quests (escort settlers, deliver materials) found a hamlet of this faction in unclaimed land.
 - **Rally a village**: with sufficient reputation and a quest, a village can change its banner and join a different faction.
-- **Natural growth**: a prosperous faction slowly founds a hamlet in an adjacent unclaimed territory cell (maximum one each game week).
+- **Natural growth**: a prosperous faction slowly founds a hamlet in unclaimed land near its territory (maximum one each game week).
 - **Diplomacy**: relations change with trade and incidents. Relations decide which factions trade together.
 - **Decline**: a faction with no village disappears. Its ruins stay in the world.
 
@@ -170,7 +178,7 @@ Each faction village has fortifications and guards. A player in iron armor with 
 
 - Generated as *jigsaw* structures, one set for each culture (building pools: center, houses, workshops, wall, towers, gates).
 - The size follows the abstract state: a hamlet has a palisade, a city has a stone wall and archer towers.
-- Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation uses the same method to know the villages of a region before the player goes there, and it also applies the exclusion zone around the vanilla villages, as the chunk generation does. The `/locate` command does not apply the exclusion zone: in chunks that the game did not generate, it can show a village that does not start. The discovery covers 1024 blocks around each player and the world spawn (`discoveryRadius`), and the simulation runs on all the discovered villages: the world around the player changes with no visit. The admin screen lists these villages, with the name in italics while the game did not generate them.
+- Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation uses the same method to know the villages of a region before the player goes there, and it also applies the exclusion zone around the vanilla villages, as the chunk generation does. The `/locate` command does not apply the exclusion zone: in chunks that the game did not generate, it can show a village that does not start. The discovery covers 1024 blocks around each player and the world spawn (`discoveryRadius`), and the simulation runs on all the discovered villages: the world around the player changes with no visit. The admin screen lists these villages, with the name in italics while the game did not generate them. Its discover action checks at once the regions up to 3000 blocks in each direction around the operator (`adminDiscoveryRadius`).
 - Materialization: when the player comes near, the mod creates the garrison and the inhabitants from the `Settlement` state. When the player goes away, the mod removes them and writes their state back (health, deaths, equipment).
 
 ### Village styles and terrain
@@ -228,12 +236,12 @@ This section describes the physical growth (planned). New elements go into the *
   - When the player enters the territory of a faction, a small banner at the top of the screen shows the faction banner, "Lands of" and the faction in its color, and the reputation tier with its glyph and color, for some seconds. This is an early warning before the villages.
   - Near a village (50 blocks from the heart, configurable), the action bar shows the village name, the faction, the level, the tier and what the guards do ("✓ Friend: the guards greet you").
   - Important events show in a toast at the top right of the screen, not in the chat: the warning of a guard, the result of a quest, a pillage, and the warnings of a bank chest and a caravan mule. The same warning shows at most once in 10 seconds.
-  - An optional HUD panel (client option, off by default) at the top right of the screen, below the vanilla effect icons: the banner and the name of the faction that owns the territory, the tier of the player with its glyph and color, and the nearest village of the territory (also a village that the game did not generate yet) with its distance and an arrow to it.
+  - A HUD panel (client option, on by default) at the top right of the screen, below the vanilla effect icons: the banner and the name of the faction that owns the territory, the tier of the player with its glyph and color, and the nearest village of the territory (also a village that the game did not generate yet) with its distance and an arrow to it.
   - The village heart opens a screen with the village information.
 
 ### Shelter at night
 
-- At night, the guards light torches and braziers, close the gates and patrol the walls.
+- At night, the guards light torches and braziers, close the gates and patrol the walls. The village heart lights the braziers at night and puts them out by day. A brazier (block of the library) is 1.5 blocks high, so the mobs do not jump on it, and it does not burn the entities. A campfire of the village layout becomes a brazier.
 - The village heart prevents monster spawns in its area.
 - Village cats stay near the gates and the center. The creepers run away from them. The player cannot tame them.
 - A neutral or friendly player can take shelter in the village. From the Town tier, the player can rent a bed at the inn for emeralds.
@@ -393,7 +401,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
   - The **detailed route** uses a grid of 4 blocks, in a corridor of 48 blocks around the coarse route. A height step of more than 3 blocks between two cells is a cliff: the route goes around it. If the corridor has no route, the search tries again with a corridor two times wider. If there is still no route, the group uses the coarse route.
 - Each segment of a route has a surface: land, ford (water of 2 blocks or less) or water. On water, the group crosses in boats. Getting into and out of the boats has a cost, so a route goes around a small lake.
 - A new group waits at its village until its detailed route is ready, also after its departure time. The escort offer stays open. The mod keeps the detailed route for the next groups between the same villages.
-- One height costs a calculation of the terrain noise, and a search reads thousands of heights. A worker thread calculates the routes. The simulation uses only the routes that are in the world data, and a group or a trade waits for its route. The search uses a weighted heuristic: it examines fewer cells, and a route can be a little longer than the best route.
+- One column of the terrain noise gives the 2 heights of a cell (the surface, water included, and the floor). One column costs a calculation of the terrain noise, and a search reads thousands of columns. A worker thread calculates the routes. The simulation uses only the routes that are in the world data, and a group or a trade waits for its route. When an error stops a calculation, the world data gets no result, so the simulation can ask again, and a group that waits for its detailed route continues with its coarse route. The search uses a weighted heuristic: it examines fewer cells, and a route can be a little longer than the best route.
 
 ### Benchmarks
 
@@ -415,7 +423,9 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - A caravan has a merchant (it looks like a wandering trader), loaded mules (vanilla mules with chests) and 2 to 4 guards. The level of the origin village sets the number of guards. The merchant walks on the route. The mules follow the merchant.
 - The guards of a caravan have no village anchor. They follow the merchant and defend the members. The center of their chase radius is the merchant.
 - **Convoy**: the merchant is a little slower than the mules and the guards. When a member is more than 10 blocks from the merchant, the merchant waits (20 seconds or less).
-- **Arrival**: near the end of the route, the merchant goes to the heart of the destination. The caravan arrives when the merchant is at 8 blocks or less from the heart. If the heart is not known, the caravan arrives at the end of the route.
+- **Departure**: at the start of the route, the merchant goes to a point of the route at 40 blocks or more from its start, out of the walls of the origin village. Its path goes through a gate.
+- **Arrival**: near the end of the route, the merchant goes to the heart of the destination. Its path goes around the walls and through a gate. The caravan arrives when the merchant is at 8 blocks or less from the heart. If the heart is not known, the caravan arrives at the end of the route.
+- **Gates**: the merchant opens a closed gate (all its fence gates, so a mule can go through) and closes it again after the members of the caravan.
 - **Boats**: at the start of a water segment, the merchant and the guards get into vanilla boats, two in each boat. The first boat follows the route, and the other boats follow it in a line. The mules swim behind the boats. At the end of the segment, the members get out on the shore and the boats disappear. A player cannot break or use these boats.
 - After the arrival, the members stay in the village for some time. The mule chests are empty, because the goods are in the stock of the destination. The members disappear after 30 seconds when no player is near, or after 3 minutes.
 - **Trade on the road**: the caravan merchant sells the items of the cargo, with the prices of the origin village. The reputation rules of the village merchant apply.
@@ -426,7 +436,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 ### Traveling merchant
 
 - The neutral faction has traveling merchants: 1 merchant and 1 pack animal. A traveling merchant goes from village to village and stays near each village for some time.
-- It sells rare items: very expensive, small quantities, slow restock, as the wandering trader. No overpowered enchanted books.
+- It sells rare items: very expensive, small quantities, slow restock, as the wandering trader. No overpowered enchanted books, and no item from the Nether: the caravans and the traveling merchants carry only items of the Overworld.
 - Each traveling merchant sells 6 items of this list. At each cycle, it gets back one item of one offer.
 
 | Item | Price (emeralds) | Maximum |
@@ -434,7 +444,6 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 | Name tag | 12 | 2 |
 | Saddle | 10 | 1 |
 | Ender pearl | 6 | 4 |
-| Blaze rod | 8 | 2 |
 | Nautilus shell | 16 | 1 |
 | Golden apple | 14 | 1 |
 | Diamond | 12 | 2 |
@@ -457,7 +466,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - `/folkhold quest list|give|complete|fail`: the quests of a player. `give` makes a delivery or an escort of the village nearest to the player.
 - `/folkhold settlement route <from> <to>`: calculates a route again and shows its time.
 - `/folkhold admin` opens the admin screen (operators only). Left: all settlements of the world, with a text filter and chips for the state, the level range and the sort order. Right: the selected settlement, with its badges (level, state, alert), its rows and its largest stocks.
-- The actions of the admin screen are in menus: Village (teleport, set the level, add experience, restore, ruin), Economy (one cycle, reset), Garrison (alert state, bells, if the heart is loaded) and World (copy the position, the id or a `/tp` command). The header has Refresh, Simulation (one tick or one cycle for all settlements, and the discovery of the villages around the operator now) and "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
+- The actions of the admin screen are in menus: Village (teleport, set the level, add experience, restore, ruin), Economy (one cycle, reset), Garrison (alert state, bells, if the heart is loaded) and World (copy the position, the id or a `/tp` command). The header has Refresh, Simulation (one tick or one cycle for all settlements, and the discovery of the villages up to 3000 blocks around the operator now) and "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
 - The result of an action shows in the status line of the screen. To ruin a settlement, the operator types its name. To reset an economy, the operator confirms.
 
 ### Synergy with the pack mods
@@ -494,7 +503,7 @@ A quest has a giver, a success condition that the mod checks on the state of the
 
 - **Givers**: each faction village has a quest board. The captain of the village gives the same quests. The quest board is at the west end of the east-west path of the village, and faces the plaza. It is a large notice board (3 blocks wide, about 2.5 blocks high) with two posts and a gable roof. The board shows one paper or map for each offer of the village, up to 7, so a player sees from a distance if the village has work. A click on any part opens the quests. A captain does not give quests to a hostile player.
 - **Screen**: the offers are papers pinned on a wood board (item, what to do, kind, time, reward, the items of the player, the departure of an escort caravan). Each offer shows why the player cannot accept it: tier too low, or too many active quests. A column shows the active quests of the player: time left, progress, deliver button, abandon button (with a confirmation). The result of an action shows in the screen.
-- **HUD**: an optional panel (client option, off by default) at the top left of the screen shows the active quests: the item, the items of the player for a delivery, the arrow and the distance to the village of the delivery, and the time (on a red badge under 2 minutes). An escort has a tracker: the progress of the caravan, the arrow and the distance to the merchant, the hearts of the merchant, and a warning with the time to come back when the player is too far. The times go down with the game time: they stop while the game is paused.
+- **HUD**: a panel (client option, on by default) at the top left of the screen shows the active quests: the item, the items of the player for a delivery, the arrow and the distance to the village of the delivery, and the time (on a red badge under 2 minutes). An escort has a tracker: the progress of the caravan, the arrow and the distance to the merchant, the hearts of the merchant, and a warning with the time to come back when the player is too far. The times go down with the game time: they stop while the game is paused.
 - **Reward**: the emeralds come from the treasury of the faction of the village. An abandoned quest fails.
 
 ### Delivery
@@ -575,7 +584,7 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
 
 ## Events mod
 
-Weather2 keeps the tornadoes and storms. This mod adds ground events and rare disasters. Players can protect their buildings.
+This mod adds ground events and rare disasters. Players can protect their buildings.
 
 | Event | Trigger | Effect | Technical cost |
 | --- | --- | --- | --- |
@@ -588,7 +597,7 @@ Weather2 keeps the tornadoes and storms. This mod adds ground events and rare di
 ### Rules
 
 - An event occurs only in loaded chunks (technical limit). But the mod announces it: rumble sounds, animals run away, NPCs give an alert.
-- A **stabilizer** block (reinforced foundations) protects a radius of 16 blocks, as the Weather2 deflector does.
+- A **stabilizer** block (reinforced foundations) protects a radius of 16 blocks.
 - Batch updates: maximum N changed blocks for each tick, to keep the TPS stable.
 - Link with the world mod: a village that an event hits produces less and starts reconstruction quests.
 
@@ -628,7 +637,7 @@ For new blocks (stabilizer, world anchor, quest board), start from a similar van
 
 ## Technical stack and tools
 
-Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the three mods, the shared library and the modpack.
+Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the three mods, the two libraries and the modpack.
 
 | Need | Tool | Note |
 | --- | --- | --- |
@@ -646,7 +655,8 @@ Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the 
 
 ```
 Folkhold/
-  core/          shared library: abstract simulation, cells, scheduler
+  core/          shared library: abstract simulation, territories, scheduler
+  blocks/        library of the blocks, with no game logic
   world/         factions, villages, economy, caravans, quests
   balance/       farms, villagers, chunk loading
   events/        earthquakes, collapses

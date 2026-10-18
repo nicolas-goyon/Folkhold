@@ -1,8 +1,13 @@
 hash-format = "sha256"
 
 [[files]]
-file = "mods/coroutil.pw.toml"
-hash = "d901f874a1e09747b8d0d072c38c426eceead1f29c8ba36680f8f0082996b152"
+file = "mods/c2me-neoforge.pw.toml"
+hash = "49cd0f00fe14d655a029724b564284169bcd10375d4048bb5e9a495552d19e38"
+metafile = true
+
+[[files]]
+file = "mods/chunky.pw.toml"
+hash = "1d5cc2b6dcfd1fc3adba4566b1c29b57ff1175316678c1f22e63cbc3e28a5ba0"
 metafile = true
 
 [[files]]
@@ -18,11 +23,6 @@ metafile = true
 [[files]]
 file = "mods/entityculling.pw.toml"
 hash = "426238488c9ffd843f661f8bc74aa8e585fa6b4d342c43c4ba4cb8451298b725"
-metafile = true
-
-[[files]]
-file = "mods/expanded-weather2-dynamics.pw.toml"
-hash = "98ef153814c2f247edb2d851498800a8195ef5d4fb60e1d8aba0e85f74d6c0c7"
 metafile = true
 
 [[files]]
@@ -91,6 +91,16 @@ hash = "709bfedec583aee1370ad11210b75a454b1e3f10c0a1da7fe25abd1c28a8681d"
 metafile = true
 
 [[files]]
+file = "mods/noisiumforked.pw.toml"
+hash = "11835b8555c23090b12d6ca9be871a6b5bfcec5ff7f48e77ef09c784af40b69e"
+metafile = true
+
+[[files]]
+file = "mods/scalablelux.pw.toml"
+hash = "add30757bb00eb43bd614a45ddc1476553617616c95d7054087a6a14e69aa381"
+metafile = true
+
+[[files]]
 file = "mods/serene-seasons.pw.toml"
 hash = "f8ee1a1a3f4658aebb894eb6a4dd656514cececbc03b209c43a1c72dabc09b04"
 metafile = true
@@ -123,9 +133,4 @@ metafile = true
 [[files]]
 file = "mods/the-roads-more-travelled.pw.toml"
 hash = "df1aca50a423d91c384e8b1ec15b0f56bc14c320cfc08ab194b590fccdb32742"
-metafile = true
-
-[[files]]
-file = "mods/weather-storms-tornadoes.pw.toml"
-hash = "54d07601a6be738af7115e07b29d75de786b5ffdc98681a383d6c66f1bd6a6c9"
 metafile = true

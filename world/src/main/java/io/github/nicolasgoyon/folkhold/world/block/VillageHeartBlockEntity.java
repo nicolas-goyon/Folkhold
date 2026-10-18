@@ -1,5 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -14,6 +16,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
@@ -62,6 +65,10 @@ import net.neoforged.neoforge.event.EventHooks;
  * State of a village: id, faction, alert state and garrison. The units of the village keep the position of this block.
  *
  * <p>When a player is in the activation radius, the heart creates the missing units of its garrison.
+ *
+ * <p>The work of the heart reads and changes the blocks of the village. The heart does this work only when all the
+ * chunks of the scan area are ready ({@link VillageLayout#isScanAreaReady}): the server thread never waits for the
+ * generation of a chunk.
  */
 public class VillageHeartBlockEntity extends BlockEntity {
     private static final String ID_TAG = "VillageId";
@@ -278,7 +285,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Rings the alarm bells of the village. The vanilla villagers near a bell go into the houses, as in a raid.
+     * Rings the alarm bells of the village. The vanilla villagers near a bell go into the houses, as in a raid. A
+     * bell in a chunk that is not ready does not ring.
      */
     public void ringBells() {
         if (level == null || level.isClientSide()) {
@@ -286,6 +294,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         lastBellTick = level.getGameTime();
         for (BlockPos bell : layout.bells()) {
+            if (!ReadyChunks.isReady(level, bell)) {
+                continue;
+            }
             BlockState state = level.getBlockState(bell);
             if (state.getBlock() instanceof BellBlock bellBlock) {
                 bellBlock.attemptToRing(null, level, bell, null);
@@ -458,12 +469,14 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Creates the missing units of the garrison now (see {@link Garrison#ensure}).
+     * Creates the missing units of the garrison now (see {@link Garrison#ensure}). Before the first garrison, the
+     * heart scans the village. The method does nothing while a chunk of the scan area is not ready
+     * ({@link VillageLayout#isScanAreaReady}).
      *
      * @param now the game time to use
      */
     public void ensureGarrison(long now) {
-        if (!(level instanceof ServerLevel serverLevel)) {
+        if (!(level instanceof ServerLevel serverLevel) || !VillageLayout.isScanAreaReady(serverLevel, worldPosition)) {
             return;
         }
         ensureSettlement();
@@ -472,7 +485,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
             paintBanners();
             setChanged();
         }
-        layout.questBoards().forEach(board -> QuestBoardBlock.startUpdates(serverLevel, board));
+        layout.questBoards().forEach(board -> QuestBoardFeature.startUpdates(serverLevel, board));
         if (!exitStairs && VillageExits.build(serverLevel, worldPosition, layout.gates()) >= 0) {
             exitStairs = true;
             setChanged();
@@ -629,6 +642,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
      *   <li>Night: the gates close, the braziers burn, and the guards (not the captain, not the units with a
      *       post) watch the gates.</li>
      *   <li>Day: the gates open, the braziers go out, and the guards patrol around their home again.</li>
+     *   <li>A campfire of the layout becomes a brazier of the block library, which does not burn the entities.</li>
      * </ul>
      *
      * @param night true for the night state
@@ -653,8 +667,13 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         for (BlockPos brazier : layout.braziers()) {
             BlockState brazierState = level.getBlockState(brazier);
-            if (brazierState.getBlock() instanceof CampfireBlock && brazierState.getValue(CampfireBlock.LIT) != night) {
-                level.setBlock(brazier, brazierState.setValue(CampfireBlock.LIT, night), Block.UPDATE_ALL);
+            if (brazierState.getBlock() instanceof CampfireBlock) {
+                // A campfire burns the entities: the brazier of the block library takes its place.
+                level.setBlock(brazier, ModBlocks.BRAZIER.get().defaultBlockState().setValue(BrazierBlock.LIT, night),
+                        Block.UPDATE_ALL);
+            } else if (brazierState.getBlock() instanceof BrazierBlock
+                    && brazierState.getValue(BrazierBlock.LIT) != night) {
+                level.setBlock(brazier, brazierState.setValue(BrazierBlock.LIT, night), Block.UPDATE_ALL);
             }
         }
         assignGateWatch(night);
@@ -742,6 +761,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         // The registration in onLoad can happen before the level is ready. Register again: it costs nothing.
         VillageHearts.register(level, pos);
+        if (!VillageLayout.isScanAreaReady(level, pos)) {
+            return;
+        }
         if (time % GARRISON_INTERVAL == 0) {
             double activation = WorldConfig.GARRISON_ACTIVATION_RADIUS.get();
             if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {

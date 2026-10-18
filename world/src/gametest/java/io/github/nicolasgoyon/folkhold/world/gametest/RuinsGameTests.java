@@ -1,12 +1,12 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
@@ -51,7 +51,7 @@ public final class RuinsGameTests {
     }
 
     private static int claims(GameTestHelper helper, Settlement settlement) {
-        return SettlementData.get(helper.getLevel().getServer()).claims().cellCount(settlement.id());
+        return SettlementData.get(helper.getLevel().getServer()).claims().chunkCount(settlement.id());
     }
 
     /** Kill the captain, then destroy the heart: the village becomes ruins and claims nothing. */
@@ -65,7 +65,7 @@ public final class RuinsGameTests {
 
         helper.assertTrue(activeAfterCaptain, "The village must stay active while its heart exists");
         helper.assertTrue(village.settlement().state() == SettlementState.RUINS, "The village must be ruins");
-        helper.assertTrue(claims(helper, village.settlement()) == 0, "Ruins must claim no cell");
+        helper.assertTrue(claims(helper, village.settlement()) == 0, "Ruins must claim no chunk");
         helper.succeed();
     }
 

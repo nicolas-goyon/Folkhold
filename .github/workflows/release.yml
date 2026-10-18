@@ -6,6 +6,8 @@ name: Release
 # is immutable, so a failed release step can run again only when the publication did not happen.
 # When the tag of the version exists, the workflow makes no release. To run it again after a failure, use
 # "Run workflow" on main.
+# After the release, the workflow starts the workflow Pages on develop. Pages publishes the site of the project with
+# the version of the latest release (version.json), and the version badge of the README reads this file.
 
 on:
   push:
@@ -155,3 +157,17 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The site deploys from develop (see pages.yml). A workflow_dispatch event of the GITHUB_TOKEN starts a workflow run.
+  site:
+    name: Site
+    needs: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Start the workflow Pages on develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref develop

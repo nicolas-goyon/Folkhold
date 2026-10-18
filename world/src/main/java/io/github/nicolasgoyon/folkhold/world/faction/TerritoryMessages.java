@@ -40,18 +40,18 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  *   <li><b>territory message</b>: when a player enters the territory of a faction, a banner of the HUD (the vanilla
  *       title for a client with no channel) shows "Lands of" and the faction name in its color, and the reputation
  *       tier of the player with its glyph and color. This is an
- *       early warning before the villages. When a player enters an unclaimed cell, a title shows "Unclaimed
+ *       early warning before the villages. When a player enters unclaimed land, a title shows "Unclaimed
  *       territory".</li>
  *   <li><b>village message</b>: when a player comes near a village (see {@link WorldConfig#VILLAGE_MESSAGE_RADIUS}),
  *       the action bar shows the village name, the faction, the level and tier of the village, the reputation tier
  *       in this village, and what the guards do.</li>
  *   <li><b>territory status</b>: the server sends the territory, the tier and the nearest village of the
  *       territory (also a village that the game did not generate yet) to the client when they change. Out of the
- *       territories, the village is the village near the player. The client shows them in the territory HUD, if
- *       the player turns it on.</li>
+ *       territories, the village is the village near the player. The client shows them in the territory HUD (on
+ *       by default, see {@link io.github.nicolasgoyon.folkhold.world.config.ClientConfig#SHOW_TERRITORY_HUD}).</li>
  * </ul>
  *
- * <p>The territories are in the overworld only. The settlements claim the territory cells (see
+ * <p>The territories are in the overworld only. The settlements claim the territory chunks (see
  * {@link Territories}).
  */
 public final class TerritoryMessages {
@@ -62,7 +62,7 @@ public final class TerritoryMessages {
     private static final int TITLE_FADE_OUT = 20;
     private static final String VOWELS = "AEIOUYaeiouyÉéÈèÂâÎîÔôÛû";
     private static final Map<UUID, State> STATES = new HashMap<>();
-    /** Territory id of an unclaimed cell. A faction id is never empty, so it cannot be this value. */
+    /** Territory id of an unclaimed chunk. A faction id is never empty, so it cannot be this value. */
     private static final String UNCLAIMED = "";
     /** Territory id outside the overworld. */
     private static final String OUTSIDE = "-";

@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Generate the resources of the building signs of the world mod.
+"""Generate the resources of the building signs of the block library (folkhold_blocks).
 
 A building sign is a sign stand in front of a building of the village: two posts, a cross bar and a hanging plaque
 with an icon. Each kind of building has its own sign: icon, plaque colors and post materials.
 
     python3 tools/textures/building_signs.py
 
-Output (world/src/main/resources):
-- assets/folkhold_world/textures/block/building_sign/<kind>.png: the plaque (16 x 16, the model uses x 2..13 and
+Output (blocks/src/main/resources):
+- assets/folkhold_blocks/textures/block/building_sign/<kind>.png: the plaque (16 x 16, the model uses x 2..13 and
   y 2..13: a dark outline, a trim ring and the icon on the background, 8 x 8);
-- assets/folkhold_world/models/block/building_sign_<kind>.json: the sign stand (1.5 blocks high) and the relief of
+- assets/folkhold_blocks/models/block/building_sign_<kind>.json: the sign stand (1.5 blocks high) and the relief of
   the plaque; models/item/building_sign_<kind>.json;
-- assets/folkhold_world/blockstates/building_sign_<kind>.json: 4 facings (the plaque faces the facing);
-- data/folkhold_world/loot_table/blocks/building_sign_<kind>.json;
+- assets/folkhold_blocks/blockstates/building_sign_<kind>.json: 4 facings (the plaque faces the facing);
+- data/folkhold_blocks/loot_table/blocks/building_sign_<kind>.json;
 - the block ids in data/minecraft/tags/block/mineable/axe.json;
-- the block names in assets/folkhold_world/lang/en_us.json and fr_fr.json.
+- the block names in assets/folkhold_blocks/lang/en_us.json and fr_fr.json.
 
 To add a kind: add an entry to KINDS here and to BuildingSignKind in the Java code, then run this script.
 
@@ -25,10 +25,10 @@ import os
 
 from PIL import Image
 
-ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "world", "src", "main", "resources")
-ASSETS = os.path.join(ROOT, "assets", "folkhold_world")
+ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "blocks", "src", "main", "resources")
+ASSETS = os.path.join(ROOT, "assets", "folkhold_blocks")
 DATA = os.path.join(ROOT, "data")
-NS = "folkhold_world"
+NS = "folkhold_blocks"
 
 OUTLINE = (40, 28, 20, 255)
 

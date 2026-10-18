@@ -31,6 +31,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
@@ -70,10 +71,15 @@ final class TestSupport {
      * then fills the bottom layer of the arena (y = 0) with smooth stone.
      */
     static void buildFloor(GameTestHelper helper) {
+        buildFloor(helper, ARENA_SIZE);
+    }
+
+    /** As {@link #buildFloor(GameTestHelper)}, for an arena of the given size in blocks. */
+    static void buildFloor(GameTestHelper helper, int size) {
         sweep(helper);
         retireEarlierSettlements(helper);
-        for (int x = 0; x < ARENA_SIZE; x++) {
-            for (int z = 0; z < ARENA_SIZE; z++) {
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.SMOOTH_STONE);
             }
         }
@@ -191,8 +197,8 @@ final class TestSupport {
 
     /**
      * A mock server player in the level of the test, with a connection that sends nothing. It is creative for
-     * {@link Player#isCreative()}, but its game mode is survival (as the vanilla mock player). Remove it at the end
-     * of the test with {@code getPlayerList().remove(player)}.
+     * {@link Player#isCreative()} (as the vanilla mock player), but its game mode is survival: the units can attack
+     * it. Remove it at the end of the test with {@code getPlayerList().remove(player)}.
      */
     static ServerPlayer mockPlayer(GameTestHelper helper) {
         return mockPlayer(helper, UUID.randomUUID());
@@ -218,6 +224,8 @@ final class TestSupport {
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
         new EmbeddedChannel(connection);
         level.getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        // The default game mode of the GameTest server is creative.
+        player.setGameMode(GameType.SURVIVAL);
         return player;
     }
 }

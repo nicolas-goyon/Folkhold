@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
@@ -200,7 +201,7 @@ public final class VillageFolk {
             return;
         }
         BlockPos heartPos = BlockPos.of(villager.getPersistentData().getLong(Merchants.VILLAGE_TAG));
-        if (level.isLoaded(heartPos)
+        if (ReadyChunks.isReady(level, heartPos)
                 && level.getBlockEntity(heartPos) instanceof VillageHeartBlockEntity heart) {
             Settlements.of(level.getServer(), heart).ifPresent(settlement -> {
                 settlement.economy().setPopulation(Math.max(0, settlement.economy().population() - 1));

@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev'
+}
+
+apply from: rootProject.file('gradle/mod-common.gradle')
+
+neoForge {
+    // JUnit tests with the game runtime: the registries and the mod are loaded, there is no server.
+    unitTest {
+        enable()
+        testedMod = mods.folkhold_blocks
+    }
+}

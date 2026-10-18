@@ -4,16 +4,18 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.Economy;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Recipe;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
-import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.group.TravelingMerchants;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.SplittableRandom;
+import java.util.TreeSet;
 import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -29,8 +31,13 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class JobDataGameTests {
-    private static final int CELL = TerritoryClaims.CELL_BLOCKS;
+    /** Grid of the test positions in blocks, so that the test settlements are far from each other. */
+    private static final int GRID = 256;
     private static final int CYCLES = 60;
+    /** Words of the ids of the items from the Nether. */
+    private static final List<String> NETHER_WORDS = List.of("nether", "blaze", "ghast", "magma", "glowstone",
+            "quartz", "soul_", "crimson", "warped", "basalt", "blackstone", "shroomlight", "wither", "piglin",
+            "strider", "hoglin", "ancient_debris", "weeping_vines", "twisting_vines");
 
     private JobDataGameTests() {
     }
@@ -60,6 +67,26 @@ public final class JobDataGameTests {
         helper.succeed();
     }
 
+    /**
+     * The trade uses no item from the Nether: the items of the jobs, the item values (folkhold/items.json) and the
+     * rare items of the traveling merchants. An item comes from the Nether when its id has one of the words of
+     * {@link #NETHER_WORDS}.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "job_data_nether")
+    public static void tradeUsesNoItemFromTheNether(GameTestHelper helper) {
+        Set<String> items = new TreeSet<>();
+        EconomyData.jobs().values().forEach(job -> items.addAll(items(job)));
+        EconomyData.catalog().all().forEach(info -> items.add(info.id()));
+        TravelingMerchants.RARE_ITEMS.forEach(rare -> items.add(rare.item()));
+        List<String> nether = items.stream()
+                .filter(item -> NETHER_WORDS.stream().anyMatch(item::contains))
+                .toList();
+
+        helper.assertTrue(!items.isEmpty(), "The trade must have items");
+        helper.assertTrue(nether.isEmpty(), "Items from the Nether in the trade: " + nether);
+        helper.succeed();
+    }
+
     /** Each input of each job has a job that produces it. */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "job_data_inputs")
     public static void eachJobInputHasAProducer(GameTestHelper helper) {
@@ -86,7 +113,7 @@ public final class JobDataGameTests {
     public static void hamletWithAFarmerAndABakerDoesNotStarve(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         String faction = FactionData.get(server).factions().get(0).id();
-        int x = 700 * CELL + CELL / 2;
+        int x = 700 * GRID + GRID / 2;
         Settlement hamlet = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Breadby", x, 100);
         hamlet.setProgress(1, 0);
         hamlet.setBiome("minecraft:plains");
@@ -111,7 +138,7 @@ public final class JobDataGameTests {
     public static void minerAndSmelterGiveIronIngots(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         String faction = FactionData.get(server).factions().get(0).id();
-        int x = 710 * CELL + CELL / 2;
+        int x = 710 * GRID + GRID / 2;
         Settlement village = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Ironby", x, 100);
         village.setProgress(4, 0);
         village.setBiome("minecraft:plains");
@@ -138,7 +165,7 @@ public final class JobDataGameTests {
     public static void townWithAFullChainProducesIronArmor(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         String faction = FactionData.get(server).factions().get(0).id();
-        int x = 720 * CELL + CELL / 2;
+        int x = 720 * GRID + GRID / 2;
         Settlement town = new Settlement(UUID.randomUUID().toString(), x >> 4, 0, faction, "Smithton", x, 100);
         town.setProgress(9, 0);
         town.setBiome("minecraft:plains");

@@ -52,6 +52,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue REPUTATION_RAID_CARAVAN;
 
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
+    public static final ModConfigSpec.IntValue ADMIN_DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue DISCOVERY_CHECKS_PER_TICK;
     public static final ModConfigSpec.IntValue SIMULATION_INTERVAL_TICKS;
     public static final ModConfigSpec.IntValue SIMULATION_CYCLE_LENGTH;
@@ -159,7 +160,8 @@ public final class WorldConfig {
                 .push("village");
         VILLAGE_RADIUS = builder
                 .comment("Radius in blocks of a village around its heart. Units in this radius join the village",
-                        "when they spawn. An alert reaches all units of the village in this radius.")
+                        "when they spawn. An alert reaches all units of the village in this radius. The territory of",
+                        "a village has a radius of at least 1.5 times this radius.")
                 .translation(KEY_PREFIX + "villageRadius")
                 .defineInRange("radius", 48, 8, 256);
         VILLAGE_MESSAGE_RADIUS = builder
@@ -294,6 +296,11 @@ public final class WorldConfig {
                         "villages before the game generates their chunks.")
                 .translation(KEY_PREFIX + "discoveryRadius")
                 .defineInRange("discoveryRadius", 1024, 128, 8192);
+        ADMIN_DISCOVERY_RADIUS = builder
+                .comment("Distance in blocks in each direction around the operator for the discover action of the",
+                        "admin screen. The action checks all the regions in this distance at once.")
+                .translation(KEY_PREFIX + "adminDiscoveryRadius")
+                .defineInRange("adminDiscoveryRadius", 3000, 128, 16384);
         DISCOVERY_CHECKS_PER_TICK = builder
                 .comment("Maximum number of placement regions that the discovery checks in each server tick.")
                 .translation(KEY_PREFIX + "discoveryChecksPerTick")
@@ -391,8 +398,8 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "routeMaxLength")
                 .defineInRange("routeMaxLength", 3000, 100, 20000);
         ROUTE_MAX_NODES = builder
-                .comment("Maximum number of grid cells that the calculation of one route examines. Each cell reads 2",
-                        "heights from the terrain noise on the route worker thread.")
+                .comment("Maximum number of grid cells that the calculation of one route examines. Each cell reads a",
+                        "column of the terrain noise on the route worker thread.")
                 .translation(KEY_PREFIX + "routeMaxNodes")
                 .defineInRange("routeMaxNodes", 1500, 100, 100000);
         ROUTE_BOATS = builder

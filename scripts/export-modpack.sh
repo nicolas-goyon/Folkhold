@@ -25,7 +25,7 @@ cp -r "$root/modpack/." "$work/"
 mkdir -p "$work/mods"
 
 found=0
-for jar in "$root"/{core,world,balance,events}/build/libs/folkhold_*.jar; do
+for jar in "$root"/{core,blocks,world,balance,events}/build/libs/folkhold_*.jar; do
     [ -e "$jar" ] || continue
     case "$jar" in
         *-sources.jar) ;;

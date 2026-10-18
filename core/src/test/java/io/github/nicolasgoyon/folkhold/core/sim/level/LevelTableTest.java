@@ -32,11 +32,12 @@ class LevelTableTest {
     }
 
     @Test
-    void claimsGrowFromOneCellForAHamletToNineCellsForACity() {
-        assertEquals(1, TABLE.traits(1).claimCells());
-        assertEquals(9, TABLE.traits(13).claimCells());
+    void claimRadiusGrowsFromNineChunksForAHamletToThirtyThreeForACapital() {
+        assertEquals(9, TABLE.traits(1).claimRadius());
+        assertEquals(27, TABLE.traits(13).claimRadius());
+        assertEquals(33, TABLE.traits(20).claimRadius());
         for (int level = 2; level <= TABLE.maxLevel(); level++) {
-            assertTrue(TABLE.traits(level).claimCells() >= TABLE.traits(level - 1).claimCells());
+            assertTrue(TABLE.traits(level).claimRadius() >= TABLE.traits(level - 1).claimRadius());
             assertTrue(TABLE.traits(level).experience() > TABLE.traits(level - 1).experience());
         }
     }
