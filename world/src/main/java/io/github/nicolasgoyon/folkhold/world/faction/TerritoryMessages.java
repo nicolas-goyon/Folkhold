@@ -47,8 +47,8 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  *       in this village, and what the guards do.</li>
  *   <li><b>territory status</b>: the server sends the territory, the tier and the nearest village of the
  *       territory (also a village that the game did not generate yet) to the client when they change. Out of the
- *       territories, the village is the village near the player. The client shows them in the territory HUD, if
- *       the player turns it on.</li>
+ *       territories, the village is the village near the player. The client shows them in the territory HUD (on
+ *       by default, see {@link io.github.nicolasgoyon.folkhold.world.config.ClientConfig#SHOW_TERRITORY_HUD}).</li>
  * </ul>
  *
  * <p>The territories are in the overworld only. The settlements claim the territory chunks (see
