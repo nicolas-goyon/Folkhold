@@ -85,6 +85,8 @@ flowchart TB
 
 The balance mod has no dependency on `core` and stays usable alone. When the world mod is present, the balance mod uses it through an optional interface (for example to read village stocks).
 
+The concrete layer reads the blocks only in chunks that are ready: loaded and complete (`ReadyChunks`). On the server, `Level.isLoaded` is also true for a chunk that has a ticket and a generation that is not complete. A read in such a chunk stops the server thread until the generation is complete. For example, the village heart does its work only when all the chunks of its scan area (24 blocks around the heart) are ready.
+
 ## World mod: factions, diplomacy, territories
 
 When a new world starts, the mod creates 5 to 7 factions (`FactionGenerator.Settings.DEFAULT`):

@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
@@ -81,7 +82,7 @@ public final class Merchants {
     public static VillageHeartBlockEntity heartOf(ServerLevel level, AbstractVillager villager) {
         if (villager.getPersistentData().contains(VILLAGE_TAG)) {
             BlockPos pos = BlockPos.of(villager.getPersistentData().getLong(VILLAGE_TAG));
-            if (level.isLoaded(pos) && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
+            if (ReadyChunks.isReady(level, pos) && level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
                 return heart;
             }
         }

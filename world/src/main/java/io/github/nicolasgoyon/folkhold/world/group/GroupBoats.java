@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -155,7 +156,7 @@ public final class GroupBoats {
         Route.Position position = group.route().positionAt(startProgress);
         int x = (int) Math.floor(position.x());
         int z = (int) Math.floor(position.z());
-        if (!level.isLoaded(new BlockPos(x, Settlements.seaLevel(level), z))) {
+        if (!ReadyChunks.isReady(level, new BlockPos(x, Settlements.seaLevel(level), z))) {
             return;
         }
         double y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
@@ -261,7 +262,7 @@ public final class GroupBoats {
         Route.Position shore = route.positionAt(Math.min(route.length(), crossing.endProgress + SHORE_DISTANCE));
         int x = (int) Math.floor(shore.x());
         int z = (int) Math.floor(shore.z());
-        boolean loaded = level.isLoaded(new BlockPos(x, Settlements.seaLevel(level), z));
+        boolean loaded = ReadyChunks.isReady(level, new BlockPos(x, Settlements.seaLevel(level), z));
         int y = loaded ? level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) : 0;
         int index = 0;
         for (UUID id : crossing.boats) {

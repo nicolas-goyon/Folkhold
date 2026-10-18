@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.ai.UsePassageGoal;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Objects;
@@ -347,9 +348,12 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return tierOf(player).isFriendly();
     }
 
-    /** The heart of the village of this unit, if the unit has a village and the heart is loaded. */
+    /**
+     * The heart of the village of this unit, if the unit has a village and the chunk of the heart is ready (see
+     * {@link ReadyChunks}).
+     */
     public Optional<VillageHeartBlockEntity> getVillageHeart() {
-        if (villagePos == null || !level().isLoaded(villagePos)) {
+        if (villagePos == null || !ReadyChunks.isReady(level(), villagePos)) {
             return Optional.empty();
         }
         return level().getBlockEntity(villagePos) instanceof VillageHeartBlockEntity heart
