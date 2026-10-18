@@ -10,7 +10,7 @@ The reputation of the player decides how each village receives them.
 [![Build on main](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/build.yml?branch=main&label=build%20%C2%B7%20main&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/build.yml?query=branch%3Amain)
 [![Build on develop](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/build.yml?branch=develop&label=build%20%C2%B7%20develop&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/build.yml?query=branch%3Adevelop)
 [![Release workflow](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/release.yml?label=release&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/release.yml)
-[![Latest version](https://img.shields.io/github/v/release/nicolas-goyon/Folkhold?include_prereleases&sort=semver&label=version)](https://github.com/nicolas-goyon/Folkhold/releases)
+[![Latest version](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnicolas-goyon%2FFolkhold%2Fbadges%2Fversion.json)](https://github.com/nicolas-goyon/Folkhold/releases)
 
 [![Minecraft 1.21.1](https://img.shields.io/badge/Minecraft-1.21.1-62B47A)](https://www.minecraft.net)
 [![NeoForge 21.1](https://img.shields.io/badge/NeoForge-21.1-D7742F)](https://neoforged.net)

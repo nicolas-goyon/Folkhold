@@ -6,6 +6,8 @@ name: Release
 # is immutable, so a failed release step can run again only when the publication did not happen.
 # When the tag of the version exists, the workflow makes no release. To run it again after a failure, use
 # "Run workflow" on main.
+# After the release, the workflow writes the version to the file version.json of the branch badges. The version badge
+# of the README reads this file (endpoint badge of shields.io), so the badge does not need the GitHub API.
 
 on:
   push:
@@ -155,3 +157,31 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  badge:
+    name: Version badge
+    needs: [version, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the badges branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: badges
+
+      # The format of an endpoint badge of shields.io. If the version does not change, there is no commit.
+      - name: Write the version
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          printf '{"schemaVersion":1,"label":"version","message":"%s","color":"blue"}\n' "$TAG" > version.json
+          git add version.json
+          if git diff --cached --quiet; then
+            echo "The badge shows ${TAG}."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "chore: version badge ${TAG}"
+          git push -q origin HEAD:badges
