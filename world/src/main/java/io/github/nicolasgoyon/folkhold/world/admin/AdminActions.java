@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
@@ -63,8 +64,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  *   <li>{@code bells}: rings the bells of the village. The heart must be loaded.</li>
  *   <li>{@code tick_all} and {@code cycle_all}: run one abstract tick or one cycle of all active settlements and
  *       of the world systems (for example the caravans).</li>
- *   <li>{@code discover}: checks now all the placement regions in the discovery radius around the player (see
- *       {@link SettlementDiscovery#discoverAround}).</li>
+ *   <li>{@code discover}: checks now all the placement regions up to {@code adminDiscoveryRadius} blocks in each
+ *       direction around the player (see {@link SettlementDiscovery#discoverAround}).</li>
  *   <li>{@code groups}: sends the caravans, the traveling merchants and the quests (see {@link GroupOverview}).
  *       The client shows them in a tabbed screen.</li>
  * </ul>
@@ -177,7 +178,7 @@ public final class AdminActions {
                     return Optional.empty();
                 }
                 SettlementDiscovery.Discovery discovery = SettlementDiscovery.discoverAround(server.overworld(),
-                        player.blockPosition());
+                        player.blockPosition(), WorldConfig.ADMIN_DISCOVERY_RADIUS.get());
                 return Optional.of(Result.done("discover", discovery.inRadius(), discovery.radius(),
                         discovery.found()));
             }
