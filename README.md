@@ -10,7 +10,7 @@ The reputation of the player decides how each village receives them.
 [![Build on main](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/build.yml?branch=main&label=build%20%C2%B7%20main&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/build.yml?query=branch%3Amain)
 [![Build on develop](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/build.yml?branch=develop&label=build%20%C2%B7%20develop&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/build.yml?query=branch%3Adevelop)
 [![Release workflow](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/release.yml?label=release&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/release.yml)
-[![Latest version](https://img.shields.io/github/v/release/nicolas-goyon/Folkhold?include_prereleases&sort=semver&label=version)](https://github.com/nicolas-goyon/Folkhold/releases)
+[![Latest version](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fnicolas-goyon%2FFolkhold%2Fbadges%2Fversion.json)](https://github.com/nicolas-goyon/Folkhold/releases)
 
 [![Minecraft 1.21.1](https://img.shields.io/badge/Minecraft-1.21.1-62B47A)](https://www.minecraft.net)
 [![NeoForge 21.1](https://img.shields.io/badge/NeoForge-21.1-D7742F)](https://neoforged.net)
@@ -46,6 +46,7 @@ The modpack is the simple way to play. It contains the Folkhold mods and a selec
 1. Download `folkhold-<version>.mrpack` from the [latest release](https://github.com/nicolas-goyon/Folkhold/releases).
 2. Import the file in a launcher that reads Modrinth packs, for example [Prism Launcher](https://prismlauncher.org) or the [Modrinth App](https://modrinth.com/app).
 3. Start the game and create a new world.
+4. Optional: pre-generate the area around the spawn with Chunky. The game then generates fewer chunks during the play, for example with an elytra or a boat on ice. Use the commands `/chunky spawn`, `/chunky radius 2000` and `/chunky start` (cheats must be on). A radius of 2000 blocks is about 62,500 chunks: the generation takes time, and the world uses more disk space. Chunky continues after a restart of the game.
 
 To use the mods without the modpack, put `folkhold_core`, `folkhold_blocks` and `folkhold_world` from the release in the `mods` folder of a Minecraft 1.21.1 instance with NeoForge 21.1.259 or later and [GeckoLib](https://modrinth.com/mod/geckolib) 4.9.3 or later.
 

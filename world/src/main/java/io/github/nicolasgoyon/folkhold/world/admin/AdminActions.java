@@ -5,8 +5,10 @@ import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload.Stock;
@@ -63,8 +65,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  *   <li>{@code bells}: rings the bells of the village. The heart must be loaded.</li>
  *   <li>{@code tick_all} and {@code cycle_all}: run one abstract tick or one cycle of all active settlements and
  *       of the world systems (for example the caravans).</li>
- *   <li>{@code discover}: checks now all the placement regions in the discovery radius around the player (see
- *       {@link SettlementDiscovery#discoverAround}).</li>
+ *   <li>{@code discover}: checks now all the placement regions up to {@code adminDiscoveryRadius} blocks in each
+ *       direction around the player (see {@link SettlementDiscovery#discoverAround}).</li>
  *   <li>{@code groups}: sends the caravans, the traveling merchants and the quests (see {@link GroupOverview}).
  *       The client shows them in a tabbed screen.</li>
  * </ul>
@@ -177,7 +179,7 @@ public final class AdminActions {
                     return Optional.empty();
                 }
                 SettlementDiscovery.Discovery discovery = SettlementDiscovery.discoverAround(server.overworld(),
-                        player.blockPosition());
+                        player.blockPosition(), WorldConfig.ADMIN_DISCOVERY_RADIUS.get());
                 return Optional.of(Result.done("discover", discovery.inRadius(), discovery.radius(),
                         discovery.found()));
             }
@@ -344,14 +346,14 @@ public final class AdminActions {
         });
     }
 
-    /** The village heart of the settlement, if its chunk is loaded. */
+    /** The village heart of the settlement, if its chunk is ready (see {@link ReadyChunks}). */
     private static Optional<VillageHeartBlockEntity> loadedHeart(MinecraftServer server, Settlement settlement) {
         if (!settlement.hasHeart()) {
             return Optional.empty();
         }
         ServerLevel level = server.overworld();
         BlockPos pos = new BlockPos(settlement.x(), settlement.heartY(), settlement.z());
-        if (!level.isLoaded(pos)) {
+        if (!ReadyChunks.isReady(level, pos)) {
             return Optional.empty();
         }
         return level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart

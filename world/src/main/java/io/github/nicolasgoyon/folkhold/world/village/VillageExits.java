@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -53,13 +54,14 @@ public final class VillageExits {
      * @param level the level
      * @param heart the position of the heart
      * @param gates the fence gates of the village
-     * @return the number of stair blocks, or -1 if a chunk near a gate is not loaded (nothing changes then)
+     * @return the number of stair blocks, or -1 if a chunk near a gate is not ready (nothing changes then, see
+     *         {@link ReadyChunks})
      */
     public static int build(ServerLevel level, BlockPos heart, List<BlockPos> gates) {
         List<Exit> exits = exits(level, heart, gates);
         for (Exit exit : exits) {
             for (BlockPos column : exit.columns()) {
-                if (!level.isLoaded(column.relative(exit.out(), MAX_STEPS + 1))) {
+                if (!ReadyChunks.isReady(level, column.relative(exit.out(), MAX_STEPS + 1))) {
                     return -1;
                 }
             }

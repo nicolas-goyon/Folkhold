@@ -18,6 +18,10 @@ add modernfix
 add ferrite-core
 add immediatelyfast
 add entityculling
+add c2me-neoforge               # alpha: chunk generation, I/O and loading on more CPU cores
+add scalablelux                 # alpha: faster light engine
+add noisiumforked               # faster noise generation
+add chunky                      # pre-generation of the world
 
 # Nature
 add dynamictrees
@@ -66,6 +70,8 @@ pin_project 74oZhrEe
 pin_project immersive-weather-renewed
 pin_project small-ships
 pin_project serene-seasons
+pin_project c2me-neoforge
+pin_project scalablelux
 
 packwiz refresh
 echo

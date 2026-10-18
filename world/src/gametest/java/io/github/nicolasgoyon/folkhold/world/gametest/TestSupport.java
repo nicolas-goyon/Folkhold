@@ -71,10 +71,15 @@ final class TestSupport {
      * then fills the bottom layer of the arena (y = 0) with smooth stone.
      */
     static void buildFloor(GameTestHelper helper) {
+        buildFloor(helper, ARENA_SIZE);
+    }
+
+    /** As {@link #buildFloor(GameTestHelper)}, for an arena of the given size in blocks. */
+    static void buildFloor(GameTestHelper helper, int size) {
         sweep(helper);
         retireEarlierSettlements(helper);
-        for (int x = 0; x < ARENA_SIZE; x++) {
-            for (int z = 0; z < ARENA_SIZE; z++) {
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.SMOOTH_STONE);
             }
         }

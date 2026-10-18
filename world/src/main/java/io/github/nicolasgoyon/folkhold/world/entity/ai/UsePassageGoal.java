@@ -1,9 +1,14 @@
 package io.github.nicolasgoyon.folkhold.world.entity.ai;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -27,6 +32,10 @@ import net.minecraft.world.phys.AABB;
  *   <li>When the unit is on the other side, the goal waits until no entity is in the passage or next to it, and no
  *       mob near the passage has a path through it. Then it closes the passage. Thus a unit does not close the
  *       passage on the unit behind it, and does not close it in front of a unit that follows.</li>
+ *   <li>A gate of the village has several fence gates side by side. The unit opens and closes all the fence gates of
+ *       the gate together, so a wide mob (for example a mule) can go through.</li>
+ *   <li>A unit can have followers, for example the mules of a caravan merchant. The passage also stays open while a
+ *       follower near the passage is still on the side where the unit started.</li>
  *   <li>After {@link #MAX_TICKS}, the goal stops. If an entity is still near, the passage stays open.</li>
  *   <li>The goal does not start again for the passage that the unit just left behind.</li>
  * </ul>
@@ -42,8 +51,13 @@ public class UsePassageGoal extends Goal {
     private static final double CLEAR_DISTANCE = 1.5;
     /** A mob at this horizontal distance from the passage, in blocks, with a path through it, keeps it open. */
     private static final double FOLLOW_DISTANCE = 8.0;
+    /** A follower at this distance from the passage or nearer, in blocks, that did not pass, keeps it open. */
+    private static final double FOLLOWER_DISTANCE = 16.0;
+    /** The largest number of fence gates on each side of a fence gate in one gate. */
+    private static final int MAX_GATE_SIDE = 2;
 
     private final Mob mob;
+    private final Supplier<List<? extends Entity>> followers;
     @Nullable
     private BlockPos passagePos;
     private float startDirX;
@@ -53,7 +67,18 @@ public class UsePassageGoal extends Goal {
     private int ticks;
 
     public UsePassageGoal(Mob mob) {
+        this(mob, List::of);
+    }
+
+    /**
+     * Makes the goal for a unit with followers.
+     *
+     * @param mob       the unit
+     * @param followers the entities that follow the unit through the passages
+     */
+    public UsePassageGoal(Mob mob, Supplier<List<? extends Entity>> followers) {
         this.mob = mob;
+        this.followers = followers;
     }
 
     /** True if the block is a fence gate or the lower half of a wooden door. */
@@ -160,10 +185,20 @@ public class UsePassageGoal extends Goal {
     }
 
     /**
-     * True if no entity is in the passage or next to it, and no mob near the passage has a path through it. The
-     * unit counts only when it is in the passage.
+     * True if no entity is in the passage or next to it, no mob near the passage has a path through it, and no
+     * follower near the passage is on the side where the unit started. The unit counts only when it is in the
+     * passage.
      */
     private boolean isClear() {
+        double reachSqr = FOLLOWER_DISTANCE * FOLLOWER_DISTANCE;
+        for (Entity follower : followers.get()) {
+            float dirX = (float) (passagePos.getX() + 0.5 - follower.getX());
+            float dirZ = (float) (passagePos.getZ() + 0.5 - follower.getZ());
+            boolean before = startDirX * dirX + startDirZ * dirZ > 0.0F;
+            if (follower.isAlive() && before && follower.distanceToSqr(passagePos.getCenter()) <= reachSqr) {
+                return false;
+            }
+        }
         AABB passage = passageBox(passagePos, 0.0);
         AABB near = passageBox(passagePos, CLEAR_DISTANCE);
         for (LivingEntity entity : mob.level().getEntitiesOfClass(LivingEntity.class,
@@ -192,12 +227,49 @@ public class UsePassageGoal extends Goal {
             }
             return;
         }
-        if (!(state.getBlock() instanceof FenceGateBlock) || state.getValue(FenceGateBlock.OPEN) == open) {
+        if (!(state.getBlock() instanceof FenceGateBlock)) {
             return;
         }
-        level.setBlock(passagePos, state.setValue(FenceGateBlock.OPEN, open), Block.UPDATE_ALL);
-        level.playSound(null, passagePos, open ? SoundEvents.FENCE_GATE_OPEN : SoundEvents.FENCE_GATE_CLOSE,
-                SoundSource.BLOCKS, 1.0F, 1.0F);
-        level.gameEvent(mob, open ? GameEvent.BLOCK_OPEN : GameEvent.BLOCK_CLOSE, passagePos);
+        boolean changed = false;
+        for (BlockPos pos : gateBlocks(level, passagePos, state)) {
+            BlockState gate = level.getBlockState(pos);
+            if (gate.getValue(FenceGateBlock.OPEN) != open) {
+                level.setBlock(pos, gate.setValue(FenceGateBlock.OPEN, open), Block.UPDATE_ALL);
+                level.gameEvent(mob, open ? GameEvent.BLOCK_OPEN : GameEvent.BLOCK_CLOSE, pos);
+                changed = true;
+            }
+        }
+        if (changed) {
+            level.playSound(null, passagePos, open ? SoundEvents.FENCE_GATE_OPEN : SoundEvents.FENCE_GATE_CLOSE,
+                    SoundSource.BLOCKS, 1.0F, 1.0F);
+        }
+    }
+
+    /**
+     * The fence gates of one gate: the fence gate at the position, and the fence gates next to it in the same line
+     * with the same axis, up to {@link #MAX_GATE_SIDE} on each side.
+     *
+     * @param level the level
+     * @param pos   the position of a fence gate
+     * @param state the block state of this fence gate
+     * @return the positions of the fence gates
+     */
+    public static List<BlockPos> gateBlocks(Level level, BlockPos pos, BlockState state) {
+        Direction facing = state.getValue(FenceGateBlock.FACING);
+        List<BlockPos> blocks = new ArrayList<>();
+        blocks.add(pos);
+        for (Direction side : List.of(facing.getClockWise(), facing.getCounterClockWise())) {
+            BlockPos next = pos.relative(side);
+            for (int i = 0; i < MAX_GATE_SIDE; i++) {
+                BlockState nextState = level.getBlockState(next);
+                if (!(nextState.getBlock() instanceof FenceGateBlock)
+                        || nextState.getValue(FenceGateBlock.FACING).getAxis() != facing.getAxis()) {
+                    break;
+                }
+                blocks.add(next);
+                next = next.relative(side);
+            }
+        }
+        return blocks;
     }
 }

@@ -8,11 +8,14 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.group.TravelingMerchants;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.SplittableRandom;
+import java.util.TreeSet;
 import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -31,6 +34,10 @@ public final class JobDataGameTests {
     /** Grid of the test positions in blocks, so that the test settlements are far from each other. */
     private static final int GRID = 256;
     private static final int CYCLES = 60;
+    /** Words of the ids of the items from the Nether. */
+    private static final List<String> NETHER_WORDS = List.of("nether", "blaze", "ghast", "magma", "glowstone",
+            "quartz", "soul_", "crimson", "warped", "basalt", "blackstone", "shroomlight", "wither", "piglin",
+            "strider", "hoglin", "ancient_debris", "weeping_vines", "twisting_vines");
 
     private JobDataGameTests() {
     }
@@ -57,6 +64,26 @@ public final class JobDataGameTests {
             }
         }
         helper.assertTrue(problems.isEmpty(), "Problems in the job data: " + problems);
+        helper.succeed();
+    }
+
+    /**
+     * The trade uses no item from the Nether: the items of the jobs, the item values (folkhold/items.json) and the
+     * rare items of the traveling merchants. An item comes from the Nether when its id has one of the words of
+     * {@link #NETHER_WORDS}.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "job_data_nether")
+    public static void tradeUsesNoItemFromTheNether(GameTestHelper helper) {
+        Set<String> items = new TreeSet<>();
+        EconomyData.jobs().values().forEach(job -> items.addAll(items(job)));
+        EconomyData.catalog().all().forEach(info -> items.add(info.id()));
+        TravelingMerchants.RARE_ITEMS.forEach(rare -> items.add(rare.item()));
+        List<String> nether = items.stream()
+                .filter(item -> NETHER_WORDS.stream().anyMatch(item::contains))
+                .toList();
+
+        helper.assertTrue(!items.isEmpty(), "The trade must have items");
+        helper.assertTrue(nether.isEmpty(), "Items from the Nether in the trade: " + nether);
         helper.succeed();
     }
 

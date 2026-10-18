@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.core.sim.RegionPos;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -18,10 +19,12 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -198,24 +201,38 @@ public final class AdminGameTests {
     }
 
     /**
-     * The discover action checks all the regions around the player. A second discovery at the same position finds
-     * no new settlement.
+     * The discover action checks all the regions up to {@code adminDiscoveryRadius} blocks in each direction around
+     * the player: the test checks the regions at the four corners. A second discovery at the same position finds no
+     * new settlement.
      */
     @GameTest(template = "empty", timeoutTicks = 100, batch = "admin_discover")
     public static void discoverChecksTheRegionsAroundThePlayer(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         ServerPlayer player = TestSupport.mockPlayer(helper);
+        int radius = WorldConfig.ADMIN_DISCOVERY_RADIUS.get();
 
         Optional<AdminActions.Result> first = AdminActions.perform(server, player,
                 new AdminActionPayload("discover", "", 0));
-        SettlementDiscovery.Discovery again = SettlementDiscovery.discoverAround(helper.getLevel(),
-                player.blockPosition());
+        BlockPos pos = player.blockPosition();
+        SettlementDiscovery.Discovery again = SettlementDiscovery.discoverAround(helper.getLevel(), pos, radius);
+        int spacing = ((RandomSpreadStructurePlacement) server.registryAccess().registryOrThrow(Registries.STRUCTURE_SET)
+                .getOrThrow(SettlementDiscovery.VILLAGE_SET).placement()).spacing();
+        SettlementData data = SettlementData.get(server);
+        int radiusChunks = radius >> 4;
+        boolean cornersChecked = true;
+        for (int dx : new int[] {-radiusChunks, radiusChunks}) {
+            for (int dz : new int[] {-radiusChunks, radiusChunks}) {
+                RegionPos region = RegionPos.ofChunk((pos.getX() >> 4) + dx, (pos.getZ() >> 4) + dz, spacing);
+                cornersChecked &= data.isRegionChecked(region.x(), region.z());
+            }
+        }
 
         server.getPlayerList().remove(player);
         helper.assertTrue(first.isPresent() && first.get().success(), "The discovery must give a result");
+        helper.assertTrue(cornersChecked,
+                "The discovery must check the regions up to " + radius + " blocks in each direction");
         helper.assertTrue(again.found() == 0, "A second discovery must find no new settlement: " + again.found());
-        helper.assertTrue(again.radius() == WorldConfig.DISCOVERY_RADIUS.get() && again.inRadius() >= 0,
-                "The discovery must give the radius");
+        helper.assertTrue(again.radius() == radius && again.inRadius() >= 0, "The discovery must give the distance");
         helper.succeed();
     }
 }
