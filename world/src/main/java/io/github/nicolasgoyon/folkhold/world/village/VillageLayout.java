@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import java.util.ArrayList;
@@ -24,7 +25,8 @@ import net.minecraft.world.phys.Vec3;
  *   <li><b>posts</b>: the position above each watch post block (the archer stands there), with its view score
  *       (see {@link #viewScore});</li>
  *   <li><b>gates</b>: the fence gates;</li>
- *   <li><b>braziers</b>: the campfires;</li>
+ *   <li><b>braziers</b>: the braziers of the block library, and the campfires. The heart changes a campfire into a
+ *       brazier, which does not burn the entities;</li>
  *   <li><b>banners</b>: the banners (standing and on walls). The heart gives them the banner of the faction;</li>
  *   <li><b>bank chests</b>: the chests of the village bank, in the scan order;</li>
  *   <li><b>bells</b>: the alarm bells. The heart rings them in an alert;</li>
@@ -169,7 +171,7 @@ public final class VillageLayout {
                 posts.add(pos.above().immutable());
             } else if (state.getBlock() instanceof FenceGateBlock) {
                 gates.add(pos.immutable());
-            } else if (state.getBlock() instanceof CampfireBlock) {
+            } else if (state.getBlock() instanceof BrazierBlock || state.getBlock() instanceof CampfireBlock) {
                 braziers.add(pos.immutable());
             } else if (state.getBlock() instanceof AbstractBannerBlock) {
                 banners.add(pos.immutable());

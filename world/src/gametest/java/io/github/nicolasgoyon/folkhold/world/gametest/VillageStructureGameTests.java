@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -34,7 +35,6 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.CrossCollisionBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.IronBarsBlock;
@@ -149,14 +149,16 @@ public final class VillageStructureGameTests {
         boolean gatesClosed = layout.gates().stream()
                 .allMatch(pos -> !helper.getLevel().getBlockState(pos).getValue(FenceGateBlock.OPEN));
         boolean braziersLit = layout.braziers().stream()
-                .allMatch(pos -> helper.getLevel().getBlockState(pos).getValue(CampfireBlock.LIT));
+                .map(pos -> helper.getLevel().getBlockState(pos))
+                .allMatch(state -> state.is(ModBlocks.BRAZIER.get()) && state.getValue(BrazierBlock.LIT));
         boolean guardsOnWatch = !guards.isEmpty() && guards.stream().allMatch(guard -> guard.getNightPos() != null);
 
         heart.applyDayNight(false);
         boolean gatesOpen = layout.gates().stream()
                 .allMatch(pos -> helper.getLevel().getBlockState(pos).getValue(FenceGateBlock.OPEN));
         boolean braziersOut = layout.braziers().stream()
-                .noneMatch(pos -> helper.getLevel().getBlockState(pos).getValue(CampfireBlock.LIT));
+                .map(pos -> helper.getLevel().getBlockState(pos))
+                .allMatch(state -> state.is(ModBlocks.BRAZIER.get()) && !state.getValue(BrazierBlock.LIT));
         boolean guardsOffWatch = guards.stream().allMatch(guard -> guard.getNightPos() == null);
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);

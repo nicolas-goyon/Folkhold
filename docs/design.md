@@ -235,7 +235,7 @@ This section describes the physical growth (planned). New elements go into the *
 
 ### Shelter at night
 
-- At night, the guards light torches and braziers, close the gates and patrol the walls.
+- At night, the guards light torches and braziers, close the gates and patrol the walls. The village heart lights the braziers at night and puts them out by day. A brazier (block of the library) is 1.5 blocks high, so the mobs do not jump on it, and it does not burn the entities. A campfire of the village layout becomes a brazier.
 - The village heart prevents monster spawns in its area.
 - Village cats stay near the gates and the center. The creepers run away from them. The player cannot tame them.
 - A neutral or friendly player can take shelter in the village. From the Town tier, the player can rent a bed at the inn for emeralds.
