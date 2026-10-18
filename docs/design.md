@@ -212,11 +212,13 @@ Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are n
 
 **Implemented**: the level does not change the blocks of the village. The variants of the village are simple and do not change the structure.
 
-**Physical growth (planned)**: the village grows in the world. New buildings, larger walls, farms, mills, fields, a forge. Each building, wall section and defense has a minimum level. This milestone also contains the construction and the repair of the village.
+**Physical growth (planned, J6 · Village architecture)**: the village grows in the world. New buildings, larger walls, farms, mills, fields, a forge. Each building, wall section and defense has a minimum level. The growth uses the construction system of J5 · Living villages.
 
 ### Construction
 
-This section describes the physical growth (planned). New elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
+This section describes the construction system (planned, J5 · Living villages). The repair of the village uses it, and the physical growth (J6) also uses it. New elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
+
+- **Plan**: the order of the blocks comes from their supports. The construction goes from the bottom to the top. A falling block comes after the block below it, and an attached block comes after its support. When a builder cannot reach a block, the plan adds scaffolding, and removes it at the end.
 
 - **Chunks not loaded**: the construction progresses in the abstract simulation. The mod cannot change blocks in a chunk that is not loaded. It applies the finished elements when the chunk loads, before the player can see them.
 - **Chunks loaded** (planned): builder villagers do the construction block by block. The player sees the village grow. This is useful when the player often comes back to the same village.
@@ -684,8 +686,8 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
 | J3 · Abstract simulation | `SavedData`, abstract tick, village level, territory claims, economy, bank, merchant | Villages grow, territories change owner |
 | J4 · Caravans, quests | Trade between villages, caravans, traveling merchants, materialization, delivery and escort quests | The player meets convoys and can escort them |
-| J5 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment and garrison size from the village level, healer, raids against the villages | Villages repair and improve themselves, a large village resists a raid |
-| J6 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages | Each faction has its own look, villages fit the terrain |
+| J5 · Living villages | Vanilla villages with a garrison, construction system, repair by the villagers, equipment and garrison size from the village level, healer, rider, faction golem, raids against the villages | Villages repair themselves, their garrison grows with the level, a large village resists a raid |
+| J6 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages, growth with new buildings, walls and paths | Each faction has its own look, villages fit the terrain and grow with their level |
 | J7 · Maps and journal | Territories on the maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
 | J8 · Additional mods | Balance mod: farms, trades, anvil. Events mod: earthquakes, collapses and storms | Farms have limits, the anvil has no cap, first earthquakes and storms |
 
