@@ -1,14 +1,14 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
-import io.github.nicolasgoyon.folkhold.world.block.BuildingSignBlock;
-import io.github.nicolasgoyon.folkhold.world.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

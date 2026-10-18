@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the models and the block states of the quest board.
 
-Output (in world/src/main/resources/assets/folkhold_world):
+Output (in blocks/src/main/resources/assets/folkhold_blocks):
 - models/block/quest_board.json: the board with no paper. The part in the middle (column 1, row 1) renders it, so
   the coordinates go from -16 to 32: 3 blocks wide and 3 blocks high around this part. The front faces north.
 - models/block/quest_board_paper_<n>.json: paper n (1 to PAPERS), with its pin. The block state adds the papers 1
@@ -17,8 +17,8 @@ import json
 import os
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "..",
-                    "world", "src", "main", "resources", "assets", "folkhold_world")
-NS = "folkhold_world"
+                    "blocks", "src", "main", "resources", "assets", "folkhold_blocks")
+NS = "folkhold_blocks"
 
 TEXTURES = {
     "particle": "minecraft:block/spruce_planks",

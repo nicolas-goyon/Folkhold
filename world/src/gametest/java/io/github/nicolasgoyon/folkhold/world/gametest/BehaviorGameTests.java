@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
@@ -7,7 +8,6 @@ import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.VillageInfo;
 import net.minecraft.core.BlockPos;

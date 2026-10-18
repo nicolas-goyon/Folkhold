@@ -48,15 +48,16 @@ The modpack is the simple way to play. It contains the Folkhold mods and a selec
 3. Start the game and create a new world.
 4. Optional: pre-generate the area around the spawn with Chunky. The game then generates fewer chunks during the play, for example with an elytra or a boat on ice. Use the commands `/chunky spawn`, `/chunky radius 2000` and `/chunky start` (cheats must be on). A radius of 2000 blocks is about 62,500 chunks: the generation takes time, and the world uses more disk space. Chunky continues after a restart of the game.
 
-To use the mods without the modpack, put `folkhold_core` and `folkhold_world` from the release in the `mods` folder of a Minecraft 1.21.1 instance with NeoForge 21.1.259 or later and [GeckoLib](https://modrinth.com/mod/geckolib) 4.9.3 or later.
+To use the mods without the modpack, put `folkhold_core`, `folkhold_blocks` and `folkhold_world` from the release in the `mods` folder of a Minecraft 1.21.1 instance with NeoForge 21.1.259 or later and [GeckoLib](https://modrinth.com/mod/geckolib) 4.9.3 or later.
 
 ## Modules
 
-The project has one shared library and three mods. All mods share one version.
+The project has two libraries and three mods. All mods share one version.
 
 | Module | Mod ID | Content |
 | --- | --- | --- |
 | `core` | `folkhold_core` | Shared library: abstract simulation, regions, scheduler, UI framework |
+| `blocks` | `folkhold_blocks` | Library of the Folkhold blocks, with no game logic. The other mods add the features. |
 | `world` | `folkhold_world` | Factions, villages, economy, caravans, quests |
 | `balance` | `folkhold_balance` | Planned: farm limits, villager budgets, chunk loading. The mod is empty. |
 | `events` | `folkhold_events` | Planned: earthquakes, collapses. The mod is empty. |

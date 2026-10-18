@@ -18,7 +18,7 @@ spotless {
 
 // Fails when a translation key exists in one language file and not in the other language files of the same mod.
 // Supported languages: en_us (reference) and fr_fr.
-def langFiles = files(['core', 'world', 'balance', 'events'].collect { name ->
+def langFiles = files(['core', 'blocks', 'world', 'balance', 'events'].collect { name ->
     fileTree("${name}/src/main/resources/assets") { include '*/lang/*.json' }
 })
 def requiredLanguages = ['en_us', 'fr_fr']

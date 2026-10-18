@@ -80,7 +80,9 @@ flowchart TB
         abstract["Abstract layer<br/>always simulated, pure Java"]
         concrete["Concrete layer<br/>loaded chunks only"]
     end
+    blocks["blocks<br/>library of the blocks, no game logic"]
     world --> core
+    world --> blocks
     events --> core
     balance -. "optional integration" .-> world
     abstract -- "materialize near the player" --> concrete
@@ -90,6 +92,8 @@ flowchart TB
 The balance mod has no dependency on `core` and stays usable alone. When the world mod is present, the balance mod uses it through an optional interface (for example to read village stocks).
 
 The concrete layer reads the blocks only in chunks that are ready: loaded and complete (`ReadyChunks`). On the server, `Level.isLoaded` is also true for a chunk that has a ticket and a generation that is not complete. A read in such a chunk stops the server thread until the generation is complete. For example, the village heart does its work only when all the chunks of its scan area (24 blocks around the heart) are ready.
+
+The blocks of all the mods are in the library `blocks` (mod `folkhold_blocks`). It has no dependency, except Minecraft and NeoForge. A block of the library has only its definition: shape, block states, placement of the parts, light, model, item, loot table, tags and names. The features of a block come from the other mods: block entity, click, scheduled tick, and actions when the block goes into the level or away. A mod registers one `BlockFeature` for a block (`BlockFeatures.register`). For example, the world mod gives the village heart its block entity, its screen and the destruction of the village. The ids `folkhold_world:<block>` of the blocks of the library resolve to the blocks of the library (registry aliases).
 
 ## World mod: factions, diplomacy, territories
 
@@ -237,7 +241,7 @@ This section describes the physical growth (planned). New elements go into the *
 
 ### Shelter at night
 
-- At night, the guards light torches and braziers, close the gates and patrol the walls.
+- At night, the guards light torches and braziers, close the gates and patrol the walls. The village heart lights the braziers at night and puts them out by day. A brazier (block of the library) is 1.5 blocks high, so the mobs do not jump on it, and it does not burn the entities. A campfire of the village layout becomes a brazier.
 - The village heart prevents monster spawns in its area.
 - Village cats stay near the gates and the center. The creepers run away from them. The player cannot tame them.
 - A neutral or friendly player can take shelter in the village. From the Town tier, the player can rent a bed at the inn for emeralds.
@@ -633,7 +637,7 @@ For new blocks (stabilizer, world anchor, quest board), start from a similar van
 
 ## Technical stack and tools
 
-Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the three mods, the shared library and the modpack.
+Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the three mods, the two libraries and the modpack.
 
 | Need | Tool | Note |
 | --- | --- | --- |
@@ -652,6 +656,7 @@ Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the 
 ```
 Folkhold/
   core/          shared library: abstract simulation, territories, scheduler
+  blocks/        library of the blocks, with no game logic
   world/         factions, villages, economy, caravans, quests
   balance/       farms, villagers, chunk loading
   events/        earthquakes, collapses

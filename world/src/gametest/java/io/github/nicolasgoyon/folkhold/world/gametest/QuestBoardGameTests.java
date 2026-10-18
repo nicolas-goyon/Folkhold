@@ -1,5 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModItems;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
@@ -7,7 +10,6 @@ import io.github.nicolasgoyon.folkhold.core.sim.quest.Quests;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
-import io.github.nicolasgoyon.folkhold.world.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
@@ -15,8 +17,6 @@ import io.github.nicolasgoyon.folkhold.world.network.QuestActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.QuestBoardPayload;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
-import io.github.nicolasgoyon.folkhold.world.registry.ModItems;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.List;

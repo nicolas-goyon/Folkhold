@@ -24,7 +24,7 @@ import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestSystem;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
-import io.github.nicolasgoyon.folkhold.world.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.world.registry.ModBlockFeatures;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModItems;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
@@ -55,7 +55,7 @@ public final class FolkholdWorld {
 
     public FolkholdWorld(IEventBus modEventBus, ModContainer modContainer) {
         modContainer.registerConfig(ModConfig.Type.SERVER, WorldConfig.SPEC);
-        ModBlocks.register(modEventBus);
+        ModBlockFeatures.register(modEventBus);
         ModBlockEntities.register(modEventBus);
         ModEntities.register(modEventBus);
         ModProfessions.register(modEventBus);
