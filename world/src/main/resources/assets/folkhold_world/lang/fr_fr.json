@@ -521,5 +521,8 @@
   "folkhold_world.configuration.questEscortBlocksPerMinute": "Vitesse des caravanes pour le temps d'escorte (blocs par minute)",
   "hud.folkhold_world.distance.m": "%s m",
   "hud.folkhold_world.distance.km": "%s,%s km",
-  "hud.folkhold_world.distance.toward": "%s %s"
+  "hud.folkhold_world.distance.toward": "%s %s",
+  "generator.folkhold_world.test": "Test Folkhold",
+  "pack.folkhold_world.test_world": "Monde de test Folkhold",
+  "pack.folkhold_world.test_world.description": "Type de monde Test Folkhold : plat, un village de faction près du point d'apparition"
 }

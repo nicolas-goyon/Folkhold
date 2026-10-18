@@ -97,6 +97,8 @@ Each mod has:
 - `src/gametest/java/` and `src/gametest/resources/`: GameTests and their test structures. The dev project loads them with the mod in its runs. The jar of the mod does not contain them.
 - `gradle.properties`: `mod_id`, `mod_name`, `mod_description`.
 
+The world mod also contains the optional data pack of the test world, in `world/src/main/resources/datapacks/test_world/` (see [Test world](#test-world)).
+
 The shared versions are in the root `gradle.properties`.
 
 ## Daily commands
@@ -170,6 +172,26 @@ Start `Folkhold-dev` in Prism Launcher. Click **Multiplayer**, then add the serv
   Start the instance. In VS Code, run **Attach to Prism client on the host (port 5006)**.
 
 Hot reload: when the debugger is attached, VS Code can replace the body of a changed method without a restart. Changes to class structure (new fields, new methods) need a restart.
+
+## Test world
+
+The data pack "Folkhold test world" adds the world type "Folkhold Test". It is a flat world (plains, no trees) with one faction village next to the spawn point. The village starts in the chunk (5, 0), about 80 blocks to the east of the spawn point. It is a normal faction village: heart, garrison, bank, quest board and settlement in the simulation. A test of the villages starts with no search for a village.
+
+The data pack is part of `folkhold_world` and is off by default. It also changes the placement of the faction villages for all the world types: one village only, in the chunk (5, 0). Turn it on only for a test world.
+
+In the client:
+
+1. Click **Singleplayer**, then **Create New World**.
+2. In the tab **More**, click **Data Packs**. Move "Folkhold test world" to the column **Selected**, then click **Done**.
+3. In the tab **World**, click **World Type** until it shows "Folkhold Test".
+4. Click **Create New World**.
+
+On the dev server, the world type and the data pack apply when the server creates a new world. Stop the server, delete the folder `dev/run/world`, then set these two lines in `dev/run/server.properties`:
+
+```properties
+level-type=folkhold_world:test
+initial-enabled-packs=vanilla,mod/folkhold_world:datapacks/test_world
+```
 
 ## Translations
 

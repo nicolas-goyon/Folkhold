@@ -24,6 +24,7 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureCheckResult;
 import net.minecraft.world.level.levelgen.structure.StructureSet;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -43,6 +44,10 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *
  * <p>An operator can check all the regions around a position now, with a larger distance
  * ({@link #discoverAround}).
+ *
+ * <p>The data pack of the test world gives the village structure a placement with one start chunk
+ * ({@link FixedChunkPlacement}). The discovery checks this chunk when the server starts and at each operator
+ * discovery. It has no regions.
  */
 public final class SettlementDiscovery {
     /** The structure set of the faction villages. */
@@ -60,6 +65,7 @@ public final class SettlementDiscovery {
     public static void onServerStarted(ServerStartedEvent event) {
         ServerLevel overworld = event.getServer().overworld();
         enqueueAround(overworld, overworld.getSharedSpawnPos());
+        checkFixedChunk(overworld);
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
@@ -95,7 +101,8 @@ public final class SettlementDiscovery {
 
     /** The placement regions up to a distance in each direction around a position, in blocks. */
     private static List<RegionPos> regionsAround(ServerLevel level, BlockPos center, int radius) {
-        Optional<RandomSpreadStructurePlacement> placement = placement(level);
+        Optional<RandomSpreadStructurePlacement> placement =
+                villagePlacement(level, RandomSpreadStructurePlacement.class);
         if (placement.isEmpty()) {
             return List.of();
         }
@@ -125,7 +132,8 @@ public final class SettlementDiscovery {
 
     /**
      * Checks now all the regions up to a distance in each direction around a position that the discovery did not
-     * check. The check of a region can take some milliseconds: an operator action calls it, not the game.
+     * check, and the start chunk of a placement with one start chunk. The check of a region can take some
+     * milliseconds: an operator action calls it, not the game.
      *
      * @param level  the Overworld
      * @param center the position
@@ -142,6 +150,7 @@ public final class SettlementDiscovery {
                 checkRegion(level, region);
             }
         }
+        checkFixedChunk(level);
         long radiusSquared = (long) radius * radius;
         int inRadius = (int) data.registry().all().stream()
                 .filter(Settlement::isActive)
@@ -159,27 +168,52 @@ public final class SettlementDiscovery {
      * @return the settlement of the region, if the region has a village
      */
     public static Optional<Settlement> checkRegion(ServerLevel level, RegionPos region) {
-        Optional<RandomSpreadStructurePlacement> placement = placement(level);
-        Optional<Structure> structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
-                .getOptional(Settlements.VILLAGE_STRUCTURE);
+        Optional<RandomSpreadStructurePlacement> placement =
+                villagePlacement(level, RandomSpreadStructurePlacement.class);
+        Optional<Structure> structure = villageStructure(level);
         if (placement.isEmpty() || structure.isEmpty()) {
             return Optional.empty();
         }
         int spacing = placement.get().spacing();
         ChunkPos candidate = placement.get().getPotentialStructureChunk(level.getSeed(),
                 region.minChunkX(spacing), region.minChunkZ(spacing));
-        SettlementData data = SettlementData.get(level.getServer());
-        data.markRegionChecked(region.x(), region.z());
+        SettlementData.get(level.getServer()).markRegionChecked(region.x(), region.z());
+        return checkCandidate(level, candidate, placement.get(), structure.get());
+    }
+
+    /**
+     * Checks the start chunk of the village structure set when its placement has one start chunk (the data pack of
+     * the test world). The method adds a settlement as {@link #checkRegion} does.
+     *
+     * @param level the Overworld
+     * @return the settlement of the start chunk, if a village can start there
+     */
+    public static Optional<Settlement> checkFixedChunk(ServerLevel level) {
+        Optional<FixedChunkPlacement> placement = villagePlacement(level, FixedChunkPlacement.class);
+        Optional<Structure> structure = villageStructure(level);
+        if (placement.isEmpty() || structure.isEmpty()) {
+            return Optional.empty();
+        }
+        return checkCandidate(level, placement.get().chunk(), placement.get(), structure.get());
+    }
+
+    /**
+     * Checks one candidate chunk. If the placement rules and the structure manager let a village start in the
+     * chunk, and no settlement has this start chunk, the method adds a settlement.
+     */
+    private static Optional<Settlement> checkCandidate(ServerLevel level, ChunkPos candidate,
+            StructurePlacement placement, Structure structure) {
         // The structure manager does not apply the exclusion zone. The chunk generation applies it.
-        if (!placement.get().isStructureChunk(level.getChunkSource().getGeneratorState(), candidate.x, candidate.z)) {
+        if (!placement.isStructureChunk(level.getChunkSource().getGeneratorState(), candidate.x, candidate.z)) {
             return Optional.empty();
         }
         StructureCheckResult result = level.structureManager()
-                .checkStructurePresence(candidate, structure.get(), placement.get(), false);
+                .checkStructurePresence(candidate, structure, placement, false);
         // CHUNK_LOAD_NEEDED: the chunk is not generated, and the structure can start there.
         if (result == StructureCheckResult.START_NOT_PRESENT) {
             return Optional.empty();
         }
+        SettlementData data = SettlementData.get(level.getServer());
         List<Settlement> known = data.registry().byStart(candidate.x, candidate.z);
         if (!known.isEmpty()) {
             return Optional.of(known.get(0));
@@ -192,11 +226,16 @@ public final class SettlementDiscovery {
         return Optional.of(settlement);
     }
 
-    /** The placement of the village structure set, if it is a random spread placement. */
-    private static Optional<RandomSpreadStructurePlacement> placement(ServerLevel level) {
+    /** The placement of the village structure set, if it has the given type. */
+    private static <P extends StructurePlacement> Optional<P> villagePlacement(ServerLevel level, Class<P> type) {
         return level.registryAccess().registryOrThrow(Registries.STRUCTURE_SET).getOptional(VILLAGE_SET)
                 .map(StructureSet::placement)
-                .filter(RandomSpreadStructurePlacement.class::isInstance)
-                .map(RandomSpreadStructurePlacement.class::cast);
+                .filter(type::isInstance)
+                .map(type::cast);
+    }
+
+    /** The village structure. */
+    private static Optional<Structure> villageStructure(ServerLevel level) {
+        return level.registryAccess().registryOrThrow(Registries.STRUCTURE).getOptional(Settlements.VILLAGE_STRUCTURE);
     }
 }
