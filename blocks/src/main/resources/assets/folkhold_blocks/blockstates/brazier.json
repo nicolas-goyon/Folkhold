@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "folkhold_blocks:block/brazier"
+    },
+    "lit=true": {
+      "model": "folkhold_blocks:block/brazier_lit"
+    }
+  }
+}

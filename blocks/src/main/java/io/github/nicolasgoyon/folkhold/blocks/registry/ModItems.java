@@ -26,6 +26,8 @@ public final class ModItems {
 
     public static final DeferredItem<BlockItem> QUEST_BOARD = ITEMS.registerSimpleBlockItem(ModBlocks.QUEST_BOARD);
 
+    public static final DeferredItem<BlockItem> BRAZIER = ITEMS.registerSimpleBlockItem(ModBlocks.BRAZIER);
+
     /** The items of the building signs, one for each kind. */
     public static final Map<BuildingSignKind, DeferredItem<BlockItem>> BUILDING_SIGNS = buildingSigns();
 
@@ -50,6 +52,7 @@ public final class ModItems {
             event.accept(BANK_CHEST.get());
             event.accept(BANK_WALL.get());
             event.accept(QUEST_BOARD.get());
+            event.accept(BRAZIER.get());
             BUILDING_SIGNS.values().forEach(item -> event.accept(item.get()));
         }
     }

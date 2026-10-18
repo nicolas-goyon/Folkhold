@@ -61,7 +61,7 @@ def wall_torch(facing):
 PANES = ("minecraft:glass_pane", "minecraft:iron_bars")
 # Blocks that are not full. A pane does not connect to them.
 NOT_FULL = ("air", "torch", "lantern", "ladder", "door", "stairs", "slab", "carpet", "bed", "fence", "banner",
-            "flower_pot", "campfire", "jigsaw", "composter", "anvil", "grindstone", "cauldron", "chest")
+            "flower_pot", "campfire", "brazier", "jigsaw", "composter", "anvil", "grindstone", "cauldron", "chest")
 SIDES = {"north": (0, -1), "south": (0, 1), "west": (-1, 0), "east": (1, 0)}
 
 
@@ -313,8 +313,7 @@ def center():
     for dx in (-3, 3):
         for dz in (-3, 3):
             t.set(MID + dx, 0, MID + dz, "minecraft:stone_bricks")
-            t.set(MID + dx, 1, MID + dz, "minecraft:campfire",
-                  {"facing": "north", "lit": "false", "signal_fire": "false", "waterlogged": "false"})
+            t.set(MID + dx, 1, MID + dz, f"{BLOCKS}:brazier", {"lit": "false"})
 
     # Village hall sign on the plaza, between the heart and the north gate, out of the paths.
     building_sign(t, MID + 2, 1, MID - 4, "hall")

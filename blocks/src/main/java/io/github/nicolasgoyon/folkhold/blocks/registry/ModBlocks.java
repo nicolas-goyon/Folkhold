@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.blocks.registry;
 
 import io.github.nicolasgoyon.folkhold.blocks.FolkholdBlocks;
 import io.github.nicolasgoyon.folkhold.blocks.block.BankChestBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
@@ -61,6 +62,16 @@ public final class ModBlocks {
                     .strength(1.5F, 3.0F)
                     .sound(SoundType.WOOD)
                     .pushReaction(PushReaction.BLOCK)
+                    .noOcclusion()));
+
+    /** A brazier of the village. It does not burn the entities. */
+    public static final DeferredBlock<BrazierBlock> BRAZIER = BLOCKS.register("brazier",
+            () -> new BrazierBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.STONE)
+                    .strength(2.0F, 6.0F)
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.STONE)
+                    .lightLevel(BrazierBlock::lightLevel)
                     .noOcclusion()));
 
     /** The building signs, one block for each kind. */

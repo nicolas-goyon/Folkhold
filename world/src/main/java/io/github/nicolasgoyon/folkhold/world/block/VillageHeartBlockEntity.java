@@ -1,5 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -629,6 +631,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
      *   <li>Night: the gates close, the braziers burn, and the guards (not the captain, not the units with a
      *       post) watch the gates.</li>
      *   <li>Day: the gates open, the braziers go out, and the guards patrol around their home again.</li>
+     *   <li>A campfire of the layout becomes a brazier of the block library, which does not burn the entities.</li>
      * </ul>
      *
      * @param night true for the night state
@@ -653,8 +656,13 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         for (BlockPos brazier : layout.braziers()) {
             BlockState brazierState = level.getBlockState(brazier);
-            if (brazierState.getBlock() instanceof CampfireBlock && brazierState.getValue(CampfireBlock.LIT) != night) {
-                level.setBlock(brazier, brazierState.setValue(CampfireBlock.LIT, night), Block.UPDATE_ALL);
+            if (brazierState.getBlock() instanceof CampfireBlock) {
+                // A campfire burns the entities: the brazier of the block library takes its place.
+                level.setBlock(brazier, ModBlocks.BRAZIER.get().defaultBlockState().setValue(BrazierBlock.LIT, night),
+                        Block.UPDATE_ALL);
+            } else if (brazierState.getBlock() instanceof BrazierBlock
+                    && brazierState.getValue(BrazierBlock.LIT) != night) {
+                level.setBlock(brazier, brazierState.setValue(BrazierBlock.LIT, night), Block.UPDATE_ALL);
             }
         }
         assignGateWatch(night);
