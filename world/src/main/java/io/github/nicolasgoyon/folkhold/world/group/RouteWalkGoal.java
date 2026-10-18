@@ -13,19 +13,26 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Moves the merchant of a mobile group on the route of the group, with the vanilla pathfinding over short distances.
  *
  * <ul>
  *   <li>The goal runs while the group travels. A waiting, stopped or finished group does not move.</li>
- *   <li>The target is a point of the route a little in front of the merchant.</li>
- *   <li>Near the end of the route, the merchant goes to the heart of the destination, if the heart is known. The
- *       group arrives near the heart (see {@link GroupMaterializer#isAtDestination}).</li>
+ *   <li>The target is a point of the route a little in front of the merchant. At the start of the route, the
+ *       target is at {@link #DEPARTURE_DISTANCE} blocks or more on the route: out of the walls of the origin
+ *       village.</li>
+ *   <li>Near the end of the route, the target is the heart of the destination, if the heart is known. The group
+ *       arrives near the heart (see {@link GroupMaterializer#isAtDestination}).</li>
+ *   <li>The merchant has the navigation of the faction units: its path to a target behind the walls of a village goes
+ *       through a gate, and it opens the gate (see {@link io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant}).
+ *       </li>
  *   <li>The merchant waits when a member of its group is farther than {@link #WAIT_DISTANCE}, for
  *       {@link #MAX_WAIT_TICKS} or less. Then it continues until all members are near again.</li>
- *   <li>If the merchant does not go forward for {@link #STUCK_TICKS}, it moves directly to the target, on the
- *       ground.</li>
+ *   <li>If the merchant does not go forward and does not walk for {@link #STUCK_TICKS}, it moves directly to the
+ *       target, on the ground. A merchant that walks with no progress (a detour, for example to a gate) is not stuck
+ *       for {@link #MAX_DETOUR_TICKS}.</li>
  *   <li>In a boat, the merchant does not walk (see {@link GroupBoats}).</li>
  * </ul>
  */
@@ -38,6 +45,15 @@ public class RouteWalkGoal extends Goal {
     static final int STUCK_TICKS = 200;
     /** A progress below this distance in blocks is no progress. */
     private static final double MIN_PROGRESS = 1.0;
+    /** A move below this distance in one tick, in blocks, is no move. */
+    private static final double MIN_STEP = 0.02;
+    /** The longest walk with no progress before the merchant can be stuck, in game ticks. */
+    static final int MAX_DETOUR_TICKS = 600;
+    /**
+     * At the start of the route, the target is at this distance or more on the route, in blocks. The walled compound
+     * of a village is 39 blocks wide: a target at this distance from the heart is out of the walls.
+     */
+    static final double DEPARTURE_DISTANCE = 40.0;
     /** The merchant goes to the destination heart at this distance or less from the end of the route, in blocks. */
     static final double FINAL_APPROACH = 48.0;
     /** The merchant waits when a member of its group is farther than this distance, in blocks. */
@@ -49,7 +65,10 @@ public class RouteWalkGoal extends Goal {
     private final double speed;
     private int repathTicks;
     private int stuckTicks;
+    private int detourTicks;
     private int waitTicks;
+    @Nullable
+    private Vec3 lastPosition;
     private double bestProgress;
     private boolean approach;
 
@@ -84,7 +103,9 @@ public class RouteWalkGoal extends Goal {
     public void start() {
         repathTicks = 0;
         stuckTicks = 0;
+        detourTicks = 0;
         waitTicks = 0;
+        lastPosition = null;
         bestProgress = -Double.MAX_VALUE;
         approach = false;
     }
@@ -127,20 +148,26 @@ public class RouteWalkGoal extends Goal {
         double targetZ;
         double measure;
         if (heart.isPresent() && approach) {
-            // A step to the heart. The heart can be far from the end of a route of an earlier position.
-            double share = toHeart <= LOOKAHEAD ? 1.0 : LOOKAHEAD / toHeart;
-            targetX = mob.getX() + (heart.get().getX() + 0.5 - mob.getX()) * share;
-            targetZ = mob.getZ() + (heart.get().getZ() + 0.5 - mob.getZ()) * share;
+            // The heart itself: the path goes through a gate of the village. The heart can be far from the end of a
+            // route of an earlier position.
+            targetX = heart.get().getX() + 0.5;
+            targetZ = heart.get().getZ() + 0.5;
             measure = -toHeart;
         } else {
-            Route.Position next = route.positionAt(progress + LOOKAHEAD);
+            Route.Position next = route.positionAt(Math.max(progress + LOOKAHEAD, DEPARTURE_DISTANCE));
             targetX = next.x();
             targetZ = next.z();
             measure = progress;
         }
+        Vec3 position = mob.position();
+        boolean walking = lastPosition != null && position.distanceToSqr(lastPosition) > MIN_STEP * MIN_STEP;
+        lastPosition = position;
         if (measure > bestProgress + MIN_PROGRESS) {
             bestProgress = measure;
             stuckTicks = 0;
+            detourTicks = 0;
+        } else if (walking && detourTicks < MAX_DETOUR_TICKS) {
+            detourTicks++;
         } else {
             stuckTicks++;
         }
