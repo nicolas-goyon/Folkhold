@@ -19,8 +19,9 @@
    - `feat(world): add faction codec`
    - `fix(core): use floor division for negative region coordinates`
    - Scopes: `core`, `blocks`, `world`, `balance`, `events`, `modpack`, `dev`, `ci`, `docs`.
-4. Open a pull request to `develop`. Write `Closes #<issue>` in the description. The title follows Conventional
-   Commits and ends with a bump marker (see [Versions and releases](#versions-and-releases)):
+4. Open a pull request to `develop`, or to the branch below it in a stack (see
+   [Stacked pull requests](#stacked-pull-requests)). Write `Closes #<issue>` in the description. The title follows
+   Conventional Commits and ends with a bump marker (see [Versions and releases](#versions-and-releases)):
    - `fix(world): close the gates at night [patch]`
 5. The CI must pass before the merge. The check **Title and version** refuses a title with no bump marker, and its
    summary gives the version after the merge.
@@ -28,6 +29,27 @@
    branch after the merge.
 
 Do not push directly to `develop` or to `main`.
+
+### Stacked pull requests
+
+Use a [stack of pull requests](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests) when a
+change needs the code of a pull request that is not merged. For an independent change, open a pull request to
+`develop`.
+
+- Each pull request of the stack is for one issue, and follows the workflow above.
+- The bottom pull request targets `develop`. Each other pull request targets the branch of the pull request below it.
+  Create each branch from the branch below it.
+- Make the stack on GitHub, from the bottom pull request to the top pull request: on the website, with the GitHub CLI
+  extension [`gh stack`](https://github.com/github/gh-stack), or with the REST API
+  (`POST /repos/{owner}/{repo}/stacks`). A pull request to a feature branch outside a stack merges into this branch,
+  not into `develop`. The check **Title and version** shows a warning for such a pull request.
+- The rules and the checks of `develop` apply to each pull request of the stack. The summary of the check
+  **Title and version** gives the version after the merge of the stack up to the pull request.
+- The branches of a stack have a linear history. Do not merge `develop` into them. When `develop` or a branch of the
+  stack changes, rebase the stack ("Rebase stack" on GitHub, or `gh stack rebase`), then push with
+  `--force-with-lease`.
+- To merge, use "Squash and merge" on a pull request of the stack. This pull request and all the pull requests below
+  it go into `develop` in one operation, with one commit for each pull request.
 
 ## Labels
 

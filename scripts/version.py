@@ -15,8 +15,11 @@ adds to a squash commit:
 Example from 1.2.3: [patch], [minor], [patch] give 1.2.4, 1.3.0, 1.3.1. A merge commit and a commit with no marker
 keep the version. A commit of Dependabot with no marker counts as [patch].
 
+--title adds the commit of a pull request after REV. For a pull request in a stack, give --title for each open pull
+request of the stack, from the bottom pull request to this pull request.
+
 Usage:
-    scripts/version.py version [--rev REV] [--title TITLE [--author LOGIN]] [--repo OWNER/NAME] [--notes FILE]
+    scripts/version.py version [--rev REV] [--title TITLE]... [--author LOGIN] [--repo OWNER/NAME] [--notes FILE]
                                [--github-output FILE]
     scripts/version.py check-title TITLE
 """
@@ -164,10 +167,10 @@ def release_notes(base, start, commits, version, repo):
 
 def run_version(args):
     base, start, commits = history(args.rev)
-    if args.title is not None:
-        kind = marker(args.title, args.author or "")
+    for title in args.title or ():
+        kind = marker(title, args.author or "")
         previous = commits[-1].version if commits else start
-        commits.append(Commit("0" * 40, args.title, "", kind, previous.bump(kind)))
+        commits.append(Commit("0" * 40, title, "", kind, previous.bump(kind)))
     version = commits[-1].version if commits else start
     tag = f"v{version}"
     exists = bool(git("tag", "--list", tag).strip())
@@ -196,8 +199,10 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     version = commands.add_parser("version", help="print the version of a commit")
     version.add_argument("--rev", default="HEAD", help="the commit (default: HEAD)")
-    version.add_argument("--title", help="the title of one more commit after REV, for a pull request")
-    version.add_argument("--author", help="the author of the commit of --title (dependabot[bot] counts as [patch])")
+    version.add_argument("--title", action="append",
+                         help="the title of one more commit after REV, for a pull request. Give it one time for each "
+                              "open pull request of a stack, the bottom one first")
+    version.add_argument("--author", help="the author of the commits of --title (dependabot[bot] counts as [patch])")
     version.add_argument("--repo", help="OWNER/NAME, for the link to all the changes in the notes")
     version.add_argument("--notes", help="write the release notes (Markdown) to this file")
     version.add_argument("--github-output", help="append version, tag, exists and base to this file")

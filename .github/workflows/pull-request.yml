@@ -1,5 +1,6 @@
 # Checks the pull requests (see scripts/version.py and CONTRIBUTING.md).
-# - To develop: the title has a bump marker, and the summary gives the version after the merge.
+# - To develop, and in a stack on develop: the title has a bump marker, and the summary gives the version after the
+#   merge.
 # - To main: the source branch is develop, and the summary gives the version and the notes of the release.
 name: Pull request
 
@@ -17,9 +18,14 @@ concurrency:
 jobs:
   title:
     name: Title and version
-    if: github.base_ref == 'develop'
+    # In a stack, a pull request targets the branch of the pull request below it, and its commit goes into develop.
+    if: github.base_ref != 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # The stacks of pull requests (REST API).
+      pull-requests: read
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -34,18 +40,49 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: python3 scripts/version.py check-title "$TITLE"
 
+      # In a stack, the open pull requests below this pull request go into develop before it: their titles come
+      # before its title.
       - name: Show the version after the merge
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
           TITLE: ${{ github.event.pull_request.title }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
-          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          now=$(python3 scripts/version.py version --rev "$BASE")
-          after=$(python3 scripts/version.py version --rev "$BASE" --title "$TITLE" --author "$AUTHOR")
+          titles=()
+          if ! stack=$(gh api "repos/${REPO}/stacks?pull_request=${NUMBER}" --jq '.[0].number // empty'); then
+            stack=""
+            echo "::warning::No answer from the API of the stacks." \
+              "The version does not include the pull requests below this pull request."
+          fi
+          if [ -n "$stack" ]; then
+            while IFS=$'\t' read -r number merged title; do
+              if [ "$number" = "$NUMBER" ]; then
+                break
+              fi
+              if [ "$merged" = false ]; then
+                titles+=(--title "$title")
+              fi
+            done < <(gh api "repos/${REPO}/stacks/${stack}" \
+              --jq '.pull_requests[] | [.number, (.merged_at != null), .title] | @tsv')
+          elif [ "$BASE_REF" != develop ]; then
+            echo "::warning::This pull request targets ${BASE_REF} and is not in a stack." \
+              "Its merge goes into ${BASE_REF}, not into develop."
+          fi
+          titles+=(--title "$TITLE")
+          now=$(python3 scripts/version.py version --rev origin/develop)
+          after=$(python3 scripts/version.py version --rev origin/develop "${titles[@]}" --author "$AUTHOR")
           {
             echo "### Version"
             echo
-            echo "After the merge, \`develop\` has the version **${after}**. Now: ${now}."
+            if [ -n "$stack" ]; then
+              echo "After the merge of the stack up to this pull request, \`develop\` has the version" \
+                "**${after}**. Now: ${now}."
+            else
+              echo "After the merge, \`develop\` has the version **${after}**. Now: ${now}."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   release:

@@ -131,6 +131,16 @@ class HistoryTest(unittest.TestCase):
         self.assertEqual("0.2.0", values["version"])
         self.assertEqual("false", values["exists"])
 
+    def test_titles_of_a_stack_come_in_order(self):
+        self.commit("fix(world): gates [patch] (#2)")
+        out = os.path.join(self.tmp.name, "output.txt")
+        self.assertEqual(0, version.main(["version", "--rev", "develop", "--title", "feat(blocks): library [minor]",
+                                          "--title", "fix(blocks): brazier [patch]", "--github-output", out]))
+        with open(out, encoding="utf-8") as lines:
+            values = dict(line.strip().split("=", 1) for line in lines if "=" in line)
+        # 0.1.1, then the bottom pull request gives 0.2.0, and the pull request above it gives 0.2.1.
+        self.assertEqual("0.2.1", values["version"])
+
     def test_release_notes(self):
         self.commit("fix(world): gates [patch] (#2)")
         self.commit("feat(world): caravans [minor] (#3)")
