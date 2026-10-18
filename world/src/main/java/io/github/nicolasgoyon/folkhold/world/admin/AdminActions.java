@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload.Stock;
@@ -345,14 +346,14 @@ public final class AdminActions {
         });
     }
 
-    /** The village heart of the settlement, if its chunk is loaded. */
+    /** The village heart of the settlement, if its chunk is ready (see {@link ReadyChunks}). */
     private static Optional<VillageHeartBlockEntity> loadedHeart(MinecraftServer server, Settlement settlement) {
         if (!settlement.hasHeart()) {
             return Optional.empty();
         }
         ServerLevel level = server.overworld();
         BlockPos pos = new BlockPos(settlement.x(), settlement.heartY(), settlement.z());
-        if (!level.isLoaded(pos)) {
+        if (!ReadyChunks.isReady(level, pos)) {
             return Optional.empty();
         }
         return level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart

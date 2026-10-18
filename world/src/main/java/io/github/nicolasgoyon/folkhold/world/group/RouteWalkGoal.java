@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.group;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.EnumSet;
 import java.util.Optional;
 import javax.annotation.Nullable;
@@ -173,7 +174,7 @@ public class RouteWalkGoal extends Goal {
         }
         int x = (int) Math.floor(targetX);
         int z = (int) Math.floor(targetZ);
-        if (!level.isLoaded(new BlockPos(x, mob.getBlockY(), z))) {
+        if (!ReadyChunks.isReady(level, new BlockPos(x, mob.getBlockY(), z))) {
             mob.getNavigation().stop();
             return;
         }
