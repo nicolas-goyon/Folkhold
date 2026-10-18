@@ -1,6 +1,16 @@
 hash-format = "sha256"
 
 [[files]]
+file = "mods/c2me-neoforge.pw.toml"
+hash = "49cd0f00fe14d655a029724b564284169bcd10375d4048bb5e9a495552d19e38"
+metafile = true
+
+[[files]]
+file = "mods/chunky.pw.toml"
+hash = "1d5cc2b6dcfd1fc3adba4566b1c29b57ff1175316678c1f22e63cbc3e28a5ba0"
+metafile = true
+
+[[files]]
 file = "mods/dirigo.pw.toml"
 hash = "7f0bf5166eb7a912e7b9db58a59b48a5837eaf0ec03ea48e28cab0d21d282363"
 metafile = true
@@ -78,6 +88,16 @@ metafile = true
 [[files]]
 file = "mods/moonlight.pw.toml"
 hash = "709bfedec583aee1370ad11210b75a454b1e3f10c0a1da7fe25abd1c28a8681d"
+metafile = true
+
+[[files]]
+file = "mods/noisiumforked.pw.toml"
+hash = "11835b8555c23090b12d6ca9be871a6b5bfcec5ff7f48e77ef09c784af40b69e"
+metafile = true
+
+[[files]]
+file = "mods/scalablelux.pw.toml"
+hash = "add30757bb00eb43bd614a45ddc1476553617616c95d7054087a6a14e69aa381"
 metafile = true
 
 [[files]]

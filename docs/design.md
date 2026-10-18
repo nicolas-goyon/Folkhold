@@ -35,6 +35,10 @@ The pinned versions are in `modpack/mods/*.pw.toml`.
 | Performance | FerriteCore | `ferrite-core` | 7.0.3 | |
 | Performance | ImmediatelyFast | `immediatelyfast` | 1.6.14 | Client only |
 | Performance | Entity Culling | `entityculling` | 1.11.3 | Client only |
+| Performance | C2ME (NeoForge) | `c2me-neoforge` | 0.4.0-alpha.0.123 | Alpha; chunk generation, I/O and loading on more CPU cores |
+| Performance | ScalableLux | `scalablelux` | 0.3.0-alpha.0.8 | Alpha; faster light engine |
+| Performance | NoisiumForked | `noisiumforked` | 2.7.0 | Faster noise generation |
+| Performance | Chunky | `chunky` | 1.4.23 | Pre-generation of the world before the play |
 | Profiling | spark | `spark` | 1.10.124 | Measures the cost of each system for each tick |
 | Nature | Dynamic Trees | `dynamictrees` | 1.7.2 | |
 | Nature | Serene Seasons | `serene-seasons` | 10.1.0.9 | Requires GlitchCore |
