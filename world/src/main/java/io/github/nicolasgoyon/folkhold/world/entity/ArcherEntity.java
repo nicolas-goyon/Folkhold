@@ -63,9 +63,10 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
                 return getPostPos() == null && super.canUse();
             }
 
+            // The goal stops when the archer has no target. Else the vanilla goal can shoot until its path ends.
             @Override
             public boolean canContinueToUse() {
-                return getPostPos() == null && super.canContinueToUse();
+                return getPostPos() == null && getTarget() != null && super.canContinueToUse();
             }
         });
     }
