@@ -168,7 +168,9 @@ public final class GuardGameTests {
     /**
      * A guard goes through a closed fence gate in a wall: it opens the gate, passes, and closes the gate again.
      * The wall is 2 blocks high, so the gate is the only way. The test removes the village of the guard: a heart
-     * of another test can be in the village radius and give the guard a night watch position.
+     * of another test can be in the village radius and give the guard a night watch position. The home position
+     * of the guard is the goal, and the guard has no stroll goal: a random stroll can send the guard back through
+     * the gate, and the test then depends on the random strolls.
      */
     @GameTest(template = "arena", timeoutTicks = 300, batch = "guard_gate")
     public static void guardOpensAndClosesFenceGate(GameTestHelper helper) {
@@ -186,6 +188,8 @@ public final class GuardGameTests {
         guard.setFactionId(null);
         guard.setNightPos(null);
         BlockPos goal = helper.absolutePos(new BlockPos(8, 1, 13));
+        guard.setHomePos(goal);
+        guard.goalSelector.getAvailableGoals().removeIf(wrapped -> wrapped.getGoal() instanceof AnchorStrollGoal);
         helper.startSequence()
                 .thenExecute(() -> guard.getNavigation().moveTo(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0))
                 .thenWaitUntil(() -> {
