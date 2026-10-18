@@ -3,7 +3,8 @@ package io.github.nicolasgoyon.folkhold.world.config;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
- * Client configuration of the world mod: display options of each player.
+ * Client configuration of the world mod: display options of each player. The territory HUD and the quest HUD show by
+ * default.
  */
 public final class ClientConfig {
     public static final ModConfigSpec SPEC;
@@ -17,12 +18,12 @@ public final class ClientConfig {
                 .comment("Show the territory HUD at the top right of the screen: the faction that owns the",
                         "territory, your reputation tier and the village near you.")
                 .translation(WorldConfig.KEY_PREFIX + "showTerritoryHud")
-                .define("showTerritoryHud", false);
+                .define("showTerritoryHud", true);
         SHOW_QUEST_HUD = builder
                 .comment("Show the quest HUD at the top left of the screen: your active quests and the minutes",
                         "before their deadline.")
                 .translation(WorldConfig.KEY_PREFIX + "showQuestHud")
-                .define("showQuestHud", false);
+                .define("showQuestHud", true);
         SPEC = builder.build();
     }
 
