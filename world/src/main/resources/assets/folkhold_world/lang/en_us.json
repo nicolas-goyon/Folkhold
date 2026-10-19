@@ -521,5 +521,8 @@
   "folkhold_world.configuration.questEscortBlocksPerMinute": "Caravan speed for the escort time (blocks per minute)",
   "hud.folkhold_world.distance.m": "%s m",
   "hud.folkhold_world.distance.km": "%s.%s km",
-  "hud.folkhold_world.distance.toward": "%s %s"
+  "hud.folkhold_world.distance.toward": "%s %s",
+  "generator.folkhold_world.test": "Folkhold Test",
+  "pack.folkhold_world.test_world": "Folkhold test world",
+  "pack.folkhold_world.test_world.description": "World type Folkhold Test: flat, a faction village next to the spawn"
 }

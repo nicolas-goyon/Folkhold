@@ -1,0 +1,14 @@
+{
+  "structures": [
+    {
+      "structure": "folkhold_world:village",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "folkhold_world:fixed_chunk",
+    "salt": 74219536,
+    "chunk_x": 5,
+    "chunk_z": 0
+  }
+}
