@@ -61,7 +61,7 @@ Other IDEs: IntelliJ IDEA can also open a dev container. The support depends on 
    ./gradlew :dev:runGameTestServer
    ```
 
-   The server starts, runs all GameTests, then stops. The result is in the console.
+   The server starts, runs all GameTests, then stops. The result is in the console. The GameTest server uses the folder `dev/run-gametest`, with a new world for each run. It does not change the world of the dev server, `dev/run/world`.
 
 Without VS Code, use the scripts from a terminal on the host:
 
@@ -112,7 +112,7 @@ Run these commands in the container.
 | `./gradlew :core:test --tests '*RegionPosTest'` | One test class. |
 | `./gradlew spotlessApply` | Fixes the format of the sources (imports, trailing spaces, final newline). |
 | `./gradlew checkTranslations` | Checks that `en_us.json` and `fr_fr.json` have the same keys. |
-| `./gradlew :dev:runGameTestServer` | Runs all GameTests in a server. |
+| `./gradlew :dev:runGameTestServer` | Runs all GameTests in a server, in a new world (folder `dev/run-gametest`). |
 | `./gradlew :dev:runServer` | Dedicated server with all mods. |
 
 ## Test in the game
