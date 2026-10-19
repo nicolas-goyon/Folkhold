@@ -18,6 +18,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -71,6 +72,15 @@ public final class GarrisonGameTests {
 
     private static void removeUnits(VillageHeartBlockEntity heart) {
         heart.getUnits().forEach(Entity::discard);
+    }
+
+    /**
+     * Removes the units and the heart. A heart of a high level stays in the world after the test: the units of a
+     * later test near it get the equipment of its level.
+     */
+    private static void removeVillage(GameTestHelper helper, VillageHeartBlockEntity heart) {
+        removeUnits(heart);
+        helper.setBlock(HEART, Blocks.AIR);
     }
 
     /** A new heart creates its full garrison. A second call creates no duplicates. */
@@ -150,7 +160,7 @@ public final class GarrisonGameTests {
         int guards = units(heart, GarrisonRole.GUARD).size();
         int archers = units(heart, GarrisonRole.ARCHER).size();
         int captains = units(heart, GarrisonRole.CAPTAIN).size();
-        removeUnits(heart);
+        removeVillage(helper, heart);
 
         helper.assertTrue(guards == 4 && archers == 3 && captains == 1,
                 "A town must have 4 guards, 3 archers and 1 captain: " + guards + ", " + archers + ", " + captains);
@@ -171,7 +181,7 @@ public final class GarrisonGameTests {
         boolean netheriteSword = guard.getMainHandItem().is(Items.NETHERITE_SWORD);
         boolean enchanted = guard.getItemBySlot(EquipmentSlot.HEAD).isEnchanted();
         String set = guard.getEquipmentSet();
-        removeUnits(heart);
+        removeVillage(helper, heart);
 
         helper.assertTrue(ironSword, "A guard of a hamlet must have an iron sword");
         helper.assertTrue(netheriteSword && enchanted, "A guard of a capital must have a netherite sword and an "
@@ -204,7 +214,7 @@ public final class GarrisonGameTests {
         long delay = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
         heart.ensureGarrison(now + delay + 100);
         int guardsAfterRefill = units(heart, GarrisonRole.GUARD).size();
-        removeUnits(heart);
+        removeVillage(helper, heart);
 
         helper.assertTrue(capitalGuards == 6, "A capital must have 6 guards: " + capitalGuards);
         helper.assertTrue(guardsAfterLevelDown == 6, "The guards that are alive must stay: " + guardsAfterLevelDown);
