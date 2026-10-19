@@ -67,27 +67,10 @@ public final class VillageStructureGameTests {
     private VillageStructureGameTests() {
     }
 
-    /**
-     * Finds the heart in the test area. The test does not use a fixed relative position: the position of a
-     * template block and the relative positions of {@link GameTestHelper} do not always agree.
-     */
-    private static VillageHeartBlockEntity findHeart(GameTestHelper helper) {
-        TestSupport.sweep(helper);
-        TestSupport.retireEarlierSettlements(helper);
-        AABB bounds = helper.getBounds();
-        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
-                BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
-            if (helper.getLevel().getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
-                return heart;
-            }
-        }
-        throw new GameTestAssertException("No village heart in the test area");
-    }
-
     /** The heart finds the posts, gates and braziers, and puts the archers on the posts. */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_structure")
     public static void heartFindsLayoutAndPostsArchers(GameTestHelper helper) {
-        VillageHeartBlockEntity heart = findHeart(helper);
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         VillageLayout layout = heart.getLayout();
         List<FactionUnit> units = heart.getUnits();
@@ -119,7 +102,7 @@ public final class VillageStructureGameTests {
     /** The heart gives the banner color of the faction culture to the banners of the village. */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_banners")
     public static void heartPaintsBanners(GameTestHelper helper) {
-        VillageHeartBlockEntity heart = findHeart(helper);
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
@@ -141,7 +124,7 @@ public final class VillageStructureGameTests {
     /** At night, the gates close, the braziers burn and the guards watch the gates. By day, the opposite. */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_night")
     public static void villageAppliesDayAndNight(GameTestHelper helper) {
-        VillageHeartBlockEntity heart = findHeart(helper);
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         VillageLayout layout = heart.getLayout();
         List<GuardEntity> guards = heart.getUnits().stream()
@@ -205,7 +188,7 @@ public final class VillageStructureGameTests {
     /** In an alert, two archers on the same tower go to two different towers. */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_archer_alert")
     public static void alertSendsArchersToDifferentTowers(GameTestHelper helper) {
-        VillageHeartBlockEntity heart = findHeart(helper);
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         List<ArcherEntity> archers = heart.getUnits().stream()
                 .filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();
@@ -233,7 +216,7 @@ public final class VillageStructureGameTests {
     /** In the calm rotation, each archer moves to another free tower. */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_archer_rotation")
     public static void calmRotationMovesTheArchers(GameTestHelper helper) {
-        VillageHeartBlockEntity heart = findHeart(helper);
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         // At the level 1, the garrison has 2 archers for the 4 towers: each archer has a free tower to go to.
         MinecraftServer server = helper.getLevel().getServer();
         heart.ensureSettlement();
@@ -263,7 +246,7 @@ public final class VillageStructureGameTests {
     /** When the village goes to the alert state, the alarm bell rings. */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_bell")
     public static void alertRingsTheBell(GameTestHelper helper) {
-        VillageHeartBlockEntity heart = findHeart(helper);
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
@@ -283,7 +266,7 @@ public final class VillageStructureGameTests {
     /** The village has a cat for each gate, near the gate. The player cannot tame a village cat with fish. */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_cats")
     public static void villageHasCatsAtTheGates(GameTestHelper helper) {
-        VillageHeartBlockEntity heart = findHeart(helper);
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
         List<VillageCat> cats = heart.getCats();
@@ -320,7 +303,7 @@ public final class VillageStructureGameTests {
     public static void archerWalksToANewTower(GameTestHelper helper) {
         int rotationSeconds = WorldConfig.ARCHER_ROTATION_SECONDS.get();
         WorldConfig.ARCHER_ROTATION_SECONDS.set(0);
-        VillageHeartBlockEntity heart = findHeart(helper);
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         List<ArcherEntity> archers = heart.getUnits().stream()
                 .filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();

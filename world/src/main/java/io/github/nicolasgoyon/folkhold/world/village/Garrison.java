@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import javax.annotation.Nullable;
@@ -38,8 +39,9 @@ import net.neoforged.neoforge.event.EventHooks;
  *   <li>When the level goes down, the units that are alive stay. The garrison removes the dead entries above the
  *       number of the level, so it does not spawn new units for them.</li>
  *   <li>A loaded unit with another equipment set gets the set of the level.</li>
- *   <li>Archers get a free post of the village (see {@link VillageLayout}), if there is one. They spawn on it.
- *       The other units spawn on the ground near the heart (see {@link #groundSpawnPos}).</li>
+ *   <li>Archers get a free tower post of the village (see {@link VillageLayout}), and golems a free gate post, if
+ *       there is one. They spawn on it. The other units spawn on the ground near the heart (see
+ *       {@link #groundSpawnPos}).</li>
  * </ul>
  */
 public final class Garrison {
@@ -159,12 +161,13 @@ public final class Garrison {
      * @param factionId the faction of the village, or null
      * @param calm      true if the village is calm
      * @param now       the current game time
-     * @param posts     the posts of the village (positions where an archer stands)
+     * @param posts     the posts of the village for each role that has posts: the towers for the archers, the gates
+     *                  for the golems
      * @param traits    the garrison of the level of the village
      * @return true if the garrison changed (the heart must save)
      */
     public boolean ensure(ServerLevel level, BlockPos heartPos, @Nullable String factionId, boolean calm, long now,
-            List<BlockPos> posts, GarrisonTraits traits) {
+            Map<GarrisonRole, List<BlockPos>> posts, GarrisonTraits traits) {
         boolean changed = false;
         for (Entry entry : entries) {
             if (entry.dead) {
@@ -191,7 +194,7 @@ public final class Garrison {
         for (GarrisonRole role : GarrisonRole.values()) {
             int count = (int) entries.stream().filter(entry -> entry.role == role).count();
             for (int i = count; i < role.count(traits); i++) {
-                BlockPos post = role == GarrisonRole.ARCHER ? freePost(posts) : null;
+                BlockPos post = freePost(posts.getOrDefault(role, List.of()));
                 FactionUnit unit = spawnUnit(level, heartPos, factionId, role, post);
                 if (unit != null) {
                     Entry entry = new Entry(unit.getUUID(), role);
@@ -208,8 +211,8 @@ public final class Garrison {
             long refillDelay = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
             for (Entry entry : entries) {
                 if (entry.dead && now - entry.deadSince >= refillDelay) {
-                    if (entry.post == null && entry.role == GarrisonRole.ARCHER) {
-                        entry.post = freePost(posts);
+                    if (entry.post == null) {
+                        entry.post = freePost(posts.getOrDefault(entry.role, List.of()));
                     }
                     FactionUnit unit = spawnUnit(level, heartPos, factionId, entry.role, entry.post);
                     if (unit != null) {

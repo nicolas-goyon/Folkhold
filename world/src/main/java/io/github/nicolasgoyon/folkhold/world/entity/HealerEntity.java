@@ -144,18 +144,19 @@ public class HealerEntity extends FactionUnit {
 
     /**
      * The wounded unit of the village with the lowest share of health, in the search radius. A unit is wounded below
-     * the share {@link WorldConfig#HEALER_WOUNDED_SHARE} of its maximum health.
+     * the share {@link WorldConfig#HEALER_WOUNDED_SHARE} of its maximum health. A bandage does not repair a faction
+     * golem, so a golem is never a patient.
      */
     public Optional<FactionUnit> findPatient() {
-        double share = WorldConfig.HEALER_WOUNDED_SHARE.get();
         return alliesNear(WorldConfig.HEALER_SEARCH_RADIUS.get()).stream()
-                .filter(unit -> unit.getHealth() < unit.getMaxHealth() * share)
+                .filter(this::isPatient)
                 .min(Comparator.comparingDouble(unit -> unit.getHealth() / unit.getMaxHealth()));
     }
 
-    /** True if a unit is still a patient: alive and wounded. */
+    /** True if a unit is a patient: alive, wounded, and not a faction golem. */
     public boolean isPatient(FactionUnit unit) {
-        return unit.isAlive() && unit.getHealth() < unit.getMaxHealth() * WorldConfig.HEALER_WOUNDED_SHARE.get();
+        return unit.isAlive() && !(unit instanceof FactionGolemEntity)
+                && unit.getHealth() < unit.getMaxHealth() * WorldConfig.HEALER_WOUNDED_SHARE.get();
     }
 
     /**

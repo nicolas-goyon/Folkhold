@@ -1,7 +1,10 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionGolemModel;
+import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionGolemRenderer;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionUnitRenderer;
+import io.github.nicolasgoyon.folkhold.world.client.renderer.GolemArmbandLayer;
 import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import net.minecraft.client.renderer.entity.CatRenderer;
@@ -30,6 +33,7 @@ public final class FolkholdWorldClient {
         modContainer.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         modContainer.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         modEventBus.addListener(FolkholdWorldClient::onRegisterRenderers);
+        modEventBus.addListener(FolkholdWorldClient::onRegisterLayers);
         modEventBus.addListener(FolkholdWorldClient::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener(FolkholdWorldClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(QuestTargetMarker::onRenderLiving);
@@ -41,6 +45,7 @@ public final class FolkholdWorldClient {
         ClientQuestLog.clear();
         TerritoryTitleHud.clear();
         AdminScreen.clear();
+        FactionGolemModel.forgetLevel();
     }
 
     private static void onRegisterGuiLayers(RegisterGuiLayersEvent event) {
@@ -52,11 +57,16 @@ public final class FolkholdWorldClient {
                 QuestHud::render);
     }
 
+    private static void onRegisterLayers(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(GolemArmbandLayer.LAYER, GolemArmbandLayer::createLayer);
+    }
+
     private static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.GUARD.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.ARCHER.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.CAPTAIN.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.HEALER.get(), FactionUnitRenderer::new);
+        event.registerEntityRenderer(ModEntities.FACTION_GOLEM.get(), FactionGolemRenderer::new);
         event.registerEntityRenderer(ModEntities.VILLAGE_CAT.get(), CatRenderer::new);
         event.registerEntityRenderer(ModEntities.CARAVAN_MERCHANT.get(), WanderingTraderRenderer::new);
     }

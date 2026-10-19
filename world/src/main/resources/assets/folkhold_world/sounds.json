@@ -1,0 +1,18 @@
+{
+  "entity.faction_golem.attack": {
+    "subtitle": "subtitles.folkhold_world.entity.faction_golem.attack",
+    "sounds": [{"name": "minecraft:entity.iron_golem.attack", "type": "event"}]
+  },
+  "entity.faction_golem.damage": {
+    "subtitle": "subtitles.folkhold_world.entity.faction_golem.damage",
+    "sounds": [{"name": "minecraft:entity.iron_golem.damage", "type": "event"}]
+  },
+  "entity.faction_golem.death": {
+    "subtitle": "subtitles.folkhold_world.entity.faction_golem.death",
+    "sounds": [{"name": "minecraft:entity.iron_golem.death", "type": "event"}]
+  },
+  "entity.faction_golem.hurt": {
+    "subtitle": "subtitles.folkhold_world.entity.faction_golem.hurt",
+    "sounds": [{"name": "minecraft:entity.iron_golem.hurt", "type": "event"}]
+  }
+}

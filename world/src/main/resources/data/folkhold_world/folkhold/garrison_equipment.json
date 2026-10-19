@@ -31,7 +31,8 @@
       "chest": "tabard",
       "legs": "minecraft:leather_leggings",
       "feet": "minecraft:leather_boots"
-    }
+    },
+    "golem": {}
   },
   "village": {
     "guard": {
@@ -110,7 +111,8 @@
       "chest": "tabard",
       "legs": "minecraft:leather_leggings",
       "feet": "minecraft:leather_boots"
-    }
+    },
+    "golem": {}
   },
   "town": {
     "guard": {
@@ -189,7 +191,8 @@
       "chest": "tabard",
       "legs": "minecraft:chainmail_leggings",
       "feet": "minecraft:leather_boots"
-    }
+    },
+    "golem": {}
   },
   "city": {
     "guard": {
@@ -283,7 +286,8 @@
         }
       },
       "feet": "minecraft:chainmail_boots"
-    }
+    },
+    "golem": {}
   },
   "capital": {
     "guard": {
@@ -387,6 +391,7 @@
           "minecraft:protection": 2
         }
       }
-    }
+    },
+    "golem": {}
   }
 }

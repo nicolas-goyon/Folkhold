@@ -33,7 +33,7 @@ The reputation of the player decides how each village receives them.
 
 - **A world that lives on its own.** An abstract simulation runs the factions, the stocks and the caravans, also in the chunks that are not loaded. The world around the player changes with no visit.
 - **Factions and territories.** Each village claims the territory around it. The claim grows with the level of the village, from a hamlet to a city.
-- **Fortified villages.** A walled compound with towers and a village heart. Guards patrol, archers hold the towers, healers treat the wounded units and a captain leads the garrison. The garrison grows with the level of the village. Kill the captain and destroy the heart: the village becomes ruins.
+- **Fortified villages.** A walled compound with towers and a village heart. Guards patrol, archers hold the towers and a captain leads the garrison. Healers treat the wounded units, and faction golems guard the gates of the large villages. The garrison grows with the level of the village. Kill the captain and destroy the heart: the village becomes ruins.
 - **Simulated economy.** Each village produces and consumes goods with the jobs of its inhabitants. Its prices follow its stock and its needs, and its merchants sell its stock.
 - **Caravans and traveling merchants.** Trade between two villages sends a caravan on the road, by land or by boat.
 - **Reputation and quests.** Each faction and each village remembers the actions of the player. The quest board of a village gives deliveries and escorts from the state of the world.

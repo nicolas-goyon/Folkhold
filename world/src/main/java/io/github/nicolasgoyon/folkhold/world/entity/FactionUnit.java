@@ -70,7 +70,7 @@ import software.bernie.geckolib.constant.DefaultAnimations;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 /**
- * Base class of the faction units (guard, archer, captain).
+ * Base class of the faction units (guard, archer, captain, healer, faction golem).
  *
  * <p>A unit has:
  * <ul>
@@ -379,8 +379,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /**
      * Tells if a position is in the chase area of the unit:
      * <ul>
-     *   <li>not farther than the chase radius ({@link WorldConfig#CHASE_RADIUS}) from the village heart, or from
-     *       the home position for a unit without a village;</li>
+     *   <li>not farther than the chase radius ({@link #chaseRadius()}) from the center of the chase area
+     *       ({@link #chaseCenter()});</li>
      *   <li>not in the territory of another faction, for a unit with a faction.</li>
      * </ul>
      *
@@ -391,11 +391,25 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return isInChaseRadius(pos) && isInTerritory(pos);
     }
 
-    /** True if the position is not farther than the chase radius from the village heart (or the home position). */
+    /** True if the position is not farther than the chase radius from the center of the chase area. */
     private boolean isInChaseRadius(BlockPos pos) {
-        BlockPos center = villagePos != null ? villagePos : getHomePos();
-        double chase = WorldConfig.CHASE_RADIUS.get();
-        return pos.getCenter().distanceToSqr(center.getCenter()) <= chase * chase;
+        double chase = chaseRadius();
+        return pos.getCenter().distanceToSqr(chaseCenter().getCenter()) <= chase * chase;
+    }
+
+    /** The center of the chase area: the village heart, or the home position for a unit without a village. */
+    protected BlockPos chaseCenter() {
+        return villagePos != null ? villagePos : getHomePos();
+    }
+
+    /** The radius of the chase area, in blocks ({@link WorldConfig#CHASE_RADIUS}). */
+    protected double chaseRadius() {
+        return WorldConfig.CHASE_RADIUS.get();
+    }
+
+    /** True if the unit talks to the players: it greets the friendly players and gives the warnings of its village. */
+    public boolean canSpeak() {
+        return true;
     }
 
     /**
@@ -562,7 +576,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
                     heart.markHostile(player);
                 }
             });
-        } else if (tickCount % 40 == 0) {
+        } else if (tickCount % 40 == 0 && canSpeak()) {
             greetFriendlyPlayer();
         }
         unitServerAiStep(target);

@@ -25,6 +25,10 @@ public final class ModItems {
     public static final DeferredItem<DeferredSpawnEggItem> HEALER_SPAWN_EGG = ITEMS.register("healer_spawn_egg",
             () -> new DeferredSpawnEggItem(ModEntities.HEALER, 0x3C5A9A, 0xF0F0F0, new Item.Properties()));
 
+    public static final DeferredItem<DeferredSpawnEggItem> FACTION_GOLEM_SPAWN_EGG = ITEMS.register(
+            "faction_golem_spawn_egg", () -> new DeferredSpawnEggItem(ModEntities.FACTION_GOLEM, 0x3C5A9A, 0xC8C0B4,
+                    new Item.Properties()));
+
     private ModItems() {
     }
 
@@ -39,6 +43,7 @@ public final class ModItems {
             event.accept(ARCHER_SPAWN_EGG.get());
             event.accept(CAPTAIN_SPAWN_EGG.get());
             event.accept(HEALER_SPAWN_EGG.get());
+            event.accept(FACTION_GOLEM_SPAWN_EGG.get());
         }
     }
 }

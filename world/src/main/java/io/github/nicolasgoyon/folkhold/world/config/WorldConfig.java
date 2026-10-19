@@ -38,6 +38,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue HEALER_BUFF_SECONDS;
     public static final ModConfigSpec.IntValue HEALER_SUPPLY;
     public static final ModConfigSpec.IntValue HEALER_SUPPLY_REFILL_SECONDS;
+    public static final ModConfigSpec.IntValue GOLEM_CHASE_RADIUS;
+    public static final ModConfigSpec.DoubleValue GOLEM_KNOCKBACK_RESISTANCE;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
     public static final ModConfigSpec.IntValue MAX_INHABITANTS;
@@ -118,6 +120,7 @@ public final class WorldConfig {
     public static final UnitStats ARCHER;
     public static final UnitStats CAPTAIN;
     public static final UnitStats HEALER;
+    public static final UnitStats GOLEM;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -262,6 +265,20 @@ public final class WorldConfig {
                 .comment("Time in seconds to get back one bandage while the village is calm.")
                 .translation(KEY_PREFIX + "healerSupplyRefillSeconds")
                 .defineInRange("supplyRefillSeconds", 30, 1, 3600);
+        builder.pop();
+
+        builder.comment("Faction golem: the heavy unit of the large villages. It guards a gate or the village heart.")
+                .translation(KEY_PREFIX + "golem")
+                .push("golem");
+        GOLEM_CHASE_RADIUS = builder
+                .comment("Radius in blocks of the chase area around the post of the golem (a gate) or its home. The",
+                        "golem chases a target only in this area.")
+                .translation(KEY_PREFIX + "golemChaseRadius")
+                .defineInRange("chaseRadius", 12, 2, 64);
+        GOLEM_KNOCKBACK_RESISTANCE = builder
+                .comment("Knockback resistance of the golem (0 to 1). At 1, the attacks do not push the golem.")
+                .translation(KEY_PREFIX + "golemKnockbackResistance")
+                .defineInRange("knockbackResistance", 1.0, 0.0, 1.0);
         builder.pop();
 
         builder.comment("Reputation of the players with the factions and the villages (-1000 to +1000).")
@@ -593,6 +610,8 @@ public final class WorldConfig {
         ARCHER = new UnitStats(builder, "archer", new UnitStats.Defaults(20.0, 2.0, 2.0, 0.3, 32.0));
         CAPTAIN = new UnitStats(builder, "captain", new UnitStats.Defaults(40.0, 4.0, 6.0, 0.3, 28.0));
         HEALER = new UnitStats(builder, "healer", new UnitStats.Defaults(20.0, 1.0, 0.0, 0.32, 24.0));
+        // For the golem, an attack does between half and one and a half of attackDamage.
+        GOLEM = new UnitStats(builder, "golem", new UnitStats.Defaults(120.0, 14.0, 6.0, 0.22, 24.0));
         builder.pop();
 
         SPEC = builder.build();

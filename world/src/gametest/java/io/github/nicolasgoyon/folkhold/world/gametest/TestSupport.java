@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
@@ -162,6 +163,25 @@ final class TestSupport {
             chest.container().clearContent();
             level.setBlockAndUpdate(chest.getBlockPos(), Blocks.AIR.defaultBlockState());
         }
+    }
+
+    /**
+     * Finds the heart in the area of a test with a village template. The test does not use a fixed relative position:
+     * the position of a template block and the relative positions of {@link GameTestHelper} do not always agree.
+     * The entities and the settlements of earlier tests go away first (see {@link #sweep} and
+     * {@link #retireEarlierSettlements}).
+     */
+    static VillageHeartBlockEntity findHeart(GameTestHelper helper) {
+        sweep(helper);
+        retireEarlierSettlements(helper);
+        AABB bounds = helper.getBounds();
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
+                BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
+            if (helper.getLevel().getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
+                return heart;
+            }
+        }
+        throw new GameTestAssertException("No village heart in the test area");
     }
 
     /** Spawns a unit as a spawn egg or a command does: equipment, configured values, home, village. */

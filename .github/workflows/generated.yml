@@ -39,6 +39,7 @@ jobs:
           python3 tools/models/brazier.py
           python3 tools/textures/building_signs.py
           python3 tools/textures/villager_professions.py
+          python3 tools/textures/golem_armband.py
           python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/empty.nbt
           python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16
           python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena_large.nbt --size 32 4 32
