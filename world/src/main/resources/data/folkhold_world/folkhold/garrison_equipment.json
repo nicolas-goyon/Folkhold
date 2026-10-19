@@ -32,7 +32,14 @@
       "legs": "minecraft:leather_leggings",
       "feet": "minecraft:leather_boots"
     },
-    "golem": {}
+    "golem": {},
+    "rider": {
+      "mainhand": "minecraft:iron_sword",
+      "head": "minecraft:chainmail_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:leather_leggings",
+      "feet": "minecraft:leather_boots"
+    }
   },
   "village": {
     "guard": {
@@ -112,7 +119,14 @@
       "legs": "minecraft:leather_leggings",
       "feet": "minecraft:leather_boots"
     },
-    "golem": {}
+    "golem": {},
+    "rider": {
+      "mainhand": "minecraft:iron_sword",
+      "head": "minecraft:chainmail_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:leather_leggings",
+      "feet": "minecraft:leather_boots"
+    }
   },
   "town": {
     "guard": {
@@ -192,7 +206,14 @@
       "legs": "minecraft:chainmail_leggings",
       "feet": "minecraft:leather_boots"
     },
-    "golem": {}
+    "golem": {},
+    "rider": {
+      "mainhand": "minecraft:iron_sword",
+      "head": "minecraft:iron_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:chainmail_leggings",
+      "feet": "minecraft:leather_boots"
+    }
   },
   "city": {
     "guard": {
@@ -287,7 +308,29 @@
       },
       "feet": "minecraft:chainmail_boots"
     },
-    "golem": {}
+    "golem": {},
+    "rider": {
+      "mainhand": {
+        "item": "minecraft:diamond_sword",
+        "enchantments": {
+          "minecraft:sharpness": 1
+        }
+      },
+      "head": {
+        "item": "minecraft:iron_helmet",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": "minecraft:iron_boots"
+    }
   },
   "capital": {
     "guard": {
@@ -392,6 +435,33 @@
         }
       }
     },
-    "golem": {}
+    "golem": {},
+    "rider": {
+      "mainhand": {
+        "item": "minecraft:diamond_sword",
+        "enchantments": {
+          "minecraft:sharpness": 2
+        }
+      },
+      "head": {
+        "item": "minecraft:diamond_helmet",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:diamond_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    }
   }
 }

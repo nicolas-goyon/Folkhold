@@ -70,7 +70,7 @@ import software.bernie.geckolib.constant.DefaultAnimations;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 /**
- * Base class of the faction units (guard, archer, captain, healer, faction golem).
+ * Base class of the faction units (guard, archer, captain, healer, faction golem, rider).
  *
  * <p>A unit has:
  * <ul>
@@ -163,6 +163,21 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     protected FactionUnit(EntityType<? extends FactionUnit> type, Level level) {
         super(type, level);
         setPersistenceRequired();
+    }
+
+    /**
+     * Tells if an entity of a type fits at a position: a block with a collision shape is below the position, and no
+     * block is in the space of the entity.
+     *
+     * @param type  the entity type
+     * @param level the level
+     * @param pos   the position of the feet of the entity
+     * @return true if the entity can stand at the position
+     */
+    public static boolean fitsAt(EntityType<?> type, Level level, BlockPos pos) {
+        BlockPos below = pos.below();
+        return !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
+                && level.noCollision(type.getSpawnAABB(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5));
     }
 
     /** Ground navigation that goes through fence gates and wooden doors (see {@link UnitNavigation}). */
@@ -475,7 +490,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
      * Animation controllers (GeckoLib). The animations are in
      * {@code assets/folkhold_world/animations/entity/faction_unit.animation.json}.
      * <ul>
-     *   <li>movement: walk or idle;</li>
+     *   <li>movement: walk or idle (see {@link #movementController()});</li>
      *   <li>attack: wind-up and swing of the weapon arm, when the unit swings;</li>
      *   <li>hold: shield up while the unit blocks, bow drawn while an archer has a target;</li>
      *   <li>hurt: short step back when the unit takes damage.</li>
@@ -483,7 +498,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
      */
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(DefaultAnimations.genericWalkIdleController(this));
+        controllers.add(movementController());
         controllers.add(new AnimationController<>(this, "attack", 2, state -> {
             if (swinging) {
                 return state.setAndContinue(SWING);
@@ -507,6 +522,11 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             state.getController().forceAnimationReset();
             return PlayState.STOP;
         }));
+    }
+
+    /** The controller of the movement animations: walk when the unit moves, else idle. */
+    protected AnimationController<FactionUnit> movementController() {
+        return DefaultAnimations.genericWalkIdleController(this);
     }
 
     @Override

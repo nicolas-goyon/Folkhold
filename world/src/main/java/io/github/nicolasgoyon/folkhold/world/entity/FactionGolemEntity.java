@@ -82,10 +82,7 @@ public class FactionGolemEntity extends FactionUnit {
      * @return true if a golem can stand at the position
      */
     public static boolean fitsAt(Level level, BlockPos pos) {
-        BlockPos below = pos.below();
-        return !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
-                && level.noCollision(ModEntities.FACTION_GOLEM.get().getSpawnAABB(pos.getX() + 0.5, pos.getY(),
-                        pos.getZ() + 0.5));
+        return fitsAt(ModEntities.FACTION_GOLEM.get(), level, pos);
     }
 
     @Override

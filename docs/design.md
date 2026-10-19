@@ -257,7 +257,7 @@ This section describes the construction system (planned, J5 · Living villages).
 | Merchant | Trade with the player | Sells the stocks of the village, buys the items of the player. Compatible with the vanilla villager systems (raids, Hero of the Village, zombie conversion, iron golems, gossip) |
 | Guard | Basic defense | Fixed patrol, sword and shield, chases in a limited radius |
 | Archer | Ranged defense | Takes position on towers and walls. Priority target: hostile players |
-| Rider | Interceptor | Patrols outside the walls, charges isolated threats |
+| Rider | Interceptor | Rides a faction horse with a saddle and a leather horse armor in the color of the faction. Patrols on a ring outside the walls, and goes through the gates on its horse. Charges the threats near the village at a gallop, then goes back to its patrol. When its horse dies, fights on foot and gets a new horse after the refill delay. A player cannot ride the horse. A horse with no rider disappears after 30 seconds. From the Town tier |
 | Faction golem | Heavy unit | Model and animations of the vanilla iron golem, with an armband in the color of the faction. Guards a post inside a gate, or the center when the village has more golems than gates. Very resistant and slow. Chases a target only near its post. Its attack throws the target up. In a village with faction golems, the villagers do not call vanilla iron golems. From the City tier |
 | Captain | Garrison leader | Morale buff, general alarm. Its death lowers morale (some units run away) |
 | Healer | Field medic | Heals a wounded unit of its village with a bandage. During an alert, stays near the captain, behind the fighting units, and gives a short buff (regeneration and resistance) to the units near it. Long cooldowns and a limited supply of bandages that refills while the village is calm. Does not attack, runs away from threats. Not in a hamlet |
@@ -283,18 +283,19 @@ All values are configurable, with a global difficulty multiplier. This lets us a
 - the health, the damage and the armor of each unit type: server config;
 - the heal value, the cooldowns and the supply of the healer: server config;
 - the chase radius and the knockback resistance of the faction golem: server config;
+- the patrol radius of the riders, and the health and the speed of their horses: server config;
 - the number of units of each role for each level: `garrison` in the level table (`levels.json`);
 - the equipment of each role for each level: the equipment set of the level (`equipment` in `levels.json`), defined in `garrison_equipment.json`.
 
 The garrison and its equipment grow with the tier. The units do not drop their equipment.
 
-| Tier | Guards | Archers | Captain | Healers | Golems | Equipment |
-| --- | --- | --- | --- | --- | --- | --- |
-| Hamlet | 2 | 2 | 1 | 0 | 0 | Iron (guards, captain) and chainmail (archers) |
-| Village | 3 | 2 | 1 | 1 | 0 | Same, with Protection I and Power I |
-| Town | 4 | 3 | 1 | 1 | 0 | Diamond swords, Protection I to II |
-| City | 5 | 4 | 1 | 1 | 1 | Diamond (guards, captain), Protection II, Sharpness II, Power II |
-| Capital | 6 | 5 | 1 | 2 | 2 | Diamond and netherite, Protection III, Sharpness III, Power III |
+| Tier | Guards | Archers | Captain | Healers | Golems | Riders | Equipment |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Hamlet | 2 | 2 | 1 | 0 | 0 | 0 | Iron (guards, captain) and chainmail (archers) |
+| Village | 3 | 2 | 1 | 1 | 0 | 0 | Same, with Protection I and Power I |
+| Town | 4 | 3 | 1 | 1 | 0 | 1 | Diamond swords, Protection I to II |
+| City | 5 | 4 | 1 | 1 | 1 | 2 | Diamond (guards, captain), Protection II, Sharpness II, Power II |
+| Capital | 6 | 5 | 1 | 2 | 2 | 3 | Diamond and netherite, Protection III, Sharpness III, Power III |
 
 Most villages start as a hamlet. The garrison of a hamlet keeps the difficulty target.
 
