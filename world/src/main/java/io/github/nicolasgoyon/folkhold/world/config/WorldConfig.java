@@ -30,6 +30,14 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue CAPTAIN_AURA_RADIUS;
     public static final ModConfigSpec.DoubleValue CAPTAIN_ROUT_SHARE;
     public static final ModConfigSpec.IntValue CAPTAIN_ROUT_SECONDS;
+    public static final ModConfigSpec.DoubleValue HEALER_HEAL_AMOUNT;
+    public static final ModConfigSpec.IntValue HEALER_HEAL_COOLDOWN_SECONDS;
+    public static final ModConfigSpec.DoubleValue HEALER_WOUNDED_SHARE;
+    public static final ModConfigSpec.DoubleValue HEALER_SEARCH_RADIUS;
+    public static final ModConfigSpec.IntValue HEALER_BUFF_COOLDOWN_SECONDS;
+    public static final ModConfigSpec.IntValue HEALER_BUFF_SECONDS;
+    public static final ModConfigSpec.IntValue HEALER_SUPPLY;
+    public static final ModConfigSpec.IntValue HEALER_SUPPLY_REFILL_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
     public static final ModConfigSpec.IntValue MAX_INHABITANTS;
@@ -109,6 +117,7 @@ public final class WorldConfig {
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
     public static final UnitStats CAPTAIN;
+    public static final UnitStats HEALER;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -216,6 +225,43 @@ public final class WorldConfig {
                 .comment("Duration in seconds of the rout and of the Weakness effect after the death of the captain.")
                 .translation(KEY_PREFIX + "captainRoutSeconds")
                 .defineInRange("routSeconds", 20, 1, 600);
+        builder.pop();
+
+        builder.comment("Healer: heals with bandages and gives buffs, with cooldowns and a limited supply.")
+                .translation(KEY_PREFIX + "healer")
+                .push("healer");
+        HEALER_HEAL_AMOUNT = builder
+                .comment("Health that a bandage gives back (half hearts).")
+                .translation(KEY_PREFIX + "healerHealAmount")
+                .defineInRange("healAmount", 8.0, 0.0, 1024.0);
+        HEALER_HEAL_COOLDOWN_SECONDS = builder
+                .comment("Time in seconds between two bandages.")
+                .translation(KEY_PREFIX + "healerHealCooldownSeconds")
+                .defineInRange("healCooldownSeconds", 25, 1, 3600);
+        HEALER_WOUNDED_SHARE = builder
+                .comment("A unit below this share of its maximum health is wounded (0 to 1).")
+                .translation(KEY_PREFIX + "healerWoundedShare")
+                .defineInRange("woundedShare", 0.75, 0.0, 1.0);
+        HEALER_SEARCH_RADIUS = builder
+                .comment("Distance in blocks at which the healer looks for a wounded unit.")
+                .translation(KEY_PREFIX + "healerSearchRadius")
+                .defineInRange("searchRadius", 12.0, 1.0, 64.0);
+        HEALER_BUFF_COOLDOWN_SECONDS = builder
+                .comment("Time in seconds between two buffs. The healer gives a buff only during an alert.")
+                .translation(KEY_PREFIX + "healerBuffCooldownSeconds")
+                .defineInRange("buffCooldownSeconds", 60, 1, 3600);
+        HEALER_BUFF_SECONDS = builder
+                .comment("Duration in seconds of the buff (Regeneration I and Resistance I).")
+                .translation(KEY_PREFIX + "healerBuffSeconds")
+                .defineInRange("buffSeconds", 10, 1, 600);
+        HEALER_SUPPLY = builder
+                .comment("Number of bandages of a healer. Each bandage and each buff uses one bandage.")
+                .translation(KEY_PREFIX + "healerSupply")
+                .defineInRange("supply", 6, 0, 64);
+        HEALER_SUPPLY_REFILL_SECONDS = builder
+                .comment("Time in seconds to get back one bandage while the village is calm.")
+                .translation(KEY_PREFIX + "healerSupplyRefillSeconds")
+                .defineInRange("supplyRefillSeconds", 30, 1, 3600);
         builder.pop();
 
         builder.comment("Reputation of the players with the factions and the villages (-1000 to +1000).")
@@ -546,6 +592,7 @@ public final class WorldConfig {
         // For the archer, attackDamage is the base damage of its arrows.
         ARCHER = new UnitStats(builder, "archer", new UnitStats.Defaults(20.0, 2.0, 2.0, 0.3, 32.0));
         CAPTAIN = new UnitStats(builder, "captain", new UnitStats.Defaults(40.0, 4.0, 6.0, 0.3, 28.0));
+        HEALER = new UnitStats(builder, "healer", new UnitStats.Defaults(20.0, 1.0, 0.0, 0.32, 24.0));
         builder.pop();
 
         SPEC = builder.build();

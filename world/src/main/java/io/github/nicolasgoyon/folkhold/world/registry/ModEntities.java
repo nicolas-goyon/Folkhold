@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.HealerEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
@@ -38,6 +39,12 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .build("captain"));
 
+    public static final DeferredHolder<EntityType<?>, EntityType<HealerEntity>> HEALER = ENTITY_TYPES.register("healer",
+            () -> EntityType.Builder.of(HealerEntity::new, MobCategory.MISC)
+                    .sized(0.6F, 1.95F)
+                    .clientTrackingRange(10)
+                    .build("healer"));
+
     public static final DeferredHolder<EntityType<?>, EntityType<VillageCat>> VILLAGE_CAT =
             ENTITY_TYPES.register("village_cat", () -> EntityType.Builder.<VillageCat>of(VillageCat::new,
                             MobCategory.CREATURE)
@@ -64,6 +71,7 @@ public final class ModEntities {
         event.put(GUARD.get(), GuardEntity.createAttributes().build());
         event.put(ARCHER.get(), ArcherEntity.createAttributes().build());
         event.put(CAPTAIN.get(), CaptainEntity.createAttributes().build());
+        event.put(HEALER.get(), HealerEntity.createAttributes().build());
         event.put(VILLAGE_CAT.get(), Cat.createAttributes().build());
         event.put(CARAVAN_MERCHANT.get(), CaravanMerchant.createAttributes().build());
     }

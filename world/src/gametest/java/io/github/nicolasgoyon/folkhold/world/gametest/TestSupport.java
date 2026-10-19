@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
@@ -13,6 +14,8 @@ import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
@@ -167,6 +170,14 @@ final class TestSupport {
         EventHooks.finalizeMobSpawn(unit, helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(unit.blockPosition()),
                 MobSpawnType.COMMAND, null);
         return unit;
+    }
+
+    /** Sets the level of the settlement of a heart. The heart gets its settlement first. */
+    static void setLevel(GameTestHelper helper, VillageHeartBlockEntity heart, int level) {
+        MinecraftServer server = helper.getLevel().getServer();
+        heart.ensureSettlement();
+        Settlement settlement = Settlements.of(server, heart).orElseThrow();
+        SettlementLevels.setProgress(server, settlement, level, 0);
     }
 
     /** Spawns a guard. See {@link #spawnUnit(GameTestHelper, EntityType, BlockPos)}. */

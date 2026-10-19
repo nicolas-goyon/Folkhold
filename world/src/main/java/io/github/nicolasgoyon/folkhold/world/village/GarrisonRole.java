@@ -15,13 +15,15 @@ import net.minecraft.world.entity.EntityType;
 public enum GarrisonRole implements SerializedName {
     GUARD,
     ARCHER,
-    CAPTAIN;
+    CAPTAIN,
+    HEALER;
 
     public EntityType<? extends FactionUnit> entityType() {
         return switch (this) {
             case GUARD -> ModEntities.GUARD.get();
             case ARCHER -> ModEntities.ARCHER.get();
             case CAPTAIN -> ModEntities.CAPTAIN.get();
+            case HEALER -> ModEntities.HEALER.get();
         };
     }
 

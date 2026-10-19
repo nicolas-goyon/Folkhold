@@ -36,7 +36,10 @@ class LevelTableTest {
         assertEquals(2, hamlet.count("guard"));
         assertEquals(2, hamlet.count("archer"));
         assertEquals(1, hamlet.count("captain"));
+        assertEquals(0, hamlet.count("healer"));
         assertEquals("hamlet", hamlet.equipment());
+        assertEquals(1, TABLE.traits(5).garrison().count("healer"));
+        assertEquals(2, TABLE.traits(17).garrison().count("healer"));
         assertEquals(6, capital.count("guard"));
         assertEquals(5, capital.count("archer"));
         assertEquals("capital", capital.equipment());
