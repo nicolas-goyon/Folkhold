@@ -1,10 +1,12 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,11 +28,16 @@ import net.neoforged.neoforge.event.EventHooks;
  *
  * <p>Rules:
  * <ul>
+ *   <li>The level of the village sets the number of units of each role and their equipment set
+ *       ({@link GarrisonTraits}).</li>
  *   <li>The garrison never creates a unit for an entry that is alive. A unit in a chunk that is not loaded
  *       is still alive. This prevents duplicates after a chunk unload and reload.</li>
  *   <li>An entry becomes dead when its unit dies (the unit reports its death), or when the unit is missing
  *       for {@link #MISSING_TIMEOUT_TICKS} while the chunk of its last known position is loaded.</li>
  *   <li>The garrison spawns a new unit for a dead one after the refill delay, only when the village is calm.</li>
+ *   <li>When the level goes down, the units that are alive stay. The garrison removes the dead entries above the
+ *       number of the level, so it does not spawn new units for them.</li>
+ *   <li>A loaded unit with another equipment set gets the set of the level.</li>
  *   <li>Archers get a free post of the village (see {@link VillageLayout}), if there is one. They spawn on it.
  *       The other units spawn on the ground near the heart (see {@link #groundSpawnPos}).</li>
  * </ul>
@@ -140,8 +147,10 @@ public final class Garrison {
      * Creates the missing units of the garrison.
      *
      * <ol>
-     *   <li>Updates the entries: last seen time and position of the loaded units, timeout of missing units.</li>
-     *   <li>Adds entries until each role has its configured count. A new garrison spawns completely.</li>
+     *   <li>Updates the entries: last seen time and position of the loaded units, timeout of missing units. A
+     *       loaded unit with another equipment set gets the set of the level.</li>
+     *   <li>Removes the dead entries above the number of units of each role.</li>
+     *   <li>Adds entries until each role has its number of units. A new garrison spawns completely.</li>
      *   <li>Spawns new units for the dead ones after the refill delay, if the village is calm.</li>
      * </ol>
      *
@@ -151,10 +160,11 @@ public final class Garrison {
      * @param calm      true if the village is calm
      * @param now       the current game time
      * @param posts     the posts of the village (positions where an archer stands)
+     * @param traits    the garrison of the level of the village
      * @return true if the garrison changed (the heart must save)
      */
     public boolean ensure(ServerLevel level, BlockPos heartPos, @Nullable String factionId, boolean calm, long now,
-            List<BlockPos> posts) {
+            List<BlockPos> posts, GarrisonTraits traits) {
         boolean changed = false;
         for (Entry entry : entries) {
             if (entry.dead) {
@@ -164,6 +174,9 @@ public final class Garrison {
             if (entity != null && entity.isAlive()) {
                 entry.lastSeen = now;
                 entry.lastPos = entity.blockPosition();
+                if (entity instanceof FactionUnit unit && !unit.getEquipmentSet().equals(traits.equipment())) {
+                    unit.equip(traits.equipment());
+                }
             } else if (entity == null && entry.lastPos != null && level.isLoaded(entry.lastPos)
                     && now - entry.lastSeen > MISSING_TIMEOUT_TICKS) {
                 entry.markDead(now);
@@ -172,8 +185,12 @@ public final class Garrison {
         }
 
         for (GarrisonRole role : GarrisonRole.values()) {
+            changed |= removeExtraDead(role, role.count(traits));
+        }
+
+        for (GarrisonRole role : GarrisonRole.values()) {
             int count = (int) entries.stream().filter(entry -> entry.role == role).count();
-            for (int i = count; i < role.configuredCount(); i++) {
+            for (int i = count; i < role.count(traits); i++) {
                 BlockPos post = role == GarrisonRole.ARCHER ? freePost(posts) : null;
                 FactionUnit unit = spawnUnit(level, heartPos, factionId, role, post);
                 if (unit != null) {
@@ -206,6 +223,27 @@ public final class Garrison {
             }
         }
         return changed;
+    }
+
+    /**
+     * Removes the dead entries of a role above a number of entries. The entries that are alive stay.
+     *
+     * @param role  the role
+     * @param count the number of units of the role
+     * @return true if the method removed an entry
+     */
+    private boolean removeExtraDead(GarrisonRole role, int count) {
+        int extra = (int) entries.stream().filter(entry -> entry.role == role).count() - count;
+        boolean removed = false;
+        for (Iterator<Entry> it = entries.iterator(); extra > 0 && it.hasNext(); ) {
+            Entry entry = it.next();
+            if (entry.role == role && entry.dead) {
+                it.remove();
+                extra--;
+                removed = true;
+            }
+        }
+        return removed;
     }
 
     /** A post that no entry uses, or null. */

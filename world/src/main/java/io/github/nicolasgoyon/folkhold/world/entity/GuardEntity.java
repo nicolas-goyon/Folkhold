@@ -2,16 +2,15 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import javax.annotation.Nullable;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 
@@ -72,12 +71,7 @@ public class GuardEntity extends FactionUnit {
     }
 
     @Override
-    protected void equip() {
-        setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
-        setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
-        setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
-        setItemSlot(EquipmentSlot.CHEST, tabard(factionColor()));
-        setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.IRON_LEGGINGS));
-        setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
+    public GarrisonRole role() {
+        return GarrisonRole.GUARD;
     }
 }

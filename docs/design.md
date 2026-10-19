@@ -195,7 +195,7 @@ Each faction village has fortifications and guards. A player in iron armor with 
 
 ### Village growth
 
-Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are names for ranges of levels. The level sets the traits of the settlement: claim radius, maximum population, job slots, stock capacity, number of trade offers, number of village cats. A data file holds the level table, the tier table and the traits. More levels and tiers can exist later.
+Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are names for ranges of levels. The level sets the traits of the settlement: claim radius, maximum population, job slots, stock capacity, number of trade offers, number of village cats, the units of the garrison and their equipment. A data file holds the level table, the tier table and the traits. More levels and tiers can exist later.
 
 | Levels | Tier | Trades |
 | --- | --- | --- |
@@ -208,7 +208,8 @@ Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are n
 - **Start level**: when the mod creates a settlement, the settlement gets a random start level from 1 to 16 (configurable chances). Only growth makes a Capital. A settlement with a higher start level also starts with more stocks.
 - **Experience**: at each cycle, the settlement gets experience from its prosperity: food need covered, inputs of the jobs available, treasury above a minimum. The experience for each level increases with the level.
 - **Loss**: a shortage of food, a pillage of the bank or the death of the captain removes experience. A settlement can go down one level.
-- **Level event**: the mod sends an event when the level changes. Other systems use it: the garrison from the level, the physical growth.
+- **Level event**: the mod sends an event when the level changes. Other systems can use it, for example the physical growth.
+- **Garrison**: the garrison follows the level of the village (see "Balancing"). When the level changes, the heart adds the missing units, and the units that are alive get the equipment of the new level.
 
 **Implemented**: the level does not change the blocks of the village. The variants of the village are simple and do not change the structure.
 
@@ -277,7 +278,23 @@ This section describes the construction system (planned, J5 · Living villages).
 
 Difficulty target: a player in iron armor with no enchantments loses a frontal attack against the garrison of an average village in most cases. This is a design target, not an automatic test.
 
-All values are configurable (health, damage, armor, garrison size for each type), with a global difficulty multiplier. This lets us adjust the difficulty without a new build.
+All values are configurable, with a global difficulty multiplier. This lets us adjust the difficulty without a new build:
+
+- the health, the damage and the armor of each unit type: server config;
+- the number of units of each role for each level: `garrison` in the level table (`levels.json`);
+- the equipment of each role for each level: the equipment set of the level (`equipment` in `levels.json`), defined in `garrison_equipment.json`.
+
+The garrison and its equipment grow with the tier. The units do not drop their equipment.
+
+| Tier | Guards | Archers | Captain | Equipment |
+| --- | --- | --- | --- | --- |
+| Hamlet | 2 | 2 | 1 | Iron (guards, captain) and chainmail (archers) |
+| Village | 3 | 2 | 1 | Same, with Protection I and Power I |
+| Town | 4 | 3 | 1 | Diamond swords, Protection I to II |
+| City | 5 | 4 | 1 | Diamond (guards, captain), Protection II, Sharpness II, Power II |
+| Capital | 6 | 5 | 1 | Diamond and netherite, Protection III, Sharpness III, Power III |
+
+Most villages start as a hamlet. The garrison of a hamlet keeps the difficulty target.
 
 ## World mod: simulated economy
 

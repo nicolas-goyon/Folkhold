@@ -26,9 +26,6 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue SPAWN_PROTECTION_RADIUS;
     public static final ModConfigSpec.IntValue CALM_DELAY_SECONDS;
 
-    public static final ModConfigSpec.IntValue GARRISON_GUARDS;
-    public static final ModConfigSpec.IntValue GARRISON_ARCHERS;
-    public static final ModConfigSpec.IntValue GARRISON_CAPTAINS;
 
     public static final ModConfigSpec.IntValue CAPTAIN_AURA_RADIUS;
     public static final ModConfigSpec.DoubleValue CAPTAIN_ROUT_SHARE;
@@ -180,21 +177,10 @@ public final class WorldConfig {
                 .defineInRange("calmDelaySeconds", 60, 5, 3600);
         builder.pop();
 
-        builder.comment("Garrison of each village.")
+        builder.comment("Garrison of each village. The level table sets the number of units and their equipment",
+                        "(data/folkhold_world/folkhold/levels.json and garrison_equipment.json).")
                 .translation(KEY_PREFIX + "garrison")
                 .push("garrison");
-        GARRISON_GUARDS = builder
-                .comment("Number of guards in a full garrison.")
-                .translation(KEY_PREFIX + "garrisonGuards")
-                .defineInRange("guards", 2, 0, 32);
-        GARRISON_ARCHERS = builder
-                .comment("Number of archers in a full garrison.")
-                .translation(KEY_PREFIX + "garrisonArchers")
-                .defineInRange("archers", 2, 0, 32);
-        GARRISON_CAPTAINS = builder
-                .comment("Number of captains in a full garrison.")
-                .translation(KEY_PREFIX + "garrisonCaptains")
-                .defineInRange("captains", 1, 0, 4);
         GARRISON_REFILL_DELAY_SECONDS = builder
                 .comment("Time in seconds before the village spawns a new unit for a dead one. The village must be calm.")
                 .translation(KEY_PREFIX + "garrisonRefillDelaySeconds")

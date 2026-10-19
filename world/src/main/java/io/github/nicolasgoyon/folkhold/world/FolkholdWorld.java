@@ -36,6 +36,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import io.github.nicolasgoyon.folkhold.world.testworld.TestWorldPack;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSpawnProtection;
@@ -111,6 +112,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(CaravanInteractions::onServerStopped);
         NeoForge.EVENT_BUS.addListener(SimulationProfiler::onServerStopped);
         NeoForge.EVENT_BUS.addListener(LevelTables::onAddReloadListener);
+        NeoForge.EVENT_BUS.addListener(GarrisonEquipment::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(EconomyData::onAddReloadListener);
         SimulationTicker.addSystem("economy", Economies::tick);
         SimulationTicker.addSystem("level", SettlementLevels::tick);
