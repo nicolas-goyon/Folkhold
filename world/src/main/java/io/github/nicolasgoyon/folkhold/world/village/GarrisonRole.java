@@ -16,7 +16,8 @@ public enum GarrisonRole implements SerializedName {
     GUARD,
     ARCHER,
     CAPTAIN,
-    HEALER;
+    HEALER,
+    GOLEM;
 
     public EntityType<? extends FactionUnit> entityType() {
         return switch (this) {
@@ -24,6 +25,7 @@ public enum GarrisonRole implements SerializedName {
             case ARCHER -> ModEntities.ARCHER.get();
             case CAPTAIN -> ModEntities.CAPTAIN.get();
             case HEALER -> ModEntities.HEALER.get();
+            case GOLEM -> ModEntities.FACTION_GOLEM.get();
         };
     }
 

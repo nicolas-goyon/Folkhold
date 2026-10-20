@@ -63,7 +63,8 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  *   <li>{@code banner}: the banner of the faction of the unit.</li>
  * </ul>
  * A unit with a set that is not in the file, or a role that is not in its set, gets the items of its role in the set
- * {@code hamlet} of {@link #DEFAULT}. The archers need a bow in the main hand.
+ * {@code hamlet} of {@link #DEFAULT}. The archers need a bow in the main hand. The faction golem has no equipment: its
+ * role has an empty object.
  */
 public final class GarrisonEquipment extends SimplePreparableReloadListener<GarrisonEquipment.Sets> {
     public static final ResourceLocation FILE =
@@ -173,7 +174,8 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
             GarrisonRole.CAPTAIN.serializedName(), pieces(Items.IRON_SWORD, Items.SHIELD, BANNER,
                     Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS),
             GarrisonRole.HEALER.serializedName(), pieces(HEALING_POTION, null, null, TABARD,
-                    Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS))));
+                    Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS),
+            GarrisonRole.GOLEM.serializedName(), Map.of())));
 
     private static Sets current = DEFAULT;
 

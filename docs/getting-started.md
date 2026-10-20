@@ -193,6 +193,8 @@ level-type=folkhold_world:test
 initial-enabled-packs=vanilla,mod/folkhold_world:datapacks/test_world
 ```
 
+The garrison of the village depends on the level of the village. The healers come from the level 5, and the faction golems from the level 13. To see them, change the level of the village with a command. `/folkhold settlement list` gives the id of the village, then `/folkhold settlement level <id> 17` makes it a capital. The new units come when a player is near the village heart.
+
 ## Translations
 
 The mods support English and French. Each text that the player sees needs one key in `en_us.json` and in `fr_fr.json`. `./gradlew build` fails when a key is missing in one file. See [CONTRIBUTING.md](../CONTRIBUTING.md#translations).

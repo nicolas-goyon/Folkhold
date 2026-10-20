@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.HealerEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
@@ -45,6 +46,14 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .build("healer"));
 
+    /** The faction golem has the size of the vanilla iron golem. */
+    public static final DeferredHolder<EntityType<?>, EntityType<FactionGolemEntity>> FACTION_GOLEM =
+            ENTITY_TYPES.register("faction_golem", () -> EntityType.Builder.<FactionGolemEntity>of(
+                            FactionGolemEntity::new, MobCategory.MISC)
+                    .sized(1.4F, 2.7F)
+                    .clientTrackingRange(10)
+                    .build("faction_golem"));
+
     public static final DeferredHolder<EntityType<?>, EntityType<VillageCat>> VILLAGE_CAT =
             ENTITY_TYPES.register("village_cat", () -> EntityType.Builder.<VillageCat>of(VillageCat::new,
                             MobCategory.CREATURE)
@@ -72,6 +81,7 @@ public final class ModEntities {
         event.put(ARCHER.get(), ArcherEntity.createAttributes().build());
         event.put(CAPTAIN.get(), CaptainEntity.createAttributes().build());
         event.put(HEALER.get(), HealerEntity.createAttributes().build());
+        event.put(FACTION_GOLEM.get(), FactionGolemEntity.createAttributes().build());
         event.put(VILLAGE_CAT.get(), Cat.createAttributes().build());
         event.put(CARAVAN_MERCHANT.get(), CaravanMerchant.createAttributes().build());
     }

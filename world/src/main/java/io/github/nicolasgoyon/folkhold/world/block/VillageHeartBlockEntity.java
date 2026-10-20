@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
@@ -26,6 +27,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -115,6 +117,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private String factionId;
     /** A guard on night watch stays at this distance from the gate, toward the heart. */
     private static final int GATE_WATCH_DISTANCE = 2;
+    /** A faction golem guards a gate at this distance from the middle of the gate, toward the heart. */
+    private static final int GOLEM_GATE_DISTANCE = 4;
     /** True after the heart closed the gates and lit the braziers for the night. */
     private boolean nightMode;
     /** True when the stairs of the gates are built (see {@link VillageExits}). */
@@ -252,6 +256,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private void warn(ServerPlayer player) {
         List<FactionUnit> units = getUnits();
         FactionUnit speaker = units.stream()
+                .filter(FactionUnit::canSpeak)
                 .min((a, b) -> Double.compare(a.distanceToSqr(player), b.distanceToSqr(player)))
                 .orElse(null);
         Component name = speaker != null ? speaker.getDisplayName() : Component.translatable("entity.folkhold_world.guard");
@@ -497,8 +502,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (alertState == AlertState.CALM && ensureVillagers(serverLevel, now)) {
             setChanged();
         }
-        if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
-                layout.validPosts(), garrisonTraits())) {
+        Map<GarrisonRole, List<BlockPos>> posts = Map.of(GarrisonRole.ARCHER, layout.validPosts(),
+                GarrisonRole.GOLEM, golemPosts());
+        if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now, posts,
+                garrisonTraits())) {
             setChanged();
         }
     }
@@ -710,12 +717,58 @@ public class VillageHeartBlockEntity extends BlockEntity {
 
     /** The position at {@link #GATE_WATCH_DISTANCE} blocks from the gate, toward the heart. */
     private BlockPos gateWatchPosition(BlockPos gate) {
+        return towardHeart(gate, GATE_WATCH_DISTANCE);
+    }
+
+    /** The position at the given distance from a gate block, toward the heart, on the main axis to the heart. */
+    private BlockPos towardHeart(BlockPos gate, int distance) {
         int dx = worldPosition.getX() - gate.getX();
         int dz = worldPosition.getZ() - gate.getZ();
         if (Math.abs(dx) >= Math.abs(dz)) {
-            return gate.offset(Integer.signum(dx) * GATE_WATCH_DISTANCE, 0, 0);
+            return gate.offset(Integer.signum(dx) * distance, 0, 0);
         }
-        return gate.offset(0, 0, Integer.signum(dz) * GATE_WATCH_DISTANCE);
+        return gate.offset(0, 0, Integer.signum(dz) * distance);
+    }
+
+    /**
+     * The posts of the faction golems: one position inside each gate, at {@link #GOLEM_GATE_DISTANCE} blocks from the
+     * middle of the gate, toward the heart. A position where a golem does not fit is not a post. The golems with no
+     * post stay near the heart.
+     */
+    public List<BlockPos> golemPosts() {
+        List<BlockPos> posts = new ArrayList<>();
+        if (level == null) {
+            return posts;
+        }
+        for (List<BlockPos> gate : gateGroups()) {
+            BlockPos middle = gate.get(gate.size() / 2);
+            int bottom = gate.stream().mapToInt(BlockPos::getY).min().orElse(middle.getY());
+            BlockPos post = towardHeart(middle.atY(bottom), GOLEM_GATE_DISTANCE);
+            if (ReadyChunks.isReady(level, post) && FactionGolemEntity.fitsAt(level, post)) {
+                posts.add(post);
+            }
+        }
+        return posts;
+    }
+
+    /**
+     * The gate blocks of the village, in one list for each gate. The gate blocks of one gate are side by side. Each
+     * list keeps the order of the scan, so the middle block of the list is the middle of the gate.
+     */
+    private List<List<BlockPos>> gateGroups() {
+        List<List<BlockPos>> groups = new ArrayList<>();
+        for (BlockPos gate : layout.gates()) {
+            List<BlockPos> group = groups.stream()
+                    .filter(blocks -> blocks.stream().anyMatch(other -> other.distManhattan(gate) <= 1))
+                    .findFirst()
+                    .orElse(null);
+            if (group == null) {
+                group = new ArrayList<>();
+                groups.add(group);
+            }
+            group.add(gate);
+        }
+        return groups;
     }
 
     /** True if the player pillaged the bank of this village since the heart loaded. */
