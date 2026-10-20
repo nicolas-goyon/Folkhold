@@ -670,7 +670,11 @@ The strategy:
 
 ### Textures
 
-For new blocks (stabilizer, world anchor, quest board), start from a similar vanilla texture and change it a little. A frame or a color is enough.
+The blocks of the library `folkhold_blocks` are volumes of voxels in Python, in `tools/pixvox`. PixVox (MIT license) reads the texture of each face on the volume: the voxel of an edge has one color on its two faces. PixVox renders each block as the game does, checks the export, and makes a review board. The colors come from the materials of the villages: spruce, stone, deepslate, iron and gold. A new block gets a description in `tools/pixvox`.
+
+**Implemented**: the village heart, the watch post, the bank chest and the bank wall.
+
+**Planned**: the brazier, the building signs and the quest board.
 
 ## Technical stack and tools
 

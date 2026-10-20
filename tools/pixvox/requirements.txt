@@ -1,0 +1,3 @@
+# PixVox and its dependencies (numpy, Pillow), for tools/pixvox. The workflow "Generated files" and the dev container
+# install the same version.
+pixvox @ git+https://github.com/nicolas-goyon/PixVox@v0.1.0

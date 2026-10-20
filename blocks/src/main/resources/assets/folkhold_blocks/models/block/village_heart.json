@@ -1,8 +1,162 @@
 {
-  "parent": "minecraft:block/cube_bottom_top",
+  "parent": "minecraft:block/block",
   "textures": {
-    "side": "minecraft:block/chiseled_stone_bricks",
-    "top": "minecraft:block/lodestone_top",
-    "bottom": "minecraft:block/stone_bricks"
-  }
+    "up": "folkhold_blocks:block/village_heart/top",
+    "down": "folkhold_blocks:block/village_heart/bottom",
+    "north": "folkhold_blocks:block/village_heart/north",
+    "south": "folkhold_blocks:block/village_heart/south",
+    "west": "folkhold_blocks:block/village_heart/west",
+    "east": "folkhold_blocks:block/village_heart/east",
+    "particle": "folkhold_blocks:block/village_heart/north",
+    "up_glow": "folkhold_blocks:block/village_heart/glow_up",
+    "north_glow": "folkhold_blocks:block/village_heart/glow_north",
+    "south_glow": "folkhold_blocks:block/village_heart/glow_south",
+    "west_glow": "folkhold_blocks:block/village_heart/glow_west",
+    "east_glow": "folkhold_blocks:block/village_heart/glow_east"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        16,
+        16
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#up",
+          "cullface": "up"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#down",
+          "cullface": "down"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#north",
+          "cullface": "north"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#south",
+          "cullface": "south"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#west",
+          "cullface": "west"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#east",
+          "cullface": "east"
+        }
+      }
+    },
+    {
+      "from": [
+        0,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        16,
+        16
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#up_glow",
+          "cullface": "up"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#north_glow",
+          "cullface": "north"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#south_glow",
+          "cullface": "south"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#west_glow",
+          "cullface": "west"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#east_glow",
+          "cullface": "east"
+        }
+      },
+      "neoforge_data": {
+        "block_light": 12,
+        "sky_light": 12
+      }
+    }
+  ],
+  "render_type": "minecraft:cutout"
 }
