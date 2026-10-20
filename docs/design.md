@@ -219,7 +219,7 @@ Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are n
 
 The construction system changes the blocks of the level into the blocks of a **target**. A target is a set of block states at positions, for example a building of the village. The repair of the village (J5) and the physical growth (J6) use it.
 
-**Implemented**: the plan, the kinds of the blocks, the capture of a target and a run with no villager.
+**Implemented**: the plan, the kinds of the blocks, the capture of a target, a run with no villager, and the construction tool of the operators.
 
 - **Plan** (`folkhold_core`): from a target and the blocks of the level, the planner makes an ordered list of steps. A step removes a block, places a block, places or removes scaffolding, or adds a fluid. Each step has the full state of the block (facing, axis, half, shape) and the position where the builder stands.
 - **Order**: the plan removes the obstacles first: the attached blocks first, then from the top to the bottom. A block that needs an obstacle as its support also goes, and comes back if the target has it. Then the placements go from the bottom to the top. A block comes after the block that holds it: a falling block after the block below it, an attached block after its support. A connected block comes after the solid blocks next to it. One step places the two parts of a door, a bed or a tall plant.
@@ -236,6 +236,11 @@ The construction system changes the blocks of the level into the blocks of a **t
 - **Capture**: a target comes from a box of the level, or from a structure template at a position, with its rotation and its mirror. A jigsaw block becomes its final state, as in a village.
 - **Run**: a run applies the steps of a plan, with a number of steps for each tick. It puts the blocks directly, with no villager. It uses no items, and no block drops an item. The other part of a door or a bed goes first with no update, so that the primary part does not break.
 - **Commands** (operators): `/folkhold construction build <template> [stepsPerTick]` builds a structure template at the position of the player. `/folkhold construction capture <from> <to>` keeps the blocks of a box, and `/folkhold construction restore [stepsPerTick]` puts them back. `/folkhold construction stop` stops the constructions of the level. Each command shows the steps and the warnings of its plan.
+- **Construction tool** (operators): `/folkhold construction place` opens a menu with the structure templates of the server, a text filter and the speed of the construction. A key can also open the menu. After the selection, a ghost of the structure follows the block that the player looks at, 64 blocks away or nearer. The ghost stands on this block, with its center above it.
+  - The ghost shows the blocks of the structure, translucent, and the box of the structure. A red outline shows each block of the level that the construction removes. Grass and flowers have no outline.
+  - Keys: turn by 90 degrees (R), mirror (M), lock the position (G), build (Enter), remove the ghost (Backspace). The arrow keys, Page Up and Page Down move the ghost by one block, and lock it. The panel above the hotbar shows the keys.
+  - The key "build" sends the template, the origin, the turn and the mirror to the server. The server checks the permission and the size of the structure: 32,768 blocks at most, air included. It also checks the distance (96 blocks at most) and the loaded chunks. Then it starts the construction as the command `build`.
+  - During the construction, the ghost shows only the blocks that are not in place. It goes away when all its blocks are in place.
 
 **Planned**: new elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
 
@@ -505,7 +510,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - `/folkhold caravan list|info|spawn|tp|remove`: follow, make, find and remove the mobile groups.
 - `/folkhold quest list|give|complete|fail`: the quests of a player. `give` makes a delivery or an escort of the village nearest to the player.
 - `/folkhold settlement route <from> <to>`: calculates a route again and shows its time.
-- `/folkhold construction build|capture|restore|stop`: builds a structure template, or puts back the blocks of a captured box (see Construction).
+- `/folkhold construction build|place|capture|restore|stop`: builds a structure template, places it with a ghost, or puts back the blocks of a captured box (see Construction).
 - `/folkhold admin` opens the admin screen (operators only). Left: all settlements of the world, with a text filter and chips for the state, the level range and the sort order. Right: the selected settlement, with its badges (level, state, alert), its rows and its largest stocks.
 - The actions of the admin screen are in menus: Village (teleport, set the level, add experience, restore, ruin), Economy (one cycle, reset), Garrison (alert state, bells, if the heart is loaded) and World (copy the position, the id or a `/tp` command). The header has Refresh, Simulation (one tick or one cycle for all settlements, and the discovery of the villages up to 3000 blocks around the operator now) and "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
 - The result of an action shows in the status line of the screen. To ruin a settlement, the operator types its name. To reset an economy, the operator confirms.

@@ -56,6 +56,53 @@ public final class ConstructionTargets {
     }
 
     /**
+     * A block of a structure template, in the coordinates of the template.
+     *
+     * @param pos   the position of the block in the template
+     * @param state the state of the block, with no turn and no mirror. A jigsaw block has its final state.
+     * @param nbt   the data of the block entity in the template, or empty
+     */
+    public record TemplateBlock(BlockPos pos, BlockState state, Optional<CompoundTag> nbt) {
+    }
+
+    /**
+     * The blocks of a structure template, in the coordinates of the template, with no turn and no mirror. A jigsaw
+     * block becomes its final state, as in a village. The list has no structure void block.
+     *
+     * @param level    the level: it gives the blocks
+     * @param template the template
+     * @return the blocks, air included
+     */
+    public static List<TemplateBlock> templateBlocks(Level level, StructureTemplate template) {
+        HolderLookup<Block> blockLookup = level.holderLookup(Registries.BLOCK);
+        CompoundTag saved = template.save(new CompoundTag());
+        ListTag paletteTag = saved.contains("palettes", Tag.TAG_LIST)
+                ? saved.getList("palettes", Tag.TAG_LIST).getList(0) : saved.getList("palette", Tag.TAG_COMPOUND);
+        List<BlockState> palette = new ArrayList<>();
+        for (int i = 0; i < paletteTag.size(); i++) {
+            palette.add(NbtUtils.readBlockState(blockLookup, paletteTag.getCompound(i)));
+        }
+        List<TemplateBlock> blocks = new ArrayList<>();
+        ListTag blockList = saved.getList("blocks", Tag.TAG_COMPOUND);
+        for (int i = 0; i < blockList.size(); i++) {
+            CompoundTag entry = blockList.getCompound(i);
+            ListTag local = entry.getList("pos", Tag.TAG_INT);
+            BlockState state = palette.get(entry.getInt("state"));
+            Optional<CompoundTag> nbt = entry.contains("nbt", Tag.TAG_COMPOUND)
+                    ? Optional.of(entry.getCompound("nbt")) : Optional.empty();
+            if (state.is(Blocks.JIGSAW)) {
+                state = jigsawFinalState(blockLookup, nbt);
+                nbt = Optional.empty();
+            }
+            if (!state.is(Blocks.STRUCTURE_VOID)) {
+                blocks.add(new TemplateBlock(new BlockPos(local.getInt(0), local.getInt(1), local.getInt(2)), state,
+                        nbt));
+            }
+        }
+        return blocks;
+    }
+
+    /**
      * The blocks of a structure template, as a target.
      *
      * @param level    the level of the construction: it gives the blocks and the block entities
@@ -67,36 +114,12 @@ public final class ConstructionTargets {
     public static Target fromTemplate(Level level, StructureTemplate template, BlockPos origin,
             StructurePlaceSettings settings) {
         HolderLookup.Provider registries = level.registryAccess();
-        HolderLookup<Block> blockLookup = level.holderLookup(Registries.BLOCK);
-        CompoundTag saved = template.save(new CompoundTag());
-        ListTag paletteTag = saved.contains("palettes", Tag.TAG_LIST)
-                ? saved.getList("palettes", Tag.TAG_LIST).getList(0) : saved.getList("palette", Tag.TAG_COMPOUND);
-        List<BlockState> palette = new ArrayList<>();
-        for (int i = 0; i < paletteTag.size(); i++) {
-            palette.add(NbtUtils.readBlockState(blockLookup, paletteTag.getCompound(i)));
-        }
         Map<BuildPos, BuildBlock> blocks = new HashMap<>();
-        ListTag blockList = saved.getList("blocks", Tag.TAG_COMPOUND);
-        for (int i = 0; i < blockList.size(); i++) {
-            CompoundTag entry = blockList.getCompound(i);
-            ListTag local = entry.getList("pos", Tag.TAG_INT);
-            BlockPos pos = StructureTemplate.calculateRelativePosition(settings,
-                    new BlockPos(local.getInt(0), local.getInt(1), local.getInt(2))).offset(origin);
-            BlockState state = palette.get(entry.getInt("state"));
-            Optional<CompoundTag> nbt = entry.contains("nbt", Tag.TAG_COMPOUND)
-                    ? Optional.of(entry.getCompound("nbt")) : Optional.empty();
-            if (state.is(Blocks.JIGSAW)) {
-                state = jigsawFinalState(blockLookup, nbt);
-                nbt = Optional.empty();
-            } else {
-                state = state.mirror(settings.getMirror()).rotate(level, pos, settings.getRotation());
-            }
-            if (state.is(Blocks.STRUCTURE_VOID)) {
-                continue;
-            }
-            BlockState placed = state;
-            Optional<String> data = nbt.filter(tag -> placed.is(BlockKinds.KEEP_DATA))
-                    .flatMap(tag -> normalData(pos, placed, tag, registries));
+        for (TemplateBlock block : templateBlocks(level, template)) {
+            BlockPos pos = StructureTemplate.calculateRelativePosition(settings, block.pos()).offset(origin);
+            BlockState state = block.state().mirror(settings.getMirror()).rotate(level, pos, settings.getRotation());
+            Optional<String> data = block.nbt().filter(tag -> state.is(BlockKinds.KEEP_DATA))
+                    .flatMap(tag -> normalData(pos, state, tag, registries));
             blocks.put(BlockKinds.toBuildPos(pos), BlockKinds.describe(pos, state, data));
         }
         return new Target(blocks);
