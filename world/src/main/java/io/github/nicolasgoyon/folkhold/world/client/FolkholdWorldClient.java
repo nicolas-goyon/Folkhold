@@ -56,6 +56,7 @@ public final class FolkholdWorldClient {
         event.registerEntityRenderer(ModEntities.GUARD.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.ARCHER.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.CAPTAIN.get(), FactionUnitRenderer::new);
+        event.registerEntityRenderer(ModEntities.HEALER.get(), FactionUnitRenderer::new);
         event.registerEntityRenderer(ModEntities.VILLAGE_CAT.get(), CatRenderer::new);
         event.registerEntityRenderer(ModEntities.CARAVAN_MERCHANT.get(), WanderingTraderRenderer::new);
     }

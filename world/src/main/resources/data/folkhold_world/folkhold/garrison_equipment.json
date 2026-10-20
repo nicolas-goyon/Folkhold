@@ -22,6 +22,15 @@
       "chest": "minecraft:iron_chestplate",
       "legs": "minecraft:iron_leggings",
       "feet": "minecraft:iron_boots"
+    },
+    "healer": {
+      "mainhand": {
+        "item": "minecraft:potion",
+        "potion": "minecraft:healing"
+      },
+      "chest": "tabard",
+      "legs": "minecraft:leather_leggings",
+      "feet": "minecraft:leather_boots"
     }
   },
   "village": {
@@ -92,6 +101,15 @@
           "minecraft:protection": 1
         }
       }
+    },
+    "healer": {
+      "mainhand": {
+        "item": "minecraft:potion",
+        "potion": "minecraft:healing"
+      },
+      "chest": "tabard",
+      "legs": "minecraft:leather_leggings",
+      "feet": "minecraft:leather_boots"
     }
   },
   "town": {
@@ -162,6 +180,15 @@
           "minecraft:protection": 2
         }
       }
+    },
+    "healer": {
+      "mainhand": {
+        "item": "minecraft:potion",
+        "potion": "minecraft:healing"
+      },
+      "chest": "tabard",
+      "legs": "minecraft:chainmail_leggings",
+      "feet": "minecraft:leather_boots"
     }
   },
   "city": {
@@ -242,6 +269,20 @@
           "minecraft:protection": 2
         }
       }
+    },
+    "healer": {
+      "mainhand": {
+        "item": "minecraft:potion",
+        "potion": "minecraft:healing"
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": "minecraft:chainmail_boots"
     }
   },
   "capital": {
@@ -325,6 +366,25 @@
         "item": "minecraft:diamond_boots",
         "enchantments": {
           "minecraft:protection": 3
+        }
+      }
+    },
+    "healer": {
+      "mainhand": {
+        "item": "minecraft:potion",
+        "potion": "minecraft:healing"
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 2
         }
       }
     }

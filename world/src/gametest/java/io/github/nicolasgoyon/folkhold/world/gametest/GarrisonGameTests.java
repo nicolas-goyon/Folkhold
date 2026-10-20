@@ -1,20 +1,16 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
-import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
-import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
-import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Items;
@@ -46,10 +42,7 @@ public final class GarrisonGameTests {
     }
 
     private static void setLevel(GameTestHelper helper, VillageHeartBlockEntity heart, int level) {
-        MinecraftServer server = helper.getLevel().getServer();
-        heart.ensureSettlement();
-        Settlement settlement = Settlements.of(server, heart).orElseThrow();
-        SettlementLevels.setProgress(server, settlement, level, 0);
+        TestSupport.setLevel(helper, heart, level);
     }
 
     private static int fullGarrisonSize(VillageHeartBlockEntity heart) {

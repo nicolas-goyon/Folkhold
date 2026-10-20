@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.Test;
 
 class GarrisonEquipmentTest {
@@ -74,13 +75,28 @@ class GarrisonEquipmentTest {
 
         Map<EquipmentSlot, Piece> guard = sets.pieces("elite", GarrisonRole.GUARD);
         assertEquals(new Piece("minecraft:diamond_helmet",
-                Map.of(ResourceLocation.withDefaultNamespace("protection"), 2)), guard.get(EquipmentSlot.HEAD));
+                Map.of(ResourceLocation.withDefaultNamespace("protection"), 2), null), guard.get(EquipmentSlot.HEAD));
         assertEquals(Piece.of(GarrisonEquipment.TABARD), guard.get(EquipmentSlot.CHEST));
         assertEquals(2, guard.size());
         Map<EquipmentSlot, Piece> hamletArcher = GarrisonEquipment.DEFAULT.pieces(GarrisonEquipment.DEFAULT_SET,
                 GarrisonRole.ARCHER);
         assertEquals(hamletArcher, sets.pieces("elite", GarrisonRole.ARCHER));
         assertEquals(hamletArcher, sets.pieces("unknown", GarrisonRole.ARCHER));
+    }
+
+    /** A piece can have a potion: the healer holds a potion of healing. */
+    @Test
+    void pieceWithAPotion() {
+        Sets sets = parse("""
+                {"elite": {"healer": {"mainhand": {"item": "minecraft:potion", "potion": "minecraft:healing"}}}}
+                """);
+
+        Piece healing = Piece.withPotion(Items.POTION, ResourceLocation.withDefaultNamespace("healing"));
+        assertEquals(healing, sets.pieces("elite", GarrisonRole.HEALER).get(EquipmentSlot.MAINHAND));
+        assertEquals(healing, GarrisonEquipment.DEFAULT.pieces(GarrisonEquipment.DEFAULT_SET, GarrisonRole.HEALER)
+                .get(EquipmentSlot.MAINHAND));
+        assertThrows(IllegalArgumentException.class, () -> parse("{\"a\": {\"healer\": {\"mainhand\": {\"item\": "
+                + "\"minecraft:potion\", \"potion\": \"minecraft:no_such_potion\"}}}}"));
     }
 
     /** An unknown role, slot or item, or an enchantment level below 1, makes the file not valid. */

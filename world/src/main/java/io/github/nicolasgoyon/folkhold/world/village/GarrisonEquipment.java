@@ -14,7 +14,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import javax.annotation.Nullable;
 import net.minecraft.core.Registry;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -28,6 +30,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 
@@ -46,14 +49,15 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  *     "captain": {...}
  *   },
  *   "village": {
- *     "guard": {"head": {"item": "minecraft:iron_helmet", "enchantments": {"minecraft:protection": 1}}, ...}
+ *     "guard": {"head": {"item": "minecraft:iron_helmet", "enchantments": {"minecraft:protection": 1}}, ...},
+ *     "healer": {"mainhand": {"item": "minecraft:potion", "potion": "minecraft:healing"}, ...}
  *   }
  * }
  * </pre>
  * The level table selects the set of each level ({@code equipment} in {@code levels.json}). A set gives the items of
  * each garrison role. A slot ({@code mainhand}, {@code offhand}, {@code head}, {@code chest}, {@code legs},
- * {@code feet}) gives an item id, or an object with the item id and its enchantments. A slot that is not in the set
- * stays empty. Two values have a special meaning:
+ * {@code feet}) gives an item id, or an object with the item id, its enchantments and its potion. A slot that is not
+ * in the set stays empty. Two values have a special meaning:
  * <ul>
  *   <li>{@code tabard}: a leather chestplate in the color of the faction of the unit;</li>
  *   <li>{@code banner}: the banner of the faction of the unit.</li>
@@ -79,19 +83,26 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
      *
      * @param item         the id of the item, or {@link #TABARD}, or {@link #BANNER}
      * @param enchantments the level of each enchantment, by enchantment id
+     * @param potion       the id of the potion in the item (for example a potion or a tipped arrow), or null
      */
-    public record Piece(String item, Map<ResourceLocation, Integer> enchantments) {
+    public record Piece(String item, Map<ResourceLocation, Integer> enchantments, @Nullable ResourceLocation potion) {
         public Piece {
             enchantments = Map.copyOf(enchantments);
         }
 
-        /** A piece with no enchantment. */
+        /** A piece with no enchantment and no potion. */
         public static Piece of(String item) {
-            return new Piece(item, Map.of());
+            return new Piece(item, Map.of(), null);
+        }
+
+        /** A piece with a potion and no enchantment. */
+        public static Piece withPotion(Item item, ResourceLocation potion) {
+            return new Piece(BuiltInRegistries.ITEM.getKey(item).toString(), Map.of(), potion);
         }
 
         /**
-         * Makes the item stack of the piece for a unit. An enchantment that the server does not know is ignored.
+         * Makes the item stack of the piece for a unit. An enchantment or a potion that the server does not know is
+         * ignored.
          *
          * @param unit the unit that wears the piece
          * @return the item stack
@@ -107,6 +118,11 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
                 enchantments.forEach((id, level) -> registry.getHolder(ResourceKey.create(Registries.ENCHANTMENT, id))
                         .ifPresentOrElse(holder -> stack.enchant(holder, level),
                                 () -> FolkholdWorld.LOGGER.warn("Unknown enchantment {} in {}", id, FILE)));
+            }
+            if (potion != null) {
+                BuiltInRegistries.POTION.getHolder(potion).ifPresentOrElse(
+                        holder -> stack.set(DataComponents.POTION_CONTENTS, new PotionContents(holder)),
+                        () -> FolkholdWorld.LOGGER.warn("Unknown potion {} in {}", potion, FILE));
             }
             return stack;
         }
@@ -144,6 +160,10 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
         }
     }
 
+    /** The potion of healing in the hand of a healer. */
+    private static final Piece HEALING_POTION = Piece.withPotion(Items.POTION,
+            ResourceLocation.withDefaultNamespace("healing"));
+
     /** The equipment of the units of a hamlet. */
     public static final Sets DEFAULT = new Sets(Map.of(DEFAULT_SET, Map.of(
             GarrisonRole.GUARD.serializedName(), pieces(Items.IRON_SWORD, Items.SHIELD, Items.IRON_HELMET, TABARD,
@@ -151,7 +171,9 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
             GarrisonRole.ARCHER.serializedName(), pieces(Items.BOW, null, Items.CHAINMAIL_HELMET, TABARD,
                     Items.CHAINMAIL_LEGGINGS, Items.LEATHER_BOOTS),
             GarrisonRole.CAPTAIN.serializedName(), pieces(Items.IRON_SWORD, Items.SHIELD, BANNER,
-                    Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS))));
+                    Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS),
+            GarrisonRole.HEALER.serializedName(), pieces(HEALING_POTION, null, null, TABARD,
+                    Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS))));
 
     private static Sets current = DEFAULT;
 
@@ -248,19 +270,27 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
             }
             enchantments.put(ResourceLocation.parse(entry.getKey()), level);
         }
-        return checked(new Piece(GsonHelper.getAsString(object, "item"), enchantments));
+        ResourceLocation potion = object.has("potion")
+                ? ResourceLocation.parse(GsonHelper.getAsString(object, "potion")) : null;
+        return checked(new Piece(GsonHelper.getAsString(object, "item"), enchantments, potion));
     }
 
-    /** Checks that the item of a piece exists. */
+    /** Checks that the item and the potion of a piece exist. */
     private static Piece checked(Piece piece) {
         if (!piece.item().equals(TABARD) && !piece.item().equals(BANNER)
                 && !BuiltInRegistries.ITEM.containsKey(ResourceLocation.parse(piece.item()))) {
             throw new IllegalArgumentException("Unknown item " + piece.item() + " in " + FILE);
         }
+        if (piece.potion() != null && !BuiltInRegistries.POTION.containsKey(piece.potion())) {
+            throw new IllegalArgumentException("Unknown potion " + piece.potion() + " in " + FILE);
+        }
         return piece;
     }
 
-    /** The pieces of a role with no enchantment. A null item leaves the slot empty. */
+    /**
+     * The pieces of a role. A slot gets an item with no enchantment, a special value ({@link #TABARD},
+     * {@link #BANNER}) or a piece. A null value leaves the slot empty.
+     */
     private static Map<EquipmentSlot, Piece> pieces(Object mainhand, Object offhand, Object head, Object chest,
             Object legs, Object feet) {
         Map<EquipmentSlot, Piece> pieces = new EnumMap<>(EquipmentSlot.class);
@@ -270,6 +300,8 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
                 pieces.put(SLOTS.get(i), Piece.of(BuiltInRegistries.ITEM.getKey(item).toString()));
             } else if (items[i] instanceof String special) {
                 pieces.put(SLOTS.get(i), Piece.of(special));
+            } else if (items[i] instanceof Piece piece) {
+                pieces.put(SLOTS.get(i), piece);
             }
         }
         return Map.copyOf(pieces);
