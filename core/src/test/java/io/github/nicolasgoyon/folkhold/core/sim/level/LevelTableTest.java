@@ -44,6 +44,10 @@ class LevelTableTest {
         assertEquals(0, TABLE.traits(12).garrison().count("golem"));
         assertEquals(1, TABLE.traits(13).garrison().count("golem"));
         assertEquals(2, capital.count("golem"));
+        assertEquals(0, TABLE.traits(8).garrison().count("rider"));
+        assertEquals(1, TABLE.traits(9).garrison().count("rider"));
+        assertEquals(2, TABLE.traits(13).garrison().count("rider"));
+        assertEquals(3, capital.count("rider"));
         assertEquals(6, capital.count("guard"));
         assertEquals(5, capital.count("archer"));
         assertEquals("capital", capital.equipment());

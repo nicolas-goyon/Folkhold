@@ -40,6 +40,9 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue HEALER_SUPPLY_REFILL_SECONDS;
     public static final ModConfigSpec.IntValue GOLEM_CHASE_RADIUS;
     public static final ModConfigSpec.DoubleValue GOLEM_KNOCKBACK_RESISTANCE;
+    public static final ModConfigSpec.IntValue RIDER_PATROL_RADIUS;
+    public static final ModConfigSpec.DoubleValue RIDER_HORSE_HEALTH;
+    public static final ModConfigSpec.DoubleValue RIDER_HORSE_SPEED;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
     public static final ModConfigSpec.IntValue MAX_INHABITANTS;
@@ -121,6 +124,7 @@ public final class WorldConfig {
     public static final UnitStats CAPTAIN;
     public static final UnitStats HEALER;
     public static final UnitStats GOLEM;
+    public static final UnitStats RIDER;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -279,6 +283,24 @@ public final class WorldConfig {
                 .comment("Knockback resistance of the golem (0 to 1). At 1, the attacks do not push the golem.")
                 .translation(KEY_PREFIX + "golemKnockbackResistance")
                 .defineInRange("knockbackResistance", 1.0, 0.0, 1.0);
+        builder.pop();
+
+        builder.comment("Rider: a mounted unit that patrols outside the walls and charges the threats.")
+                .translation(KEY_PREFIX + "rider")
+                .push("rider");
+        RIDER_PATROL_RADIUS = builder
+                .comment("Radius in blocks of the patrol ring of the riders around the village heart. The walls of a",
+                        "village are at about 20 blocks from the heart.")
+                .translation(KEY_PREFIX + "riderPatrolRadius")
+                .defineInRange("patrolRadius", 30, 8, 96);
+        RIDER_HORSE_HEALTH = builder
+                .comment("Maximum health of the horse of a rider (half hearts).")
+                .translation(KEY_PREFIX + "riderHorseHealth")
+                .defineInRange("horseHealth", 30.0, 1.0, 1024.0);
+        RIDER_HORSE_SPEED = builder
+                .comment("Movement speed attribute of the horse of a rider (vanilla horses: 0.11 to 0.34).")
+                .translation(KEY_PREFIX + "riderHorseSpeed")
+                .defineInRange("horseSpeed", 0.3, 0.05, 1.0);
         builder.pop();
 
         builder.comment("Reputation of the players with the factions and the villages (-1000 to +1000).")
@@ -612,6 +634,8 @@ public final class WorldConfig {
         HEALER = new UnitStats(builder, "healer", new UnitStats.Defaults(20.0, 1.0, 0.0, 0.32, 24.0));
         // For the golem, an attack does between half and one and a half of attackDamage.
         GOLEM = new UnitStats(builder, "golem", new UnitStats.Defaults(120.0, 14.0, 6.0, 0.22, 24.0));
+        // For the rider, movementSpeed is the speed on foot. The horse has its own speed.
+        RIDER = new UnitStats(builder, "rider", new UnitStats.Defaults(30.0, 3.0, 2.0, 0.3, 32.0));
         builder.pop();
 
         SPEC = builder.build();

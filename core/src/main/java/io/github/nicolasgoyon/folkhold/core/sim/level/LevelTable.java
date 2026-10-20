@@ -128,15 +128,17 @@ public final class LevelTable {
         int[] cats = {1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 6, 6, 6, 6};
         List<Tier> tiers = List.of(new Tier("hamlet", 1, 4), new Tier("village", 5, 8), new Tier("town", 9, 12),
                 new Tier("city", 13, 16), new Tier("capital", 17, 20));
-        // The garrison of each tier: guards, archers, captains, healers and golems, and the equipment set with the id
-        // of the tier.
-        int[][] garrisons = {{2, 2, 1, 0, 0}, {3, 2, 1, 1, 0}, {4, 3, 1, 1, 0}, {5, 4, 1, 1, 1}, {6, 5, 1, 2, 2}};
+        // The garrison of each tier: guards, archers, captains, healers, golems and riders, and the equipment set with
+        // the id of the tier.
+        int[][] garrisons = {{2, 2, 1, 0, 0, 0}, {3, 2, 1, 1, 0, 0}, {4, 3, 1, 1, 0, 1}, {5, 4, 1, 1, 1, 2},
+                {6, 5, 1, 2, 2, 3}};
         List<LevelTraits> levels = new ArrayList<>();
         for (int level = 1; level <= 20; level++) {
             int tier = (level - 1) / 4;
             int[] units = garrisons[tier];
             GarrisonTraits garrison = new GarrisonTraits(Map.of("guard", units[0], "archer", units[1],
-                    "captain", units[2], "healer", units[3], "golem", units[4]), tiers.get(tier).id());
+                    "captain", units[2], "healer", units[3], "golem", units[4], "rider", units[5]),
+                    tiers.get(tier).id());
             levels.add(new LevelTraits(10 + 5 * level, claimRadius[level - 1], 4 + 5 * level, 1 + level,
                     128 * level, 2 + level, cats[level - 1], garrison));
         }

@@ -175,7 +175,9 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
                     Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS),
             GarrisonRole.HEALER.serializedName(), pieces(HEALING_POTION, null, null, TABARD,
                     Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS),
-            GarrisonRole.GOLEM.serializedName(), Map.of())));
+            GarrisonRole.GOLEM.serializedName(), Map.of(),
+            GarrisonRole.RIDER.serializedName(), pieces(Items.IRON_SWORD, null, Items.CHAINMAIL_HELMET, TABARD,
+                    Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS))));
 
     private static Sets current = DEFAULT;
 
