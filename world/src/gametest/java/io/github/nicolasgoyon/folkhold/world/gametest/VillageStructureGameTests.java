@@ -15,6 +15,8 @@ import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import java.util.ArrayDeque;
@@ -25,6 +27,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -231,6 +234,10 @@ public final class VillageStructureGameTests {
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_archer_rotation")
     public static void calmRotationMovesTheArchers(GameTestHelper helper) {
         VillageHeartBlockEntity heart = findHeart(helper);
+        // At the level 1, the garrison has 2 archers for the 4 towers: each archer has a free tower to go to.
+        MinecraftServer server = helper.getLevel().getServer();
+        heart.ensureSettlement();
+        SettlementLevels.setProgress(server, Settlements.of(server, heart).orElseThrow(), 1, 0);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         List<ArcherEntity> archers = heart.getUnits().stream()
                 .filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();
