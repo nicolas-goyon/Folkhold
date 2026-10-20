@@ -1,0 +1,264 @@
+package io.github.nicolasgoyon.folkhold.core.sim.construction;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.github.nicolasgoyon.folkhold.core.sim.construction.PlanWarning.Problem;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
+class ConstructionPlannerTest {
+    private static final String STONE = "minecraft:stone";
+    private static final double REACH = ConstructionPlanner.DEFAULT_REACH;
+
+    /** A level with a floor of stone at y = 0, from -10 to 10 on X and Z, and the given blocks. */
+    private static LevelView level(Map<BuildPos, BuildBlock> blocks) {
+        return pos -> {
+            BuildBlock block = blocks.get(pos);
+            if (block != null) {
+                return block;
+            }
+            boolean floor = pos.y() == 0 && Math.abs(pos.x()) <= 10 && Math.abs(pos.z()) <= 10;
+            return floor ? BuildBlock.solid(STONE) : BuildBlock.AIR;
+        };
+    }
+
+    private static LevelView emptyLevel() {
+        return level(Map.of());
+    }
+
+    private static BuildPos pos(int x, int y, int z) {
+        return new BuildPos(x, y, z);
+    }
+
+    private static int index(Plan plan, StepType type, BuildPos pos) {
+        List<Step> steps = plan.steps();
+        for (int i = 0; i < steps.size(); i++) {
+            if (steps.get(i).type() == type && steps.get(i).pos().equals(pos)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** The blocks of a column go from the bottom to the top. A block equal to the level gets no step. */
+    @Test
+    void placementsGoFromTheBottomToTheTop() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        for (int y = 1; y <= 3; y++) {
+            blocks.put(pos(0, y, 0), BuildBlock.solid(STONE));
+        }
+        blocks.put(pos(0, 0, 0), BuildBlock.solid(STONE));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        assertEquals(3, plan.count(StepType.PLACE));
+        assertTrue(index(plan, StepType.PLACE, pos(0, 1, 0)) < index(plan, StepType.PLACE, pos(0, 2, 0)));
+        assertTrue(index(plan, StepType.PLACE, pos(0, 2, 0)) < index(plan, StepType.PLACE, pos(0, 3, 0)));
+        assertEquals(-1, index(plan, StepType.PLACE, pos(0, 0, 0)));
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
+    }
+
+    /**
+     * An attached block comes after its support, also when the support is higher: a lantern that hangs from a beam.
+     * A wall torch comes after its wall, and a falling block after the block below it.
+     */
+    @Test
+    void supportsComeFirst() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        blocks.put(pos(0, 1, 0), BuildBlock.solid(STONE));
+        blocks.put(pos(0, 2, 0), BuildBlock.solid(STONE));
+        blocks.put(pos(0, 3, 0), BuildBlock.solid(STONE));
+        blocks.put(pos(1, 3, 0), BuildBlock.solid("minecraft:oak_planks"));
+        blocks.put(pos(1, 2, 0), BuildBlock.attached("minecraft:lantern[hanging=true]", Side.UP));
+        blocks.put(pos(-1, 2, 0), BuildBlock.attached("minecraft:wall_torch[facing=west]", Side.EAST));
+        blocks.put(pos(0, 4, 0), BuildBlock.falling("minecraft:sand"));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        assertTrue(index(plan, StepType.PLACE, pos(1, 3, 0)) < index(plan, StepType.PLACE, pos(1, 2, 0)),
+                "The lantern must come after the beam");
+        assertTrue(index(plan, StepType.PLACE, pos(0, 2, 0)) < index(plan, StepType.PLACE, pos(-1, 2, 0)),
+                "The wall torch must come after its wall");
+        assertTrue(index(plan, StepType.PLACE, pos(0, 3, 0)) < index(plan, StepType.PLACE, pos(0, 4, 0)),
+                "The sand must come after the block below it");
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
+    }
+
+    /** The plan reports a falling block above air, and an attached block with no support. */
+    @Test
+    void reportsBlocksWithNoSupport() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        blocks.put(pos(0, 3, 0), BuildBlock.falling("minecraft:gravel"));
+        blocks.put(pos(2, 1, 0), BuildBlock.attached("minecraft:wall_torch[facing=east]", Side.WEST));
+        blocks.put(pos(4, 1, 0), BuildBlock.optionalSupport("minecraft:oak_trapdoor[facing=east]", Side.WEST));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        assertEquals(List.of(new PlanWarning(Problem.NO_SUPPORT, pos(2, 1, 0)),
+                new PlanWarning(Problem.FALLING_BLOCK_ABOVE_AIR, pos(0, 3, 0))), plan.warnings());
+    }
+
+    /** One step places the two parts of a door. The step of the upper half does not exist. */
+    @Test
+    void oneStepForTheTwoPartsOfADoor() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        BuildPos lower = pos(0, 1, 0);
+        BuildPos upper = pos(0, 2, 0);
+        blocks.put(lower, BuildBlock.twoPart("minecraft:oak_door[half=lower]", upper, true, Optional.of(Side.DOWN)));
+        blocks.put(upper, BuildBlock.twoPart("minecraft:oak_door[half=upper]", lower, false, Optional.empty()));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        assertEquals(1, plan.count(StepType.PLACE));
+        Step step = plan.steps().get(index(plan, StepType.PLACE, lower));
+        assertEquals(Optional.of(upper), step.partner());
+        assertEquals(Optional.of("minecraft:oak_door[half=upper]"), step.partnerState());
+    }
+
+    /** A fence comes after the solid blocks next to it. */
+    @Test
+    void connectedBlocksComeAfterTheirSolidNeighbors() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        blocks.put(pos(0, 1, 0), BuildBlock.connected("minecraft:oak_fence[east=true]"));
+        blocks.put(pos(1, 1, 0), BuildBlock.solid("minecraft:oak_log"));
+        blocks.put(pos(-1, 1, 0), BuildBlock.connected("minecraft:oak_fence[east=true,west=true]"));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        assertTrue(index(plan, StepType.PLACE, pos(1, 1, 0)) < index(plan, StepType.PLACE, pos(0, 1, 0)));
+    }
+
+    /**
+     * The obstacles go first: the attached blocks, then from the top to the bottom. A block on a replaced support goes
+     * and comes back.
+     */
+    @Test
+    void obstaclesGoFirst() {
+        Map<BuildPos, BuildBlock> levelBlocks = new HashMap<>();
+        levelBlocks.put(pos(0, 1, 0), BuildBlock.solid("minecraft:dirt"));
+        levelBlocks.put(pos(0, 2, 0), BuildBlock.solid("minecraft:dirt"));
+        levelBlocks.put(pos(1, 2, 0), BuildBlock.attached("minecraft:wall_torch[facing=east]", Side.WEST));
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        blocks.put(pos(0, 1, 0), BuildBlock.solid(STONE));
+        blocks.put(pos(0, 2, 0), BuildBlock.solid(STONE));
+        blocks.put(pos(1, 2, 0), BuildBlock.attached("minecraft:wall_torch[facing=east]", Side.WEST));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), level(levelBlocks), REACH);
+
+        int torchRemoval = index(plan, StepType.REMOVE, pos(1, 2, 0));
+        int topRemoval = index(plan, StepType.REMOVE, pos(0, 2, 0));
+        int bottomRemoval = index(plan, StepType.REMOVE, pos(0, 1, 0));
+        assertTrue(torchRemoval >= 0 && torchRemoval < topRemoval && topRemoval < bottomRemoval);
+        assertTrue(bottomRemoval < index(plan, StepType.PLACE, pos(0, 1, 0)));
+        assertTrue(index(plan, StepType.PLACE, pos(0, 2, 0)) < index(plan, StepType.PLACE, pos(1, 2, 0)),
+                "The torch must come back after its wall");
+    }
+
+    /** A waterlogged block comes with no water, and the water comes at the end. A water source also. */
+    @Test
+    void fluidsComeAtTheEnd() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        BuildBlock slab = BuildBlock.solid("minecraft:oak_slab[waterlogged=true]")
+                .withFluid("minecraft:oak_slab[waterlogged=false]");
+        blocks.put(pos(0, 1, 0), slab);
+        blocks.put(pos(1, 1, 0), BuildBlock.fluid("minecraft:water[level=0]"));
+        blocks.put(pos(2, 1, 0), BuildBlock.solid(STONE));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        Step dry = plan.steps().get(index(plan, StepType.PLACE, pos(0, 1, 0)));
+        assertEquals("minecraft:oak_slab[waterlogged=false]", dry.state());
+        int stone = index(plan, StepType.PLACE, pos(2, 1, 0));
+        assertTrue(stone < index(plan, StepType.ADD_FLUID, pos(0, 1, 0)));
+        assertTrue(stone < index(plan, StepType.ADD_FLUID, pos(1, 1, 0)));
+        assertEquals(-1, index(plan, StepType.PLACE, pos(1, 1, 0)));
+    }
+
+    /**
+     * A block high above the floor needs scaffolding. The column comes before the block, and the builder stands on it
+     * in reach of the block. The column goes at the end, from the top.
+     */
+    @Test
+    void scaffoldingForABlockOutOfReach() {
+        BuildPos high = pos(0, 9, 0);
+        Map<BuildPos, BuildBlock> blocks = Map.of(high, BuildBlock.solid(STONE));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        long columnHeight = plan.count(StepType.PLACE_SCAFFOLDING);
+        assertTrue(columnHeight > 0, "The plan must add scaffolding");
+        assertEquals(columnHeight, plan.count(StepType.REMOVE_SCAFFOLDING));
+        int place = index(plan, StepType.PLACE, high);
+        List<Step> steps = plan.steps();
+        for (int i = 0; i < steps.size(); i++) {
+            Step step = steps.get(i);
+            if (step.type() == StepType.PLACE_SCAFFOLDING) {
+                assertTrue(i < place, "The scaffolding must come before the block");
+            } else if (step.type() == StepType.REMOVE_SCAFFOLDING) {
+                assertTrue(i > place, "The scaffolding must go after the block");
+            }
+        }
+        Step step = steps.get(place);
+        assertTrue(step.stand().isPresent());
+        assertTrue(ConstructionPlanner.eyeDistanceSquared(step.stand().get(), high) <= REACH * REACH);
+        List<Step> removals = steps.stream().filter(s -> s.type() == StepType.REMOVE_SCAFFOLDING).toList();
+        for (int i = 1; i < removals.size(); i++) {
+            assertTrue(removals.get(i).pos().y() < removals.get(i - 1).pos().y(), "From the top to the bottom");
+        }
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
+    }
+
+    /** The scaffolding does not take a position that a later step fills. */
+    @Test
+    void scaffoldingStaysOutOfTheTarget() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                for (int y = 1; y <= 9; y++) {
+                    boolean wall = Math.abs(x) == 2 || Math.abs(z) == 2;
+                    blocks.put(pos(x, y, z), wall ? BuildBlock.solid(STONE) : BuildBlock.AIR);
+                }
+            }
+        }
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        for (Step step : plan.steps()) {
+            if (step.type() == StepType.PLACE_SCAFFOLDING) {
+                BuildBlock target = blocks.getOrDefault(step.pos(), BuildBlock.AIR);
+                assertEquals(BlockKind.AIR, target.kind(), "Scaffolding in the target at " + step.pos());
+            }
+            if (step.type() == StepType.PLACE) {
+                assertTrue(step.stand().isPresent(), "No position to stand for " + step.pos());
+                assertTrue(ConstructionPlanner.eyeDistanceSquared(step.stand().get(), step.pos()) <= REACH * REACH);
+            }
+        }
+        assertEquals(plan.count(StepType.PLACE_SCAFFOLDING), plan.count(StepType.REMOVE_SCAFFOLDING));
+        assertFalse(plan.count(StepType.PLACE) == 0);
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
+    }
+
+    /** A scaffolding column does not stand on a block that a later step of the plan removes. */
+    @Test
+    void scaffoldingDoesNotStandOnABlockThatThePlanRemoves() {
+        BuildPos high = pos(0, 8, 0);
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        blocks.put(high, BuildBlock.AIR);
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                blocks.put(pos(x, 0, z), BuildBlock.AIR);
+            }
+        }
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), level(Map.of(high, BuildBlock.solid(STONE))), REACH);
+
+        assertEquals(0, plan.count(StepType.PLACE_SCAFFOLDING));
+        assertEquals(26, plan.count(StepType.REMOVE));
+        assertEquals(List.of(new PlanWarning(Problem.NO_STAND, high)), plan.warnings());
+    }
+}

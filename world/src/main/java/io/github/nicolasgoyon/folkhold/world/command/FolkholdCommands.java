@@ -35,7 +35,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
  * </ul>
  *
  * <p>{@link SettlementCommands} adds the commands of the abstract simulation. {@link GroupCommands} adds the
- * commands of the caravans and the quests.
+ * commands of the caravans and the quests. {@link ConstructionCommands} adds the commands of the construction plans.
  */
 public final class FolkholdCommands {
     private static final String KEY = "commands.folkhold_world.";
@@ -47,6 +47,7 @@ public final class FolkholdCommands {
         register(event.getDispatcher());
         SettlementCommands.register(event.getDispatcher());
         GroupCommands.register(event.getDispatcher());
+        ConstructionCommands.register(event.getDispatcher());
     }
 
     private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
