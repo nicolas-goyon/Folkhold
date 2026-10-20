@@ -1,7 +1,9 @@
 package io.github.nicolasgoyon.folkhold.core.sim.level;
 
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.SplittableRandom;
 
 /**
@@ -124,13 +126,19 @@ public final class LevelTable {
     private static LevelTable defaultTable() {
         int[] claimRadius = {9, 9, 9, 9, 13, 16, 16, 18, 20, 22, 24, 26, 27, 27, 27, 27, 30, 31, 33, 33};
         int[] cats = {1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 6, 6, 6, 6};
-        List<LevelTraits> levels = new ArrayList<>();
-        for (int level = 1; level <= 20; level++) {
-            levels.add(new LevelTraits(10 + 5 * level, claimRadius[level - 1], 4 + 5 * level, 1 + level,
-                    128 * level, 2 + level, cats[level - 1]));
-        }
         List<Tier> tiers = List.of(new Tier("hamlet", 1, 4), new Tier("village", 5, 8), new Tier("town", 9, 12),
                 new Tier("city", 13, 16), new Tier("capital", 17, 20));
+        // The garrison of each tier: guards, archers and captains, and the equipment set with the id of the tier.
+        int[][] garrisons = {{2, 2, 1}, {3, 2, 1}, {4, 3, 1}, {5, 4, 1}, {6, 5, 1}};
+        List<LevelTraits> levels = new ArrayList<>();
+        for (int level = 1; level <= 20; level++) {
+            int tier = (level - 1) / 4;
+            int[] units = garrisons[tier];
+            GarrisonTraits garrison = new GarrisonTraits(
+                    Map.of("guard", units[0], "archer", units[1], "captain", units[2]), tiers.get(tier).id());
+            levels.add(new LevelTraits(10 + 5 * level, claimRadius[level - 1], 4 + 5 * level, 1 + level,
+                    128 * level, 2 + level, cats[level - 1], garrison));
+        }
         List<StartChance> chances = List.of(new StartChance(1, 1, 40), new StartChance(2, 4, 30),
                 new StartChance(5, 8, 20), new StartChance(9, 12, 8), new StartChance(13, 16, 2));
         return new LevelTable(levels, tiers, chances);

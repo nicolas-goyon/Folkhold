@@ -3,10 +3,10 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.PostRangedAttackGoal;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import javax.annotation.Nullable;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
@@ -94,11 +94,7 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
     }
 
     @Override
-    protected void equip() {
-        setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
-        setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.CHAINMAIL_HELMET));
-        setItemSlot(EquipmentSlot.CHEST, tabard(factionColor()));
-        setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.CHAINMAIL_LEGGINGS));
-        setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.LEATHER_BOOTS));
+    public GarrisonRole role() {
+        return GarrisonRole.ARCHER;
     }
 }

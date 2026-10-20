@@ -15,6 +15,8 @@ import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Objects;
 import java.util.Optional;
@@ -106,6 +108,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final String ROUTED_TAG = "RoutedUntil";
     private static final String NIGHT_TAG = "NightPos";
     private static final String FACTION_TAG = "Faction";
+    private static final String EQUIPMENT_TAG = "Equipment";
     /** Speed of a routed unit that runs back home. */
     private static final double ROUT_SPEED = 1.3;
     /** After the end of a chase at the limit of the chase area, the unit ignores all targets for this time. */
@@ -142,6 +145,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /** Id of the faction of the unit, or null. */
     @Nullable
     private String factionId;
+    /** Id of the equipment set of the unit (see {@link GarrisonEquipment}). */
+    private String equipmentSet = GarrisonEquipment.DEFAULT_SET;
     /** Position of the night watch (near a gate), or null. The village heart sets it. */
     @Nullable
     private BlockPos nightPos;
@@ -169,8 +174,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /** The configured values of this unit type. */
     protected abstract UnitStats stats();
 
-    /** Puts the equipment of this unit type in the equipment slots. */
-    protected abstract void equip();
+    /** The role of this unit type in a garrison. The equipment sets use it (see {@link GarrisonEquipment}). */
+    public abstract GarrisonRole role();
 
     /**
      * Adds the goals of all unit types and the attack goals of this unit type ({@link #registerAttackGoals}).
@@ -607,7 +612,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         applyConfiguredAttributes(stats());
         // The animations use the right arm for the weapon.
         setLeftHanded(false);
-        equip();
+        equip(getVillageHeart().map(heart -> heart.garrisonTraits().equipment())
+                .orElse(GarrisonEquipment.DEFAULT_SET));
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             setDropChance(slot, 0.0F);
         }
@@ -646,6 +652,32 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /** The color of the faction of the unit, or {@link #DEFAULT_TABARD_COLOR} without a faction. */
     protected int factionColor() {
         return faction().map(FactionSpec::color).orElse(DEFAULT_TABARD_COLOR);
+    }
+
+    /** The id of the equipment set of the unit (see {@link GarrisonEquipment}). */
+    public String getEquipmentSet() {
+        return equipmentSet;
+    }
+
+    /**
+     * Puts the items of an equipment set in the equipment slots of the unit (see {@link GarrisonEquipment}).
+     *
+     * @param set the id of the set
+     */
+    public void equip(String set) {
+        equipmentSet = set;
+        GarrisonEquipment.equip(this, set);
+    }
+
+    /** A leather chestplate in the color of the faction of the unit. */
+    public ItemStack factionTabard() {
+        return tabard(factionColor());
+    }
+
+    /** The banner of the faction of the unit, or a blue banner for a unit with no faction. */
+    public ItemStack factionBanner() {
+        ItemStack banner = faction().map(f -> FactionVisuals.banner(level(), f)).orElse(ItemStack.EMPTY);
+        return banner.isEmpty() ? new ItemStack(Items.BLUE_BANNER) : banner;
     }
 
     /** The faction of the unit, if it has one and the server knows it. */
@@ -709,6 +741,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         if (factionId != null) {
             tag.putString(FACTION_TAG, factionId);
         }
+        tag.putString(EQUIPMENT_TAG, equipmentSet);
     }
 
     @Override
@@ -720,5 +753,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         routedUntil = tag.getLong(ROUTED_TAG);
         NbtUtils.readBlockPos(tag, NIGHT_TAG).ifPresent(this::setNightPos);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
+        if (tag.contains(EQUIPMENT_TAG)) {
+            equipmentSet = tag.getString(EQUIPMENT_TAG);
+        }
     }
 }

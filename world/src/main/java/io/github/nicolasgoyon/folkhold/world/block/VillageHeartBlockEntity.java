@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.block;
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -497,9 +498,21 @@ public class VillageHeartBlockEntity extends BlockEntity {
             setChanged();
         }
         if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
-                layout.validPosts())) {
+                layout.validPosts(), garrisonTraits())) {
             setChanged();
         }
+    }
+
+    /**
+     * The garrison of the level of the settlement of the heart (see {@code garrison} in the level table). A heart with
+     * no settlement uses the level 1.
+     */
+    public GarrisonTraits garrisonTraits() {
+        int settlementLevel = 1;
+        if (level != null && level.getServer() != null) {
+            settlementLevel = Settlements.of(level.getServer(), this).map(Settlement::level).orElse(1);
+        }
+        return LevelTables.get().traits(settlementLevel).garrison();
     }
 
     /** The loaded cats of this village. */

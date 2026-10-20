@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemInfo;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Recipe;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionGenerator;
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.group.RouteFinder;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.level.Tier;
@@ -15,10 +16,13 @@ import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestGenerator;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationSettings;
 import io.github.nicolasgoyon.folkhold.core.sim.trade.TradeMatcher;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /** The records of settings and data refuse the values out of their range. */
 class SettingsValidationTest {
+    private static final GarrisonTraits GARRISON = new GarrisonTraits(Map.of("guard", 1), "hamlet");
+
     private static final Recipe RECIPE = new Recipe(List.of(new Recipe.Input("wheat", 6)),
             List.of(new Recipe.Output("bread", 4, 1.0)));
 
@@ -64,13 +68,21 @@ class SettingsValidationTest {
 
     @Test
     void levelTraitsAndTier() {
-        assertDoesNotThrow(() -> new LevelTraits(100, 1, 10, 2, 500, 4, 1));
-        assertThrows(IllegalArgumentException.class, () -> new LevelTraits(0, 1, 10, 2, 500, 4, 1));
-        assertThrows(IllegalArgumentException.class, () -> new LevelTraits(100, -1, 10, 2, 500, 4, 1));
+        assertDoesNotThrow(() -> new LevelTraits(100, 1, 10, 2, 500, 4, 1, GARRISON));
+        assertThrows(IllegalArgumentException.class, () -> new LevelTraits(0, 1, 10, 2, 500, 4, 1, GARRISON));
+        assertThrows(IllegalArgumentException.class, () -> new LevelTraits(100, -1, 10, 2, 500, 4, 1, GARRISON));
         assertDoesNotThrow(() -> new Tier("hamlet", 1, 4));
         assertThrows(IllegalArgumentException.class, () -> new Tier("hamlet", 0, 4));
         assertThrows(IllegalArgumentException.class, () -> new Tier("hamlet", 5, 4));
         assertThrows(IllegalArgumentException.class, () -> new Tier("", 1, 4));
+    }
+
+    @Test
+    void garrisonTraits() {
+        assertDoesNotThrow(() -> new GarrisonTraits(Map.of("guard", 0), "hamlet"));
+        assertThrows(IllegalArgumentException.class, () -> new GarrisonTraits(Map.of("guard", -1), "hamlet"));
+        assertThrows(IllegalArgumentException.class, () -> new GarrisonTraits(Map.of(" ", 1), "hamlet"));
+        assertThrows(IllegalArgumentException.class, () -> new GarrisonTraits(Map.of("guard", 1), " "));
     }
 
     @Test
