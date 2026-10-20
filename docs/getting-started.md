@@ -218,11 +218,10 @@ To see a village in the game: `/locate structure folkhold_world:village`, then `
 
 ## Block models from a script
 
-The models and the block states of the quest board and of the brazier (library `blocks`) come from scripts: the board has 9 parts, and the brazier has a lit model and a model that does not burn. Change a script, then run it:
+The models and the block state of the quest board (library `blocks`) come from a script: the board has 9 parts. Change the script, then run it:
 
 ```bash
 python3 tools/models/quest_board.py
-python3 tools/models/brazier.py
 ```
 
 ## Textures from a script
@@ -236,14 +235,14 @@ python3 tools/textures/villager_professions.py
 
 ## Blocks from PixVox
 
-The village heart, the watch post, the bank chest and the bank wall (library `blocks`) come from the descriptions in `tools/pixvox`. [PixVox](https://github.com/nicolas-goyon/PixVox) makes them: a description is a volume of voxels in Python, and PixVox reads the texture of each face on the volume. PixVox renders each block as the game does, checks the export, and makes a review board. The container has PixVox. Change a description, then run the export:
+The village heart, the watch post, the bank chest, the bank wall and the brazier (library `blocks`) come from the descriptions in `tools/pixvox`. [PixVox](https://github.com/nicolas-goyon/PixVox) makes them: a description is a volume of voxels in Python, and PixVox reads the texture of each face on the volume. PixVox renders each block as the game does, checks the export, and makes a review board. The container has PixVox. Change a description, then run the export:
 
 ```bash
-python3 tools/pixvox/export.py            # models/block/<block>.json and textures/block/<block>/
+python3 tools/pixvox/export.py            # models/block/<model>.json and textures/block/<model>/
 python3 tools/pixvox/export.py --review   # also the review boards, in build/pixvox
 ```
 
-Look at the review board of each changed block (`build/pixvox/<block>.review.png`) before the commit. Outside the container, install PixVox first: `pip install -r tools/pixvox/requirements.txt`.
+A description can make more than one model: the brazier has a lit model (`brazier_lit`) and a model that does not burn (`brazier`). The block states and the item models do not come from PixVox. Look at the review board of each changed model (`build/pixvox/<model>.review.png`) before the commit. An animated model also has an animation board (`<model>.anim.png`). Outside the container, install PixVox first: `pip install -r tools/pixvox/requirements.txt`.
 
 ## Test structures
 
