@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.config;
 
+import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -118,6 +119,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue BANK_PILLAGE_VALUE;
     public static final ModConfigSpec.IntValue BANK_PILLAGE_LOSS;
     public static final ModConfigSpec.DoubleValue BANK_TREASURY_SHARE;
+
+    public static final ModConfigSpec.DoubleValue CONSTRUCTION_REACH;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -622,6 +625,16 @@ public final class WorldConfig {
                         "equal part of this share.")
                 .translation(KEY_PREFIX + "bankTreasuryShare")
                 .defineInRange("treasuryShare", 0.4, 0.0, 1.0);
+        builder.pop();
+
+        builder.comment("Construction plans of the buildings.")
+                .translation(KEY_PREFIX + "construction")
+                .push("construction");
+        CONSTRUCTION_REACH = builder
+                .comment("Maximum distance in blocks from the eyes of a builder to the center of a block that it",
+                        "places or removes. With no position to stand at this distance, the plan adds scaffolding.")
+                .translation(KEY_PREFIX + "constructionReach")
+                .defineInRange("reach", ConstructionPlanner.DEFAULT_REACH, 2.0, 8.0);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

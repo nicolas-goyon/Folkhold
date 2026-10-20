@@ -1,8 +1,10 @@
 package io.github.nicolasgoyon.folkhold.world;
 
 import com.mojang.logging.LogUtils;
+import io.github.nicolasgoyon.folkhold.world.command.ConstructionCommands;
 import io.github.nicolasgoyon.folkhold.world.command.FolkholdCommands;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRuns;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
@@ -115,6 +117,9 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(CaravanInteractions::onDamage);
         NeoForge.EVENT_BUS.addListener(CaravanInteractions::onServerStopped);
         NeoForge.EVENT_BUS.addListener(SimulationProfiler::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(ConstructionRuns::onServerTick);
+        NeoForge.EVENT_BUS.addListener(ConstructionRuns::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(ConstructionCommands::onServerStopped);
         NeoForge.EVENT_BUS.addListener(LevelTables::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(GarrisonEquipment::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(EconomyData::onAddReloadListener);
