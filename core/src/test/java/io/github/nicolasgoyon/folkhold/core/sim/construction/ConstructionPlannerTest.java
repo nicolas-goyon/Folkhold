@@ -2,18 +2,21 @@ package io.github.nicolasgoyon.folkhold.core.sim.construction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.nicolasgoyon.folkhold.core.sim.construction.PlanWarning.Problem;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class ConstructionPlannerTest {
     private static final String STONE = "minecraft:stone";
-    private static final double REACH = ConstructionPlanner.DEFAULT_REACH;
+    private static final Reach REACH = Reach.DEFAULT;
 
     /** A level with a floor of stone at y = 0, from -10 to 10 on X and Z, and the given blocks. */
     private static LevelView level(Map<BuildPos, BuildBlock> blocks) {
@@ -205,7 +208,7 @@ class ConstructionPlannerTest {
         }
         Step step = steps.get(place);
         assertTrue(step.stand().isPresent());
-        assertTrue(ConstructionPlanner.eyeDistanceSquared(step.stand().get(), high) <= REACH * REACH);
+        assertTrue(REACH.contains(step.stand().get(), high));
         List<Step> removals = steps.stream().filter(s -> s.type() == StepType.REMOVE_SCAFFOLDING).toList();
         for (int i = 1; i < removals.size(); i++) {
             assertTrue(removals.get(i).pos().y() < removals.get(i - 1).pos().y(), "From the top to the bottom");
@@ -235,7 +238,7 @@ class ConstructionPlannerTest {
             }
             if (step.type() == StepType.PLACE) {
                 assertTrue(step.stand().isPresent(), "No position to stand for " + step.pos());
-                assertTrue(ConstructionPlanner.eyeDistanceSquared(step.stand().get(), step.pos()) <= REACH * REACH);
+                assertTrue(REACH.contains(step.stand().get(), step.pos()), "Out of reach: " + step.pos());
             }
         }
         assertEquals(plan.count(StepType.PLACE_SCAFFOLDING), plan.count(StepType.REMOVE_SCAFFOLDING));
@@ -260,5 +263,103 @@ class ConstructionPlannerTest {
         assertEquals(0, plan.count(StepType.PLACE_SCAFFOLDING));
         assertEquals(26, plan.count(StepType.REMOVE));
         assertEquals(List.of(new PlanWarning(Problem.NO_STAND, high)), plan.warnings());
+    }
+
+    /** The reach zone is a box around the feet: 2 blocks on X and Z, from the layer of the floor to above the head. */
+    @Test
+    void reachIsABoxAroundTheFeet() {
+        BuildPos feet = pos(0, 1, 0);
+        assertTrue(REACH.contains(feet, pos(2, 1, -2)));
+        assertTrue(REACH.contains(feet, pos(1, 0, 0)), "The layer of the floor");
+        assertTrue(REACH.contains(feet, pos(0, 3, 1)), "One block above the head");
+        assertFalse(REACH.contains(feet, pos(3, 1, 0)), "Too far on X");
+        assertFalse(REACH.contains(feet, pos(0, 1, -3)), "Too far on Z");
+        assertFalse(REACH.contains(feet, pos(1, -1, 0)), "Below the layer of the floor");
+        assertFalse(REACH.contains(feet, pos(0, 4, 0)), "Too high");
+        assertThrows(IllegalArgumentException.class, () -> new Reach(0, 1, 2));
+        assertThrows(IllegalArgumentException.class, () -> new Reach(2, -1, 2));
+        assertThrows(IllegalArgumentException.class, () -> new Reach(2, 1, 0));
+    }
+
+    /**
+     * A room with walls of 4 blocks and a flat roof. The builder stands on the ground, and does not climb on the new
+     * walls: the plan adds scaffolding before the roof.
+     */
+    @Test
+    void theBuilderDoesNotStandOnANewWall() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        for (int x = -3; x <= 3; x++) {
+            for (int z = -3; z <= 3; z++) {
+                boolean wall = Math.abs(x) == 3 || Math.abs(z) == 3;
+                for (int y = 1; y <= 4; y++) {
+                    blocks.put(pos(x, y, z), wall ? BuildBlock.solid(STONE) : BuildBlock.AIR);
+                }
+                blocks.put(pos(x, 5, z), BuildBlock.solid("minecraft:oak_planks"));
+            }
+        }
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
+        Set<BuildPos> scaffolding = new HashSet<>();
+        int firstScaffolding = -1;
+        int firstRoof = -1;
+        List<Step> steps = plan.steps();
+        for (int i = 0; i < steps.size(); i++) {
+            Step step = steps.get(i);
+            if (step.type() == StepType.PLACE_SCAFFOLDING) {
+                scaffolding.add(step.pos());
+                firstScaffolding = firstScaffolding < 0 ? i : firstScaffolding;
+            } else if (step.type() == StepType.PLACE) {
+                firstRoof = firstRoof < 0 && step.pos().y() == 5 ? i : firstRoof;
+                BuildPos floor = step.stand().orElseThrow().below();
+                assertTrue(floor.y() == 0 || floor.y() == 1 || scaffolding.contains(floor),
+                        "The builder stands on " + floor + " for " + step.pos());
+                assertTrue(REACH.contains(step.stand().get(), step.pos()), "Out of reach: " + step.pos());
+            }
+        }
+        assertTrue(firstScaffolding >= 0 && firstScaffolding < firstRoof, "The scaffolding must come before the roof");
+    }
+
+    /** A block that the plan puts on the ground is a floor for the builder, for example the floor of a house. */
+    @Test
+    void theBuilderStandsOnANewFloorOnTheGround() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        for (int x = -5; x <= 5; x++) {
+            for (int z = -5; z <= 5; z++) {
+                blocks.put(pos(x, 1, z), BuildBlock.solid("minecraft:oak_planks"));
+            }
+        }
+        BuildPos lamp = pos(0, 4, 0);
+        blocks.put(lamp, BuildBlock.solid("minecraft:glowstone"));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        assertEquals(0, plan.count(StepType.PLACE_SCAFFOLDING));
+        assertEquals(2, plan.steps().get(index(plan, StepType.PLACE, lamp)).stand().orElseThrow().y());
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
+    }
+
+    /** For a high pillar, the plan makes one scaffolding column higher, and makes no other column. */
+    @Test
+    void scaffoldingColumnGrowsWithThePillar() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        for (int y = 1; y <= 12; y++) {
+            blocks.put(pos(0, y, 0), BuildBlock.solid(STONE));
+        }
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        Set<List<Integer>> columns = new HashSet<>();
+        Set<BuildPos> cells = new HashSet<>();
+        for (Step step : plan.steps()) {
+            if (step.type() == StepType.PLACE_SCAFFOLDING) {
+                columns.add(List.of(step.pos().x(), step.pos().z()));
+                assertTrue(cells.add(step.pos()), "Two steps for the scaffolding at " + step.pos());
+            }
+        }
+        assertEquals(1, columns.size(), "Scaffolding columns: " + columns);
+        assertEquals(cells.size(), plan.count(StepType.REMOVE_SCAFFOLDING));
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
     }
 }

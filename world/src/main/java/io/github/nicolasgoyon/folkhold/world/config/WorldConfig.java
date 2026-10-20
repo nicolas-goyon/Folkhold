@@ -1,6 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.config;
 
-import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -120,7 +120,9 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue BANK_PILLAGE_LOSS;
     public static final ModConfigSpec.DoubleValue BANK_TREASURY_SHARE;
 
-    public static final ModConfigSpec.DoubleValue CONSTRUCTION_REACH;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_HORIZONTAL;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_BELOW;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_ABOVE;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -630,11 +632,22 @@ public final class WorldConfig {
         builder.comment("Construction plans of the buildings.")
                 .translation(KEY_PREFIX + "construction")
                 .push("construction");
-        CONSTRUCTION_REACH = builder
-                .comment("Maximum distance in blocks from the eyes of a builder to the center of a block that it",
-                        "places or removes. With no position to stand at this distance, the plan adds scaffolding.")
-                .translation(KEY_PREFIX + "constructionReach")
-                .defineInRange("reach", ConstructionPlanner.DEFAULT_REACH, 2.0, 8.0);
+        CONSTRUCTION_REACH_HORIZONTAL = builder
+                .comment("Distance in blocks from the feet of a builder to a block that it places or removes, on the",
+                        "X axis and on the Z axis.")
+                .translation(KEY_PREFIX + "constructionReachHorizontal")
+                .defineInRange("reachHorizontal", Reach.DEFAULT.horizontal(), 1, 4);
+        CONSTRUCTION_REACH_BELOW = builder
+                .comment("Number of layers below the feet of a builder where it places or removes blocks. 1 is the",
+                        "layer of its floor.")
+                .translation(KEY_PREFIX + "constructionReachBelow")
+                .defineInRange("reachBelow", Reach.DEFAULT.below(), 0, 2);
+        CONSTRUCTION_REACH_ABOVE = builder
+                .comment("Number of layers above the feet of a builder where it places or removes blocks. 1 is the",
+                        "layer of its head, 2 is one block above its head. With no position to stand near a block, the",
+                        "plan adds scaffolding.")
+                .translation(KEY_PREFIX + "constructionReachAbove")
+                .defineInRange("reachAbove", Reach.DEFAULT.above(), 1, 3);
         builder.pop();
 
         builder.comment("Base values of each unit type.")
@@ -652,6 +665,12 @@ public final class WorldConfig {
         builder.pop();
 
         SPEC = builder.build();
+    }
+
+    /** The reach zone of a builder, from the values of the section {@code construction}. */
+    public static Reach constructionReach() {
+        return new Reach(CONSTRUCTION_REACH_HORIZONTAL.get(), CONSTRUCTION_REACH_BELOW.get(),
+                CONSTRUCTION_REACH_ABOVE.get());
     }
 
     private WorldConfig() {

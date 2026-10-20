@@ -158,8 +158,7 @@ public final class ConstructionCommands {
 
     /** Makes the plan of a target, shows it, and starts its run. */
     private static int start(CommandSourceStack source, ServerLevel level, Target target, int stepsPerTick) {
-        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level),
-                WorldConfig.CONSTRUCTION_REACH.get());
+        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), WorldConfig.constructionReach());
         source.sendSuccess(() -> Component.translatable(KEY + "plan", plan.steps().size(), plan.count(StepType.REMOVE),
                 plan.count(StepType.PLACE), plan.count(StepType.PLACE_SCAFFOLDING), plan.count(StepType.ADD_FLUID),
                 plan.warnings().size()), true);
