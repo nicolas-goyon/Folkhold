@@ -41,6 +41,7 @@ import io.github.nicolasgoyon.folkhold.world.testworld.TestWorldPack;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.VanillaGolems;
+import io.github.nicolasgoyon.folkhold.world.village.VillageDetachments;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSpawnProtection;
@@ -72,6 +73,9 @@ public final class FolkholdWorld {
         modEventBus.addListener(ModNetwork::register);
         modEventBus.addListener(TestWorldPack::onAddPackFinders);
         NeoForge.EVENT_BUS.addListener(MonsterTargeting::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onDeath);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onServerTick);
         NeoForge.EVENT_BUS.addListener(FriendlyFire::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(ReputationEvents::onDeath);
         NeoForge.EVENT_BUS.addListener(ReputationEvents::onDamage);

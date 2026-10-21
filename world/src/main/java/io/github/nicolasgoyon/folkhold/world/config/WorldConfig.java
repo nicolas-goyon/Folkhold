@@ -45,6 +45,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.DoubleValue RIDER_HORSE_HEALTH;
     public static final ModConfigSpec.DoubleValue RIDER_HORSE_SPEED;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
+    public static final ModConfigSpec.IntValue DETACHMENT_GUARDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
     public static final ModConfigSpec.IntValue MAX_INHABITANTS;
     public static final ModConfigSpec.IntValue ARCHER_ROTATION_SECONDS;
@@ -218,6 +219,16 @@ public final class WorldConfig {
                         "0 turns off the rotation.")
                 .translation(KEY_PREFIX + "archerRotationSeconds")
                 .defineInRange("archerRotationSeconds", 120, 0, 3600);
+        builder.pop();
+
+        builder.comment("Detachments: the guards of a faction in a vanilla village inside its territory.")
+                .translation(KEY_PREFIX + "detachment")
+                .push("detachment");
+        DETACHMENT_GUARDS = builder
+                .comment("Number of guards in a vanilla village inside the territory of a faction. 0 turns off the",
+                        "detachments.")
+                .translation(KEY_PREFIX + "detachmentGuards")
+                .defineInRange("guards", 2, 0, 4);
         builder.pop();
 
         builder.comment("Captain: morale aura and effect of its death.")
