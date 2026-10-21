@@ -73,9 +73,6 @@ public final class FolkholdWorld {
         modEventBus.addListener(ModNetwork::register);
         modEventBus.addListener(TestWorldPack::onAddPackFinders);
         NeoForge.EVENT_BUS.addListener(MonsterTargeting::onEntityJoin);
-        NeoForge.EVENT_BUS.addListener(VillageDetachments::onEntityJoin);
-        NeoForge.EVENT_BUS.addListener(VillageDetachments::onDeath);
-        NeoForge.EVENT_BUS.addListener(VillageDetachments::onServerTick);
         NeoForge.EVENT_BUS.addListener(FriendlyFire::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(ReputationEvents::onDeath);
         NeoForge.EVENT_BUS.addListener(ReputationEvents::onDamage);
@@ -102,6 +99,9 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerStarted);
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerStopped);
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerTick);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onDeath);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerStopped);
         NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopping);
