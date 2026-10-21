@@ -262,6 +262,15 @@ The construction system changes the blocks of the level into the blocks of a **t
 - Village cats stay near the gates and the center. The creepers run away from them. The player cannot tame them.
 - A neutral or friendly player can take shelter in the village. From the Town tier, the player can rent a bed at the inn for emeralds.
 
+### Raids against the faction villages
+
+The vanilla raid stays. Near a faction village, Folkhold changes where the raiders spawn and how they march on the village. A raid is at a faction village when a loaded village heart is 64 blocks or less from the center of the raid.
+
+- Spawn: all the raiders of a wave spawn at one position, 40 to 56 blocks from the heart. The position is on natural ground (tag `folkhold_world:raid_spawn_ground`: dirt, sand, stone, terracotta, gravel, paths and snow), on land and under the open sky. It is not in a hole or a ravine, it has room for a ravager, and it has a path to the village. When no position is good, the raiders keep the vanilla position.
+- March: a raider walks to the approach of the nearest gate, 8 blocks outside the gate. At an open gate, it goes through the gate to the heart. At a closed gate, it waits outside. It swims across the rivers.
+- When a raider has a target, it attacks. When it loses the target, it marches again. At 12 blocks from the heart, the vanilla goals of the raid move it in the village.
+- The raiders target the faction units, as the other monsters do. A garrison can stop a wave outside the palisade.
+
 ### NPC types
 
 | NPC | Role | Key behavior |
