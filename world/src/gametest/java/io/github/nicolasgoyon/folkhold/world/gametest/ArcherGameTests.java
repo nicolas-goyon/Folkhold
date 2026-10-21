@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Husk;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
@@ -33,7 +34,8 @@ public final class ArcherGameTests {
     public static void archerKillsMonsterAtDistance(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         ArcherEntity archer = TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 2));
-        helper.assertTrue(archer.getItemBySlot(EquipmentSlot.MAINHAND).is(Items.BOW), "The archer must hold a bow");
+        // The equipment set comes from the nearest heart: an archer of a town can have a crossbow.
+        archer.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         // The husk does not move: the archer must kill it from a distance.
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(13, 1, 13));
         husk.setNoAi(true);
@@ -131,11 +133,49 @@ public final class ArcherGameTests {
     public static void archerAtPostKillsDistantMonster(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         ArcherEntity archer = TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 2));
+        archer.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         archer.setPostPos(helper.absolutePos(new BlockPos(2, 1, 2)));
         Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(13, 1, 13));
         husk.setNoAi(true);
 
         TestSupport.succeedWhenAndRemove(helper,
                 () -> helper.assertTrue(!husk.isAlive(), "The husk is still alive"), archer, husk);
+    }
+
+    /**
+     * An archer with a crossbow charges the crossbow, then kills a monster at a distance. The archer charges the
+     * crossbow before each shot.
+     */
+    @GameTest(template = "arena", timeoutTicks = 800, batch = "archer_crossbow")
+    public static void crossbowArcherKillsMonsterAtDistance(GameTestHelper helper) {
+        crossbowKill(helper, false);
+    }
+
+    /** An archer with a crossbow at its post charges the crossbow and kills a monster far from the post. */
+    @GameTest(template = "arena", timeoutTicks = 800, batch = "archer_crossbow_post")
+    public static void crossbowArcherAtPostKillsDistantMonster(GameTestHelper helper) {
+        crossbowKill(helper, true);
+    }
+
+    private static void crossbowKill(GameTestHelper helper, boolean onPost) {
+        TestSupport.buildFloor(helper);
+        ArcherEntity archer = TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 2));
+        archer.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.CROSSBOW));
+        if (onPost) {
+            archer.setPostPos(helper.absolutePos(new BlockPos(2, 1, 2)));
+        }
+        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(13, 1, 13));
+        husk.setNoAi(true);
+        boolean[] charged = new boolean[2];
+        helper.onEachTick(() -> {
+            charged[0] |= archer.isChargingCrossbow();
+            charged[1] |= archer.isCrossbowCharged();
+        });
+
+        TestSupport.succeedWhenAndRemove(helper, () -> {
+            helper.assertTrue(charged[0] && charged[1], "The archer must charge its crossbow");
+            helper.assertTrue(!husk.isAlive(), "The husk is still alive");
+            helper.assertTrue(archer.holdsCrossbow(), "The archer must keep its crossbow");
+        }, archer, husk);
     }
 }

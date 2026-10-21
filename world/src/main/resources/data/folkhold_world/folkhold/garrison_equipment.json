@@ -152,28 +152,47 @@
         }
       }
     },
-    "archer": {
-      "mainhand": {
-        "item": "minecraft:bow",
-        "enchantments": {
-          "minecraft:power": 1
-        }
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 1
+          }
+        },
+        "head": {
+          "item": "minecraft:iron_helmet",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:chainmail_leggings",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "feet": "minecraft:leather_boots"
       },
-      "head": {
-        "item": "minecraft:iron_helmet",
-        "enchantments": {
-          "minecraft:protection": 1
-        }
-      },
-      "chest": "tabard",
-      "legs": {
-        "item": "minecraft:chainmail_leggings",
-        "enchantments": {
-          "minecraft:protection": 1
-        }
-      },
-      "feet": "minecraft:leather_boots"
-    },
+      {
+        "mainhand": "minecraft:crossbow",
+        "head": {
+          "item": "minecraft:iron_helmet",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:chainmail_leggings",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "feet": "minecraft:leather_boots"
+      }
+    ],
     "captain": {
       "mainhand": "minecraft:diamond_sword",
       "offhand": "minecraft:shield",
@@ -244,28 +263,52 @@
         }
       }
     },
-    "archer": {
-      "mainhand": {
-        "item": "minecraft:bow",
-        "enchantments": {
-          "minecraft:power": 2
-        }
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 2
+          }
+        },
+        "head": {
+          "item": "minecraft:iron_helmet",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "feet": "minecraft:chainmail_boots"
       },
-      "head": {
-        "item": "minecraft:iron_helmet",
-        "enchantments": {
-          "minecraft:protection": 2
-        }
-      },
-      "chest": "tabard",
-      "legs": {
-        "item": "minecraft:iron_leggings",
-        "enchantments": {
-          "minecraft:protection": 2
-        }
-      },
-      "feet": "minecraft:chainmail_boots"
-    },
+      {
+        "mainhand": {
+          "item": "minecraft:crossbow",
+          "enchantments": {
+            "minecraft:quick_charge": 1
+          }
+        },
+        "head": {
+          "item": "minecraft:iron_helmet",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "feet": "minecraft:chainmail_boots"
+      }
+    ],
     "captain": {
       "mainhand": {
         "item": "minecraft:diamond_sword",
@@ -361,33 +404,63 @@
         }
       }
     },
-    "archer": {
-      "mainhand": {
-        "item": "minecraft:bow",
-        "enchantments": {
-          "minecraft:power": 3
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 3
+          }
+        },
+        "head": {
+          "item": "minecraft:diamond_helmet",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "feet": {
+          "item": "minecraft:iron_boots",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
         }
       },
-      "head": {
-        "item": "minecraft:diamond_helmet",
-        "enchantments": {
-          "minecraft:protection": 3
-        }
-      },
-      "chest": "tabard",
-      "legs": {
-        "item": "minecraft:iron_leggings",
-        "enchantments": {
-          "minecraft:protection": 3
-        }
-      },
-      "feet": {
-        "item": "minecraft:iron_boots",
-        "enchantments": {
-          "minecraft:protection": 2
+      {
+        "mainhand": {
+          "item": "minecraft:crossbow",
+          "enchantments": {
+            "minecraft:quick_charge": 1,
+            "minecraft:piercing": 1
+          }
+        },
+        "head": {
+          "item": "minecraft:diamond_helmet",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "feet": {
+          "item": "minecraft:iron_boots",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
         }
       }
-    },
+    ],
     "captain": {
       "mainhand": {
         "item": "minecraft:netherite_sword",

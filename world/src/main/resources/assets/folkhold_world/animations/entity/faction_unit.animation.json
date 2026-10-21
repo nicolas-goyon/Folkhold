@@ -234,6 +234,117 @@
         }
       }
     },
+    "attack.crossbow_charge": {
+      "loop": "hold_on_last_frame",
+      "animation_length": 1.25,
+      "bones": {
+        "rightArm": {
+          "rotation": {
+            "0.0": [
+              -56,
+              -46,
+              0
+            ],
+            "1.25": [
+              -56,
+              -46,
+              0
+            ]
+          }
+        },
+        "leftArm": {
+          "rotation": {
+            "0.0": [
+              -56,
+              23,
+              0
+            ],
+            "1.25": [
+              -90,
+              49,
+              0
+            ]
+          }
+        }
+      }
+    },
+    "attack.crossbow_aim": {
+      "loop": "hold_on_last_frame",
+      "animation_length": 0.15,
+      "bones": {
+        "rightArm": {
+          "rotation": {
+            "0.0": [
+              -56,
+              -46,
+              0
+            ],
+            "0.15": [
+              -84,
+              -17,
+              0
+            ]
+          }
+        },
+        "leftArm": {
+          "rotation": {
+            "0.0": [
+              -90,
+              49,
+              0
+            ],
+            "0.15": [
+              -86,
+              34,
+              0
+            ]
+          }
+        }
+      }
+    },
+    "attack.crossbow_shoot": {
+      "animation_length": 0.3,
+      "bones": {
+        "rightArm": {
+          "rotation": {
+            "0.0": [
+              -84,
+              -17,
+              0
+            ],
+            "0.05": [
+              -100,
+              -17,
+              0
+            ],
+            "0.3": [
+              -84,
+              -17,
+              0
+            ]
+          }
+        },
+        "leftArm": {
+          "rotation": {
+            "0.0": [
+              -86,
+              34,
+              0
+            ],
+            "0.05": [
+              -102,
+              34,
+              0
+            ],
+            "0.3": [
+              -86,
+              34,
+              0
+            ]
+          }
+        }
+      }
+    },
     "misc.hurt": {
       "animation_length": 0.3,
       "bones": {

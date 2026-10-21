@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import java.io.IOException;
 import java.io.Reader;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
@@ -57,14 +59,15 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  * The level table selects the set of each level ({@code equipment} in {@code levels.json}). A set gives the items of
  * each garrison role. A slot ({@code mainhand}, {@code offhand}, {@code head}, {@code chest}, {@code legs},
  * {@code feet}) gives an item id, or an object with the item id, its enchantments and its potion. A slot that is not
- * in the set stays empty. Two values have a special meaning:
+ * in the set stays empty. A role can also give a list of variants, for example a bow and a crossbow for the archers:
+ * each unit takes one variant, from its id. Two values have a special meaning:
  * <ul>
  *   <li>{@code tabard}: a leather chestplate in the color of the faction of the unit;</li>
  *   <li>{@code banner}: the banner of the faction of the unit.</li>
  * </ul>
  * A unit with a set that is not in the file, or a role that is not in its set, gets the items of its role in the set
- * {@code hamlet} of {@link #DEFAULT}. The archers need a bow in the main hand. The faction golem has no equipment: its
- * role has an empty object.
+ * {@code hamlet} of {@link #DEFAULT}. The archers need a bow or a crossbow in the main hand. The faction golem has no
+ * equipment: its role has an empty object.
  */
 public final class GarrisonEquipment extends SimplePreparableReloadListener<GarrisonEquipment.Sets> {
     public static final ResourceLocation FILE =
@@ -130,11 +133,11 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
     }
 
     /**
-     * The equipment sets: for each set id, the pieces of each role.
+     * The equipment sets: for each set id, the variants of each role. A variant gives the piece of each slot.
      *
-     * @param sets the pieces of each slot, by role id, by set id
+     * @param sets the variants of each role, by role id, by set id. Each role has one variant or more.
      */
-    public record Sets(Map<String, Map<String, Map<EquipmentSlot, Piece>>> sets) {
+    public record Sets(Map<String, Map<String, List<Map<EquipmentSlot, Piece>>>> sets) {
         public Sets {
             sets = Map.copyOf(sets);
         }
@@ -145,19 +148,43 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
         }
 
         /**
-         * The pieces of a role in a set. An unknown set, or a role that is not in the set, gives the pieces of the
-         * role in the set {@link #DEFAULT_SET} of {@link #DEFAULT}.
+         * The variants of a role in a set. An unknown set, or a role that is not in the set, gives the variants of
+         * the role in the set {@link #DEFAULT_SET} of {@link #DEFAULT}.
+         *
+         * @param set  the id of the set
+         * @param role the role of the unit
+         * @return the variants, one or more
+         */
+        public List<Map<EquipmentSlot, Piece>> variants(String set, GarrisonRole role) {
+            List<Map<EquipmentSlot, Piece>> variants = sets.getOrDefault(set, Map.of()).get(role.serializedName());
+            if (variants != null && !variants.isEmpty()) {
+                return variants;
+            }
+            return DEFAULT.sets.get(DEFAULT_SET).getOrDefault(role.serializedName(), List.of(Map.of()));
+        }
+
+        /**
+         * The pieces of the first variant of a role in a set (see {@link #variants}).
          *
          * @param set  the id of the set
          * @param role the role of the unit
          * @return the piece of each slot
          */
         public Map<EquipmentSlot, Piece> pieces(String set, GarrisonRole role) {
-            Map<EquipmentSlot, Piece> pieces = sets.getOrDefault(set, Map.of()).get(role.serializedName());
-            if (pieces != null) {
-                return pieces;
-            }
-            return DEFAULT.sets.get(DEFAULT_SET).getOrDefault(role.serializedName(), Map.of());
+            return variants(set, role).get(0);
+        }
+
+        /**
+         * The pieces of the variant of a unit: the id of the unit selects one variant of its role.
+         *
+         * @param set    the id of the set
+         * @param role   the role of the unit
+         * @param unitId the id of the unit
+         * @return the piece of each slot
+         */
+        public Map<EquipmentSlot, Piece> pieces(String set, GarrisonRole role, UUID unitId) {
+            List<Map<EquipmentSlot, Piece>> variants = variants(set, role);
+            return variants.get(Math.floorMod(unitId.hashCode(), variants.size()));
         }
     }
 
@@ -167,17 +194,17 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
 
     /** The equipment of the units of a hamlet. */
     public static final Sets DEFAULT = new Sets(Map.of(DEFAULT_SET, Map.of(
-            GarrisonRole.GUARD.serializedName(), pieces(Items.IRON_SWORD, Items.SHIELD, Items.IRON_HELMET, TABARD,
-                    Items.IRON_LEGGINGS, Items.IRON_BOOTS),
-            GarrisonRole.ARCHER.serializedName(), pieces(Items.BOW, null, Items.CHAINMAIL_HELMET, TABARD,
-                    Items.CHAINMAIL_LEGGINGS, Items.LEATHER_BOOTS),
-            GarrisonRole.CAPTAIN.serializedName(), pieces(Items.IRON_SWORD, Items.SHIELD, BANNER,
-                    Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS),
-            GarrisonRole.HEALER.serializedName(), pieces(HEALING_POTION, null, null, TABARD,
-                    Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS),
-            GarrisonRole.GOLEM.serializedName(), Map.of(),
-            GarrisonRole.RIDER.serializedName(), pieces(Items.IRON_SWORD, null, Items.CHAINMAIL_HELMET, TABARD,
-                    Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS))));
+            GarrisonRole.GUARD.serializedName(), List.of(pieces(Items.IRON_SWORD, Items.SHIELD, Items.IRON_HELMET,
+                    TABARD, Items.IRON_LEGGINGS, Items.IRON_BOOTS)),
+            GarrisonRole.ARCHER.serializedName(), List.of(pieces(Items.BOW, null, Items.CHAINMAIL_HELMET, TABARD,
+                    Items.CHAINMAIL_LEGGINGS, Items.LEATHER_BOOTS)),
+            GarrisonRole.CAPTAIN.serializedName(), List.of(pieces(Items.IRON_SWORD, Items.SHIELD, BANNER,
+                    Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS)),
+            GarrisonRole.HEALER.serializedName(), List.of(pieces(HEALING_POTION, null, null, TABARD,
+                    Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS)),
+            GarrisonRole.GOLEM.serializedName(), List.of(Map.of()),
+            GarrisonRole.RIDER.serializedName(), List.of(pieces(Items.IRON_SWORD, null, Items.CHAINMAIL_HELMET,
+                    TABARD, Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS)))));
 
     private static Sets current = DEFAULT;
 
@@ -191,13 +218,14 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
     }
 
     /**
-     * Puts the items of a set in the equipment slots of a unit. A slot that is not in the set becomes empty.
+     * Puts the items of a set in the equipment slots of a unit. A slot that is not in the set becomes empty. When the
+     * role has variants, the id of the unit selects one.
      *
      * @param unit the unit
      * @param set  the id of the set
      */
     public static void equip(FactionUnit unit, String set) {
-        Map<EquipmentSlot, Piece> pieces = current.pieces(set, unit.role());
+        Map<EquipmentSlot, Piece> pieces = current.pieces(set, unit.role(), unit.getUUID());
         for (EquipmentSlot slot : SLOTS) {
             Piece piece = pieces.get(slot);
             unit.setItemSlot(slot, piece == null ? ItemStack.EMPTY : piece.create(unit));
@@ -233,19 +261,34 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
      * @throws RuntimeException if the content is not valid: unknown role, slot or item
      */
     public static Sets parse(JsonObject json) {
-        Map<String, Map<String, Map<EquipmentSlot, Piece>>> sets = new LinkedHashMap<>();
+        Map<String, Map<String, List<Map<EquipmentSlot, Piece>>>> sets = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> set : json.entrySet()) {
-            Map<String, Map<EquipmentSlot, Piece>> roles = new HashMap<>();
+            Map<String, List<Map<EquipmentSlot, Piece>>> roles = new HashMap<>();
             for (Map.Entry<String, JsonElement> role : GsonHelper.convertToJsonObject(set.getValue(), set.getKey())
                     .entrySet()) {
                 if (GarrisonRole.fromSerializedName(role.getKey()).isEmpty()) {
                     throw new IllegalArgumentException("Unknown garrison role " + role.getKey() + " in " + set.getKey());
                 }
-                roles.put(role.getKey(), parsePieces(GsonHelper.convertToJsonObject(role.getValue(), role.getKey())));
+                roles.put(role.getKey(), parseVariants(role.getValue(), role.getKey()));
             }
             sets.put(set.getKey(), Map.copyOf(roles));
         }
         return new Sets(sets);
+    }
+
+    /** The variants of a role: one object, or a list of objects with one object or more. */
+    private static List<Map<EquipmentSlot, Piece>> parseVariants(JsonElement json, String role) {
+        if (!json.isJsonArray()) {
+            return List.of(parsePieces(GsonHelper.convertToJsonObject(json, role)));
+        }
+        List<Map<EquipmentSlot, Piece>> variants = new ArrayList<>();
+        for (JsonElement variant : json.getAsJsonArray()) {
+            variants.add(parsePieces(GsonHelper.convertToJsonObject(variant, role)));
+        }
+        if (variants.isEmpty()) {
+            throw new IllegalArgumentException("The role " + role + " has an empty list of variants");
+        }
+        return List.copyOf(variants);
     }
 
     private static Map<EquipmentSlot, Piece> parsePieces(JsonObject json) {
