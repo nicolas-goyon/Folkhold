@@ -346,7 +346,7 @@ H = 10
 
 
 def building_sign(t, x, y, z, kind, facing="north"):
-    """The building sign of a kind (see tools/textures/building_signs.py)."""
+    """The building sign of a kind (see tools/pixvox/building_signs.py)."""
     t.set(x, y, z, f"{BLOCKS}:building_sign_{kind}", {"facing": facing})
 
 
