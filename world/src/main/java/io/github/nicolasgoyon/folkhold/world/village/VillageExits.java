@@ -58,7 +58,7 @@ public final class VillageExits {
      * The approach of a gate of the palisade.
      *
      * @param point the position outside the gate, {@link #APPROACH_DISTANCE} blocks from its middle, at the level of
-     *              the feet on the terrain
+     *              the feet on the terrain. In water, the point is at the surface: a raider swims there.
      * @param gates the fence gates of the gate, side by side
      */
     public record Approach(BlockPos point, List<BlockPos> gates) {
@@ -90,11 +90,25 @@ public final class VillageExits {
             BlockPos middle = exit.middle();
             BlockPos outside = middle.relative(exit.out(), APPROACH_DISTANCE);
             if (level.isLoaded(outside)) {
-                int feet = terrain(level, outside, middle.getY());
-                approaches.add(new Approach(outside.atY(feet), List.copyOf(exit.columns())));
+                BlockPos point = surface(level, outside.atY(terrain(level, outside, middle.getY())));
+                approaches.add(new Approach(point, List.copyOf(exit.columns())));
             }
         }
         return approaches;
+    }
+
+    /**
+     * The first position with no fluid at or above a position: the surface of the water. A position with no fluid
+     * does not change. The search stops at {@link #MAX_STEPS} + {@link #MAX_SUPPORT} blocks up, the depth of the
+     * search of {@link #terrain}.
+     */
+    private static BlockPos surface(ServerLevel level, BlockPos pos) {
+        BlockPos.MutableBlockPos surface = pos.mutable();
+        int top = pos.getY() + MAX_STEPS + MAX_SUPPORT;
+        while (surface.getY() < top && !level.getFluidState(surface).isEmpty()) {
+            surface.move(Direction.UP);
+        }
+        return surface.immutable();
     }
 
     /**

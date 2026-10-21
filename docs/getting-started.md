@@ -236,12 +236,13 @@ python3 tools/textures/villager_professions.py
 
 ## Test structures
 
-The GameTest templates `empty`, `arena` and `arena_large` are boxes of air. The tests build their floor and their walls. The script writes a template:
+The GameTest templates `empty`, `arena`, `arena_large` and `arena_huge` are boxes of air. The tests build their floor and their walls. The script writes a template:
 
 ```bash
 python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/empty.nbt
 python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16
 python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena_large.nbt --size 32 4 32
+python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena_huge.nbt --size 56 4 56
 ```
 
 The workflow **Generated files** runs all the scripts of `tools/` and fails when their output differs from the repository: commit the output of a script with the script.
