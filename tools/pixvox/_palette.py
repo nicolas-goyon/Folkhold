@@ -1,4 +1,4 @@
-"""The colors of the Folkhold blocks: the materials of the villages (spruce, stone, iron, gold)."""
+"""The colors of the Folkhold blocks: the materials of the villages (wood, stone, bricks, iron, gold)."""
 from pixvox import ramp
 
 # Stripped spruce: the frames of the houses and the posts.
@@ -7,10 +7,21 @@ SPRUCE = ramp("#8a6844", n=5, spread=0.28, hue_shift=14)
 SPRUCE_DARK = ramp("#5a3f27", n=5, spread=0.30, hue_shift=12)
 # Dark oak: the chests and the roofs.
 DARK_OAK = ramp("#4c3420", n=5, spread=0.32, hue_shift=12)
+# Oak planks and stripped oak of the farms.
+OAK = ramp("#a4834f", n=5, spread=0.28, hue_shift=14)
+# Oak bark.
+OAK_BARK = ramp("#62492c", n=5, spread=0.30, hue_shift=12)
 # Grey stone of the bases and of the plaza.
 STONE = ramp("#83858a", n=5, spread=0.20, hue_shift=10, tint=0.004)
+# Light polished andesite.
+ANDESITE = ramp("#8f9294", n=5, spread=0.16, hue_shift=8, tint=0.004)
 # Deepslate of the bank walls.
 DEEPSLATE = ramp("#4d4f58", n=5, spread=0.26, hue_shift=12, tint=0.006)
+# Polished blackstone of the bank.
+BLACKSTONE = ramp("#3b3540", n=5, spread=0.26, hue_shift=10, tint=0.008)
+# Red bricks of the forge, and their light mortar.
+BRICK = ramp("#985543", n=5, spread=0.26, hue_shift=12)
+MORTAR = ramp("#a59f97", n=3, spread=0.12, hue_shift=8)
 # Wrought iron of the bands, the frames and the rivets.
 IRON = ramp("#646a73", n=5, spread=0.44, hue_shift=10, tint=0.012)
 # Gold of the locks and of the emblems.

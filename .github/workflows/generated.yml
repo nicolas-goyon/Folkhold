@@ -36,7 +36,7 @@ jobs:
         run: |
           python3 tools/structures/village.py
           python3 tools/models/quest_board.py
-          python3 tools/textures/building_signs.py
+          python3 tools/pixvox/building_signs.py
           python3 tools/textures/villager_professions.py
           python3 tools/textures/golem_armband.py
           python3 tools/pixvox/export.py

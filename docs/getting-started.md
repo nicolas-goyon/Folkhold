@@ -226,23 +226,29 @@ python3 tools/models/quest_board.py
 
 ## Textures from a script
 
-The textures of the building signs (library `blocks`) and of the villager and zombie villager professions (world mod) come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the loot tables, the lang keys and the tag of the signs. Change a script, then run it:
+Scripts make the textures of the villager and zombie villager professions and the armband of the faction golem (world mod). Pillow is in the container. Change a script, then run it:
 
 ```bash
-python3 tools/textures/building_signs.py
 python3 tools/textures/villager_professions.py
+python3 tools/textures/golem_armband.py
 ```
 
 ## Blocks from PixVox
 
-The village heart, the watch post, the bank chest, the bank wall and the brazier (library `blocks`) come from the descriptions in `tools/pixvox`. [PixVox](https://github.com/nicolas-goyon/PixVox) makes them: a description is a volume of voxels in Python, and PixVox reads the texture of each face on the volume. PixVox renders each block as the game does, checks the export, and makes a review board. The container has PixVox. Change a description, then run the export:
+These blocks of the library `blocks` come from the descriptions in `tools/pixvox`: village heart, watch post, bank chest, bank wall, brazier and building signs. [PixVox](https://github.com/nicolas-goyon/PixVox) makes them: a description is a volume of voxels in Python, and PixVox reads the texture of each face on the volume. PixVox renders each block as the game does, checks the export, and makes a review board. The container has PixVox. Change a description, then run the export:
 
 ```bash
 python3 tools/pixvox/export.py            # models/block/<model>.json and textures/block/<model>/
 python3 tools/pixvox/export.py --review   # also the review boards, in build/pixvox
 ```
 
-A description can make more than one model: the brazier has a lit model (`brazier_lit`) and a model that does not burn (`brazier`). The block states and the item models do not come from PixVox. Look at the review board of each changed model (`build/pixvox/<model>.review.png`) before the commit. An animated model also has an animation board (`<model>.anim.png`). Outside the container, install PixVox first: `pip install -r tools/pixvox/requirements.txt`.
+A description can make more than one model. The brazier has a lit model (`brazier_lit`) and a model that does not burn (`brazier`). The building signs have a model for each kind of building (`building_sign_<kind>`). The block states and the item models do not come from PixVox. The description of the building signs also runs as a script. It writes the other resources of the signs: block states, item models, loot tables, the tag and the names.
+
+```bash
+python3 tools/pixvox/building_signs.py
+```
+
+Look at the review board of each changed model (`build/pixvox/<model>.review.png`) before the commit. An animated model also has an animation board (`<model>.anim.png`). Outside the container, install PixVox first: `pip install -r tools/pixvox/requirements.txt`.
 
 ## Test structures
 
