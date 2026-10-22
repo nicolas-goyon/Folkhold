@@ -300,7 +300,7 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
 | Inhabitant | Population, economic job | Day/night routine, runs away from fights, takes shelter in buildings |
 | Merchant | Trade with the player | Sells the stocks of the village, buys the items of the player. Compatible with the vanilla villager systems (raids, Hero of the Village, zombie conversion, iron golems, gossip) |
 | Guard | Basic defense | Fixed patrol, sword and shield, chases in a limited radius |
-| Archer | Ranged defense | Takes position on towers and walls. Priority target: hostile players |
+| Archer | Ranged defense | Takes position on towers and walls. Priority target: hostile players. A bow, or a crossbow in the larger villages: it charges the crossbow, aims and shoots a faster bolt |
 | Rider | Interceptor | Rides a faction horse with a saddle and a leather horse armor in the color of the faction. Patrols on a ring outside the walls, and goes through the gates on its horse. Charges the threats near the village at a gallop, then goes back to its patrol. When its horse dies, fights on foot and gets a new horse after the refill delay. A player cannot ride the horse. A horse with no rider disappears after 30 seconds. From the Town tier |
 | Faction golem | Heavy unit | Model and animations of the vanilla iron golem, with an armband in the color of the faction. Guards a post inside a gate, or the center when the village has more golems than gates. Very resistant and slow. Chases a target only near its post. Its attack throws the target up. In a village with faction golems, the villagers do not call vanilla iron golems. From the City tier |
 | Captain | Garrison leader | Morale buff, general alarm. Its death lowers morale (some units run away) |
@@ -329,7 +329,7 @@ All values are configurable, with a global difficulty multiplier. This lets us a
 - the chase radius and the knockback resistance of the faction golem: server config;
 - the patrol radius of the riders, and the health and the speed of their horses: server config;
 - the number of units of each role for each level: `garrison` in the level table (`levels.json`);
-- the equipment of each role for each level: the equipment set of the level (`equipment` in `levels.json`), defined in `garrison_equipment.json`.
+- the equipment of each role for each level: the equipment set of the level (`equipment` in `levels.json`), defined in `garrison_equipment.json`. A role can have variants: each unit takes one variant, from its id. The archers of the town, the city and the capital have a bow variant and a crossbow variant.
 
 The garrison and its equipment grow with the tier. The units do not drop their equipment.
 
@@ -337,9 +337,9 @@ The garrison and its equipment grow with the tier. The units do not drop their e
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Hamlet | 2 | 2 | 1 | 0 | 0 | 0 | Iron (guards, captain) and chainmail (archers) |
 | Village | 3 | 2 | 1 | 1 | 0 | 0 | Same, with Protection I and Power I |
-| Town | 4 | 3 | 1 | 1 | 0 | 1 | Diamond swords, Protection I to II |
-| City | 5 | 4 | 1 | 1 | 1 | 2 | Diamond (guards, captain), Protection II, Sharpness II, Power II |
-| Capital | 6 | 5 | 1 | 2 | 2 | 3 | Diamond and netherite, Protection III, Sharpness III, Power III |
+| Town | 4 | 3 | 1 | 1 | 0 | 1 | Diamond swords, Protection I to II, a crossbow for some archers |
+| City | 5 | 4 | 1 | 1 | 1 | 2 | Diamond (guards, captain), Protection II, Sharpness II, Power II, Quick Charge I |
+| Capital | 6 | 5 | 1 | 2 | 2 | 3 | Diamond and netherite, Protection III, Sharpness III, Power III, Quick Charge I and Piercing I |
 
 Most villages start as a hamlet. The garrison of a hamlet keeps the difficulty target.
 

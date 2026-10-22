@@ -53,6 +53,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BowItem;
+import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.DyedItemColor;
@@ -93,6 +94,13 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final RawAnimation SWING = RawAnimation.begin().thenPlay("attack.swing");
     private static final RawAnimation BLOCK = RawAnimation.begin().thenPlay("attack.block");
     private static final RawAnimation DRAW_BOW = RawAnimation.begin().thenPlay("attack.charge");
+    private static final RawAnimation CHARGE_CROSSBOW = RawAnimation.begin().thenPlay("attack.crossbow_charge");
+    private static final RawAnimation AIM_CROSSBOW = RawAnimation.begin().thenPlay("attack.crossbow_aim");
+    private static final RawAnimation SHOOT_CROSSBOW = RawAnimation.begin().thenPlay("attack.crossbow_shoot");
+    /** The controller of the hold animations (shield, bow, crossbow). */
+    public static final String HOLD_CONTROLLER = "hold";
+    /** The animation of the shot of a crossbow, on {@link #HOLD_CONTROLLER}. The server triggers it. */
+    public static final String CROSSBOW_SHOT = "crossbow_shot";
     private static final RawAnimation HURT = RawAnimation.begin().thenPlay("misc.hurt");
 
     private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
@@ -492,7 +500,9 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
      * <ul>
      *   <li>movement: walk or idle (see {@link #movementController()});</li>
      *   <li>attack: wind-up and swing of the weapon arm, when the unit swings;</li>
-     *   <li>hold: shield up while the unit blocks, bow drawn while an archer has a target;</li>
+     *   <li>hold: shield up while the unit blocks, bow drawn while an archer has a target. With a crossbow: the
+     *       charge, then the aim while the crossbow holds a bolt and the archer has a target. The shot is a triggered
+     *       animation ({@link #CROSSBOW_SHOT}).</li>
      *   <li>hurt: short step back when the unit takes damage.</li>
      * </ul>
      */
@@ -506,15 +516,24 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             state.getController().forceAnimationReset();
             return PlayState.STOP;
         }));
-        controllers.add(new AnimationController<>(this, "hold", 3, state -> {
+        controllers.add(new AnimationController<>(this, HOLD_CONTROLLER, 3, state -> {
             if (isBlocking()) {
                 return state.setAndContinue(BLOCK);
             }
-            if (isAggressive() && getMainHandItem().getItem() instanceof BowItem) {
+            ItemStack weapon = getMainHandItem();
+            if (isAggressive() && weapon.getItem() instanceof BowItem) {
                 return state.setAndContinue(DRAW_BOW);
             }
+            if (weapon.getItem() instanceof CrossbowItem) {
+                if (isChargingCrossbow()) {
+                    return state.setAndContinue(CHARGE_CROSSBOW);
+                }
+                if (isAggressive() && CrossbowItem.isCharged(weapon)) {
+                    return state.setAndContinue(AIM_CROSSBOW);
+                }
+            }
             return PlayState.STOP;
-        }));
+        }).triggerableAnim(CROSSBOW_SHOT, SHOOT_CROSSBOW));
         controllers.add(new AnimationController<>(this, "hurt", 0, state -> {
             if (hurtTime > 0) {
                 return state.setAndContinue(HURT);
@@ -522,6 +541,11 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             state.getController().forceAnimationReset();
             return PlayState.STOP;
         }));
+    }
+
+    /** True while the unit charges a crossbow. Only an archer charges a crossbow (see {@link ArcherEntity}). */
+    public boolean isChargingCrossbow() {
+        return false;
     }
 
     /** The controller of the movement animations: walk when the unit moves, else idle. */

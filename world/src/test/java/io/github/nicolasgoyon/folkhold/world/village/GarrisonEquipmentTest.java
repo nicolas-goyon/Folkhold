@@ -14,8 +14,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Items;
@@ -51,15 +55,55 @@ class GarrisonEquipmentTest {
                 dataFile().sets().get(GarrisonEquipment.DEFAULT_SET));
     }
 
-    /** The archers of all the sets have a bow: their attack needs it. */
+    /** Each variant of the archers of all the sets has a bow or a crossbow: their attack needs it. */
     @Test
-    void archersHaveABow() throws IOException {
+    void archersHaveABowOrACrossbow() throws IOException {
         Sets sets = dataFile();
 
         for (String set : sets.ids()) {
-            Piece weapon = sets.pieces(set, GarrisonRole.ARCHER).get(EquipmentSlot.MAINHAND);
-            assertEquals("minecraft:bow", weapon.item(), set);
+            for (Map<EquipmentSlot, Piece> variant : sets.variants(set, GarrisonRole.ARCHER)) {
+                String weapon = variant.get(EquipmentSlot.MAINHAND).item();
+                assertTrue(weapon.equals("minecraft:bow") || weapon.equals("minecraft:crossbow"), set + ": " + weapon);
+            }
         }
+    }
+
+    /** The archers of the town, the city and the capital have a bow and a crossbow. The smaller villages use a bow. */
+    @Test
+    void largerVillagesHaveCrossbowArchers() throws IOException {
+        Sets sets = dataFile();
+
+        for (String set : List.of("town", "city", "capital")) {
+            List<String> weapons = sets.variants(set, GarrisonRole.ARCHER).stream()
+                    .map(variant -> variant.get(EquipmentSlot.MAINHAND).item()).toList();
+            assertEquals(List.of("minecraft:bow", "minecraft:crossbow"), weapons, set);
+        }
+        for (String set : List.of("hamlet", "village")) {
+            assertEquals(1, sets.variants(set, GarrisonRole.ARCHER).size(), set);
+        }
+    }
+
+    /**
+     * A role can have a list of variants. The id of a unit selects one variant: the same id gives the same variant,
+     * and the ids of many units give all the variants.
+     */
+    @Test
+    void unitIdSelectsAVariant() {
+        Sets sets = parse("""
+                {"elite": {"archer": [{"mainhand": "minecraft:bow"}, {"mainhand": "minecraft:crossbow"}]}}
+                """);
+
+        assertEquals(2, sets.variants("elite", GarrisonRole.ARCHER).size());
+        assertEquals("minecraft:bow", sets.pieces("elite", GarrisonRole.ARCHER).get(EquipmentSlot.MAINHAND).item());
+        Set<String> weapons = new HashSet<>();
+        for (int i = 0; i < 32; i++) {
+            UUID id = new UUID(0L, i);
+            Piece weapon = sets.pieces("elite", GarrisonRole.ARCHER, id).get(EquipmentSlot.MAINHAND);
+            assertEquals(weapon, sets.pieces("elite", GarrisonRole.ARCHER, id).get(EquipmentSlot.MAINHAND));
+            weapons.add(weapon.item());
+        }
+        assertEquals(Set.of("minecraft:bow", "minecraft:crossbow"), weapons);
+        assertThrows(IllegalArgumentException.class, () -> parse("{\"a\": {\"archer\": []}}"));
     }
 
     /** A piece can have enchantments. An unknown set or role gives the pieces of the role in the default set. */
