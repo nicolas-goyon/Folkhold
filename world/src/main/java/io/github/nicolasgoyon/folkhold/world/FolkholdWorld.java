@@ -41,6 +41,7 @@ import io.github.nicolasgoyon.folkhold.world.testworld.TestWorldPack;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.VanillaGolems;
+import io.github.nicolasgoyon.folkhold.world.village.VillageDetachments;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
@@ -101,6 +102,9 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerStarted);
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerStopped);
         NeoForge.EVENT_BUS.addListener(SettlementDiscovery::onServerTick);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onDeath);
+        NeoForge.EVENT_BUS.addListener(VillageDetachments::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerStopped);
         NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopping);

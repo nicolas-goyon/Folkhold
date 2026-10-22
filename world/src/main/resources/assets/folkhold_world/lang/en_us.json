@@ -270,6 +270,8 @@
   "folkhold_world.configuration.merchantAllyFactor": "Price factor for an ally",
   "entity.minecraft.villager.folkhold_world.inhabitant": "Inhabitant",
   "folkhold_world.configuration.maxInhabitants": "Maximum inhabitants for each village",
+  "folkhold_world.configuration.detachment": "Detachments",
+  "folkhold_world.configuration.detachmentGuards": "Guards in a vanilla village",
   "screen.folkhold_world.admin.title": "Admin · Settlements",
   "screen.folkhold_world.admin.filter": "Name, id or faction",
   "screen.folkhold_world.admin.min_level": "Minimum level",

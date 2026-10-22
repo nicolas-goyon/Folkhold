@@ -270,6 +270,8 @@
   "folkhold_world.configuration.merchantAllyFactor": "Facteur de prix pour un allié",
   "entity.minecraft.villager.folkhold_world.inhabitant": "Habitant",
   "folkhold_world.configuration.maxInhabitants": "Habitants maximum par village",
+  "folkhold_world.configuration.detachment": "Détachements",
+  "folkhold_world.configuration.detachmentGuards": "Gardes dans un village vanilla",
   "screen.folkhold_world.admin.title": "Admin · Colonies",
   "screen.folkhold_world.admin.filter": "Nom, id ou faction",
   "screen.folkhold_world.admin.min_level": "Niveau minimum",
