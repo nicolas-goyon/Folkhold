@@ -269,7 +269,7 @@
   "folkhold_world.configuration.merchantFriendFactor": "Facteur de prix pour un ami",
   "folkhold_world.configuration.merchantAllyFactor": "Facteur de prix pour un allié",
   "entity.minecraft.villager.folkhold_world.inhabitant": "Habitant",
-  "folkhold_world.configuration.maxInhabitants": "Habitants maximum par village",
+  "folkhold_world.configuration.inhabitantLimit": "Limite d'habitants par village (0 : aucune limite)",
   "folkhold_world.configuration.detachment": "Détachements",
   "folkhold_world.configuration.detachmentGuards": "Gardes dans un village vanilla",
   "screen.folkhold_world.admin.title": "Admin · Colonies",
