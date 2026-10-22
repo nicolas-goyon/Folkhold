@@ -234,6 +234,17 @@ python3 tools/textures/building_signs.py
 python3 tools/textures/villager_professions.py
 ```
 
+## Blocks from PixVox
+
+The village heart, the watch post, the bank chest and the bank wall (library `blocks`) come from the descriptions in `tools/pixvox`. [PixVox](https://github.com/nicolas-goyon/PixVox) makes them: a description is a volume of voxels in Python, and PixVox reads the texture of each face on the volume. PixVox renders each block as the game does, checks the export, and makes a review board. The container has PixVox. Change a description, then run the export:
+
+```bash
+python3 tools/pixvox/export.py            # models/block/<block>.json and textures/block/<block>/
+python3 tools/pixvox/export.py --review   # also the review boards, in build/pixvox
+```
+
+Look at the review board of each changed block (`build/pixvox/<block>.review.png`) before the commit. Outside the container, install PixVox first: `pip install -r tools/pixvox/requirements.txt`.
+
 ## Test structures
 
 The GameTest templates `empty`, `arena` and `arena_large` are boxes of air. The tests build their floor and their walls. The script writes a template:

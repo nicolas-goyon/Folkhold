@@ -1,7 +1,88 @@
 {
-  "parent": "minecraft:block/cube_column",
+  "parent": "minecraft:block/block",
   "textures": {
-    "end": "minecraft:block/target_top",
-    "side": "minecraft:block/stripped_spruce_log"
-  }
+    "up": "folkhold_blocks:block/watch_post/top",
+    "down": "folkhold_blocks:block/watch_post/bottom",
+    "north": "folkhold_blocks:block/watch_post/north",
+    "south": "folkhold_blocks:block/watch_post/south",
+    "west": "folkhold_blocks:block/watch_post/west",
+    "east": "folkhold_blocks:block/watch_post/east",
+    "particle": "folkhold_blocks:block/watch_post/north"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        16,
+        16
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#up",
+          "cullface": "up"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#down",
+          "cullface": "down"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#north",
+          "cullface": "north"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#south",
+          "cullface": "south"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#west",
+          "cullface": "west"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#east",
+          "cullface": "east"
+        }
+      }
+    }
+  ]
 }
