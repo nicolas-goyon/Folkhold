@@ -5,6 +5,8 @@ import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildBlock;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildPos;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Step;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.StepType;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -13,10 +15,12 @@ import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRun;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRuns;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -63,6 +67,10 @@ public final class ConstructionGameTests {
     /** The test waits this number of ticks after the last step: the ticks of the falling blocks and the fluids. */
     private static final int SETTLE_TICKS = 10;
     private static final BlockState AIR = Blocks.AIR.defaultBlockState();
+    /** The scaffolding stands at this horizontal distance from the blocks of the target or nearer. */
+    private static final int SCAFFOLDING_MARGIN = Reach.DEFAULT.horizontal();
+    /** The first layer of the roof of the cottage, from the origin of the template. */
+    private static final int COTTAGE_ROOF_LAYER = 5;
 
     private ConstructionGameTests() {
     }
@@ -144,8 +152,7 @@ public final class ConstructionGameTests {
                 "The target must keep the text of the sign");
         clear(level, from, to);
 
-        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level),
-                ConstructionPlanner.DEFAULT_REACH);
+        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), Reach.DEFAULT);
         helper.assertTrue(plan.warnings().isEmpty(), "The plan must have no warnings: " + plan.warnings());
         runAndCompare(helper, plan, target, from, to);
     }
@@ -190,8 +197,7 @@ public final class ConstructionGameTests {
         AABB area = AABB.encapsulatingFullBlocks(from, to).inflate(3.0);
         level.getEntitiesOfClass(ItemEntity.class, area).forEach(ItemEntity::discard);
 
-        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level),
-                ConstructionPlanner.DEFAULT_REACH);
+        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), Reach.DEFAULT);
         helper.assertTrue(plan.warnings().isEmpty(), "The plan must have no warnings: " + plan.warnings());
         helper.assertTrue(plan.count(StepType.PLACE_SCAFFOLDING) > 0, "The roof must need scaffolding");
         helper.assertTrue(plan.count(StepType.REMOVE) == 2, "The plan must remove the dirt and the sand, not "
@@ -212,12 +218,49 @@ public final class ConstructionGameTests {
         Target target = new Target(Map.of(BlockKinds.toBuildPos(high),
                 BlockKinds.describe(high, stone, Optional.empty())));
 
-        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level),
-                ConstructionPlanner.DEFAULT_REACH);
+        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), Reach.DEFAULT);
         helper.assertTrue(plan.warnings().isEmpty(), "The plan must have no warnings: " + plan.warnings());
         helper.assertTrue(plan.count(StepType.PLACE_SCAFFOLDING) > 0, "The block must need scaffolding");
         BlockPos floor = helper.absolutePos(new BlockPos(5, 1, 5));
         runAndCompare(helper, plan, target, floor, high.offset(3, 0, 3));
+    }
+
+    /**
+     * The plan of a new village house. The builder stands on the ground or on the floor of the house, and not on the
+     * top of a new wall. Thus the scaffolding comes before the roof.
+     */
+    @GameTest(template = "arena", batch = "construction_roof", skyAccess = true)
+    public static void newHouseHasScaffoldingForTheRoof(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ServerLevel level = helper.getLevel();
+        StructureTemplate template = cottage(level);
+        BlockPos origin = helper.absolutePos(new BlockPos(3, 1, 3));
+        Target target = ConstructionTargets.fromTemplate(level, template, origin, new StructurePlaceSettings());
+
+        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), Reach.DEFAULT);
+        helper.assertTrue(plan.warnings().isEmpty(), "The plan must have no warnings: " + plan.warnings());
+        Set<BuildPos> scaffolding = new HashSet<>();
+        int firstScaffolding = -1;
+        int firstRoof = -1;
+        List<Step> steps = plan.steps();
+        for (int i = 0; i < steps.size(); i++) {
+            Step step = steps.get(i);
+            if (step.type() == StepType.PLACE_SCAFFOLDING) {
+                scaffolding.add(step.pos());
+                firstScaffolding = firstScaffolding < 0 ? i : firstScaffolding;
+            } else if (step.type() == StepType.PLACE) {
+                firstRoof = firstRoof < 0 && step.pos().y() >= origin.getY() + COTTAGE_ROOF_LAYER ? i : firstRoof;
+                helper.assertTrue(step.stand().isPresent(), "No position to stand for " + step.pos());
+                BuildPos floor = step.stand().get().below();
+                // The floor of the arena, or the floor of the house.
+                boolean ground = floor.y() <= origin.getY();
+                helper.assertTrue(ground || scaffolding.contains(floor),
+                        "The builder stands on " + floor + " for " + step.pos());
+            }
+        }
+        helper.assertTrue(firstScaffolding >= 0 && firstScaffolding < firstRoof,
+                "The scaffolding must come before the roof");
+        helper.succeed();
     }
 
     /**
@@ -240,7 +283,8 @@ public final class ConstructionGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(ConstructionRuns.count() == 0, "The construction must end"))
                 .thenIdle(SETTLE_TICKS)
                 .thenExecute(() -> {
-                    checkNoScaffolding(level, origin, to, problems);
+                    checkNoScaffolding(level, origin.offset(-SCAFFOLDING_MARGIN, 0, -SCAFFOLDING_MARGIN),
+                            to.offset(SCAFFOLDING_MARGIN, 0, SCAFFOLDING_MARGIN), problems);
                     List<String> differences = templateDifferences(expected,
                             ConstructionTargets.fromLevel(level, origin, to));
                     helper.assertTrue(differences.isEmpty(), "Blocks different from the template: " + differences);
