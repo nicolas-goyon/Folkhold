@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
+import io.github.nicolasgoyon.folkhold.world.village.DetachmentData;
 import io.github.nicolasgoyon.folkhold.world.village.VillageDetachments;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.ArrayList;
@@ -19,11 +20,16 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
+import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -154,6 +160,109 @@ public final class DetachmentGameTests {
                 helper.succeed();
             });
         });
+    }
+
+    /**
+     * A dead guard comes back after the refill delay, but not while a guard of the detachment fights. The test gives
+     * the game time of the scans.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "detachment_refill")
+    public static void deadGuardComesBackWhenNoGuardFights(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        buildVillage(helper, true);
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+        BlockPos bell = helper.absolutePos(BELL);
+        removeHeartsNear(level, bell);
+        List<Settlement> settlements = new ArrayList<>();
+        settlements.add(settlement(server, chunkCenterX(bell) + OWNER_DISTANCE, bell.getZ(),
+                FactionData.get(server).factions().get(0)));
+
+        helper.runAfterDelay(2, () -> {
+            Zombie enemy = helper.spawn(EntityType.ZOMBIE, new BlockPos(14, 1, 14));
+            try {
+                long now = level.getGameTime();
+                VillageDetachments.scanAround(level, bell, SCAN, now);
+                List<FactionUnit> guards = guards(level, bell);
+                helper.assertTrue(guards.size() == 2, "The detachment must have 2 guards, not " + guards.size());
+                guards.get(0).kill();
+                FactionUnit fighter = guards.get(1);
+                long afterDelay = now + WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L + 100;
+
+                fighter.setTarget(enemy);
+                VillageDetachments.scanAround(level, bell, SCAN, afterDelay);
+                int duringFight = guards(level, bell).size();
+                fighter.setTarget(null);
+                VillageDetachments.scanAround(level, bell, SCAN, afterDelay);
+                int afterFight = guards(level, bell).size();
+
+                helper.assertTrue(duringFight == 1, "No guard must come back during a fight: " + duringFight);
+                helper.assertTrue(afterFight == 2, "The dead guard must come back after the fight: " + afterFight);
+            } finally {
+                enemy.discard();
+                cleanUp(helper, bell, settlements);
+            }
+            helper.succeed();
+        });
+    }
+
+    /**
+     * When the bell is not there any more, the detachment leaves: its guards go away. A guard of the detachment that
+     * comes back from a save joins the level while the detachment exists, and not after.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "detachment_bell")
+    public static void detachmentLeavesWhenTheBellGoesAway(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        buildVillage(helper, true);
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+        BlockPos bell = helper.absolutePos(BELL);
+        removeHeartsNear(level, bell);
+        List<Settlement> settlements = new ArrayList<>();
+        settlements.add(settlement(server, chunkCenterX(bell) + OWNER_DISTANCE, bell.getZ(),
+                FactionData.get(server).factions().get(0)));
+        CompoundTag saved = new CompoundTag();
+
+        helper.runAfterDelay(2, () -> {
+            try {
+                VillageDetachments.scanAround(level, bell, SCAN);
+                List<FactionUnit> guards = guards(level, bell);
+                helper.assertTrue(guards.size() == 2, "The detachment must have 2 guards, not " + guards.size());
+                FactionUnit guard = guards.get(0);
+                helper.assertTrue(guard.save(saved), "The guard must save");
+                guard.discard();
+                helper.assertTrue(level.addFreshEntity(load(level, saved)),
+                        "A guard of the detachment must join the level");
+                helper.setBlock(BELL, Blocks.AIR);
+            } catch (RuntimeException e) {
+                cleanUp(helper, bell, settlements);
+                throw e;
+            }
+            // The bell leaves the points of interest on the next server task.
+            helper.runAfterDelay(2, () -> {
+                try {
+                    helper.assertTrue(VillageDetachments.scanAround(level, bell, SCAN).isEmpty(),
+                            "A village with no bell must have no detachment");
+                    helper.assertTrue(DetachmentData.get(server).get(bell).isEmpty(),
+                            "The detachment of the bell must leave");
+                    helper.assertTrue(guards(level, bell).isEmpty(), "The guards must go away with the bell");
+                    helper.assertFalse(level.addFreshEntity(load(level, saved)),
+                            "A guard of a detachment that left must not join the level");
+                } finally {
+                    cleanUp(helper, bell, settlements);
+                }
+                helper.succeed();
+            });
+        });
+    }
+
+    /** An entity from its saved data. */
+    private static Entity load(ServerLevel level, CompoundTag saved) {
+        Entity entity = EntityType.loadEntityRecursive(saved, level, loaded -> loaded);
+        if (entity == null) {
+            throw new GameTestAssertException("The saved guard must load");
+        }
+        return entity;
     }
 
     /** The block X of the center of the chunk of a position. */

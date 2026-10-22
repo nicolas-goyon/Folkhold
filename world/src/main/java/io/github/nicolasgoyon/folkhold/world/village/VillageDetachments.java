@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import java.util.List;
@@ -16,6 +17,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BellBlock;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -34,10 +36,11 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *   <li>A vanilla village in a chunk that an active settlement claims gets a detachment of the faction of this
  *       settlement: {@code detachmentGuards} guards (default 2), with the equipment of a hamlet. The guards spawn
  *       near the bell and patrol around it. They use the colors and the reputation of the faction.</li>
- *   <li>The detachment follows the rules of a garrison: a dead guard comes back after {@code refillDelaySeconds}.</li>
+ *   <li>The detachment follows the rules of a garrison: a dead guard comes back after {@code refillDelaySeconds},
+ *       when no guard of the detachment fights (no guard has a target).</li>
  *   <li>When the owner of the chunk changes, the guards change their faction. When no settlement claims the chunk,
- *       the detachment leaves: its guards go away. A guard of a detachment that does not exist any more does not
- *       join the level.</li>
+ *       or when the bell is not there any more, the detachment leaves: its guards go away. A guard of a detachment
+ *       that does not exist any more does not join the level.</li>
  * </ul>
  */
 public final class VillageDetachments {
@@ -66,7 +69,8 @@ public final class VillageDetachments {
     }
 
     /**
-     * Checks the bells around a position in the loaded chunks, and updates their detachments.
+     * Checks the bells around a position in the loaded chunks, and updates their detachments. A detachment in the
+     * radius whose bell is not there any more leaves.
      *
      * @param level  the Overworld
      * @param center the center of the scan
@@ -74,19 +78,53 @@ public final class VillageDetachments {
      * @return the bells of the vanilla villages in the radius that have a detachment now
      */
     public static List<BlockPos> scanAround(ServerLevel level, BlockPos center, int radius) {
+        return scanAround(level, center, radius, level.getGameTime());
+    }
+
+    /**
+     * As {@link #scanAround(ServerLevel, BlockPos, int)}, at a given game time.
+     *
+     * @param level  the Overworld
+     * @param center the center of the scan
+     * @param radius the radius of the scan, in blocks
+     * @param now    the game time for the refill delay of the guards
+     * @return the bells of the vanilla villages in the radius that have a detachment now
+     */
+    public static List<BlockPos> scanAround(ServerLevel level, BlockPos center, int radius, long now) {
         List<BlockPos> bells = level.getPoiManager()
                 .findAll(type -> type.is(PoiTypes.MEETING), pos -> true, center, radius, PoiManager.Occupancy.ANY)
                 .map(BlockPos::immutable)
                 .toList();
         DetachmentData data = DetachmentData.get(level.getServer());
         for (BlockPos bell : bells) {
-            update(level, data, bell);
+            update(level, data, bell, now);
         }
+        removeLostBells(level, data, center, radius);
         return bells.stream().filter(bell -> data.get(bell).isPresent()).toList();
     }
 
+    /**
+     * Removes the detachments of the bells that are not there any more, in the radius of a scan: for example, a
+     * player broke or moved the bell. The method checks only the bells in ready chunks (see {@link ReadyChunks}).
+     */
+    private static void removeLostBells(ServerLevel level, DetachmentData data, BlockPos center, int radius) {
+        double radiusSquared = (double) radius * radius;
+        List<DetachmentData.Detachment> lost = data.all().stream()
+                .filter(detachment -> detachment.bell().distSqr(center) <= radiusSquared
+                        && ReadyChunks.isReady(level, detachment.bell())
+                        && !(level.getBlockState(detachment.bell()).getBlock() instanceof BellBlock))
+                .toList();
+        for (DetachmentData.Detachment detachment : lost) {
+            dismiss(level, detachment);
+            data.remove(detachment.bell());
+        }
+        if (!lost.isEmpty()) {
+            data.setDirty();
+        }
+    }
+
     /** Creates, changes or removes the detachment of a bell. */
-    private static void update(ServerLevel level, DetachmentData data, BlockPos bell) {
+    private static void update(ServerLevel level, DetachmentData data, BlockPos bell, long now) {
         Optional<String> faction = ownerFaction(level, bell);
         Optional<DetachmentData.Detachment> existing = data.get(bell);
         if (faction.isEmpty()) {
@@ -106,8 +144,8 @@ public final class VillageDetachments {
         int guards = WorldConfig.DETACHMENT_GUARDS.get();
         GarrisonTraits traits = new GarrisonTraits(Map.of(GarrisonRole.GUARD.serializedName(), guards),
                 GarrisonEquipment.DEFAULT_SET);
-        changed |= detachment.garrison().ensure(level, bell, faction.get(), true, level.getGameTime(), Map.of(),
-                traits);
+        changed |= detachment.garrison().ensure(level, bell, faction.get(), isCalm(level, detachment), now,
+                Map.of(), traits);
         // For each loaded guard: the data tag of the detachment, and the colors of its faction.
         for (Garrison.Entry entry : detachment.garrison().entries()) {
             if (!entry.isDead() && level.getEntity(entry.unitId()) instanceof FactionUnit unit) {
@@ -161,6 +199,17 @@ public final class VillageDetachments {
         }
         return level.getPoiManager().getCountInRange(type -> type.is(PoiTypes.HOME), bell, HOME_RADIUS,
                 PoiManager.Occupancy.ANY) >= MIN_HOMES;
+    }
+
+    /** True if no guard of a detachment fights: no loaded guard has a target. */
+    private static boolean isCalm(ServerLevel level, DetachmentData.Detachment detachment) {
+        for (Garrison.Entry entry : detachment.garrison().entries()) {
+            if (!entry.isDead() && level.getEntity(entry.unitId()) instanceof FactionUnit unit
+                    && unit.getTarget() != null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The guards of a detachment go away: the loaded guards leave the level now. */

@@ -188,8 +188,9 @@ The Folkhold villages are the main settlements of a territory. A vanilla village
 - A vanilla village is a bell with 2 beds or more in 32 blocks around it. A bell of a faction village does not count.
 - Every 10 seconds, the mod checks the bells in 64 blocks around each player, in the loaded chunks.
 - A vanilla village in a chunk that an active settlement claims gets 2 guards of the faction of this settlement. The setting `detachmentGuards` sets this number, and 0 turns off the detachments. The guards have the equipment of a hamlet. They spawn near the bell and patrol around it. They use the colors and the reputation of the faction: they defend the villagers against the monsters and against a hostile player.
-- A dead guard comes back after the refill delay of the garrisons.
+- A dead guard comes back after the refill delay of the garrisons, when no guard of the detachment fights.
 - When the territory changes owner, the guards change their faction. When no settlement claims the chunk, the guards go away. A vanilla village with no territory has no guards.
+- When the bell is not there any more (a player broke or moved it), the detachment of this bell leaves. A bell at a new position is a new village for the scan.
 
 ### Village styles and terrain
 
