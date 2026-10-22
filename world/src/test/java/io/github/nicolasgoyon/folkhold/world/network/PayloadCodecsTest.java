@@ -8,10 +8,18 @@ import io.netty.buffer.Unpooled;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.Vec3i;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.network.connection.ConnectionType;
 import org.junit.jupiter.api.Test;
 
@@ -102,5 +110,39 @@ class PayloadCodecsTest {
         BankPillageRequestPayload payload = new BankPillageRequestPayload(new BlockPos(1, -60, 3),
                 Component.literal("Northam"), Component.literal("Ash"), "friend", 300, "hostile", -700, 4, 2);
         assertEquals(payload, roundTrip(BankPillageRequestPayload.STREAM_CODEC, payload));
+    }
+
+    @Test
+    void constructionTemplates() {
+        ConstructionTemplatesPayload payload = new ConstructionTemplatesPayload(List.of(
+                ResourceLocation.fromNamespaceAndPath("folkhold_world", "village/house_cottage"),
+                ResourceLocation.withDefaultNamespace("igloo/top")));
+        assertEquals(payload, roundTrip(ConstructionTemplatesPayload.STREAM_CODEC, payload));
+    }
+
+    @Test
+    void constructionPreview() {
+        BlockState stairs = Blocks.OAK_STAIRS.defaultBlockState().setValue(StairBlock.FACING, Direction.EAST);
+        ConstructionPreviewPayload payload = new ConstructionPreviewPayload(
+                ResourceLocation.fromNamespaceAndPath("folkhold_world", "village/house_cottage"), new Vec3i(9, 10, 9),
+                List.of(Blocks.STONE.defaultBlockState(), stairs), List.of(new ConstructionPreviewPayload.Entry(0, 0, 0,
+                        0), new ConstructionPreviewPayload.Entry(8, 9, 8, 1)));
+        assertEquals(payload, roundTrip(ConstructionPreviewPayload.STREAM_CODEC, payload));
+    }
+
+    @Test
+    void constructionRequests() {
+        ConstructionPreviewRequestPayload request = new ConstructionPreviewRequestPayload(
+                ResourceLocation.fromNamespaceAndPath("folkhold_world", "village/bank"));
+        assertEquals(request, roundTrip(ConstructionPreviewRequestPayload.STREAM_CODEC, request));
+        ConstructionPlacePayload place = new ConstructionPlacePayload(
+                ResourceLocation.fromNamespaceAndPath("folkhold_world", "village/bank"), new BlockPos(10, -20, 300),
+                Rotation.COUNTERCLOCKWISE_90, Mirror.FRONT_BACK, 4);
+        assertEquals(place, roundTrip(ConstructionPlacePayload.STREAM_CODEC, place));
+        ConstructionStatusPayload status = new ConstructionStatusPayload(Component.literal("Too far"), false);
+        assertEquals(status, roundTrip(ConstructionStatusPayload.STREAM_CODEC, status));
+        ConstructionEndPayload end = new ConstructionEndPayload(
+                ResourceLocation.fromNamespaceAndPath("folkhold_world", "village/bank"), new BlockPos(-7, 64, 12), false);
+        assertEquals(end, roundTrip(ConstructionEndPayload.STREAM_CODEC, end));
     }
 }

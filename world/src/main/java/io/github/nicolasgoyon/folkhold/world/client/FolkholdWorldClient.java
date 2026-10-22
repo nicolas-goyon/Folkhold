@@ -38,6 +38,9 @@ public final class FolkholdWorldClient {
         modEventBus.addListener(FolkholdWorldClient::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener(FolkholdWorldClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(QuestTargetMarker::onRenderLiving);
+        modEventBus.addListener(ConstructionKeys::register);
+        NeoForge.EVENT_BUS.addListener(ConstructionGhost::onClientTick);
+        NeoForge.EVENT_BUS.addListener(ConstructionGhostRenderer::onRenderLevel);
     }
 
     /** The player leaves a world or a server: the client forgets what it knows about the world. */
@@ -46,6 +49,8 @@ public final class FolkholdWorldClient {
         ClientQuestLog.clear();
         TerritoryTitleHud.clear();
         AdminScreen.clear();
+        ConstructionScreen.clear();
+        ConstructionGhost.clear();
         FactionGolemModel.forgetLevel();
     }
 
@@ -56,6 +61,8 @@ public final class FolkholdWorldClient {
                 TerritoryHud::render);
         event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "quests"),
                 QuestHud::render);
+        event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "construction_ghost"),
+                ConstructionGhost::renderHud);
     }
 
     private static void onRegisterLayers(EntityRenderersEvent.RegisterLayerDefinitions event) {

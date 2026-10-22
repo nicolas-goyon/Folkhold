@@ -5,17 +5,11 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
-import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
-import io.github.nicolasgoyon.folkhold.core.sim.construction.PlanWarning;
-import io.github.nicolasgoyon.folkhold.core.sim.construction.StepType;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
-import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRun;
+import io.github.nicolasgoyon.folkhold.world.construction.ConstructionPlacement;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRuns;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
-import java.util.Locale;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.commands.CommandSourceStack;
@@ -39,6 +33,9 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * <ul>
  *   <li>{@code /folkhold construction build <template> [stepsPerTick]}: builds a structure template step by step. The
  *       origin of the template is the position of the source.</li>
+ *   <li>{@code /folkhold construction place [template]}: opens the construction menu of the player, or shows the ghost
+ *       of a template. The player moves the ghost, then starts the construction (see
+ *       {@link ConstructionPlacement}).</li>
  *   <li>{@code /folkhold construction capture <from> <to>}: keeps the blocks of a box, as the target of
  *       {@code restore}.</li>
  *   <li>{@code /folkhold construction restore [stepsPerTick]}: puts back the blocks of the captured box, step by
@@ -50,12 +47,11 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  */
 public final class ConstructionCommands {
     private static final String KEY = "commands.folkhold_world.construction.";
+    /** The message of a structure in a chunk that is not ready, as for the ghost. */
+    private static final String NOT_LOADED = "message.folkhold_world.construction.not_loaded";
     /** A capture has this number of blocks at most, as the vanilla command {@code /fill}. */
-    private static final int MAX_CAPTURE = 32768;
+    private static final int MAX_CAPTURE = ConstructionPlacement.MAX_VOLUME;
     private static final int DEFAULT_STEPS_PER_TICK = 4;
-    private static final int MAX_STEPS_PER_TICK = 1000;
-    /** A command shows this number of warnings at most. */
-    private static final int SHOWN_WARNINGS = 8;
 
     /** The captured box of the server, or null with no capture. */
     @Nullable
@@ -80,6 +76,13 @@ public final class ConstructionCommands {
                                         .executes(context -> build(context, DEFAULT_STEPS_PER_TICK))
                                         .then(stepsPerTick()
                                                 .executes(context -> build(context, stepsPerTick(context))))))
+                        .then(Commands.literal("place")
+                                .executes(ConstructionCommands::openMenu)
+                                .then(Commands.argument("template", ResourceLocationArgument.id())
+                                        .suggests((context, builder) -> SharedSuggestionProvider.suggestResource(
+                                                context.getSource().getLevel().getStructureManager().listTemplates(),
+                                                builder))
+                                        .executes(ConstructionCommands::place)))
                         .then(Commands.literal("capture")
                                 .then(Commands.argument("from", BlockPosArgument.blockPos())
                                         .then(Commands.argument("to", BlockPosArgument.blockPos())
@@ -95,7 +98,8 @@ public final class ConstructionCommands {
     }
 
     private static RequiredArgumentBuilder<CommandSourceStack, Integer> stepsPerTick() {
-        return Commands.argument("stepsPerTick", IntegerArgumentType.integer(1, MAX_STEPS_PER_TICK));
+        return Commands.argument("stepsPerTick",
+                IntegerArgumentType.integer(1, ConstructionPlacement.MAX_STEPS_PER_TICK));
     }
 
     private static int stepsPerTick(CommandContext<CommandSourceStack> context) {
@@ -112,8 +116,13 @@ public final class ConstructionCommands {
             return 0;
         }
         BlockPos origin = BlockPos.containing(source.getPosition());
-        Target target = ConstructionTargets.fromTemplate(level, template.get(), origin, new StructurePlaceSettings());
-        return start(source, level, target, stepsPerTick);
+        StructurePlaceSettings settings = new StructurePlaceSettings();
+        if (!ConstructionPlacement.isAreaReady(level, template.get().getBoundingBox(settings, origin))) {
+            source.sendFailure(Component.translatable(NOT_LOADED));
+            return 0;
+        }
+        Target target = ConstructionTargets.fromTemplate(level, template.get(), origin, settings);
+        return ConstructionPlacement.start(source, level, target, stepsPerTick);
     }
 
     private static int capture(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
@@ -146,7 +155,22 @@ public final class ConstructionCommands {
             source.sendFailure(Component.translatable(KEY + "no_capture"));
             return 0;
         }
-        return start(source, level, saved.target(), stepsPerTick);
+        if (!ConstructionPlacement.isAreaReady(level, saved.box())) {
+            source.sendFailure(Component.translatable(NOT_LOADED));
+            return 0;
+        }
+        return ConstructionPlacement.start(source, level, saved.target(), stepsPerTick);
+    }
+
+    private static int openMenu(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ConstructionPlacement.openMenu(context.getSource().getPlayerOrException());
+        return 1;
+    }
+
+    private static int place(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ConstructionPlacement.sendPreview(context.getSource().getPlayerOrException(),
+                ResourceLocationArgument.getId(context, "template"));
+        return 1;
     }
 
     private static int stop(CommandContext<CommandSourceStack> context) {
@@ -154,26 +178,5 @@ public final class ConstructionCommands {
         int stopped = ConstructionRuns.stop(source.getLevel());
         source.sendSuccess(() -> Component.translatable(KEY + "stopped", stopped), true);
         return stopped;
-    }
-
-    /** Makes the plan of a target, shows it, and starts its run. */
-    private static int start(CommandSourceStack source, ServerLevel level, Target target, int stepsPerTick) {
-        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), WorldConfig.constructionReach());
-        source.sendSuccess(() -> Component.translatable(KEY + "plan", plan.steps().size(), plan.count(StepType.REMOVE),
-                plan.count(StepType.PLACE), plan.count(StepType.PLACE_SCAFFOLDING), plan.count(StepType.ADD_FLUID),
-                plan.warnings().size()), true);
-        for (PlanWarning warning : plan.warnings().subList(0, Math.min(SHOWN_WARNINGS, plan.warnings().size()))) {
-            source.sendSuccess(() -> Component.translatable(KEY + "warning."
-                    + warning.problem().name().toLowerCase(Locale.ROOT), warning.pos().x(), warning.pos().y(),
-                    warning.pos().z()), false);
-        }
-        if (plan.warnings().size() > SHOWN_WARNINGS) {
-            source.sendSuccess(() -> Component.translatable(KEY + "more_warnings",
-                    plan.warnings().size() - SHOWN_WARNINGS), false);
-        }
-        ConstructionRun run = new ConstructionRun(level, plan, stepsPerTick);
-        ConstructionRuns.start(run, () -> source.sendSuccess(() -> Component.translatable(KEY + "finished",
-                run.total()), true));
-        return plan.steps().size();
     }
 }
