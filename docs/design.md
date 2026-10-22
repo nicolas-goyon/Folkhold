@@ -181,7 +181,8 @@ Each faction village has fortifications and guards. A player in iron armor with 
 - Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation uses the same method to know the villages of a region before the player goes there, and it also applies the exclusion zone around the vanilla villages, as the chunk generation does. The discovery reads the placement from the structure sets of the chunk generator: in a world whose generator does not generate the faction villages, for example a vanilla Superflat world, it finds no village. The `/locate` command does not apply the exclusion zone: in chunks that the game did not generate, it can show a village that does not start. The discovery covers 1024 blocks around each player and the world spawn (`discoveryRadius`), and the simulation runs on all the discovered villages: the world around the player changes with no visit. The admin screen lists these villages, with the name in italics while the game did not generate them. Its discover action checks at once the regions up to 3000 blocks in each direction around the operator (`adminDiscoveryRadius`).
 - Materialization: when the player comes near, the mod creates the garrison and the inhabitants from the `Settlement` state. When the player goes away, the mod removes them and writes their state back (health, deaths, equipment).
 - Villagers: the villagers of a village are its population: the merchants, and the inhabitants for the rest of the population. The mod sets no maximum, so a city can have 100 villagers. The setting `inhabitantLimit` can set a maximum (0: no maximum), and the server and the other mods can limit the entities.
-  - The workers show the jobs of the settlement: 2 inhabitants (`workersPerJob`) for each active job. The other inhabitants have no job: they give life to the village.
+  - The workers show the jobs of the settlement: 2 inhabitants (`workersPerJob`) for each active job. Of the other inhabitants, 2 are builders and 1 is a handyman (settings `builders` and `handymen`). The rest have no job: they give life to the village.
+  - The builders and the handymen stay vanilla villagers (bed, bell, raids, zombies), with no trades. Only their model changes: a GeckoLib model with arms that move (place a block, use a brazier). It uses the vanilla textures of the villagers: the skin, the type and the profession. The other villagers keep the vanilla model.
   - The heart creates the villagers in groups of 4, one group every 2 seconds while a player is near.
 
 ### Vanilla villages in a territory
@@ -301,6 +302,8 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
 | NPC | Role | Key behavior |
 | --- | --- | --- |
 | Inhabitant | Population, economic job | Day/night routine, runs away from fights, takes shelter in buildings |
+| Builder | Constructions of the village | Inhabitant with no economic job, with an animated model |
+| Handyman | Small work of the village | Inhabitant with no economic job, with an animated model |
 | Merchant | Trade with the player | Sells the stocks of the village, buys the items of the player. Compatible with the vanilla villager systems (raids, Hero of the Village, zombie conversion, iron golems, gossip) |
 | Guard | Basic defense | Fixed patrol, sword and shield, chases in a limited radius |
 | Archer | Ranged defense | Takes position on towers and walls. Priority target: hostile players. A bow, or a crossbow in the larger villages: it charges the crossbow, aims and shoots a faster bolt |

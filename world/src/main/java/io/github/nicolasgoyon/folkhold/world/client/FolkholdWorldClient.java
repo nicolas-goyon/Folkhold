@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.client.renderer.AnimatedVillagerRenderer;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionGolemModel;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionGolemRenderer;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionUnitRenderer;
@@ -12,6 +13,7 @@ import net.minecraft.client.renderer.entity.HorseRenderer;
 import net.minecraft.client.renderer.entity.WanderingTraderRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -38,6 +40,9 @@ public final class FolkholdWorldClient {
         modEventBus.addListener(FolkholdWorldClient::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener(FolkholdWorldClient::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(QuestTargetMarker::onRenderLiving);
+        modEventBus.addListener(AnimatedVillagerRenderer::onAddLayers);
+        // Lowest priority: the other listeners of the event see the villager before it changes renderer.
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, AnimatedVillagerRenderer::onRenderLiving);
         modEventBus.addListener(ConstructionKeys::register);
         NeoForge.EVENT_BUS.addListener(ConstructionGhost::onClientTick);
         NeoForge.EVENT_BUS.addListener(ConstructionGhostRenderer::onRenderLevel);

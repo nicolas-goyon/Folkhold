@@ -110,7 +110,8 @@ public final class MerchantGameTests {
 
     /**
      * A village with a large population has all its inhabitants: the mod sets no maximum. The workers show the job of
-     * the settlement, and the other inhabitants have the inhabitant profession.
+     * the settlement. Of the other inhabitants, some are builders and handymen, and the rest have the inhabitant
+     * profession.
      */
     @GameTest(template = "arena", timeoutTicks = 40, batch = "village_folk_large")
     public static void largeVillageHasAllItsInhabitants(GameTestHelper helper) {
@@ -128,6 +129,10 @@ public final class MerchantGameTests {
                 .filter(villager -> villager.getVillagerData().getProfession() == VillagerProfession.FARMER).count();
         long others = inhabitants.stream().filter(villager -> villager.getVillagerData().getProfession()
                 == ModProfessions.INHABITANT.get()).count();
+        long builders = inhabitants.stream().filter(villager -> villager.getVillagerData().getProfession()
+                == ModProfessions.BUILDER.get()).count();
+        long handymen = inhabitants.stream().filter(villager -> villager.getVillagerData().getProfession()
+                == ModProfessions.HANDYMAN.get()).count();
         int expected = population - Merchants.merchantCount(village.settlement());
         int workers = VillageFolk.workerCount(jobSlots, population, WorldConfig.ECONOMY_WORKERS_PER_JOB.get());
         village.heart().getUnits().forEach(Entity::discard);
@@ -137,9 +142,15 @@ public final class MerchantGameTests {
 
         helper.assertTrue(inhabitants.size() == expected,
                 "Expected " + expected + " inhabitants, found " + inhabitants.size());
+        int expectedBuilders = WorldConfig.BUILDERS.get();
+        int expectedHandymen = WorldConfig.HANDYMEN.get();
+        int expectedOthers = expected - workers - expectedBuilders - expectedHandymen;
         helper.assertTrue(farmers == workers, "Expected " + workers + " farmers, found " + farmers);
-        helper.assertTrue(others == expected - workers,
-                "Expected " + (expected - workers) + " inhabitants with no job, found " + others);
+        helper.assertTrue(builders == expectedBuilders && handymen == expectedHandymen,
+                "Expected " + expectedBuilders + " builders and " + expectedHandymen + " handymen, found " + builders
+                        + " and " + handymen);
+        helper.assertTrue(others == expectedOthers,
+                "Expected " + expectedOthers + " inhabitants with no job, found " + others);
         helper.succeed();
     }
 
