@@ -14,18 +14,22 @@ import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -38,6 +42,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
@@ -68,6 +73,17 @@ final class TestSupport {
     private static final long RETIRE_RADIUS = 4096;
 
     private TestSupport() {
+    }
+
+    /**
+     * A structure state of the level with the structure set of the faction villages. The GameTest world is a vanilla
+     * Superflat world: its generator does not generate the faction villages. The tests of the discovery use this state.
+     */
+    static ChunkGeneratorStructureState villageStructures(ServerLevel level) {
+        ServerChunkCache chunks = level.getChunkSource();
+        return ChunkGeneratorStructureState.createForFlat(chunks.randomState(), level.getSeed(),
+                chunks.getGenerator().getBiomeSource(), Stream.of(level.registryAccess()
+                        .registryOrThrow(Registries.STRUCTURE_SET).getHolderOrThrow(SettlementDiscovery.VILLAGE_SET)));
     }
 
     /**

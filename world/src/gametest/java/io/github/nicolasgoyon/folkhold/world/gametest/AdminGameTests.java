@@ -24,6 +24,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -201,7 +202,9 @@ public final class AdminGameTests {
     }
 
     /**
-     * The discover action checks all the regions up to {@code adminDiscoveryRadius} blocks in each direction around
+     * The discover action gives the result of the discovery around the player. The generator of the GameTest world
+     * does not generate the faction villages, so the test also runs the discovery with a structure state that has
+     * them. This discovery checks all the regions up to {@code adminDiscoveryRadius} blocks in each direction around
      * the player: the test checks the regions at the four corners. A second discovery at the same position finds no
      * new settlement.
      */
@@ -210,11 +213,14 @@ public final class AdminGameTests {
         MinecraftServer server = helper.getLevel().getServer();
         ServerPlayer player = TestSupport.mockPlayer(helper);
         int radius = WorldConfig.ADMIN_DISCOVERY_RADIUS.get();
+        ChunkGeneratorStructureState structures = TestSupport.villageStructures(helper.getLevel());
 
         Optional<AdminActions.Result> first = AdminActions.perform(server, player,
                 new AdminActionPayload("discover", "", 0));
         BlockPos pos = player.blockPosition();
-        SettlementDiscovery.Discovery again = SettlementDiscovery.discoverAround(helper.getLevel(), pos, radius);
+        SettlementDiscovery.discoverAround(helper.getLevel(), structures, pos, radius);
+        SettlementDiscovery.Discovery again = SettlementDiscovery.discoverAround(helper.getLevel(), structures, pos,
+                radius);
         int spacing = ((RandomSpreadStructurePlacement) server.registryAccess().registryOrThrow(Registries.STRUCTURE_SET)
                 .getOrThrow(SettlementDiscovery.VILLAGE_SET).placement()).spacing();
         SettlementData data = SettlementData.get(server);
