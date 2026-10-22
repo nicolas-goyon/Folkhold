@@ -43,6 +43,7 @@ import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.VanillaGolems;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSpawnProtection;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -72,6 +73,8 @@ public final class FolkholdWorld {
         modEventBus.addListener(ModNetwork::register);
         modEventBus.addListener(TestWorldPack::onAddPackFinders);
         NeoForge.EVENT_BUS.addListener(MonsterTargeting::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(VillageRaids::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(VillageRaids::onServerStopped);
         NeoForge.EVENT_BUS.addListener(FriendlyFire::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(ReputationEvents::onDeath);
         NeoForge.EVENT_BUS.addListener(ReputationEvents::onDamage);

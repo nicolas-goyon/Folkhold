@@ -7,6 +7,7 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -16,6 +17,9 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * Stairs at the gates of a village. The village compound is flat, but the terrain outside a gate can be some blocks
  * higher or lower. The heart builds the stairs once, after the scan of the layout.
+ *
+ * <p>The exits also give the approaches of the village ({@link #approaches}): the raiders of a raid gather there
+ * before they enter (see {@link VillageRaids}).
  *
  * <ul>
  *   <li>The gates of the palisade are the fence gates at {@link #WALL_DISTANCE} blocks or more from the heart, on
@@ -37,6 +41,8 @@ public final class VillageExits {
     private static final int HEADROOM = 3;
     /** The maximum depth of the support under a step, in blocks. */
     private static final int MAX_SUPPORT = 8;
+    /** The distance from the middle of a gate to its approach, in blocks: after the stairs of the gate. */
+    public static final int APPROACH_DISTANCE = MAX_STEPS + 2;
 
     private VillageExits() {
     }
@@ -46,6 +52,63 @@ public final class VillageExits {
         BlockPos middle() {
             return columns.get(columns.size() / 2);
         }
+    }
+
+    /**
+     * The approach of a gate of the palisade.
+     *
+     * @param point the position outside the gate, {@link #APPROACH_DISTANCE} blocks from its middle, at the level of
+     *              the feet on the terrain. In water, the point is at the surface: a raider swims there.
+     * @param gates the fence gates of the gate, side by side
+     */
+    public record Approach(BlockPos point, List<BlockPos> gates) {
+        /** True if a fence gate of the gate is open. */
+        public boolean isOpen(Level level) {
+            for (BlockPos gate : gates) {
+                BlockState state = level.getBlockState(gate);
+                if (state.getBlock() instanceof FenceGateBlock && state.getValue(FenceGateBlock.OPEN)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /**
+     * The approaches of the gates of the palisade of a village: one position outside each gate. The method reads only
+     * the loaded chunks: a gate in a chunk that is not loaded has no approach.
+     *
+     * @param level the level
+     * @param heart the position of the heart
+     * @param gates the fence gates of the village
+     * @return the approaches
+     */
+    public static List<Approach> approaches(ServerLevel level, BlockPos heart, List<BlockPos> gates) {
+        List<BlockPos> loaded = gates.stream().filter(level::isLoaded).toList();
+        List<Approach> approaches = new ArrayList<>();
+        for (Exit exit : exits(level, heart, loaded)) {
+            BlockPos middle = exit.middle();
+            BlockPos outside = middle.relative(exit.out(), APPROACH_DISTANCE);
+            if (level.isLoaded(outside)) {
+                BlockPos point = surface(level, outside.atY(terrain(level, outside, middle.getY())));
+                approaches.add(new Approach(point, List.copyOf(exit.columns())));
+            }
+        }
+        return approaches;
+    }
+
+    /**
+     * The first position with no fluid at or above a position: the surface of the water. A position with no fluid
+     * does not change. The search stops at {@link #MAX_STEPS} + {@link #MAX_SUPPORT} blocks up, the depth of the
+     * search of {@link #terrain}.
+     */
+    private static BlockPos surface(ServerLevel level, BlockPos pos) {
+        BlockPos.MutableBlockPos surface = pos.mutable();
+        int top = pos.getY() + MAX_STEPS + MAX_SUPPORT;
+        while (surface.getY() < top && !level.getFluidState(surface).isEmpty()) {
+            surface.move(Direction.UP);
+        }
+        return surface.immutable();
     }
 
     /**
