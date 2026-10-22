@@ -19,7 +19,9 @@ import net.neoforged.neoforge.network.codec.NeoForgeStreamCodecs;
  * @param origin       the position of the origin of the template in the level
  * @param rotation     the turn of the template
  * @param mirror       the mirror of the template
- * @param stepsPerTick the number of steps of the construction for each tick
+ * @param stepsPerTick the number of steps of the construction for each tick, or
+ *                     {@link io.github.nicolasgoyon.folkhold.world.construction.ConstructionPlacement#BUILDERS}: the
+ *                     builders of the nearest village build the structure
  */
 public record ConstructionPlacePayload(ResourceLocation template, BlockPos origin, Rotation rotation, Mirror mirror,
         int stepsPerTick) implements CustomPacketPayload {

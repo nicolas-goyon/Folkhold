@@ -49,24 +49,28 @@ class VillageFolkTest {
     }
 
     /**
-     * After the workers, the inhabitants with no job are the builders and the handymen of the village, then plain
-     * inhabitants. A small village has the workers first.
+     * The builders and the handymen come first, also in a small village. Then come the workers, then the plain
+     * inhabitants.
      */
     @Test
-    void inhabitantsWithNoJobAreBuildersAndHandymenFirst() {
+    void buildersAndHandymenComeFirst() {
         Settlement settlement = new Settlement("folk-test", 0, 0, "faction", "Test", 0, 0);
         settlement.economy().setPopulation(20);
         settlement.economy().setJobs(Collections.nCopies(2, "folkhold_world:farmer"));
-        int workers = VillageFolk.workerCount(2, 20, WorldConfig.ECONOMY_WORKERS_PER_JOB.get());
+        int builders = WorldConfig.BUILDERS.get();
+        int handymen = WorldConfig.HANDYMEN.get();
 
         List<VillagerProfession> large = VillageFolk.professions(settlement, 18);
-        List<VillagerProfession> small = VillageFolk.professions(settlement, workers + 1);
+        List<VillagerProfession> small = VillageFolk.professions(settlement, builders);
 
         assertEquals(18, large.size());
-        assertEquals(WorldConfig.BUILDERS.get().longValue(), count(large, ModProfessions.BUILDER.get()));
-        assertEquals(WorldConfig.HANDYMEN.get().longValue(), count(large, ModProfessions.HANDYMAN.get()));
-        assertEquals(workers + 1, small.size());
-        assertEquals(1, count(small, ModProfessions.BUILDER.get()), "The first inhabitant with no job builds");
-        assertEquals(0, count(small, ModProfessions.HANDYMAN.get()), "No handyman in a small village");
+        assertEquals(Collections.nCopies(builders, ModProfessions.BUILDER.get()), large.subList(0, builders),
+                "The builders come first");
+        assertEquals(Collections.nCopies(handymen, ModProfessions.HANDYMAN.get()),
+                large.subList(builders, builders + handymen), "The handymen come after the builders");
+        assertEquals(builders, count(large, ModProfessions.BUILDER.get()));
+        assertEquals(handymen, count(large, ModProfessions.HANDYMAN.get()));
+        assertEquals(Collections.nCopies(builders, ModProfessions.BUILDER.get()), small,
+                "A small village has its builders");
     }
 }

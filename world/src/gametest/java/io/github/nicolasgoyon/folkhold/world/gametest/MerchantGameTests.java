@@ -359,7 +359,10 @@ public final class MerchantGameTests {
         helper.succeed();
     }
 
-    /** When the jobs of the settlement change, the heart gives the new professions to the inhabitants. */
+    /**
+     * When the jobs of the settlement change, the heart gives the new professions to the inhabitants. The builders and
+     * the handymen come first, then the workers of the jobs.
+     */
     @GameTest(template = "arena", timeoutTicks = 40, batch = "village_folk_reassign")
     public static void heartGivesTheJobProfessions(GameTestHelper helper) {
         Village village = village(helper);
@@ -371,16 +374,18 @@ public final class MerchantGameTests {
 
         VillagerProfession profession = inhabitant.getVillagerData().getProfession();
         List<Villager> inhabitants = VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos());
-        boolean allFarmers = inhabitants.stream()
-                .allMatch(villager -> villager.getVillagerData().getProfession() == VillagerProfession.FARMER);
+        List<VillagerProfession> working = List.of(ModProfessions.BUILDER.get(), ModProfessions.HANDYMAN.get(),
+                VillagerProfession.FARMER);
+        boolean allWorking = inhabitants.stream()
+                .allMatch(villager -> working.contains(villager.getVillagerData().getProfession()));
         village.heart().getUnits().forEach(Entity::discard);
         village.heart().getCats().forEach(Entity::discard);
         Merchants.merchantsOf(helper.getLevel(), village.heart().getBlockPos()).forEach(Entity::discard);
         inhabitants.forEach(Entity::discard);
 
-        helper.assertTrue(profession == VillagerProfession.FARMER,
-                "The inhabitant must become a farmer, not " + profession);
-        helper.assertTrue(allFarmers, "Each inhabitant must be a farmer");
+        helper.assertTrue(profession != ModProfessions.INHABITANT.get(),
+                "The inhabitant must get a profession of the settlement, not " + profession);
+        helper.assertTrue(allWorking, "Each inhabitant must be a builder, a handyman or a farmer");
         helper.succeed();
     }
 

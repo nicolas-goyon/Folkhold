@@ -7,10 +7,14 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
+import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
+import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionPlacement;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRuns;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -22,7 +26,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -33,6 +40,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * <ul>
  *   <li>{@code /folkhold construction build <template> [stepsPerTick]}: builds a structure template step by step. The
  *       origin of the template is the position of the source.</li>
+ *   <li>{@code /folkhold construction build <template> builders}: the builders of the nearest village build a
+ *       structure template (see {@link BuilderSites}). The origin of the template is the position of the source.</li>
  *   <li>{@code /folkhold construction place [template]}: opens the construction menu of the player, or shows the ghost
  *       of a template. The player moves the ghost, then starts the construction (see
  *       {@link ConstructionPlacement}).</li>
@@ -40,7 +49,10 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *       {@code restore}.</li>
  *   <li>{@code /folkhold construction restore [stepsPerTick]}: puts back the blocks of the captured box, step by
  *       step.</li>
- *   <li>{@code /folkhold construction stop}: stops the constructions in the level of the source.</li>
+ *   <li>{@code /folkhold construction sites}: shows the construction sites of the builders in the level of the
+ *       source.</li>
+ *   <li>{@code /folkhold construction stop}: stops the constructions and the construction sites in the level of the
+ *       source. The fences and the scaffolding of a site go away.</li>
  * </ul>
  * A command that starts a construction shows the plan: its steps and its warnings. The construction shows a message
  * at its end.
@@ -74,6 +86,8 @@ public final class ConstructionCommands {
                                                 context.getSource().getLevel().getStructureManager().listTemplates(),
                                                 builder))
                                         .executes(context -> build(context, DEFAULT_STEPS_PER_TICK))
+                                        .then(Commands.literal("builders")
+                                                .executes(ConstructionCommands::buildWithBuilders))
                                         .then(stepsPerTick()
                                                 .executes(context -> build(context, stepsPerTick(context))))))
                         .then(Commands.literal("place")
@@ -90,6 +104,7 @@ public final class ConstructionCommands {
                         .then(Commands.literal("restore")
                                 .executes(context -> restore(context, DEFAULT_STEPS_PER_TICK))
                                 .then(stepsPerTick().executes(context -> restore(context, stepsPerTick(context)))))
+                        .then(Commands.literal("sites").executes(ConstructionCommands::sites))
                         .then(Commands.literal("stop").executes(ConstructionCommands::stop))));
     }
 
@@ -123,6 +138,47 @@ public final class ConstructionCommands {
         }
         Target target = ConstructionTargets.fromTemplate(level, template.get(), origin, settings);
         return ConstructionPlacement.start(source, level, target, stepsPerTick);
+    }
+
+    private static int buildWithBuilders(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ServerLevel level = source.getLevel();
+        ResourceLocation id = ResourceLocationArgument.getId(context, "template");
+        Optional<StructureTemplate> template = level.getStructureManager().get(id);
+        if (template.isEmpty()) {
+            source.sendFailure(Component.translatable(KEY + "unknown_template", id.toString()));
+            return 0;
+        }
+        BlockPos origin = BlockPos.containing(source.getPosition());
+        BoundingBox box = template.get().getBoundingBox(new StructurePlaceSettings(), origin);
+        if (!ConstructionPlacement.isAreaReady(level, box)) {
+            source.sendFailure(Component.translatable(NOT_LOADED));
+            return 0;
+        }
+        UUID operator = source.getEntity() instanceof ServerPlayer player ? player.getUUID() : null;
+        ConstructionPlacement.BuildersAnswer answer = ConstructionPlacement.startBuilders(level, id, origin,
+                Rotation.NONE, Mirror.NONE, box, operator);
+        if (!answer.started()) {
+            source.sendFailure(answer.message());
+            return 0;
+        }
+        source.sendSuccess(answer::message, true);
+        return 1;
+    }
+
+    private static int sites(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        List<BuilderSite> sites = BuilderSites.all(source.getLevel());
+        source.sendSuccess(() -> Component.translatable(KEY + "sites", sites.size()), false);
+        for (BuilderSite site : sites) {
+            BlockPos origin = site.origin();
+            source.sendSuccess(() -> Component.translatable(KEY + "site", site.id(), site.template().toString(),
+                    origin.getX(), origin.getY(), origin.getZ(),
+                    Component.translatable(KEY + "site.phase." + site.phase().serializedName()), site.appliedSteps(),
+                    site.totalSteps(), Component.translatable(KEY + "site.status." + site.status().serializedName()),
+                    site.builderCount()), false);
+        }
+        return sites.size();
     }
 
     private static int capture(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
@@ -175,7 +231,7 @@ public final class ConstructionCommands {
 
     private static int stop(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        int stopped = ConstructionRuns.stop(source.getLevel());
+        int stopped = ConstructionRuns.stop(source.getLevel()) + BuilderSites.stop(source.getLevel());
         source.sendSuccess(() -> Component.translatable(KEY + "stopped", stopped), true);
         return stopped;
     }

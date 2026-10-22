@@ -126,6 +126,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_HORIZONTAL;
     public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_BELOW;
     public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_ABOVE;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_BUILDER_TICKS;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -670,6 +671,11 @@ public final class WorldConfig {
                         "plan adds scaffolding.")
                 .translation(KEY_PREFIX + "constructionReachAbove")
                 .defineInRange("reachAbove", Reach.DEFAULT.above(), 1, 3);
+        CONSTRUCTION_BUILDER_TICKS = builder
+                .comment("Time in ticks that a builder of a village works on one step of a construction site: one",
+                        "block. 20 ticks are 1 second. The steps of the scaffolding take half this time.")
+                .translation(KEY_PREFIX + "constructionBuilderTicks")
+                .defineInRange("builderTicksPerStep", 20, 1, 1200);
         builder.pop();
 
         builder.comment("Base values of each unit type.")
