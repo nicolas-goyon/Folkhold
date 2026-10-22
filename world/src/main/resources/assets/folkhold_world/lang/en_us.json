@@ -456,6 +456,8 @@
   "hud.folkhold_world.ghost.obstacles": "The construction removes %s blocks of the zone (red)",
   "hud.folkhold_world.ghost.cancel_key": "[%s] Remove the ghost",
   "hud.folkhold_world.ghost.removed": "Ghost removed",
+  "hud.folkhold_world.ghost.finished": "Construction finished: ghost removed",
+  "hud.folkhold_world.ghost.stopped": "Construction stopped: ghost removed",
   "key.categories.folkhold_world": "Folkhold",
   "key.folkhold_world.construction.menu": "Construction menu",
   "key.folkhold_world.construction.rotate": "Ghost: turn",

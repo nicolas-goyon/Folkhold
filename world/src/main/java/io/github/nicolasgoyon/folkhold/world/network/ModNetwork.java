@@ -116,5 +116,7 @@ public final class ModNetwork {
                 });
         registrar.playToClient(ConstructionStatusPayload.TYPE, ConstructionStatusPayload.STREAM_CODEC,
                 (payload, context) -> ConstructionGhost.showStatus(payload));
+        registrar.playToClient(ConstructionEndPayload.TYPE, ConstructionEndPayload.STREAM_CODEC,
+                (payload, context) -> ConstructionGhost.onConstructionEnd(payload));
     }
 }

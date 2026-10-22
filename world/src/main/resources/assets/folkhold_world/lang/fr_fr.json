@@ -456,6 +456,8 @@
   "hud.folkhold_world.ghost.obstacles": "La construction retire %s blocs de la zone (en rouge)",
   "hud.folkhold_world.ghost.cancel_key": "[%s] Retirer le fantôme",
   "hud.folkhold_world.ghost.removed": "Fantôme retiré",
+  "hud.folkhold_world.ghost.finished": "Construction terminée : fantôme retiré",
+  "hud.folkhold_world.ghost.stopped": "Construction arrêtée : fantôme retiré",
   "key.categories.folkhold_world": "Folkhold",
   "key.folkhold_world.construction.menu": "Menu de construction",
   "key.folkhold_world.construction.rotate": "Fantôme : tourner",

@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets.TemplateBlock;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
+import io.github.nicolasgoyon.folkhold.world.network.ConstructionEndPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPlacePayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPreviewPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPreviewPayload.Entry;
@@ -23,10 +24,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.Vec3i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
@@ -44,7 +47,9 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>The client sends the position, the turn and the mirror of the ghost ({@link #place}). The server makes the
  *       plan of the construction and starts its run ({@link #start}).</li>
  * </ol>
- * The server checks each request: the permission, the template, its size, and the distance to the operator.
+ * The server checks each request: the permission, the template, its size, the distance to the operator and the
+ * chunks around the structure ({@link #isAreaReady}). At the end of the construction, the server sends its end to the
+ * operator: the client removes the ghost.
  */
 public final class ConstructionPlacement {
     /** A structure has this number of blocks at most, air included, as a capture of the commands. */
@@ -142,16 +147,35 @@ public final class ConstructionPlacement {
             status(player, Component.translatable(KEY + "outside_height"), false);
             return false;
         }
-        if (!ReadyChunks.isAreaReady(level, box.minX(), box.minZ(), box.maxX(), box.maxZ())) {
+        if (!isAreaReady(level, box)) {
             status(player, Component.translatable(KEY + "not_loaded"), false);
             return false;
         }
         Target target = ConstructionTargets.fromTemplate(level, template.get(), request.origin(),
                 GhostPlacement.settings(request.rotation(), request.mirror()));
+        MinecraftServer server = level.getServer();
+        UUID playerId = player.getUUID();
         start(player.createCommandSourceStack(), level, target,
-                Mth.clamp(request.stepsPerTick(), 1, MAX_STEPS_PER_TICK));
+                Mth.clamp(request.stepsPerTick(), 1, MAX_STEPS_PER_TICK),
+                finished -> sendEnd(server, playerId,
+                        new ConstructionEndPayload(request.template(), request.origin(), finished)));
         status(player, Component.translatable(KEY + "started", request.template().toString()), true);
         return true;
+    }
+
+    /**
+     * True if the chunks of a construction are ready (see {@link ReadyChunks}): the box of its target, and the
+     * positions around the box where a builder stands or where the plan puts scaffolding. A plan reads these
+     * positions, and a read in a chunk that is not ready waits on the server thread.
+     *
+     * @param level the level
+     * @param box   the box of the target
+     * @return true if the plan of the construction does not wait for a chunk
+     */
+    public static boolean isAreaReady(ServerLevel level, BoundingBox box) {
+        int margin = WorldConfig.constructionReach().horizontal() + 1;
+        return ReadyChunks.isAreaReady(level, box.minX() - margin, box.minZ() - margin, box.maxX() + margin,
+                box.maxZ() + margin);
     }
 
     /**
@@ -165,6 +189,23 @@ public final class ConstructionPlacement {
      * @return the number of steps of the plan
      */
     public static int start(CommandSourceStack source, ServerLevel level, Target target, int stepsPerTick) {
+        return start(source, level, target, stepsPerTick, finished -> {
+        });
+    }
+
+    /**
+     * As {@link #start(CommandSourceStack, ServerLevel, Target, int)}, with an action at the end of the run.
+     *
+     * @param source       the source: it gets the messages
+     * @param level        the level of the construction
+     * @param target       the target
+     * @param stepsPerTick the number of steps for each tick, 1 or more
+     * @param onEnd        the action at the end of the run: when the run applied all its steps, or when a command
+     *                     stopped it
+     * @return the number of steps of the plan
+     */
+    public static int start(CommandSourceStack source, ServerLevel level, Target target, int stepsPerTick,
+            ConstructionRuns.EndAction onEnd) {
         Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), WorldConfig.constructionReach());
         source.sendSuccess(() -> Component.translatable(COMMAND_KEY + "plan", plan.steps().size(),
                 plan.count(StepType.REMOVE), plan.count(StepType.PLACE), plan.count(StepType.PLACE_SCAFFOLDING),
@@ -179,9 +220,21 @@ public final class ConstructionPlacement {
                     plan.warnings().size() - SHOWN_WARNINGS), false);
         }
         ConstructionRun run = new ConstructionRun(level, plan, stepsPerTick);
-        ConstructionRuns.start(run, () -> source.sendSuccess(() -> Component.translatable(COMMAND_KEY + "finished",
-                run.total()), true));
+        ConstructionRuns.start(run, finished -> {
+            if (finished) {
+                source.sendSuccess(() -> Component.translatable(COMMAND_KEY + "finished", run.total()), true);
+            }
+            onEnd.ended(finished);
+        });
         return plan.steps().size();
+    }
+
+    /** Sends the end of a construction to the operator that started it, if the operator is online. */
+    private static void sendEnd(MinecraftServer server, UUID playerId, ConstructionEndPayload payload) {
+        ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+        if (player != null) {
+            ModNetwork.send(player, payload);
+        }
     }
 
     /** True if the player can use the construction tool. */

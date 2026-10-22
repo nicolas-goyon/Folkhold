@@ -141,5 +141,8 @@ class PayloadCodecsTest {
         assertEquals(place, roundTrip(ConstructionPlacePayload.STREAM_CODEC, place));
         ConstructionStatusPayload status = new ConstructionStatusPayload(Component.literal("Too far"), false);
         assertEquals(status, roundTrip(ConstructionStatusPayload.STREAM_CODEC, status));
+        ConstructionEndPayload end = new ConstructionEndPayload(
+                ResourceLocation.fromNamespaceAndPath("folkhold_world", "village/bank"), new BlockPos(-7, 64, 12), false);
+        assertEquals(end, roundTrip(ConstructionEndPayload.STREAM_CODEC, end));
     }
 }

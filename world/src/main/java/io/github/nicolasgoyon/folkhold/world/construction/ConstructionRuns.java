@@ -16,18 +16,29 @@ public final class ConstructionRuns {
     private ConstructionRuns() {
     }
 
+    /** The action at the end of a run. */
+    @FunctionalInterface
+    public interface EndAction {
+        /**
+         * Runs the action.
+         *
+         * @param finished true when the run applied all its steps, false when a command stopped it
+         */
+        void ended(boolean finished);
+    }
+
     /** A run in progress, and the action at its end. */
-    private record Active(ConstructionRun run, Runnable onFinish) {
+    private record Active(ConstructionRun run, EndAction onEnd) {
     }
 
     /**
      * Starts a run: its first steps come at the next server tick.
      *
-     * @param run      the run
-     * @param onFinish the action when the run applied all its steps
+     * @param run   the run
+     * @param onEnd the action at the end of the run
      */
-    public static void start(ConstructionRun run, Runnable onFinish) {
-        ACTIVE.add(new Active(run, onFinish));
+    public static void start(ConstructionRun run, EndAction onEnd) {
+        ACTIVE.add(new Active(run, onEnd));
     }
 
     /**
@@ -37,9 +48,10 @@ public final class ConstructionRuns {
      * @return the number of stopped runs
      */
     public static int stop(ServerLevel level) {
-        int before = ACTIVE.size();
-        ACTIVE.removeIf(active -> active.run().level() == level);
-        return before - ACTIVE.size();
+        List<Active> stopped = ACTIVE.stream().filter(active -> active.run().level() == level).toList();
+        ACTIVE.removeAll(stopped);
+        stopped.forEach(active -> active.onEnd().ended(false));
+        return stopped.size();
     }
 
     /** The number of runs in progress. */
@@ -55,7 +67,7 @@ public final class ConstructionRuns {
             active.run().tick();
             if (active.run().finished()) {
                 ACTIVE.remove(active);
-                active.onFinish().run();
+                active.onEnd().ended(true);
             }
         }
     }

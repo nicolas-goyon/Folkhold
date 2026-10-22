@@ -338,7 +338,7 @@ public final class ConstructionGameTests {
     private static void runAndCompare(GameTestHelper helper, Plan plan, Target target, BlockPos from, BlockPos to) {
         ServerLevel level = helper.getLevel();
         ConstructionRun run = new ConstructionRun(level, plan, STEPS_PER_TICK);
-        ConstructionRuns.start(run, () -> {
+        ConstructionRuns.start(run, finished -> {
         });
         List<String> problems = watchProblems(helper, from, to);
         helper.startSequence()

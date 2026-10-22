@@ -15,6 +15,7 @@ import io.github.nicolasgoyon.folkhold.world.network.ConstructionPreviewPayload.
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -156,6 +157,45 @@ public final class ConstructionPlacementGameTests {
         helper.assertFalse(started, "A structure far from the operator must not start a construction");
         helper.assertTrue(ConstructionRuns.count() == 0, "No construction must start");
         helper.succeed();
+    }
+
+    /**
+     * The end action of a construction runs once: with false when the command {@code stop} stops the run, with true
+     * when the run applies all its steps. A structure in chunks that are not loaded cannot start.
+     */
+    @GameTest(template = "arena", timeoutTicks = 200, batch = "construction_end", skyAccess = true)
+    public static void endActionRunsAtTheEndAndAtAStop(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ServerLevel level = helper.getLevel();
+        CommandSourceStack source = level.getServer().createCommandSourceStack().withSuppressedOutput();
+        BlockPos origin = helper.absolutePos(new BlockPos(3, 1, 3));
+        List<Boolean> stopped = new ArrayList<>();
+        List<Boolean> finished = new ArrayList<>();
+
+        Target house = ConstructionTargets.fromTemplate(level, cottage(level), origin, new StructurePlaceSettings());
+        ConstructionPlacement.start(source, level, house, 1, stopped::add);
+        int stoppedRuns = ConstructionRuns.stop(level);
+        BlockPos pillar = helper.absolutePos(new BlockPos(12, 1, 12));
+        Target target = new Target(Map.of(new BuildPos(pillar.getX(), pillar.getY(), pillar.getZ()),
+                BuildBlock.solid("minecraft:stone"), new BuildPos(pillar.getX(), pillar.getY() + 1, pillar.getZ()),
+                BuildBlock.solid("minecraft:stone")));
+        ConstructionPlacement.start(source, level, target, STEPS_PER_TICK, finished::add);
+
+        helper.assertTrue(stoppedRuns == 1 && stopped.equals(List.of(false)),
+                "A stopped run must end once, with false: " + stopped);
+        helper.assertTrue(ConstructionPlacement.isAreaReady(level, new BoundingBox(origin)),
+                "The chunks of the test must be ready");
+        helper.assertFalse(ConstructionPlacement.isAreaReady(level, new BoundingBox(origin.east(100_000))),
+                "The chunks far from the test must not be ready");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(finished.equals(List.of(true)),
+                        "A run that applies all its steps must end once, with true: " + finished))
+                .thenExecute(() -> {
+                    helper.assertTrue(stopped.equals(List.of(false)), "The stopped run must not end again");
+                    helper.setBlock(new BlockPos(12, 1, 12), Blocks.AIR);
+                    helper.setBlock(new BlockPos(12, 2, 12), Blocks.AIR);
+                })
+                .thenSucceed();
     }
 
     /** A mock player in the middle of the test, with the permission level of the operators. */

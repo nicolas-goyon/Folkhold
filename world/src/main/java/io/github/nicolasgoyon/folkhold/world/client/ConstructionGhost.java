@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.world.construction.GhostPlacement;
+import io.github.nicolasgoyon.folkhold.world.network.ConstructionEndPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPlacePayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPreviewPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPreviewPayload.Entry;
@@ -153,6 +154,21 @@ public final class ConstructionGhost {
         if (!ConstructionScreen.showStatus(payload)) {
             Minecraft.getInstance().gui.setOverlayMessage(payload.text(), false);
         }
+    }
+
+    /**
+     * Removes the ghost of a construction at its end: when the construction applied all its steps, or when a command
+     * stopped it. Called by the network handler.
+     */
+    public static void onConstructionEnd(ConstructionEndPayload payload) {
+        Ghost current = ghost;
+        if (current == null || current.phase != Phase.BUILDING || !current.template.equals(payload.template())
+                || !current.origin.equals(payload.origin())) {
+            return;
+        }
+        ghost = null;
+        Minecraft.getInstance().gui.setOverlayMessage(
+                Component.translatable(KEY + (payload.finished() ? "finished" : "stopped")), false);
     }
 
     /** Removes the ghost. Called when the player leaves a world or a server. */

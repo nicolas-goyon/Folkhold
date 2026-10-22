@@ -47,6 +47,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  */
 public final class ConstructionCommands {
     private static final String KEY = "commands.folkhold_world.construction.";
+    /** The message of a structure in a chunk that is not ready, as for the ghost. */
+    private static final String NOT_LOADED = "message.folkhold_world.construction.not_loaded";
     /** A capture has this number of blocks at most, as the vanilla command {@code /fill}. */
     private static final int MAX_CAPTURE = ConstructionPlacement.MAX_VOLUME;
     private static final int DEFAULT_STEPS_PER_TICK = 4;
@@ -114,7 +116,12 @@ public final class ConstructionCommands {
             return 0;
         }
         BlockPos origin = BlockPos.containing(source.getPosition());
-        Target target = ConstructionTargets.fromTemplate(level, template.get(), origin, new StructurePlaceSettings());
+        StructurePlaceSettings settings = new StructurePlaceSettings();
+        if (!ConstructionPlacement.isAreaReady(level, template.get().getBoundingBox(settings, origin))) {
+            source.sendFailure(Component.translatable(NOT_LOADED));
+            return 0;
+        }
+        Target target = ConstructionTargets.fromTemplate(level, template.get(), origin, settings);
         return ConstructionPlacement.start(source, level, target, stepsPerTick);
     }
 
@@ -146,6 +153,10 @@ public final class ConstructionCommands {
         ServerLevel level = source.getServer().getLevel(saved.dimension());
         if (level == null) {
             source.sendFailure(Component.translatable(KEY + "no_capture"));
+            return 0;
+        }
+        if (!ConstructionPlacement.isAreaReady(level, saved.box())) {
+            source.sendFailure(Component.translatable(NOT_LOADED));
             return 0;
         }
         return ConstructionPlacement.start(source, level, saved.target(), stepsPerTick);
