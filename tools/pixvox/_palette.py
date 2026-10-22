@@ -7,6 +7,8 @@ SPRUCE = ramp("#8a6844", n=5, spread=0.28, hue_shift=14)
 SPRUCE_DARK = ramp("#5a3f27", n=5, spread=0.30, hue_shift=12)
 # Dark oak: the chests and the roofs.
 DARK_OAK = ramp("#4c3420", n=5, spread=0.32, hue_shift=12)
+# Birch planks of the quest board.
+BIRCH = ramp("#c4b07a", n=5, spread=0.24, hue_shift=12)
 # Oak planks and stripped oak of the farms.
 OAK = ramp("#a4834f", n=5, spread=0.28, hue_shift=14)
 # Oak bark.

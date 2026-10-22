@@ -672,9 +672,7 @@ The strategy:
 
 The blocks of the library `folkhold_blocks` are volumes of voxels in Python, in `tools/pixvox`. PixVox (MIT license) reads the texture of each face on the volume: the voxel of an edge has one color on its two faces. PixVox renders each block as the game does, checks the export, and makes a review board. The colors come from the materials of the villages: spruce, stone, deepslate, iron and gold. A new block gets a description in `tools/pixvox`.
 
-**Implemented**: the village heart, the watch post, the bank chest, the bank wall, the brazier and the building signs. The embers and the flames of the brazier move and glow. The plaque of a building sign has a raised frame and a raised icon.
-
-**Planned**: the quest board.
+**Implemented**: all the blocks of the library. These are the village heart, the watch post, the bank chest, the bank wall, the brazier, the building signs and the quest board. The embers and the flames of the brazier move and glow. The plaque of a building sign has a raised frame and a raised icon. The papers of the quest board show notices, maps and a sea chart.
 
 ## Technical stack and tools
 

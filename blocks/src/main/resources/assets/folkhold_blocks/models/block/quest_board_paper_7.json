@@ -1,19 +1,79 @@
 {
   "parent": "minecraft:block/block",
-  "render_type": "minecraft:cutout",
-  "ambientocclusion": false,
   "textures": {
-    "particle": "minecraft:block/spruce_planks",
-    "post": "minecraft:block/stripped_spruce_log",
-    "beam": "minecraft:block/spruce_planks",
-    "board": "minecraft:block/birch_planks",
-    "roof": "minecraft:block/dark_oak_planks",
-    "paper": "minecraft:item/paper",
-    "map": "minecraft:item/map",
-    "filled_map": "minecraft:item/filled_map",
-    "pin": "minecraft:block/red_terracotta"
+    "0": "folkhold_blocks:block/quest_board_paper_7/atlas",
+    "p0": "folkhold_blocks:block/quest_board_paper_7/p0",
+    "particle": "folkhold_blocks:block/quest_board_paper_7/atlas"
   },
   "elements": [
+    {
+      "from": [
+        -6,
+        3,
+        6
+      ],
+      "to": [
+        -5,
+        4,
+        7
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "texture": "#0"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "texture": "#0"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "texture": "#0"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "texture": "#0"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "texture": "#0"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "texture": "#0"
+        }
+      }
+    },
     {
       "from": [
         -9,
@@ -23,7 +83,7 @@
       "to": [
         -2,
         5,
-        6.699999999999999
+        6.6
       ],
       "faces": {
         "north": {
@@ -33,68 +93,20 @@
             16,
             16
           ],
-          "texture": "#map"
-        }
-      }
-    },
-    {
-      "from": [
-        -6.0,
-        3.5,
-        6.199999999999999
-      ],
-      "to": [
-        -5.0,
-        4.5,
-        6.6
-      ],
-      "faces": {
-        "north": {
-          "uv": [
-            0,
-            0,
-            1.0,
-            1.0
-          ],
-          "texture": "#pin"
+          "texture": "#p0"
         },
-        "east": {
+        "south": {
           "uv": [
             0,
             0,
-            0.4,
-            1.0
+            16,
+            16
           ],
-          "texture": "#pin"
-        },
-        "west": {
-          "uv": [
-            0,
-            0,
-            0.4,
-            1.0
-          ],
-          "texture": "#pin"
-        },
-        "up": {
-          "uv": [
-            0,
-            0,
-            1.0,
-            0.4
-          ],
-          "texture": "#pin"
-        },
-        "down": {
-          "uv": [
-            0,
-            0,
-            1.0,
-            0.4
-          ],
-          "texture": "#pin"
+          "texture": "#p0"
         }
       }
     }
-  ]
+  ],
+  "ambientocclusion": false,
+  "render_type": "minecraft:cutout"
 }
