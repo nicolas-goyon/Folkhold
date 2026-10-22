@@ -31,8 +31,9 @@ import java.util.Set;
  *   <li>The fluids come at the end: the plan places a waterlogged block with no water, then adds the water.</li>
  *   <li>Each step has a position where the builder stands, with the block of the step in the reach zone of the
  *       builder (see {@link Reach}). This position has space for the builder and a floor below it. The floor is a
- *       block of the level, the scaffolding of the plan, or a block that the plan places directly on a block of the
- *       level (for example the floor of a house). Thus a builder does not stand on the top of a new wall.</li>
+ *       block of the level or of the scaffolding. It can also be a block of the plan on a block of the level, for
+ *       example the floor of a house. A block of the plan in a square of 2 × 2 floor blocks is a floor too, for
+ *       example an upper floor. A builder does not stand on the top of a new wall, which is 1 block wide.</li>
  *   <li>When there is no such position, the plan adds a column of scaffolding next to the block, on positions that
  *       the target does not fill. A column on the ground comes before a column on a block of the plan, then the
  *       column with the fewest new blocks: a column on top of an existing column makes it higher. The plan removes
@@ -403,9 +404,13 @@ public final class ConstructionPlanner {
     }
 
     /**
-     * True if a builder can stand on a block now. The block is a floor, and it is a block of the level, the
-     * scaffolding of the plan, or a block that the plan put directly on a block of the level. A builder does not climb
-     * on the other blocks of the plan, for example on the top of a new wall.
+     * True if a builder can stand on a block now. The block is a floor, and it is one of these blocks:
+     * <ul>
+     *   <li>a block of the level, or the scaffolding of the plan</li>
+     *   <li>a block that the plan put directly on a floor of the level</li>
+     *   <li>a block of the plan in a square of 2 × 2 floor blocks now (see {@link #inWideFloor})</li>
+     * </ul>
+     * A builder does not climb on the other blocks of the plan, for example on the top of a new wall.
      */
     private boolean standsOn(BuildPos floor) {
         if (!current(floor).floor()) {
@@ -415,7 +420,24 @@ public final class ConstructionPlanner {
             return true;
         }
         BuildPos below = floor.below();
-        return !placed.contains(below) && current(below).floor();
+        return (!placed.contains(below) && current(below).floor()) || inWideFloor(floor);
+    }
+
+    /**
+     * True if a floor block is in a square of 2 × 2 floor blocks now, at the same height. A floor of a house on its
+     * foundation, the floor of an upper storey or the top of a platform is in such a square. The top of a wall of 1
+     * block is not.
+     */
+    private boolean inWideFloor(BuildPos floor) {
+        for (int dx = -1; dx <= 1; dx += 2) {
+            for (int dz = -1; dz <= 1; dz += 2) {
+                if (current(floor.offset(dx, 0, 0)).floor() && current(floor.offset(0, 0, dz)).floor()
+                        && current(floor.offset(dx, 0, dz)).floor()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
