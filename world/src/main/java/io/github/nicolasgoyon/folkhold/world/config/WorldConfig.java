@@ -26,6 +26,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue VILLAGE_MESSAGE_RADIUS;
     public static final ModConfigSpec.IntValue SPAWN_PROTECTION_RADIUS;
     public static final ModConfigSpec.IntValue CALM_DELAY_SECONDS;
+    public static final ModConfigSpec.IntValue BUILDERS;
+    public static final ModConfigSpec.IntValue HANDYMEN;
 
 
     public static final ModConfigSpec.IntValue CAPTAIN_AURA_RADIUS;
@@ -197,6 +199,14 @@ public final class WorldConfig {
                 .comment("Time in seconds without a threat before an alerted village becomes calm again.")
                 .translation(KEY_PREFIX + "calmDelaySeconds")
                 .defineInRange("calmDelaySeconds", 60, 5, 3600);
+        BUILDERS = builder
+                .comment("Number of builders in each village. The builders are inhabitants with no economic job.")
+                .translation(KEY_PREFIX + "builders")
+                .defineInRange("builders", 2, 0, 32);
+        HANDYMEN = builder
+                .comment("Number of handymen in each village. The handymen are inhabitants with no economic job.")
+                .translation(KEY_PREFIX + "handymen")
+                .defineInRange("handymen", 1, 0, 16);
         builder.pop();
 
         builder.comment("Garrison of each village. The level table sets the number of units and their equipment",

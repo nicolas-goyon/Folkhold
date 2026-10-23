@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRuns;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
+import io.github.nicolasgoyon.folkhold.world.entity.AnimatedVillagers;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.FriendlyFire;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationEvents;
@@ -68,6 +69,7 @@ public final class FolkholdWorld {
         ModBlockEntities.register(modEventBus);
         ModEntities.register(modEventBus);
         ModProfessions.register(modEventBus);
+        AnimatedVillagers.init();
         ModItems.register(modEventBus);
         ModSounds.register(modEventBus);
         ModStructurePlacements.register(modEventBus);

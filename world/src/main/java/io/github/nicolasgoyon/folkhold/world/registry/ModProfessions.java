@@ -40,6 +40,22 @@ public final class ModProfessions {
             "baker", () -> new VillagerProfession("baker", holder -> false, holder -> false,
                     ImmutableSet.of(), ImmutableSet.of(), null));
 
+    /**
+     * Builder: does the constructions of the village. No trades, no job site block. The model of a builder is
+     * animated (see {@link io.github.nicolasgoyon.folkhold.world.entity.AnimatedVillagers}).
+     */
+    public static final DeferredHolder<VillagerProfession, VillagerProfession> BUILDER = PROFESSIONS.register(
+            "builder", () -> new VillagerProfession("builder", holder -> false, holder -> false,
+                    ImmutableSet.of(), ImmutableSet.of(), SoundEvents.VILLAGER_WORK_MASON));
+
+    /**
+     * Handyman: does the small work of the village. No trades, no job site block. The model of a handyman is
+     * animated (see {@link io.github.nicolasgoyon.folkhold.world.entity.AnimatedVillagers}).
+     */
+    public static final DeferredHolder<VillagerProfession, VillagerProfession> HANDYMAN = PROFESSIONS.register(
+            "handyman", () -> new VillagerProfession("handyman", holder -> false, holder -> false,
+                    ImmutableSet.of(), ImmutableSet.of(), SoundEvents.VILLAGER_WORK_TOOLSMITH));
+
     private ModProfessions() {
     }
 
