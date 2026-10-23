@@ -22,8 +22,9 @@ import net.minecraft.world.phys.Vec3;
  *   <li>The route comes from {@link RaidMarch}: the raider walks to the approach of the nearest gate, then through
  *       an open gate to the heart. At a closed gate, it waits.</li>
  *   <li>At {@link #ARRIVAL} blocks from the heart, the raider arrives and the goal stops: the vanilla goals of the
- *       raid move the raider in the village. After the arrival, the goal starts again only when the raider is
- *       outside the palisade.</li>
+ *       raid move the raider in the village. A raider that stops at this distance for another cause, for example a
+ *       target, also arrives. After the arrival, the goal starts again only when the raider is outside the
+ *       palisade.</li>
  *   <li>The navigation crosses the water: the raider swims across a river.</li>
  *   <li>When the raider has a target, the goal stops and the raider attacks. When it loses the target, the goal
  *       starts again.</li>
@@ -94,6 +95,9 @@ public class MarchOnVillageGoal extends Goal {
     public void stop() {
         raider.getNavigation().stop();
         entering = null;
+        if (isAtHeart()) {
+            arrived = true;
+        }
     }
 
     @Override
