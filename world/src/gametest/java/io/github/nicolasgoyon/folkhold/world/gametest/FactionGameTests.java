@@ -7,12 +7,17 @@ import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionTrait;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
+import io.github.nicolasgoyon.folkhold.world.entity.RiderEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
@@ -34,6 +39,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class FactionGameTests {
     private static final BlockPos HEART = new BlockPos(8, 1, 8);
+    /** The first level of the tier {@code city}: its garrison has each role. */
+    private static final int CITY_LEVEL = 13;
 
     private FactionGameTests() {
     }
@@ -96,30 +103,48 @@ public final class FactionGameTests {
         helper.succeed();
     }
 
-    /** Units wear the color of their faction. The captain wears the banner of its faction. */
+    /**
+     * Units wear the color of their faction: a tabard, or an armband for a golem. The captain wears the banner of its
+     * faction. The village is a city: its garrison has each role.
+     */
     @GameTest(template = "arena", batch = "faction_visuals")
     public static void unitsWearFactionColors(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+        TestSupport.setLevel(helper, heart, CITY_LEVEL);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         FactionSpec faction = FactionData.get(helper.getLevel().getServer()).byId(heart.getFactionId()).orElseThrow();
         List<FactionUnit> units = heart.getUnits();
+        Set<GarrisonRole> roles = units.stream().map(FactionUnit::role)
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(GarrisonRole.class)));
         boolean tabards = units.stream()
-                .filter(unit -> !(unit instanceof CaptainEntity))
+                .filter(unit -> !(unit instanceof CaptainEntity) && !(unit instanceof FactionGolemEntity))
                 .allMatch(unit -> {
                     DyedItemColor color = unit.getItemBySlot(EquipmentSlot.CHEST).get(DataComponents.DYED_COLOR);
                     return color != null && color.rgb() == faction.color();
                 });
+        boolean armbands = units.stream()
+                .filter(FactionGolemEntity.class::isInstance)
+                .map(FactionGolemEntity.class::cast)
+                .allMatch(golem -> golem.getArmbandColor() == faction.color());
         boolean banner = units.stream()
                 .filter(CaptainEntity.class::isInstance)
                 .allMatch(unit -> {
                     BannerPatternLayers layers = unit.getItemBySlot(EquipmentSlot.HEAD).get(DataComponents.BANNER_PATTERNS);
                     return layers != null && !layers.layers().isEmpty();
                 });
-        units.forEach(Entity::discard);
+        units.forEach(unit -> {
+            if (unit instanceof RiderEntity rider && rider.getHorse() != null) {
+                rider.getHorse().discard();
+            }
+            unit.discard();
+        });
 
+        helper.assertTrue(roles.equals(EnumSet.allOf(GarrisonRole.class)),
+                "The garrison of a city must have each role, found " + roles);
         helper.assertTrue(tabards, "Each unit must wear a tabard in the color of its faction");
+        helper.assertTrue(armbands, "Each golem must wear an armband in the color of its faction");
         helper.assertTrue(banner, "The captain must wear the banner of its faction");
         helper.succeed();
     }

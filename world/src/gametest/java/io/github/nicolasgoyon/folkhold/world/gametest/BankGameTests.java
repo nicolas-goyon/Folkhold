@@ -65,10 +65,11 @@ public final class BankGameTests {
     }
 
     /**
-     * A heart with its settlement, a bank chest, 10 bread in the stock, a treasury that puts {@link #SHARE} emeralds
-     * in the chest, and a player next to the chest. The bank chests of earlier tests near the test area go away: in
-     * the scan area of the heart, such a chest is a page of the bank, and the chest of the test then shows another
-     * part of the stock.
+     * A heart with its settlement, a bank chest, only 10 bread in the stock, a treasury that puts {@link #SHARE}
+     * emeralds in the chest, and a player next to the chest. The start stock does not stay: with a high start level,
+     * its items fill the chest before the bread. The bank chests of earlier tests near the test area go away: in the
+     * scan area of the heart, such a chest is a page of the bank, and the chest of the test then shows another part
+     * of the stock.
      */
     private static Scene scene(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
@@ -82,6 +83,7 @@ public final class BankGameTests {
         VillageHearts.register(helper.getLevel(), helper.absolutePos(HEART));
         MinecraftServer server = helper.getLevel().getServer();
         Settlement settlement = Settlements.of(server, heart).orElseThrow();
+        TestSupport.emptyStock(settlement);
         settlement.economy().stock().set("minecraft:bread", 10);
         SettlementData data = SettlementData.get(server);
         long treasury = data.treasury(settlement.factionId());

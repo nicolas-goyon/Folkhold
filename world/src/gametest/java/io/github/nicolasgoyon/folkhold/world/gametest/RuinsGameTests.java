@@ -113,8 +113,9 @@ public final class RuinsGameTests {
     }
 
     /**
-     * Makes a village with a bank chest, 10 bread in the stock and 100 emeralds in the treasury, and ruins it: the
-     * captain dies, then the heart breaks.
+     * Makes a village with a bank chest, 100 emeralds in the treasury and only 10 bread in the stock, and ruins it:
+     * the captain dies, then the heart breaks. The start stock does not stay: with a high start level, its items fill
+     * the chest before the bread.
      */
     private static RuinedBank ruinedVillageWithBank(GameTestHelper helper) {
         TestSupport.removeEarlierBankChests(helper);
@@ -124,6 +125,7 @@ public final class RuinsGameTests {
         String faction = village.settlement().factionId();
         long before = data.treasury(faction);
         data.addTreasury(faction, 100 - before);
+        TestSupport.emptyStock(village.settlement());
         village.settlement().economy().stock().set("minecraft:bread", 10);
         int share = BankChests.emeraldShare(helper.getLevel().getServer(), village.settlement());
         village.captain().kill();
