@@ -134,6 +134,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.BooleanValue CONSTRUCTION_REPAIRS;
     public static final ModConfigSpec.BooleanValue CONSTRUCTION_FREE_REPAIRS;
     public static final ModConfigSpec.IntValue CONSTRUCTION_REPAIR_CHECK_SECONDS;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_CATCH_UP_STEPS;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -718,6 +719,11 @@ public final class WorldConfig {
                 .comment("A loaded village with builders looks for its damaged blocks every this number of seconds.")
                 .translation(KEY_PREFIX + "constructionRepairCheckSeconds")
                 .defineInRange("repairCheckSeconds", 60, 5, 3600);
+        CONSTRUCTION_CATCH_UP_STEPS = builder
+                .comment("When the chunks of a site load, the site applies the work of the builders while its chunks",
+                        "were not loaded: this number of steps at most for each tick.")
+                .translation(KEY_PREFIX + "constructionCatchUpSteps")
+                .defineInRange("catchUpStepsPerTick", 32, 1, 4096);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

@@ -199,6 +199,8 @@ To try the construction plans, run `/folkhold construction place` and select `vi
 
 To see a repair, break 3 blocks of the palisade of a faction village with builders. In 60 seconds or less, the builders put fences around the broken blocks, then repair them during the day. `/folkhold construction sites` shows the repair site.
 
+To see the work of the builders while the chunks are not loaded, start a site with the builders during the day. Then go far away from the village. `/folkhold construction sites` shows the steps of work that wait. Come back: the site applies these steps, then the builders go on.
+
 To see the handyman of a faction village at work, stand near the plaza of the village. Run `/time set 11000`: the handyman lights the 4 braziers of the plaza before the night. Run `/time set 0`: in the morning, the handyman puts out the braziers.
 
 ## Translations
