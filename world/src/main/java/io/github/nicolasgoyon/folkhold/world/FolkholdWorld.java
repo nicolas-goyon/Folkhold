@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import io.github.nicolasgoyon.folkhold.world.command.ConstructionCommands;
 import io.github.nicolasgoyon.folkhold.world.command.FolkholdCommands;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.construction.BuilderMaterials;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRuns;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
@@ -129,6 +130,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(SimulationProfiler::onServerStopped);
         NeoForge.EVENT_BUS.addListener(ConstructionRuns::onServerTick);
         NeoForge.EVENT_BUS.addListener(BuilderSites::onLevelTick);
+        NeoForge.EVENT_BUS.addListener(BuilderMaterials::onServerStopped);
         NeoForge.EVENT_BUS.addListener(ConstructionRuns::onServerStopped);
         NeoForge.EVENT_BUS.addListener(ConstructionCommands::onServerStopped);
         NeoForge.EVENT_BUS.addListener(LevelTables::onAddReloadListener);

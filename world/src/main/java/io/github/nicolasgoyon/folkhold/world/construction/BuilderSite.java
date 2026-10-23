@@ -9,13 +9,19 @@ import io.github.nicolasgoyon.folkhold.core.sim.construction.Step;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.StepType;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.WorkZone;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemCatalog;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionEndPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import java.util.ArrayList;
@@ -30,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -86,7 +93,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *   <li>A block of the plan does not go into an entity. The entity moves out after some time.</li>
  *   <li>The site keeps its template, its position, its phase, its fences and its scaffolding. After a load, the site
  *       makes a new plan from the blocks of the level: the blocks in place give no steps.</li>
- *   <li>The steps use no items and drop no items, as the steps of a command (see {@link ConstructionRun}).</li>
+ *   <li>The builders take the materials of the blocks of the plan from the stock of the village (see
+ *       {@link SiteMaterials}). The fences and the scaffolding use no materials. A removed block drops no item.</li>
  * </ul>
  */
 public final class BuilderSite {
@@ -112,6 +120,10 @@ public final class BuilderSite {
     private static final int MAX_COLUMN = 64;
     /** The time of the head shake of a builder that says no, in ticks. */
     private static final int UNHAPPY_TICKS = 40;
+    /** The site checks the quests for its materials every this number of ticks. */
+    private static final int QUEST_TICKS = 200;
+    /** A need of a material below this part of an item is no need. */
+    private static final double NEED_EPSILON = 1.0E-6;
 
     /** The phase of a site. */
     public enum Phase {
@@ -146,6 +158,8 @@ public final class BuilderSite {
         PLAYER,
         /** No builder of the village is near. */
         NO_BUILDERS,
+        /** The builders wait for materials of the stock of the village (see {@link SiteMaterials}). */
+        MATERIALS,
         /** The builders work. */
         WORKING,
         /** A command stopped the site: the site removes its fences and its scaffolding when its chunks are ready. */
@@ -155,6 +169,16 @@ public final class BuilderSite {
         public String serializedName() {
             return name().toLowerCase(Locale.ROOT);
         }
+    }
+
+    /** The result of a step that a builder applies. */
+    enum Applied {
+        /** The step applied. */
+        APPLIED,
+        /** An entity is in the block of the step, or a step before it did not apply. */
+        BLOCKED,
+        /** The stock of the village does not have the materials of the step. */
+        WAITING
     }
 
     private final int id;
@@ -185,6 +209,10 @@ public final class BuilderSite {
     private SiteSchedule<UUID> schedule;
     private final Map<UUID, BuilderWorker> workers = new LinkedHashMap<>();
     private final Map<UUID, Long> warned = new HashMap<>();
+    private final SiteMaterials materials = new SiteMaterials();
+    /** The village of the builders in this tick, or null with no economy. */
+    @Nullable
+    private Settlement settlement;
     private Status status = Status.STARTING;
     private boolean dirty;
 
@@ -316,6 +344,7 @@ public final class BuilderSite {
             pause(level, Status.ALERT);
             return false;
         }
+        settlement = economyOf(level, village);
         if (schedule == null) {
             prepare(level);
         }
@@ -330,8 +359,13 @@ public final class BuilderSite {
         if (Math.floorMod(now + id, SCAN_TICKS) == 0) {
             findBuilders(level);
         }
+        Settlement economy = settlement;
+        if (phase == Phase.BUILD && economy != null && Math.floorMod(now + id, QUEST_TICKS) == 0) {
+            materials.offerQuests(level.getServer(), economy, needs(level, economy), now);
+        }
         List<ServerPlayer> intruders = playersInZone(level);
         status = !intruders.isEmpty() ? Status.PLAYER : workers.isEmpty() ? Status.NO_BUILDERS : Status.WORKING;
+        materials.clearMissing();
         for (BuilderWorker worker : List.copyOf(workers.values())) {
             Villager villager = villager(level, worker);
             if (villager == null) {
@@ -340,8 +374,81 @@ public final class BuilderSite {
             }
             worker.tick(level, this, villager, nearest(intruders, villager));
         }
+        if (status == Status.WORKING && !materials.missing().isEmpty()) {
+            status = Status.MATERIALS;
+        }
         warn(level, intruders, now);
         return false;
+    }
+
+    /** The village of a heart with an economy, or null: the builders of a village with no economy use no materials. */
+    @Nullable
+    private static Settlement economyOf(ServerLevel level, VillageHeartBlockEntity village) {
+        return Settlements.of(level.getServer(), village).filter(Settlement::isActive)
+                .filter(found -> found.economy().isInitialized()).orElse(null);
+    }
+
+    /**
+     * The materials of the steps of the plan that did not apply, by item id. For a rare or a valuable block, the
+     * material is the block. For the other blocks, the materials are items of the economy, less the parts of items
+     * that the site keeps.
+     */
+    private Map<String, SiteMaterials.Need> needs(ServerLevel level, Settlement village) {
+        Map<String, Double> quantities = new TreeMap<>();
+        Map<String, Double> rarePrices = new HashMap<>();
+        SiteSchedule<UUID> current = schedule();
+        for (int i = current.next(); i < current.total(); i++) {
+            if (current.isApplied(i)) {
+                continue;
+            }
+            BuilderMaterials.Material material = materialOf(level, i);
+            switch (material.kind()) {
+                case RARE -> {
+                    quantities.merge(material.item(), 1.0, Double::sum);
+                    rarePrices.put(material.item(), material.price());
+                }
+                case COMMON -> material.cost().forEach((item, quantity) -> quantities.merge(item, quantity,
+                        Double::sum));
+                case FREE -> {
+                }
+            }
+        }
+        Map<String, Double> kept = materials.buffer();
+        ItemCatalog catalog = EconomyData.catalog();
+        Map<String, SiteMaterials.Need> needs = new TreeMap<>();
+        quantities.forEach((item, quantity) -> {
+            int count = (int) Math.ceil(quantity - kept.getOrDefault(item, 0.0) - NEED_EPSILON);
+            if (count <= 0) {
+                return;
+            }
+            boolean rare = rarePrices.containsKey(item);
+            double price = rare ? rarePrices.get(item) : Prices.price(catalog.info(item),
+                    village.economy().stock().count(item), village.economy().population(), Economies.settings());
+            needs.put(item, new SiteMaterials.Need(count, price, rare));
+        });
+        return needs;
+    }
+
+    /** The material of a step: the block of a placement of the plan. The other steps use no materials. */
+    private BuilderMaterials.Material materialOf(ServerLevel level, int index) {
+        Step step = stepAt(index);
+        ConstructionRun plan = run;
+        if (phase != Phase.BUILD || step.type() != StepType.PLACE || plan == null) {
+            return BuilderMaterials.Material.NONE;
+        }
+        return plan.state(step.state())
+                .map(state -> BuilderMaterials.of(level.getServer(), state.getBlock().asItem()))
+                .orElse(BuilderMaterials.Material.NONE);
+    }
+
+    /** True if the stock of the village has the materials of a step (see {@link SiteMaterials}). */
+    boolean hasMaterials(ServerLevel level, int index) {
+        return materials.has(materialOf(level, index), settlement, level.getGameTime());
+    }
+
+    /** The items that the builders wait for now, by item id. */
+    public Set<String> missingMaterials() {
+        return materials.missing();
     }
 
     /** True during the work time of the builders: the day. */
@@ -853,14 +960,15 @@ public final class BuilderSite {
     }
 
     /**
-     * Applies a step: the block changes, with the sound of a placement or the particles of a break.
+     * Applies a step. The builders take the materials of the step from the stock of the village. Then the block
+     * changes, with the sound of a placement or the particles of a break.
      *
-     * @return false if the step cannot apply now: a step before it is not applied, or an entity blocks it
+     * @return the result: the step applied, or why it waits
      */
-    boolean apply(ServerLevel level, int index) {
+    Applied apply(ServerLevel level, int index) {
         SiteSchedule<UUID> current = schedule();
         if (!current.canApply(index) || isBlocked(level, index)) {
-            return false;
+            return Applied.BLOCKED;
         }
         Step step = stepAt(index);
         BlockPos pos = BlockKinds.toBlockPos(step.pos());
@@ -871,8 +979,12 @@ public final class BuilderSite {
                 ConstructionRun plan = run;
                 if (plan == null || plan.applied() != index) {
                     FolkholdWorld.LOGGER.error("Builder site {}: step {} is not the next step of the plan", id, index);
-                    return false;
+                    return Applied.BLOCKED;
                 }
+                if (!materials.take(materialOf(level, index), settlement, level.getServer(), level.getGameTime())) {
+                    return Applied.WAITING;
+                }
+                dirty = true;
                 plan.applyNext();
                 if (step.type() == StepType.PLACE_SCAFFOLDING) {
                     dirty |= scaffolding.add(pos);
@@ -895,7 +1007,7 @@ public final class BuilderSite {
         }
         effects(level, pos, before);
         current.markApplied(index);
-        return true;
+        return Applied.APPLIED;
     }
 
     /** Puts a fence at a position that is still free. The fence connects to the fences next to it. */
@@ -974,6 +1086,13 @@ public final class BuilderSite {
         if (!finished) {
             removeBlocks(level);
         }
+        Settlement village = ReadyChunks.isReady(level, heart)
+                && level.getBlockEntity(heart) instanceof VillageHeartBlockEntity found
+                ? economyOf(level, found) : null;
+        if (village != null) {
+            materials.giveBack(village, level.getServer());
+        }
+        materials.withdrawOffers(level.getServer());
         UUID player = operator;
         ServerPlayer online = player == null ? null : level.getServer().getPlayerList().getPlayer(player);
         if (online != null) {
@@ -1058,6 +1177,7 @@ public final class BuilderSite {
         tag.putBoolean("Stopping", stopping);
         tag.putLongArray("Fences", fences.stream().mapToLong(BlockPos::asLong).toArray());
         tag.putLongArray("Scaffolding", scaffolding.stream().mapToLong(BlockPos::asLong).toArray());
+        tag.put("Materials", materials.save());
         return tag;
     }
 
@@ -1087,6 +1207,7 @@ public final class BuilderSite {
         for (long pos : tag.getLongArray("Scaffolding")) {
             site.scaffolding.add(BlockPos.of(pos));
         }
+        site.materials.load(tag.getCompound("Materials"));
         return Optional.of(site);
     }
 

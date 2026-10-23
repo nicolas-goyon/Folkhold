@@ -177,6 +177,10 @@ public final class ConstructionCommands {
                     Component.translatable(KEY + "site.phase." + site.phase().serializedName()), site.appliedSteps(),
                     site.totalSteps(), Component.translatable(KEY + "site.status." + site.status().serializedName()),
                     site.builderCount()), false);
+            if (!site.missingMaterials().isEmpty()) {
+                source.sendSuccess(() -> Component.translatable(KEY + "site.missing",
+                        String.join(", ", site.missingMaterials())), false);
+            }
         }
         return sites.size();
     }
