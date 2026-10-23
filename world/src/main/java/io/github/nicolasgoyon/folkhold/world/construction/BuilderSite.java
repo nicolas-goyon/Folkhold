@@ -856,7 +856,7 @@ public final class BuilderSite {
      * scaffolding, and a floor is below. A floor is a block with its top at the top of the block (a full block, a top
      * slab), or scaffolding.
      */
-    static boolean isStandFree(Level level, BlockPos feet) {
+    public static boolean isStandFree(Level level, BlockPos feet) {
         return isPassable(level, feet) && isPassable(level, feet.above()) && isFloor(level, feet.below());
     }
 

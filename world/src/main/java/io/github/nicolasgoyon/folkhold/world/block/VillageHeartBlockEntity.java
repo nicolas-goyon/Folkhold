@@ -1,7 +1,5 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
-import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
-import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
@@ -28,6 +26,8 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
+import io.github.nicolasgoyon.folkhold.world.village.Handymen;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBraziers;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -58,7 +58,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BellBlock;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -124,6 +123,11 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final int GOLEM_GATE_DISTANCE = 4;
     /** True after the heart closed the gates and lit the braziers for the night. */
     private boolean nightMode;
+    /** The period of the day of the last check of the braziers, or null before the first check. Not saved. */
+    @Nullable
+    private VillageBraziers.Period brazierPeriod;
+    /** The handymen at work on the braziers. Not saved: the heart gives the work again after a load. */
+    private final Handymen handymen = new Handymen();
     /** True when the stairs of the gates are built (see {@link VillageExits}). */
     private boolean exitStairs;
     /** True after the first cats of the village appeared. */
@@ -685,7 +689,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
      * <ul>
      *   <li>Night: the gates close, the braziers burn, and the guards (not the captain, not the units with a
      *       post) watch the gates.</li>
-     *   <li>Day: the gates open, the braziers go out, and the guards patrol around their home again.</li>
+     *   <li>Day: the gates open, and the guards patrol around their home again. In a village with no handymen, the
+     *       braziers go out. In a village with handymen, the braziers burn until the handymen put them out in the
+     *       morning (see {@link VillageBraziers}).</li>
      *   <li>A campfire of the layout becomes a brazier of the block library, which does not burn the entities.</li>
      * </ul>
      *
@@ -709,18 +715,41 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 }
             }
         }
-        for (BlockPos brazier : layout.braziers()) {
-            BlockState brazierState = level.getBlockState(brazier);
-            if (brazierState.getBlock() instanceof CampfireBlock) {
-                // A campfire burns the entities: the brazier of the block library takes its place.
-                level.setBlock(brazier, ModBlocks.BRAZIER.get().defaultBlockState().setValue(BrazierBlock.LIT, night),
-                        Block.UPDATE_ALL);
-            } else if (brazierState.getBlock() instanceof BrazierBlock
-                    && brazierState.getValue(BrazierBlock.LIT) != night) {
-                level.setBlock(brazier, brazierState.setValue(BrazierBlock.LIT, night), Block.UPDATE_ALL);
-            }
+        if (night || !(level instanceof ServerLevel serverLevel) || !Handymen.exist(serverLevel, worldPosition)) {
+            setBraziers(night);
         }
         assignGateWatch(night);
+    }
+
+    /** Lights all the braziers of the village, or puts them all out. */
+    private void setBraziers(boolean lit) {
+        if (level == null) {
+            return;
+        }
+        for (BlockPos brazier : layout.braziers()) {
+            VillageBraziers.set(level, brazier, lit);
+        }
+    }
+
+    /**
+     * The work of the braziers at each check. At the start of the day, the heart puts out the braziers that burn: the
+     * braziers that the handymen did not put out in the morning. Then the heart gives the work of the current period
+     * to the handymen: in the evening they light the braziers, in the morning they put them out.
+     */
+    private void updateBraziers(ServerLevel serverLevel) {
+        VillageBraziers.Period period = VillageBraziers.period(serverLevel.getDayTime(), nightMode);
+        if (period != brazierPeriod) {
+            brazierPeriod = period;
+            if (period == VillageBraziers.Period.DAY) {
+                setBraziers(false);
+            }
+        }
+        Optional<Boolean> lit = switch (period) {
+            case EVENING -> Optional.of(true);
+            case MORNING -> Optional.of(false);
+            case DAY, NIGHT -> Optional.empty();
+        };
+        handymen.update(serverLevel, worldPosition, layout.braziers(), lit);
     }
 
     private void assignGateWatch(boolean night) {
@@ -845,6 +874,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
      * the hearts of a world do their work on different ticks.
      */
     public static void serverTick(Level level, BlockPos pos, BlockState state, VillageHeartBlockEntity heart) {
+        if (level instanceof ServerLevel serverLevel) {
+            heart.handymen.tick(serverLevel);
+        }
         long time = level.getGameTime() + Math.floorMod(pos.hashCode(), ROTATION_INTERVAL);
         if (time % CHECK_INTERVAL != 0) {
             return;
@@ -868,6 +900,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (heart.layout.isScanned() && level.isNight() != heart.nightMode) {
             heart.applyDayNight(level.isNight());
         }
+        if (heart.layout.isScanned() && level instanceof ServerLevel serverLevel) {
+            heart.updateBraziers(serverLevel);
+        }
         long calmDelayTicks = WorldConfig.CALM_DELAY_SECONDS.get() * 20L;
         if (heart.alertState != AlertState.CALM && level.getGameTime() - heart.lastBellTick >= BELL_INTERVAL) {
             heart.ringBells();
@@ -890,6 +925,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level != null) {
             VillageHearts.unregister(level, worldPosition);
         }
+        if (level instanceof ServerLevel serverLevel) {
+            handymen.stop(serverLevel);
+        }
         super.setRemoved();
     }
 
@@ -897,6 +935,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     public void onChunkUnloaded() {
         if (level != null) {
             VillageHearts.unregister(level, worldPosition);
+        }
+        if (level instanceof ServerLevel serverLevel) {
+            handymen.stop(serverLevel);
         }
         super.onChunkUnloaded();
     }

@@ -209,7 +209,8 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "builders")
                 .defineInRange("builders", 2, 0, 32);
         HANDYMEN = builder
-                .comment("Number of handymen in each village. The handymen are inhabitants with no economic job.")
+                .comment("Number of handymen in each village. The handymen are inhabitants with no economic job.",
+                        "They light the braziers of the village in the evening and put them out in the morning.")
                 .translation(KEY_PREFIX + "handymen")
                 .defineInRange("handymen", 1, 0, 16);
         builder.pop();
