@@ -20,6 +20,7 @@ import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionPlacement;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
@@ -40,11 +41,13 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -81,6 +84,12 @@ public final class BuilderSiteGameTests {
     private static final int PAUSE_TICKS = 60;
     /** The radius of the garrison of the heart during the test of a player in the zone: the minimum of the setting. */
     private static final int PLAYER_ACTIVATION_RADIUS = 16;
+    /** The site of the test of the chunks that are not loaded is this far from the test, on the X axis, in blocks. */
+    private static final int FAR = 4096;
+    /** The limit of the steps for each tick after the load of the chunks, in the test of the chunks. */
+    private static final int CATCH_UP_STEPS = 4;
+    /** The work of the builders while the chunks are not loaded, in steps: more than the steps of the site. */
+    private static final double PENDING_STEPS = 200.0;
 
     private BuilderSiteGameTests() {
     }
@@ -225,6 +234,92 @@ public final class BuilderSiteGameTests {
                     helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
                     helper.assertTrue(alive, "The builders must stay alive");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A site goes on while its chunks are not loaded. The test starts a site far from the test, in a village with no
+     * builders, then lets its chunks unload during the day. When the chunks load again, the site applies the steps of
+     * the work of this time, at most {@link #CATCH_UP_STEPS} steps in each tick. The site ends with no builders.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 3000, batch = "builder_site_abstract", skyAccess = true)
+    public static void sitesGoOnWhileTheirChunksAreNotLoaded(GameTestHelper helper) {
+        TestSupport.buildFloor(helper, ARENA);
+        ServerLevel level = helper.getLevel();
+        BuilderSites.stop(level);
+        WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(1);
+        WorldConfig.CONSTRUCTION_CATCH_UP_STEPS.set(CATCH_UP_STEPS);
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos to = new BlockPos(17, 2, 16);
+        ResourceLocation id = template(helper, "abstract_wall", from, to, Blocks.OAK_PLANKS);
+        BlockPos center = helper.absolutePos(new BlockPos(ARENA / 2, 1, ARENA / 2)).offset(FAR, 0, 0);
+        List<ChunkPos> chunks = new ArrayList<>();
+        ChunkPos middle = new ChunkPos(center);
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                chunks.add(new ChunkPos(middle.x + dx, middle.z + dz));
+            }
+        }
+        long[] time = {TestSupport.NOON};
+        helper.onEachTick(() -> level.setDayTime(time[0]));
+        BlockPos[] heart = new BlockPos[1];
+        BuilderSite[] site = new BuilderSite[1];
+        // The largest number of steps in one tick of the catch-up, and the phase and the steps of the last tick.
+        int[] largest = {0};
+        BuilderSite.Phase[] lastPhase = {null};
+        int[] lastApplied = {0};
+        helper.onEachTick(() -> {
+            BuilderSite current = site[0];
+            if (current == null) {
+                return;
+            }
+            if (current.phase() == lastPhase[0] && current.status() == BuilderSite.Status.CATCHING_UP) {
+                largest[0] = Math.max(largest[0], current.appliedSteps() - lastApplied[0]);
+            }
+            lastPhase[0] = current.phase();
+            lastApplied[0] = current.appliedSteps();
+        });
+
+        helper.startSequence()
+                .thenExecute(() -> chunks.forEach(chunk -> level.setChunkForced(chunk.x, chunk.z, true)))
+                .thenWaitUntil(() -> helper.assertTrue(ReadyChunks.isAreaReady(level, center.getX() - 24,
+                        center.getZ() - 24, center.getX() + 24, center.getZ() + 24), "The far chunks must load"))
+                .thenExecute(() -> {
+                    int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING, center.getX(), center.getZ());
+                    heart[0] = new BlockPos(center.getX(), ground, center.getZ());
+                    level.setBlock(heart[0], ModBlocks.VILLAGE_HEART.get().defaultBlockState(), Block.UPDATE_ALL);
+                    VillageHearts.register(level, heart[0]);
+                    site[0] = BuilderSites.start(level, id, heart[0].offset(5, 0, 0), Rotation.NONE, Mirror.NONE,
+                            heart[0], null);
+                    chunks.forEach(chunk -> level.setChunkForced(chunk.x, chunk.z, false));
+                })
+                .thenWaitUntil(() -> helper.assertTrue(site[0].status() == BuilderSite.Status.NOT_LOADED,
+                        "The chunks of the site must unload: " + site[0].status()))
+                .thenWaitUntil(() -> helper.assertTrue(site[0].pendingSteps() >= PENDING_STEPS,
+                        "The site must count the work of the builders: " + site[0].pendingSteps()))
+                .thenExecute(() -> chunks.forEach(chunk -> level.setChunkForced(chunk.x, chunk.z, true)))
+                .thenWaitUntil(() -> helper.assertTrue(BuilderSites.all(level).stream().noneMatch(found ->
+                        found == site[0]), "The site must end with no builders: " + site[0].phase() + " "
+                        + site[0].status() + " " + site[0].appliedSteps() + "/" + site[0].totalSteps()))
+                .thenExecute(() -> {
+                    BlockPos origin = heart[0].offset(5, 0, 0);
+                    BoundingBox box = BoundingBox.fromCorners(origin, origin.offset(to.subtract(from)));
+                    List<BlockPos> missing = new ArrayList<>();
+                    BlockPos.betweenClosedStream(box).filter(pos -> !level.getBlockState(pos).is(Blocks.OAK_PLANKS))
+                            .forEach(pos -> missing.add(pos.immutable()));
+                    List<BlockPos> leftovers = leftovers(level, box);
+                    BlockPos.betweenClosedStream(box).forEach(pos -> level.setBlock(pos,
+                            Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL));
+                    level.setBlock(heart[0], Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                    chunks.forEach(chunk -> level.setChunkForced(chunk.x, chunk.z, false));
+                    WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
+                    WorldConfig.CONSTRUCTION_CATCH_UP_STEPS.set(
+                            WorldConfig.CONSTRUCTION_CATCH_UP_STEPS.getDefault());
+                    helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
+                    helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
+                    helper.assertTrue(largest[0] > 0 && largest[0] <= CATCH_UP_STEPS,
+                            "The site must apply " + CATCH_UP_STEPS + " steps at most in each tick: " + largest[0]);
                 })
                 .thenSucceed();
     }

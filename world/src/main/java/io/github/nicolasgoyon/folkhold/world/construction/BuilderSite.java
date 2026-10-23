@@ -105,6 +105,11 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *       the damaged blocks. Its box is the box of these positions.</li>
  *   <li>At the end of a construction site, the repairs of the village keep the blocks of its box (see
  *       {@link VillageRepairData}).</li>
+ *   <li>Chunks not loaded: during the day, the builders of the oldest site of a village go on with the work in the
+ *       abstract. The site counts the steps of this work (see {@link WorldConfig#BUILDERS} and
+ *       {@link WorldConfig#CONSTRUCTION_BUILDER_TICKS}). When the chunks load, the site applies these steps, with a
+ *       limit for each tick ({@link WorldConfig#CONSTRUCTION_CATCH_UP_STEPS}). Then the builders go on. A step that
+ *       an entity blocks, or that waits for materials, stops this work.</li>
  * </ul>
  */
 public final class BuilderSite {
@@ -134,6 +139,8 @@ public final class BuilderSite {
     private static final int UNHAPPY_TICKS = 40;
     /** The site checks the quests for its materials every this number of ticks. */
     private static final int QUEST_TICKS = 200;
+    /** A site keeps this number of steps at most of the work of the builders while its chunks are not loaded. */
+    static final double MAX_PENDING_STEPS = 100_000.0;
     /** A need of a material below this part of an item is no need. */
     private static final double NEED_EPSILON = 1.0E-6;
 
@@ -175,7 +182,9 @@ public final class BuilderSite {
         /** The builders work. */
         WORKING,
         /** A command stopped the site: the site removes its fences and its scaffolding when its chunks are ready. */
-        STOPPING;
+        STOPPING,
+        /** The site applies the work of the builders while its chunks were not loaded. */
+        CATCHING_UP;
 
         /** The name of the status in the messages. */
         public String serializedName() {
@@ -208,6 +217,8 @@ public final class BuilderSite {
     private final Set<BlockPos> repairPositions;
     private Phase phase = Phase.FENCES;
     private boolean stopping;
+    /** The steps of the work of the builders while the chunks of the site are not loaded. */
+    private double pendingSteps;
     /** The fences that the site put in the level. */
     private final Set<BlockPos> fences = new LinkedHashSet<>();
     /** The scaffolding blocks that the site put in the level. */
@@ -371,6 +382,9 @@ public final class BuilderSite {
             return true;
         }
         if (!isAreaReady(level) || !ReadyChunks.isReady(level, heart)) {
+            if (first && !stopping && isWorkTime(level)) {
+                addAbstractWork();
+            }
             pause(level, stopping ? Status.STOPPING : Status.NOT_LOADED);
             return false;
         }
@@ -385,6 +399,22 @@ public final class BuilderSite {
         }
         if (!first) {
             pause(level, Status.QUEUED);
+            return false;
+        }
+        if (pendingSteps >= 1.0) {
+            settlement = economyOf(level, village);
+            if (schedule == null) {
+                prepare(level);
+            }
+            if (schedule().finished()) {
+                if (!nextPhase()) {
+                    end(level, true);
+                    return true;
+                }
+                return false;
+            }
+            pause(level, Status.CATCHING_UP);
+            catchUp(level);
             return false;
         }
         if (!isWorkTime(level)) {
@@ -501,6 +531,36 @@ public final class BuilderSite {
     /** The items that the builders wait for now, by item id. */
     public Set<String> missingMaterials() {
         return materials.missing();
+    }
+
+    /** One tick of work of the builders while the chunks of the site are not loaded. */
+    private void addAbstractWork() {
+        double perTick = WorldConfig.BUILDERS.get() / (double) WorldConfig.CONSTRUCTION_BUILDER_TICKS.get();
+        pendingSteps = Math.min(MAX_PENDING_STEPS, pendingSteps + perTick);
+        dirty = true;
+    }
+
+    /**
+     * Applies the steps of the work of the builders while the chunks of the site were not loaded: at most
+     * {@link WorldConfig#CONSTRUCTION_CATCH_UP_STEPS} steps in this tick. A step that an entity blocks, or that waits
+     * for materials, stops this work: the builders go on.
+     */
+    private void catchUp(ServerLevel level) {
+        SiteSchedule<UUID> current = schedule();
+        int budget = (int) Math.min(WorldConfig.CONSTRUCTION_CATCH_UP_STEPS.get(), pendingSteps);
+        dirty = true;
+        for (int i = 0; i < budget && !current.finished(); i++) {
+            if (apply(level, current.next(), false) != Applied.APPLIED) {
+                pendingSteps = 0.0;
+                return;
+            }
+            pendingSteps -= 1.0;
+        }
+    }
+
+    /** The steps of the work of the builders while the chunks of the site were not loaded, that wait. */
+    public double pendingSteps() {
+        return pendingSteps;
     }
 
     /** True during the work time of the builders: the day. */
@@ -1049,6 +1109,15 @@ public final class BuilderSite {
      * @return the result: the step applied, or why it waits
      */
     Applied apply(ServerLevel level, int index) {
+        return apply(level, index, true);
+    }
+
+    /**
+     * Applies a step, as {@link #apply(ServerLevel, int)}.
+     *
+     * @param effects true for the sound and the particles of the change
+     */
+    private Applied apply(ServerLevel level, int index, boolean effects) {
         SiteSchedule<UUID> current = schedule();
         if (!current.canApply(index) || isBlocked(level, index)) {
             return Applied.BLOCKED;
@@ -1088,7 +1157,9 @@ public final class BuilderSite {
                 dirty |= fences.remove(pos);
             }
         }
-        effects(level, pos, before);
+        if (effects) {
+            effects(level, pos, before);
+        }
         current.markApplied(index);
         return Applied.APPLIED;
     }
@@ -1263,6 +1334,9 @@ public final class BuilderSite {
         }
         tag.putString("Phase", phase.serializedName());
         tag.putBoolean("Stopping", stopping);
+        if (pendingSteps > 0.0) {
+            tag.putDouble("PendingSteps", pendingSteps);
+        }
         tag.putLongArray("Fences", fences.stream().mapToLong(BlockPos::asLong).toArray());
         tag.putLongArray("Scaffolding", scaffolding.stream().mapToLong(BlockPos::asLong).toArray());
         tag.put("Materials", materials.save());
@@ -1326,6 +1400,7 @@ public final class BuilderSite {
                 rotation.get(), mirror.get(), BlockPos.of(tag.getLong("Heart")), operator, reference, positions);
         site.phase = phase.get();
         site.stopping = tag.getBoolean("Stopping");
+        site.pendingSteps = Math.clamp(tag.getDouble("PendingSteps"), 0.0, MAX_PENDING_STEPS);
         for (long pos : tag.getLongArray("Fences")) {
             site.fences.add(BlockPos.of(pos));
         }

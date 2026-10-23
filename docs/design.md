@@ -257,6 +257,8 @@ The construction system changes the blocks of the level into the blocks of a **t
   - A builder that cannot get to its position in 15 seconds goes there directly. With no free position, it works from where it is. A block does not go into an entity: after 2 seconds, the entity moves to a free position near it.
   - The builders work during the day, when the village is calm. At night and during an alert, they go down from the scaffolding and stop. When a player is in the work zone, the builders stop and look at the player. Every 5 seconds, the player gets a message above the hotbar: go out of the zone.
   - The sites of one village come one after the other. Each level keeps its sites (`folkhold_builder_sites.dat`): the template, the position, the phase, the fences and the scaffolding. After a load, a site makes a new plan from the blocks of the level.
+  - Chunks not loaded: during the day, the builders of the oldest site of a village go on with the work in the abstract. Each builder of the village (`builders`) does 1 step each `construction.builderTicksPerStep` ticks. The site keeps the steps of this work. When the chunks load, the site applies these steps before the builders go on: 32 steps at most for each tick (`construction.catchUpStepsPerTick`). Thus a player who comes to the village sees the work of this time. No chunk stays loaded for a site.
+  - A step that an entity blocks, or that waits for materials, stops this work: the builders go on from this step.
   - Materials: the builders take the materials of each block from the stock of the village. The cost of a block is in items of the economy. It comes from the recipes of the server: crafting, smelting, stonecutting, and the axe that strips a log. Example: 1 oak stairs costs 1.5 oak planks. The parts of items that the builders took and did not use stay in the site for the next blocks. They go back to the stock at the end.
   - A block waits when the stock does not have its materials. The steps after it wait too.
   - A rare block has no recipe from the items of the economy, for example calcite. A valuable block costs 1 emerald or more (`construction.valuableBlockPrice`), for example a gold block. The builders take a rare or a valuable block as it is from the stock. The village asks the players for it at once with a delivery quest, and the delivered blocks go into the stock.
@@ -280,10 +282,7 @@ The construction system changes the blocks of the level into the blocks of a **t
   - The key "build" sends the template, the origin, the turn and the mirror to the server. The server checks the permission and the size of the structure: 32,768 blocks at most, air included. It also checks the distance (96 blocks at most) and the loaded chunks. Then it starts the construction as the command `build`. With the speed "builders", it starts a site of the builders of the nearest village.
   - During the construction, the ghost shows only the blocks that are not in place. It goes away when all its blocks are in place. It also goes away at the end of the construction, and when the command `stop` stops the construction.
 
-**Planned**: new elements go into the **construction queue** of the settlement.
-
-- **Chunks not loaded**: the construction progresses in the abstract simulation. The mod cannot change blocks in a chunk that is not loaded. It applies the finished elements when the chunk loads, before the player can see them.
-- **Chunks loaded**: builder villagers do the construction block by block, with the steps of the plan. The player sees the village grow. This is useful when the player often comes back to the same village.
+**Planned**: new elements go into the **construction queue** of the settlement (growth, J6). The builders build them, also while the chunks are not loaded.
 
 ### Reputation and welcome
 
