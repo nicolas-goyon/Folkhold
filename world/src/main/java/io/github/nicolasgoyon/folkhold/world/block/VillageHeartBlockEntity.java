@@ -107,6 +107,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String CAT_SPAWN_TAG = "LastCatSpawn";
     private static final String VILLAGERS_TAG = "VillagersSpawned";
     private static final String VILLAGER_SPAWN_TAG = "LastVillagerSpawn";
+    private static final String VILLAGERS_FILLING_TAG = "VillagersFilling";
+    /** The heart creates this number of villagers at most at each check of the garrison. */
+    public static final int VILLAGER_GROUP = 4;
     private static final String FACTION_TAG = "Faction";
     private static final String NAME_TAG = "Name";
     /** Name of the village, or null before the village has a faction. */
@@ -129,6 +132,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private long lastCatSpawn;
     /** True after the first villagers (merchants and inhabitants) of the village appeared. */
     private boolean villagersSpawned;
+    /** True while the heart creates the villagers of an incomplete fill (see {@link #ensureVillagers}). */
+    private boolean villagersFilling;
     /** Game time of the last creation of villagers. */
     private long lastVillagerSpawn;
     /** Game time of the last ring of the bells. Not saved. */
@@ -599,10 +604,17 @@ public class VillageHeartBlockEntity extends BlockEntity {
 
     /**
      * Creates the missing villagers of the village: the merchants ({@link Merchants#merchantCount}), then the
-     * inhabitants ({@link VillageFolk#inhabitantCount}) with the professions of the jobs of the settlement
-     * ({@link VillageFolk#professions}). The first villagers appear at once. A dead villager comes back after the
-     * refill delay of the garrison. When the jobs change, the inhabitants get the new professions at once
+     * inhabitants ({@link VillageFolk#inhabitantCount}) with the professions of the settlement
+     * ({@link VillageFolk#professions}). When the jobs change, the inhabitants get the new professions at once
      * ({@link VillageFolk#assign}).
+     *
+     * <ul>
+     *   <li>The villagers appear in groups of {@link #VILLAGER_GROUP} at most, one group at each call. A large
+     *       village fills in some seconds, with no spike of work on the server.</li>
+     *   <li>The first villagers of the village and the rest of an incomplete fill come at the next calls. After a
+     *       complete fill, the missing villagers (a dead villager, a larger population) come after the refill delay
+     *       of the garrison.</li>
+     * </ul>
      *
      * @param serverLevel the level
      * @param now         the current game time
@@ -619,18 +631,30 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 VillageFolk.inhabitantCount(settlement.get()));
         List<VillagerProfession> missingInhabitants =
                 VillageFolk.assign(VillageFolk.inhabitants(serverLevel, worldPosition), wanted);
+        int missing = Math.max(0, missingMerchants) + missingInhabitants.size();
+        if (missing == 0) {
+            boolean changed = villagersFilling;
+            villagersFilling = false;
+            return changed;
+        }
         long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
-        if ((missingMerchants <= 0 && missingInhabitants.isEmpty())
-                || (villagersSpawned && now - lastVillagerSpawn < refill)) {
+        if (villagersSpawned && !villagersFilling && now - lastVillagerSpawn < refill) {
             return false;
         }
-        for (int i = 0; i < missingMerchants; i++) {
+        int spawned = 0;
+        for (int i = 0; i < missingMerchants && spawned < VILLAGER_GROUP; i++) {
             VillageFolk.spawn(serverLevel, worldPosition, ModProfessions.MERCHANT.get());
+            spawned++;
         }
         for (VillagerProfession profession : missingInhabitants) {
+            if (spawned >= VILLAGER_GROUP) {
+                break;
+            }
             VillageFolk.spawn(serverLevel, worldPosition, profession);
+            spawned++;
         }
         villagersSpawned = true;
+        villagersFilling = spawned < missing;
         lastVillagerSpawn = now;
         return true;
     }
@@ -891,6 +915,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putLong(CAT_SPAWN_TAG, lastCatSpawn);
         tag.putBoolean(VILLAGERS_TAG, villagersSpawned);
         tag.putLong(VILLAGER_SPAWN_TAG, lastVillagerSpawn);
+        tag.putBoolean(VILLAGERS_FILLING_TAG, villagersFilling);
         if (factionId != null) {
             tag.putString(FACTION_TAG, factionId);
         }
@@ -921,6 +946,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         lastCatSpawn = tag.getLong(CAT_SPAWN_TAG);
         villagersSpawned = tag.getBoolean(VILLAGERS_TAG);
         lastVillagerSpawn = tag.getLong(VILLAGER_SPAWN_TAG);
+        villagersFilling = tag.getBoolean(VILLAGERS_FILLING_TAG);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
         villageName = tag.contains(NAME_TAG) ? tag.getString(NAME_TAG) : null;
     }
