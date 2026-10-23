@@ -121,7 +121,11 @@ public final class VillageStructureGameTests {
         helper.succeed();
     }
 
-    /** At night, the gates close, the braziers burn and the guards watch the gates. By day, the opposite. */
+    /**
+     * At night, the gates close, the braziers burn and the guards watch the gates. By day, the opposite. The test
+     * removes the villagers first: in a village with no handymen, the heart puts out the braziers at the start of the
+     * day.
+     */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_night")
     public static void villageAppliesDayAndNight(GameTestHelper helper) {
         VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
@@ -130,6 +134,8 @@ public final class VillageStructureGameTests {
         List<GuardEntity> guards = heart.getUnits().stream()
                 .filter(unit -> unit instanceof GuardEntity && !(unit instanceof CaptainEntity))
                 .map(GuardEntity.class::cast).toList();
+        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
+        VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
 
         heart.applyDayNight(true);
         boolean gatesClosed = layout.gates().stream()
