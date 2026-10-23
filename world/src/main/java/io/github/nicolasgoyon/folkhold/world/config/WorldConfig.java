@@ -127,6 +127,10 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_BELOW;
     public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_ABOVE;
     public static final ModConfigSpec.IntValue CONSTRUCTION_BUILDER_TICKS;
+    public static final ModConfigSpec.BooleanValue CONSTRUCTION_FREE_MATERIALS;
+    public static final ModConfigSpec.DoubleValue CONSTRUCTION_VALUABLE_PRICE;
+    public static final ModConfigSpec.DoubleValue CONSTRUCTION_RARE_PRICE;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_MATERIAL_QUEST_MINUTES;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -676,6 +680,26 @@ public final class WorldConfig {
                         "block. 20 ticks are 1 second. The steps of the scaffolding take half this time.")
                 .translation(KEY_PREFIX + "constructionBuilderTicks")
                 .defineInRange("builderTicksPerStep", 20, 1, 1200);
+        CONSTRUCTION_FREE_MATERIALS = builder
+                .comment("True: the builders of the villages use no materials. False: the builders take the",
+                        "materials of each block from the stock of the village.")
+                .translation(KEY_PREFIX + "constructionFreeMaterials")
+                .define("freeMaterials", false);
+        CONSTRUCTION_VALUABLE_PRICE = builder
+                .comment("A block with a material price at this value or more, in emeralds, is valuable. The",
+                        "builders do not make it from the stock: the village asks the players for it with a quest.")
+                .translation(KEY_PREFIX + "constructionValuablePrice")
+                .defineInRange("valuableBlockPrice", 1.0, 0.01, 10000.0);
+        CONSTRUCTION_RARE_PRICE = builder
+                .comment("Price in emeralds of a rare block, for the reward of its quest. No recipe makes a rare",
+                        "block from the items of the economy, for example calcite.")
+                .translation(KEY_PREFIX + "constructionRarePrice")
+                .defineInRange("rareBlockPrice", 0.1, 0.0, 1000.0);
+        CONSTRUCTION_MATERIAL_QUEST_MINUTES = builder
+                .comment("A site of the builders that waits for a common material for this time, in minutes, asks",
+                        "the players for it with a quest. 0: no quest for the common materials.")
+                .translation(KEY_PREFIX + "constructionMaterialQuestMinutes")
+                .defineInRange("materialQuestMinutes", 5, 0, 1440);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

@@ -6,13 +6,23 @@ import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildBlock;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildPos;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.WorkZone;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Stock;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.Quests;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.construction.BuilderMaterials;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionPlacement;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
+import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.ArrayList;
@@ -24,10 +34,12 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -58,6 +70,11 @@ public final class BuilderSiteGameTests {
     private static final int COTTAGE_BUILDERS = 3;
     private static final ResourceLocation COTTAGE =
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_cottage");
+    private static final String PLANKS = "minecraft:oak_planks";
+    private static final String CALCITE = "minecraft:calcite";
+    /** The number of blocks of the wall of the tests: 4 × 2. */
+    private static final int WALL_BLOCKS = 8;
+    private static final int CALCITE_BLOCKS = 4;
     /** The night time of the test of the night. */
     private static final long MIDNIGHT = 18000L;
     /** The test waits this number of ticks to see that a site does not progress. */
@@ -321,6 +338,161 @@ public final class BuilderSiteGameTests {
     private static String blockName(String state) {
         int properties = state.indexOf('[');
         return properties < 0 ? state : state.substring(0, properties);
+    }
+
+    /** The village with an economy of a test: its heart, its settlement with an empty stock, and its builders. */
+    private record EconomyVillage(Settlement settlement, List<Villager> builders) {
+        Stock stock() {
+            return settlement.economy().stock();
+        }
+    }
+
+    /** A village heart with its settlement and an empty stock, and the builders of the village. */
+    private static EconomyVillage economyVillage(GameTestHelper helper) {
+        List<Villager> builders = village(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+        heart.ensureSettlement();
+        Settlement settlement = Settlements.of(server, heart).orElseThrow();
+        Settlements.startEconomy(server, settlement);
+        TestSupport.emptyStock(settlement);
+        return new EconomyVillage(settlement, builders);
+    }
+
+    /**
+     * The material of a block: a common block costs items of the economy, through the recipes. A rare block (no recipe
+     * from the items of the economy) and a valuable block come as they are from the stock.
+     */
+    @GameTest(template = "empty", batch = "builder_materials")
+    public static void materialsOfTheBlocks(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        helper.assertFalse(BuilderMaterials.areFree(), "The builders of the tests use the materials of the stock");
+
+        BuilderMaterials.Material planks = BuilderMaterials.of(server, Items.OAK_PLANKS);
+        BuilderMaterials.Material stairs = BuilderMaterials.of(server, Items.OAK_STAIRS);
+        BuilderMaterials.Material stripped = BuilderMaterials.of(server, Items.STRIPPED_SPRUCE_LOG);
+        BuilderMaterials.Material calcite = BuilderMaterials.of(server, Items.CALCITE);
+        BuilderMaterials.Material gold = BuilderMaterials.of(server, Items.GOLD_BLOCK);
+
+        helper.assertTrue(planks.kind() == BuilderMaterials.Kind.COMMON
+                && planks.cost().equals(Map.of("minecraft:oak_planks", 1.0)), "Planks cost planks: " + planks);
+        helper.assertTrue(stairs.kind() == BuilderMaterials.Kind.COMMON
+                && Math.abs(stairs.cost().getOrDefault("minecraft:oak_planks", 0.0) - 1.5) < 1.0E-9,
+                "6 planks make 4 stairs: " + stairs);
+        helper.assertTrue(stripped.kind() == BuilderMaterials.Kind.COMMON
+                && stripped.cost().equals(Map.of("minecraft:spruce_log", 1.0)), "An axe strips a log: " + stripped);
+        helper.assertTrue(calcite.kind() == BuilderMaterials.Kind.RARE, "Calcite is rare: " + calcite);
+        helper.assertTrue(gold.kind() == BuilderMaterials.Kind.RARE && gold.price() >= 9.0,
+                "A gold block is valuable: " + gold);
+        helper.assertTrue(BuilderMaterials.of(server, Items.AIR).kind() == BuilderMaterials.Kind.FREE,
+                "A block with no item is free");
+        helper.succeed();
+    }
+
+    /** The builders take the materials of the blocks from the stock of the village. */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_stock", skyAccess = true)
+    public static void buildersTakeTheMaterialsFromTheStock(GameTestHelper helper) {
+        EconomyVillage village = economyVillage(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos to = new BlockPos(17, 2, 16);
+        ResourceLocation id = template(helper, "builder_wall_stock", from, to, Blocks.OAK_PLANKS);
+        BlockPos origin = helper.absolutePos(from);
+        village.stock().set(PLANKS, WALL_BLOCKS);
+
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
+                helper.absolutePos(HEART), null);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, from, to, Blocks.OAK_PLANKS);
+                    int left = village.stock().count(PLANKS);
+                    cleanUp(helper, village.builders(), from, to);
+                    helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
+                    helper.assertTrue(left == 0, "The builders must take the planks of the stock: " + left + " left");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * With no materials in the stock, the builders wait: no block of the plan comes. With the materials, they build.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_wait", skyAccess = true)
+    public static void buildersWaitForTheMaterials(GameTestHelper helper) {
+        EconomyVillage village = economyVillage(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos to = new BlockPos(17, 2, 16);
+        ResourceLocation id = template(helper, "builder_wall_wait", from, to, Blocks.OAK_PLANKS);
+        BlockPos origin = helper.absolutePos(from);
+
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
+                helper.absolutePos(HEART), null);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(site.phase() == BuilderSite.Phase.BUILD,
+                        "The fences use no materials: " + site.phase()))
+                .thenWaitUntil(() -> helper.assertTrue(site.status() == BuilderSite.Status.MATERIALS
+                        && site.missingMaterials().contains(PLANKS),
+                        "The site must wait for the planks: " + site.status() + " " + site.missingMaterials()))
+                .thenIdle(PAUSE_TICKS)
+                .thenExecute(() -> {
+                    helper.assertTrue(site.appliedSteps() == 0, "No block with no materials: " + site.appliedSteps());
+                    village.stock().set(PLANKS, WALL_BLOCKS);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, from, to, Blocks.OAK_PLANKS);
+                    cleanUp(helper, village.builders(), from, to);
+                    helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A rare block (calcite) gives a delivery quest of the village. The delivered blocks go into the stock, and the
+     * builders take them there. At the end, the site withdraws its offers.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_quest", skyAccess = true)
+    public static void rareBlocksGiveAQuest(GameTestHelper helper) {
+        EconomyVillage village = economyVillage(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos to = new BlockPos(17, 1, 16);
+        ResourceLocation id = template(helper, "builder_calcite", from, to, Blocks.CALCITE);
+        BlockPos origin = helper.absolutePos(from);
+        Quests quests = QuestData.get(level.getServer()).quests();
+        List<Quest> asked = new ArrayList<>();
+
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
+                helper.absolutePos(HEART), null);
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    asked.clear();
+                    quests.offers(village.settlement().id()).stream()
+                            .filter(quest -> quest.target().equals(CALCITE)).forEach(asked::add);
+                    helper.assertTrue(asked.size() == 1, "The village must ask for the calcite: " + asked.size()
+                            + " quests, site " + site.phase() + " " + site.status());
+                })
+                .thenExecute(() -> {
+                    Quest quest = asked.get(0);
+                    helper.assertTrue(quest.count() == CALCITE_BLOCKS && quest.kind() == QuestKind.DELIVERY,
+                            "A delivery of " + CALCITE_BLOCKS + " calcite, not " + quest.count());
+                    // A player delivers the calcite: it goes into the stock of the village.
+                    village.stock().set(CALCITE, CALCITE_BLOCKS);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, from, to, Blocks.CALCITE);
+                    boolean withdrawn = quests.byId(asked.get(0).id())
+                            .filter(quest -> quest.state() == QuestState.OFFERED).isEmpty();
+                    cleanUp(helper, village.builders(), from, to);
+                    helper.assertTrue(missing.isEmpty(), "Blocks of calcite not in place: " + missing);
+                    helper.assertTrue(withdrawn, "The site must withdraw its offer at its end");
+                })
+                .thenSucceed();
     }
 
     /**
