@@ -22,7 +22,7 @@ import net.minecraft.world.level.saveddata.SavedData;
  *
  * <ul>
  *   <li>The blocks that the players placed in a village. When a player breaks such a block, the position is not kept
- *       any more.</li>
+ *       any more. The construction sites of the builders also keep these blocks.</li>
  *   <li>The boxes of the construction sites of the builders: the new buildings of the village.</li>
  * </ul>
  */
@@ -58,6 +58,18 @@ public final class VillageRepairData extends SavedData {
         }
         List<BoundingBox> boxes = constructions.get(heart.asLong());
         return boxes != null && boxes.stream().anyMatch(box -> box.isInside(pos));
+    }
+
+    /**
+     * True if a player placed the block at a position of a village. The builders never change such a block.
+     *
+     * @param heart the position of the village heart
+     * @param pos   the position
+     * @return true for a block of a player
+     */
+    public boolean isPlayerBlock(BlockPos heart, BlockPos pos) {
+        LongSet blocks = playerBlocks.get(heart.asLong());
+        return blocks != null && blocks.contains(pos.asLong());
     }
 
     /** Records a block that a player placed in a village. */
