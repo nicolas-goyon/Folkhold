@@ -558,7 +558,10 @@ public final class BuilderSite {
         }
     }
 
-    /** The steps of the work of the builders while the chunks of the site were not loaded, that wait. */
+    /**
+     * The steps of the work of the builders that the site did not apply yet: the work while the chunks of the site were
+     * not loaded.
+     */
     public double pendingSteps() {
         return pendingSteps;
     }

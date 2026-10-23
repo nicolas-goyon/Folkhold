@@ -438,6 +438,7 @@
   "commands.folkhold_world.construction.site": "#%s %s at %s %s %s: %s %s/%s, %s, %s builders",
   "commands.folkhold_world.construction.site.repair": "repair of %s blocks",
   "commands.folkhold_world.construction.site.missing": "  Missing materials: %s",
+  "commands.folkhold_world.construction.site.pending": "  %s steps of work wait: the site applies them when its chunks load",
   "commands.folkhold_world.construction.site.phase.fences": "fences",
   "commands.folkhold_world.construction.site.phase.build": "construction",
   "commands.folkhold_world.construction.site.phase.cleanup": "cleanup",
