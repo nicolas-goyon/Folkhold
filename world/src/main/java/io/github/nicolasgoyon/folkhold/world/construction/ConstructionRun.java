@@ -82,6 +82,13 @@ public final class ConstructionRun {
         }
     }
 
+    /** Goes to the step after the next step, with no change to the level: the run does not apply the next step. */
+    public void skipNext() {
+        if (!finished()) {
+            next++;
+        }
+    }
+
     /** Applies now all the steps that the run did not apply. */
     public void finish() {
         while (!finished()) {

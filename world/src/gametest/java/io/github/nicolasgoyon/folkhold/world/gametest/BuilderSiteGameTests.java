@@ -26,6 +26,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -234,6 +235,43 @@ public final class BuilderSiteGameTests {
                     helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
                     helper.assertTrue(alive, "The builders must stay alive");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A player placed a block on a position of a wall: the builders build the wall around it, and the block of the
+     * player stays.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_player_block", skyAccess = true)
+    public static void buildersKeepTheBlockOfAPlayer(GameTestHelper helper) {
+        List<Villager> builders = village(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos to = new BlockPos(17, 2, 16);
+        ResourceLocation id = template(helper, "builder_player_block", from, to, Blocks.OAK_PLANKS);
+        BlockPos origin = helper.absolutePos(from);
+        BoundingBox box = BoundingBox.fromCorners(origin, helper.absolutePos(to));
+        BlockPos playerBlock = new BlockPos(15, 1, 16);
+        helper.setBlock(playerBlock, Blocks.GLASS);
+        VillageRepairData.get(level).addPlayerBlock(helper.absolutePos(HEART), helper.absolutePos(playerBlock));
+
+        ConstructionPlacement.BuildersAnswer answer = ConstructionPlacement.startBuilders(level, id, origin,
+                Rotation.NONE, Mirror.NONE, box, null);
+        helper.assertTrue(answer.started(), "The builders of the village must start the site: " + answer.message());
+        BuilderSite site = siteAt(helper, origin);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin),
+                        "The site must end: " + site.phase() + " " + site.status() + " " + site.appliedSteps() + "/"
+                                + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, from, to, Blocks.OAK_PLANKS);
+                    boolean kept = helper.getBlockState(playerBlock).is(Blocks.GLASS);
+                    VillageRepairData.get(level).forget(helper.absolutePos(HEART));
+                    cleanUp(helper, builders, from, to);
+                    helper.assertTrue(kept, "The block of the player must stay");
+                    helper.assertTrue(missing.equals(List.of(playerBlock)),
+                            "Only the block of the player must not be a plank: " + missing);
                 })
                 .thenSucceed();
     }

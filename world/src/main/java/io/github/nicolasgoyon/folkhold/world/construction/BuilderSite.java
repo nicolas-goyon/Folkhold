@@ -105,6 +105,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *       the damaged blocks. Its box is the box of these positions.</li>
  *   <li>At the end of a construction site, the repairs of the village keep the blocks of its box (see
  *       {@link VillageRepairData}).</li>
+ *   <li>The builders never change a block that a player placed (see {@link VillageRepairData#isPlayerBlock}): its
+ *       step goes with no change.</li>
  *   <li>Chunks not loaded: during the day, the builders of the oldest site of a village go on with the work in the
  *       abstract. The site counts the steps of this work (see {@link WorldConfig#BUILDERS} and
  *       {@link WorldConfig#CONSTRUCTION_BUILDER_TICKS}). When the chunks load, the site applies these steps, with a
@@ -1135,6 +1137,13 @@ public final class BuilderSite {
                 if (plan == null || plan.applied() != index) {
                     FolkholdWorld.LOGGER.error("Builder site {}: step {} is not the next step of the plan", id, index);
                     return Applied.BLOCKED;
+                }
+                if (VillageRepairData.get(level).isPlayerBlock(heart, pos)) {
+                    // The builders never change a block that a player placed: the step goes with no change.
+                    dirty = true;
+                    plan.skipNext();
+                    current.markApplied(index);
+                    return Applied.APPLIED;
                 }
                 if (!materials.take(materialOf(level, index), settlement, level.getServer(), level.getGameTime())) {
                     return Applied.WAITING;
