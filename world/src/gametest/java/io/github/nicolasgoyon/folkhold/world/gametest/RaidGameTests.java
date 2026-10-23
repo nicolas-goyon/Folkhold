@@ -73,8 +73,9 @@ public final class RaidGameTests {
         BlockPos heart = helper.absolutePos(new BlockPos(16, 1, 16));
         ServerLevel level = helper.getLevel();
 
-        // Some ticks for the light of the new blocks.
-        helper.runAfterDelay(10, () -> {
+        // The light engine updates the light of the new blocks in its own thread, after a time that changes: the
+        // checks run at each tick until they pass.
+        helper.succeedWhen(() -> {
             assertCheck(helper, new BlockPos(24, 1, 16), RaidSpawns.Check.GOOD);
             assertCheck(helper, new BlockPos(27, 1, 16), RaidSpawns.Check.FLUID);
             assertCheck(helper, new BlockPos(16, -2, 4), RaidSpawns.Check.HOLLOW);
@@ -99,7 +100,6 @@ public final class RaidGameTests {
             }
             helper.assertTrue(found.size() >= SPAWN_TRIES * 3 / 4,
                     "Most searches must find a position: " + found.size() + " of " + SPAWN_TRIES);
-            helper.succeed();
         });
     }
 
