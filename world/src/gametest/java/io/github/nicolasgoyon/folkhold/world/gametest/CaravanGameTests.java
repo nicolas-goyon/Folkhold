@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.FollowEntityGoal;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanCargo;
 import io.github.nicolasgoyon.folkhold.world.group.Caravans;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
@@ -284,22 +285,23 @@ public final class CaravanGameTests {
     }
 
     /**
-     * A mule of a caravan follows its merchant around the wall of a village and through the open gate. The mule is
-     * outside the west wall and the merchant is inside the walls: the path around the wall is approximately 34
-     * blocks.
+     * A mule of a caravan outside the wall of a village gets to its merchant inside the walls. The path around the
+     * wall to the open gate is more than 30 blocks. The mule walks on this path, or it moves directly near its merchant
+     * when it has no path (see {@link FollowEntityGoal}).
      */
     @GameTest(template = "arena_large", timeoutTicks = 600, batch = "caravan_mule_wall")
-    public static void muleGoesAroundTheWallToItsMerchant(GameTestHelper helper) {
+    public static void muleOutsideTheWallGetsToItsMerchant(GameTestHelper helper) {
         TestSupport.buildFloor(helper, LARGE_ARENA);
         walls(helper, 10, 30, 6, 26);
         gate(helper, new BlockPos(20, 1, 6), Direction.NORTH, true);
+        // The end of the route is far from the merchant: the caravan does not arrive during the test.
         MobileGroup group = groundCaravan(helper, "test_destination", new BlockPos(20, 1, 20),
-                new BlockPos(21, 1, 20));
+                new BlockPos(20, 1, 120));
         Mob merchant = (Mob) entity(helper, group, 0);
         Entity mule = entity(helper, group, 1);
-        // The merchant stays inside the walls. The mule starts outside the west wall, 13 blocks from the gate.
+        // The merchant stays inside the walls. The mule starts outside the west wall.
         merchant.setNoAi(true);
-        BlockPos outside = helper.absolutePos(new BlockPos(9, 1, 13));
+        BlockPos outside = helper.absolutePos(new BlockPos(8, 1, 13));
         mule.teleportTo(outside.getX() + 0.5, outside.getY(), outside.getZ() + 0.5);
         BlockPos min = helper.absolutePos(new BlockPos(10, 1, 6));
         BlockPos max = helper.absolutePos(new BlockPos(30, 1, 26));
