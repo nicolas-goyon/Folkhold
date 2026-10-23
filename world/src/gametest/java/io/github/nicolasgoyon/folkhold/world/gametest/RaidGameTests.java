@@ -182,7 +182,9 @@ public final class RaidGameTests {
      * <ol>
      *   <li>The gate stays closed: the raider walks to the approach of the gate and waits there.</li>
      *   <li>The gate opens: the raider goes through the gate and arrives at the heart.</li>
-     *   <li>Inside the palisade, 15 blocks from the heart, the march does not start again.</li>
+     *   <li>The gate closes. Inside the palisade, 15 blocks from the heart, the march does not start again. The
+     *       closed gate keeps the raider inside: through an open gate, the vanilla goals of the raid can move the
+     *       raider out of the palisade, and then the march starts again.</li>
      *   <li>Outside the palisade, the march starts again.</li>
      * </ol>
      */
@@ -219,7 +221,10 @@ public final class RaidGameTests {
                         <= MarchOnVillageGoal.ARRIVAL && !isMarching(raider),
                         "The raider must go through the gate and arrive at the heart: "
                         + helper.relativePos(raider.blockPosition())))
-                .thenExecute(() -> moveTo(raider, heartPos.north(PALISADE - 1)))
+                .thenExecute(() -> {
+                    setGates(level, gates, false);
+                    moveTo(raider, heartPos.north(PALISADE - 1));
+                })
                 .thenExecuteFor(60, () -> helper.assertFalse(isMarching(raider),
                         "Inside the palisade, the march must not start again"))
                 .thenExecute(() -> moveTo(raider, approach))
