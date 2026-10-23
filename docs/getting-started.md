@@ -197,6 +197,8 @@ The garrison of the village depends on the level of the village. The healers com
 
 To try the construction plans, run `/folkhold construction place` and select `village/house_cottage`. Look at a free area: the ghost of the house follows your view. Press R to turn it and M to mirror it, then press Enter to build it. The command `/folkhold construction build folkhold_world:village/house_cottage 2` also builds the house at your position. Near a faction village, select the speed "Builders". The builders of the village put fences around the work zone, then build the house block by block during the day. Stay out of the fences, else the builders stop. The builders take the materials from the stock of the village: for the rare blocks, the village gives delivery quests. `/folkhold construction sites` shows the sites of the builders and their missing materials. To repair a house of the village, keep its blocks with `/folkhold construction capture <from> <to>`. Break some blocks, then run `/folkhold construction restore`. The section "Construction" of [design.md](design.md) gives the rules of the plans.
 
+To see a repair, break 3 blocks of the palisade of a faction village with builders. In 60 seconds or less, the builders put fences around the broken blocks, then repair them during the day. `/folkhold construction sites` shows the repair site.
+
 To see the handyman of a faction village at work, stand near the plaza of the village. Run `/time set 11000`: the handyman lights the 4 braziers of the plaza before the night. Run `/time set 0`: in the morning, the handyman puts out the braziers.
 
 ## Translations

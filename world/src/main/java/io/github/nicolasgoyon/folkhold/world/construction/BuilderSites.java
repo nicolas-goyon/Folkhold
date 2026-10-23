@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.construction;
 
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -53,6 +54,25 @@ public final class BuilderSites {
     public static BuilderSite start(ServerLevel level, ResourceLocation template, BlockPos origin, Rotation rotation,
             Mirror mirror, BlockPos heart, @Nullable UUID operator) {
         return BuilderSiteData.get(level).add(template, origin, rotation, mirror, heart, operator);
+    }
+
+    /**
+     * Starts a repair site (see {@link BuilderSite#repair}). The site comes after the other sites of the village.
+     *
+     * @param level     the level
+     * @param heart     the position of the village heart
+     * @param reference the structure pieces of the village
+     * @param positions the damaged positions, 1 or more
+     * @return the site
+     */
+    public static BuilderSite startRepair(ServerLevel level, BlockPos heart, VillageReference reference,
+            Set<BlockPos> positions) {
+        return BuilderSiteData.get(level).addRepair(heart, reference, positions);
+    }
+
+    /** The sites of a village, from the oldest to the newest. */
+    public static List<BuilderSite> of(ServerLevel level, BlockPos heart) {
+        return all(level).stream().filter(site -> site.heart().equals(heart)).toList();
     }
 
     /** The number of sites of the village of a site that come before it. */

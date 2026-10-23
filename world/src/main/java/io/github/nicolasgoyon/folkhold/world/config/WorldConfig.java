@@ -131,6 +131,9 @@ public final class WorldConfig {
     public static final ModConfigSpec.DoubleValue CONSTRUCTION_VALUABLE_PRICE;
     public static final ModConfigSpec.DoubleValue CONSTRUCTION_RARE_PRICE;
     public static final ModConfigSpec.IntValue CONSTRUCTION_MATERIAL_QUEST_MINUTES;
+    public static final ModConfigSpec.BooleanValue CONSTRUCTION_REPAIRS;
+    public static final ModConfigSpec.BooleanValue CONSTRUCTION_FREE_REPAIRS;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_REPAIR_CHECK_SECONDS;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -701,6 +704,20 @@ public final class WorldConfig {
                         "the players for it with a quest. 0: no quest for the common materials.")
                 .translation(KEY_PREFIX + "constructionMaterialQuestMinutes")
                 .defineInRange("materialQuestMinutes", 5, 0, 1440);
+        CONSTRUCTION_REPAIRS = builder
+                .comment("True: the builders of a village repair the damaged blocks of the village: the walls, the",
+                        "gates, the buildings and the paths of its structure pieces.")
+                .translation(KEY_PREFIX + "constructionRepairs")
+                .define("repairs", true);
+        CONSTRUCTION_FREE_REPAIRS = builder
+                .comment("True: the repairs of the builders use no materials. False: the repairs take the materials",
+                        "from the stock of the village, as the construction sites.")
+                .translation(KEY_PREFIX + "constructionFreeRepairs")
+                .define("freeRepairs", false);
+        CONSTRUCTION_REPAIR_CHECK_SECONDS = builder
+                .comment("A loaded village with builders looks for its damaged blocks every this number of seconds.")
+                .translation(KEY_PREFIX + "constructionRepairCheckSeconds")
+                .defineInRange("repairCheckSeconds", 60, 5, 3600);
         builder.pop();
 
         builder.comment("Base values of each unit type.")
