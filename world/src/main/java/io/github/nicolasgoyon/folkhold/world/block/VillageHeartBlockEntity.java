@@ -32,6 +32,9 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
+import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -128,6 +131,13 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private VillageBraziers.Period brazierPeriod;
     /** The handymen at work on the braziers. Not saved: the heart gives the work again after a load. */
     private final Handymen handymen = new Handymen();
+    /** The structure pieces of the village for the repairs, or null. Not saved: the heart finds them after a load. */
+    @Nullable
+    private VillageReference repairReference;
+    /** True after the search of {@link #repairReference}. */
+    private boolean repairReferenceSearched;
+    /** The positions of the last repairs, with the game time of their end. Not saved. */
+    private final Map<BlockPos, Long> repaired = new HashMap<>();
     /** True when the stairs of the gates are built (see {@link VillageExits}). */
     private boolean exitStairs;
     /** True after the first cats of the village appeared. */
@@ -684,6 +694,50 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
+     * The structure pieces of the village for the repairs (see {@link VillageRepairs}). The heart looks for them once
+     * after a load.
+     *
+     * @param serverLevel the level of the heart
+     * @return the pieces, or empty for a heart outside a village structure
+     */
+    public Optional<VillageReference> repairReference(ServerLevel serverLevel) {
+        if (!repairReferenceSearched) {
+            repairReferenceSearched = true;
+            repairReference = VillageReference.find(serverLevel, worldPosition).orElse(null);
+        }
+        return Optional.ofNullable(repairReference);
+    }
+
+    /**
+     * Sets the structure pieces of the village for the repairs, for example for a village that a test places.
+     *
+     * @param reference the pieces, or null for no repairs
+     */
+    public void setRepairReference(@Nullable VillageReference reference) {
+        repairReference = reference;
+        repairReferenceSearched = true;
+    }
+
+    /** True if a repair of the village ended at a position less than {@link VillageRepairs#RETRY_TICKS} ago. */
+    public boolean isRecentlyRepaired(BlockPos pos, long now) {
+        Long end = repaired.get(pos);
+        return end != null && now - end < VillageRepairs.RETRY_TICKS;
+    }
+
+    /**
+     * Records the end of a repair: the heart keeps its positions, and gives the color of the faction to the banners
+     * again.
+     *
+     * @param positions the positions of the repair
+     * @param now       the game time
+     */
+    public void onRepaired(Set<BlockPos> positions, long now) {
+        repaired.values().removeIf(end -> now - end >= VillageRepairs.RETRY_TICKS);
+        positions.forEach(pos -> repaired.put(pos.immutable(), now));
+        paintBanners();
+    }
+
+    /**
      * Applies the day or the night state to the village.
      *
      * <ul>
@@ -853,6 +907,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
      */
     void onDestroyed() {
         List<FactionUnit> units = getUnits();
+        if (level instanceof ServerLevel serverLevel) {
+            VillageRepairData.get(serverLevel).forget(worldPosition);
+        }
         if (level instanceof ServerLevel serverLevel && factionId != null) {
             List<CaptainEntity> captains = units.stream()
                     .filter(unit -> unit instanceof CaptainEntity && unit.isAlive())
@@ -902,6 +959,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         if (heart.layout.isScanned() && level instanceof ServerLevel serverLevel) {
             heart.updateBraziers(serverLevel);
+            long repairTicks = WorldConfig.CONSTRUCTION_REPAIR_CHECK_SECONDS.get() * 20L;
+            if (heart.alertState == AlertState.CALM && time % repairTicks < CHECK_INTERVAL) {
+                VillageRepairs.check(serverLevel, heart);
+            }
         }
         long calmDelayTicks = WorldConfig.CALM_DELAY_SECONDS.get() * 20L;
         if (heart.alertState != AlertState.CALM && level.getGameTime() - heart.lastBellTick >= BELL_INTERVAL) {

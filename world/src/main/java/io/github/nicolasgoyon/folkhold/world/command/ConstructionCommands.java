@@ -172,7 +172,10 @@ public final class ConstructionCommands {
         source.sendSuccess(() -> Component.translatable(KEY + "sites", sites.size()), false);
         for (BuilderSite site : sites) {
             BlockPos origin = site.origin();
-            source.sendSuccess(() -> Component.translatable(KEY + "site", site.id(), site.template().toString(),
+            Component name = site.isRepair()
+                    ? Component.translatable(KEY + "site.repair", site.repairPositions().size())
+                    : Component.literal(site.template().toString());
+            source.sendSuccess(() -> Component.translatable(KEY + "site", site.id(), name,
                     origin.getX(), origin.getY(), origin.getZ(),
                     Component.translatable(KEY + "site.phase." + site.phase().serializedName()), site.appliedSteps(),
                     site.totalSteps(), Component.translatable(KEY + "site.status." + site.status().serializedName()),

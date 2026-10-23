@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -113,10 +114,28 @@ public final class ConstructionTargets {
      */
     public static Target fromTemplate(Level level, StructureTemplate template, BlockPos origin,
             StructurePlaceSettings settings) {
+        return fromTemplate(level, template, origin, settings, pos -> true);
+    }
+
+    /**
+     * Some blocks of a structure template, as a target.
+     *
+     * @param level    the level of the construction: it gives the blocks and the block entities
+     * @param template the template
+     * @param origin   the position of the origin of the template
+     * @param settings the rotation and the mirror of the template
+     * @param keep     true for the positions of the level that the target keeps
+     * @return the target
+     */
+    public static Target fromTemplate(Level level, StructureTemplate template, BlockPos origin,
+            StructurePlaceSettings settings, Predicate<BlockPos> keep) {
         HolderLookup.Provider registries = level.registryAccess();
         Map<BuildPos, BuildBlock> blocks = new HashMap<>();
         for (TemplateBlock block : templateBlocks(level, template)) {
             BlockPos pos = StructureTemplate.calculateRelativePosition(settings, block.pos()).offset(origin);
+            if (!keep.test(pos)) {
+                continue;
+            }
             BlockState state = block.state().mirror(settings.getMirror()).rotate(level, pos, settings.getRotation());
             Optional<String> data = block.nbt().filter(tag -> state.is(BlockKinds.KEEP_DATA))
                     .flatMap(tag -> normalData(pos, state, tag, registries));

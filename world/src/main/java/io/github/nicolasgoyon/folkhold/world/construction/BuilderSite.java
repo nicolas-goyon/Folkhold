@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.construction;
 
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildBlock;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildPos;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
@@ -24,7 +25,11 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
+import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +48,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -95,9 +101,15 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *       makes a new plan from the blocks of the level: the blocks in place give no steps.</li>
  *   <li>The builders take the materials of the blocks of the plan from the stock of the village (see
  *       {@link SiteMaterials}). The fences and the scaffolding use no materials. A removed block drops no item.</li>
+ *   <li>A repair site (see {@link VillageRepairs}) builds only some positions of the structure pieces of its village:
+ *       the damaged blocks. Its box is the box of these positions.</li>
+ *   <li>At the end of a construction site, the repairs of the village keep the blocks of its box (see
+ *       {@link VillageRepairData}).</li>
  * </ul>
  */
 public final class BuilderSite {
+    /** The template id of the repair sites, in the messages and in the saved data. */
+    public static final ResourceLocation REPAIR = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "repair");
     /** The block of the fences around the work zone. */
     public static final Block FENCE = Blocks.SPRUCE_FENCE;
     /** The message of the builders to a player in the work zone. */
@@ -189,6 +201,11 @@ public final class BuilderSite {
     private final BlockPos heart;
     @Nullable
     private final UUID operator;
+    /** The structure pieces of the village for a repair site, or null for a construction site. */
+    @Nullable
+    private final VillageReference repairReference;
+    /** The damaged positions of a repair site. Empty for a construction site. */
+    private final Set<BlockPos> repairPositions;
     private Phase phase = Phase.FENCES;
     private boolean stopping;
     /** The fences that the site put in the level. */
@@ -218,6 +235,12 @@ public final class BuilderSite {
 
     BuilderSite(int id, ResourceLocation template, BlockPos origin, Rotation rotation, Mirror mirror, BlockPos heart,
             @Nullable UUID operator) {
+        this(id, template, origin, rotation, mirror, heart, operator, null, Set.of());
+    }
+
+    private BuilderSite(int id, ResourceLocation template, BlockPos origin, Rotation rotation, Mirror mirror,
+            BlockPos heart, @Nullable UUID operator, @Nullable VillageReference repairReference,
+            Set<BlockPos> repairPositions) {
         this.id = id;
         this.template = template;
         this.origin = origin.immutable();
@@ -225,6 +248,34 @@ public final class BuilderSite {
         this.mirror = mirror;
         this.heart = heart.immutable();
         this.operator = operator;
+        this.repairReference = repairReference;
+        this.repairPositions = Collections.unmodifiableSet(new LinkedHashSet<>(repairPositions));
+    }
+
+    /**
+     * A repair site: the builders give their reference blocks to the damaged positions of a village.
+     *
+     * @param id        the id of the site in its level
+     * @param heart     the position of the village heart
+     * @param reference the structure pieces of the village
+     * @param positions the damaged positions, 1 or more
+     * @return the site
+     */
+    static BuilderSite repair(int id, BlockPos heart, VillageReference reference, Set<BlockPos> positions) {
+        BlockPos min = BoundingBox.encapsulatingPositions(positions)
+                .map(box -> new BlockPos(box.minX(), box.minY(), box.minZ()))
+                .orElseThrow(() -> new IllegalArgumentException("A repair site needs positions"));
+        return new BuilderSite(id, REPAIR, min, Rotation.NONE, Mirror.NONE, heart, null, reference, positions);
+    }
+
+    /** True for a repair site (see {@link VillageRepairs}). */
+    public boolean isRepair() {
+        return repairReference != null;
+    }
+
+    /** The damaged positions of a repair site, or no positions for a construction site. */
+    public Set<BlockPos> repairPositions() {
+        return repairPositions;
     }
 
     /** The id of the site in its level. */
@@ -433,7 +484,8 @@ public final class BuilderSite {
     private BuilderMaterials.Material materialOf(ServerLevel level, int index) {
         Step step = stepAt(index);
         ConstructionRun plan = run;
-        if (phase != Phase.BUILD || step.type() != StepType.PLACE || plan == null) {
+        if (phase != Phase.BUILD || step.type() != StepType.PLACE || plan == null
+                || (isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get())) {
             return BuilderMaterials.Material.NONE;
         }
         return plan.state(step.state())
@@ -456,8 +508,19 @@ public final class BuilderSite {
         return level.isDay();
     }
 
-    /** Finds the box and the work zone of the site, from the size of its template. */
+    /** Finds the box and the work zone: from the size of the template, or from the positions of a repair. */
     private boolean resolveBox(ServerLevel level) {
+        if (repairReference != null) {
+            box = BoundingBox.encapsulatingPositions(repairPositions).orElse(null);
+            reach = WorldConfig.constructionReach();
+            BoundingBox repairBox = box;
+            if (repairBox == null) {
+                return false;
+            }
+            zone = new WorkZone(repairBox.minX(), repairBox.minY(), repairBox.minZ(), repairBox.maxX(),
+                    repairBox.maxY(), repairBox.maxZ(), reach.horizontal());
+            return true;
+        }
         Optional<StructureTemplate> found = level.getStructureManager().get(template);
         Vec3i size = found.map(StructureTemplate::getSize).orElse(Vec3i.ZERO);
         if (size.getX() <= 0 || size.getY() <= 0 || size.getZ() <= 0) {
@@ -644,17 +707,37 @@ public final class BuilderSite {
 
     /** The plan of the structure, from the blocks of the level now. */
     private void prepareBuild(ServerLevel level) {
-        Optional<StructureTemplate> found = level.getStructureManager().get(template);
-        if (found.isEmpty()) {
-            setSteps(List.of(), true, null);
-            return;
+        Target target;
+        if (repairReference != null) {
+            target = repairTarget(level, repairReference);
+        } else {
+            Optional<StructureTemplate> found = level.getStructureManager().get(template);
+            if (found.isEmpty()) {
+                setSteps(List.of(), true, null);
+                return;
+            }
+            target = ConstructionTargets.fromTemplate(level, found.get(), origin,
+                    GhostPlacement.settings(rotation, mirror));
         }
-        Target target = ConstructionTargets.fromTemplate(level, found.get(), origin,
-                GhostPlacement.settings(rotation, mirror));
         Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), reach);
         FolkholdWorld.LOGGER.debug("Builder site {}: plan of {} steps with {} warnings", id, plan.steps().size(),
                 plan.warnings().size());
         setSteps(plan.steps(), true, new ConstructionRun(level, plan, 1));
+    }
+
+    /**
+     * The target of a repair site: the blocks of the structure pieces of the village at the damaged positions. A piece
+     * replaces the blocks of the pieces before it.
+     */
+    private Target repairTarget(ServerLevel level, VillageReference reference) {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        for (VillageReference.Piece piece : reference.pieces()) {
+            level.getStructureManager().get(piece.template()).ifPresent(found -> blocks.putAll(
+                    ConstructionTargets.fromTemplate(level, found, piece.origin(),
+                            GhostPlacement.settings(piece.rotation(), Mirror.NONE), repairPositions::contains)
+                            .blocks()));
+        }
+        return new Target(blocks);
     }
 
     /**
@@ -1093,6 +1176,11 @@ public final class BuilderSite {
             materials.giveBack(village, level.getServer());
         }
         materials.withdrawOffers(level.getServer());
+        if (repairReference != null) {
+            VillageRepairs.onRepairEnded(level, heart, repairPositions);
+        } else if (box != null) {
+            VillageRepairData.get(level).addConstruction(heart, box);
+        }
         UUID player = operator;
         ServerPlayer online = player == null ? null : level.getServer().getPlayerList().getPlayer(player);
         if (online != null) {
@@ -1178,6 +1266,20 @@ public final class BuilderSite {
         tag.putLongArray("Fences", fences.stream().mapToLong(BlockPos::asLong).toArray());
         tag.putLongArray("Scaffolding", scaffolding.stream().mapToLong(BlockPos::asLong).toArray());
         tag.put("Materials", materials.save());
+        if (repairReference != null) {
+            CompoundTag repair = new CompoundTag();
+            ListTag pieces = new ListTag();
+            for (VillageReference.Piece piece : repairReference.pieces()) {
+                CompoundTag pieceTag = new CompoundTag();
+                pieceTag.putString("Template", piece.template().toString());
+                pieceTag.putLong("Origin", piece.origin().asLong());
+                pieceTag.putString("Rotation", piece.rotation().name());
+                pieces.add(pieceTag);
+            }
+            repair.put("Pieces", pieces);
+            repair.putLongArray("Positions", repairPositions.stream().mapToLong(BlockPos::asLong).toArray());
+            tag.put("Repair", repair);
+        }
         return tag;
     }
 
@@ -1197,8 +1299,31 @@ public final class BuilderSite {
             return Optional.empty();
         }
         UUID operator = tag.hasUUID("Operator") ? tag.getUUID("Operator") : null;
+        VillageReference reference = null;
+        Set<BlockPos> positions = new LinkedHashSet<>();
+        if (tag.contains("Repair", Tag.TAG_COMPOUND)) {
+            CompoundTag repair = tag.getCompound("Repair");
+            List<VillageReference.Piece> pieces = new ArrayList<>();
+            ListTag pieceList = repair.getList("Pieces", Tag.TAG_COMPOUND);
+            for (int i = 0; i < pieceList.size(); i++) {
+                CompoundTag pieceTag = pieceList.getCompound(i);
+                ResourceLocation pieceTemplate = ResourceLocation.tryParse(pieceTag.getString("Template"));
+                Optional<Rotation> pieceRotation = enumValue(Rotation.class, pieceTag.getString("Rotation"));
+                if (pieceTemplate != null && pieceRotation.isPresent()) {
+                    pieces.add(new VillageReference.Piece(pieceTemplate, BlockPos.of(pieceTag.getLong("Origin")),
+                            pieceRotation.get()));
+                }
+            }
+            for (long pos : repair.getLongArray("Positions")) {
+                positions.add(BlockPos.of(pos));
+            }
+            if (pieces.isEmpty() || positions.isEmpty()) {
+                return Optional.empty();
+            }
+            reference = new VillageReference(pieces);
+        }
         BuilderSite site = new BuilderSite(tag.getInt("Id"), template, BlockPos.of(tag.getLong("Origin")),
-                rotation.get(), mirror.get(), BlockPos.of(tag.getLong("Heart")), operator);
+                rotation.get(), mirror.get(), BlockPos.of(tag.getLong("Heart")), operator, reference, positions);
         site.phase = phase.get();
         site.stopping = tag.getBoolean("Stopping");
         for (long pos : tag.getLongArray("Fences")) {

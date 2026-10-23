@@ -1,8 +1,11 @@
 package io.github.nicolasgoyon.folkhold.world.construction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -55,5 +58,36 @@ class BuilderSiteTest {
         assertTrue(BuilderSite.load(noTemplate).isEmpty());
         assertTrue(BuilderSite.load(unknownRotation).isEmpty());
         assertTrue(BuilderSite.load(unknownPhase).isEmpty());
+    }
+
+    /** A repair site keeps the pieces of its village and its damaged positions after a load. */
+    @Test
+    void repairSiteKeepsItsPiecesAndPositions() {
+        VillageReference reference = new VillageReference(List.of(
+                new VillageReference.Piece(ResourceLocation.fromNamespaceAndPath("folkhold_world", "village/center"),
+                        new BlockPos(-20, 60, -20), Rotation.NONE),
+                new VillageReference.Piece(COTTAGE, new BlockPos(-5, 64, -12), Rotation.CLOCKWISE_180)));
+        Set<BlockPos> positions = Set.of(new BlockPos(-12, 64, -19), new BlockPos(-12, 65, -19));
+        BuilderSite repair = BuilderSite.repair(3, new BlockPos(0, 64, 0), reference, positions);
+
+        BuilderSite loaded = BuilderSite.load(repair.save()).orElseThrow();
+
+        assertTrue(loaded.isRepair());
+        assertEquals(BuilderSite.REPAIR, loaded.template());
+        assertEquals(new BlockPos(-12, 64, -19), loaded.origin(), "The origin of a repair is the corner of its box");
+        assertEquals(positions, loaded.repairPositions());
+        assertEquals(repair.save(), loaded.save(), "A repair site saves the data that it loaded");
+        assertFalse(site().isRepair());
+    }
+
+    /** A repair site with no positions or no pieces gives no site. */
+    @Test
+    void repairWithNoPositionsGivesNoSite() {
+        VillageReference reference = new VillageReference(List.of(new VillageReference.Piece(COTTAGE,
+                BlockPos.ZERO, Rotation.NONE)));
+        CompoundTag tag = BuilderSite.repair(4, BlockPos.ZERO, reference, Set.of(new BlockPos(1, 2, 3))).save();
+        tag.getCompound("Repair").putLongArray("Positions", new long[0]);
+
+        assertTrue(BuilderSite.load(tag).isEmpty());
     }
 }

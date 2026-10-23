@@ -1,8 +1,10 @@
 package io.github.nicolasgoyon.folkhold.world.construction;
 
+import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -51,6 +53,14 @@ public final class BuilderSiteData extends SavedData {
     BuilderSite add(ResourceLocation template, BlockPos origin, Rotation rotation, Mirror mirror, BlockPos heart,
             @Nullable UUID operator) {
         BuilderSite site = new BuilderSite(nextId++, template, origin, rotation, mirror, heart, operator);
+        sites.add(site);
+        setDirty();
+        return site;
+    }
+
+    /** Adds a repair site after the other sites (see {@link BuilderSite#repair}). */
+    BuilderSite addRepair(BlockPos heart, VillageReference reference, Set<BlockPos> positions) {
+        BuilderSite site = BuilderSite.repair(nextId++, heart, reference, positions);
         sites.add(site);
         setDirty();
         return site;

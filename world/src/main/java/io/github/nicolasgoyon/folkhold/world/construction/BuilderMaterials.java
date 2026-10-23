@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.construction;
 
 import io.github.nicolasgoyon.folkhold.core.sim.construction.MaterialCosts;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemCatalog;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
@@ -15,8 +16,11 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -25,6 +29,7 @@ import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.level.block.Block;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
@@ -39,6 +44,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *       block has a cost at the price {@link WorldConfig#CONSTRUCTION_VALUABLE_PRICE} or more, for example a gold
  *       block. The builders take a rare or a valuable block as it is from the stock: the village asks the players for
  *       it with a quest.</li>
+ *   <li>The blocks of the tag {@link #FREE}, for example the blocks of the village library, are free: the village
+ *       makes them.</li>
  *   <li>With the setting {@link WorldConfig#CONSTRUCTION_FREE_MATERIALS}, or with no economy, all the blocks are
  *       free.</li>
  * </ul>
@@ -46,6 +53,9 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * <p>The costs are calculated once for the recipes and the economy of the server.
  */
 public final class BuilderMaterials {
+    /** The blocks that use no materials of the village: the village makes them. */
+    public static final TagKey<Block> FREE = TagKey.create(Registries.BLOCK,
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "construction/free_materials"));
     private static final String STRIPPED = "stripped_";
 
     @Nullable
@@ -110,7 +120,8 @@ public final class BuilderMaterials {
      * @return the material
      */
     public static Material of(MinecraftServer server, Item item) {
-        if (item == Items.AIR || areFree()) {
+        if (item == Items.AIR || areFree()
+                || (item instanceof BlockItem block && block.getBlock().defaultBlockState().is(FREE))) {
             return Material.NONE;
         }
         MaterialCosts current = costs(server);
