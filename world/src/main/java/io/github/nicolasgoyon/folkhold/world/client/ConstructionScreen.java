@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiText;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTextField;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
+import io.github.nicolasgoyon.folkhold.world.construction.ConstructionPlacement;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPreviewRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionStatusPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionTemplatesPayload;
@@ -24,9 +25,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * The construction menu of an operator: the structure templates of the server, with a text filter, and the speed of
- * the construction. The button "Place" asks the server for the blocks of the selected template. When the blocks
- * arrive, the menu closes and the ghost of the template follows the view of the player (see
- * {@link ConstructionGhost}).
+ * the construction. With the speed "builders", the builders of the nearest village build the structure. The button
+ * "Place" asks the server for the blocks of the selected template. When the blocks arrive, the menu closes and the
+ * ghost of the template follows the view of the player (see {@link ConstructionGhost}).
  *
  * <p>The menu keeps the filter, the selected template and the speed between two openings.
  */
@@ -34,9 +35,12 @@ public final class ConstructionScreen extends UiScreen {
     private static final String KEY = "screen.folkhold_world.construction.";
     private static final int LIST_ROW = UiTheme.ROW + 2;
     private static final int CHIP = 14;
-    /** The speeds of the construction, in steps for each tick. */
-    private static final int[] SPEEDS = {1, 4, 20};
-    private static final String[] SPEED_NAMES = {"slow", "normal", "fast"};
+    /**
+     * The speeds of the construction, in steps for each tick. {@link ConstructionPlacement#BUILDERS}: the builders of
+     * the nearest village build the structure.
+     */
+    private static final int[] SPEEDS = {1, 4, 20, ConstructionPlacement.BUILDERS};
+    private static final String[] SPEED_NAMES = {"slow", "normal", "fast", "builders"};
     private static final int DEFAULT_SPEED = 1;
 
     private static String lastFilter = "";
@@ -162,7 +166,9 @@ public final class ConstructionScreen extends UiScreen {
                         lastSpeed = index;
                         rebuildWidgets();
                     }));
-            chip.setDetails(Component.translatable(KEY + "speed.details", SPEEDS[i]));
+            chip.setDetails(SPEEDS[i] == ConstructionPlacement.BUILDERS
+                    ? Component.translatable(KEY + "speed.builders.details")
+                    : Component.translatable(KEY + "speed.details", SPEEDS[i]));
             x += w + UiTheme.GAP;
         }
         Component place = Component.translatable(KEY + "place");

@@ -25,7 +25,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import javax.annotation.Nullable;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -33,6 +35,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -45,7 +49,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>The command {@code /folkhold construction place} sends the list of the templates ({@link #openMenu}).</li>
  *   <li>The client asks for the blocks of a template ({@link #sendPreview}), and shows the ghost of the template.</li>
  *   <li>The client sends the position, the turn and the mirror of the ghost ({@link #place}). The server makes the
- *       plan of the construction and starts its run ({@link #start}).</li>
+ *       plan of the construction and starts its run ({@link #start}). With the speed {@link #BUILDERS}, the builders
+ *       of the nearest village build the structure instead ({@link #startBuilders}).</li>
  * </ol>
  * The server checks each request: the permission, the template, its size, the distance to the operator and the
  * chunks around the structure ({@link #isAreaReady}). At the end of the construction, the server sends its end to the
@@ -58,6 +63,8 @@ public final class ConstructionPlacement {
     public static final int MAX_DISTANCE = 96;
     /** A construction applies this number of steps for each tick at most. */
     public static final int MAX_STEPS_PER_TICK = 1000;
+    /** The speed of a placement that the builders of the nearest village build (see {@link BuilderSites}). */
+    public static final int BUILDERS = 0;
     private static final String KEY = "message.folkhold_world.construction.";
     private static final String COMMAND_KEY = "commands.folkhold_world.construction.";
     /** The chat shows this number of warnings of a plan at most. */
@@ -151,6 +158,12 @@ public final class ConstructionPlacement {
             status(player, Component.translatable(KEY + "not_loaded"), false);
             return false;
         }
+        if (request.stepsPerTick() == BUILDERS) {
+            BuildersAnswer answer = startBuilders(level, request.template(), request.origin(), request.rotation(),
+                    request.mirror(), box, player.getUUID());
+            status(player, answer.message(), answer.started());
+            return answer.started();
+        }
         Target target = ConstructionTargets.fromTemplate(level, template.get(), request.origin(),
                 GhostPlacement.settings(request.rotation(), request.mirror()));
         MinecraftServer server = level.getServer();
@@ -227,6 +240,49 @@ public final class ConstructionPlacement {
             onEnd.ended(finished);
         });
         return plan.steps().size();
+    }
+
+    /**
+     * The answer to the start of a construction site of the builders.
+     *
+     * @param site    the site, or empty when the site did not start
+     * @param message the message for the operator
+     */
+    public record BuildersAnswer(Optional<BuilderSite> site, Component message) {
+        /** True if the site started. */
+        public boolean started() {
+            return site.isPresent();
+        }
+    }
+
+    /**
+     * Starts a construction site of the builders of the nearest village (see {@link BuilderSites}). The site comes
+     * after the other sites of the village.
+     *
+     * @param level    the level
+     * @param template the id of the structure template
+     * @param origin   the position of the origin of the template
+     * @param rotation the turn of the template
+     * @param mirror   the mirror of the template
+     * @param box      the box of the structure
+     * @param operator the player that gets the end of the construction, or null
+     * @return the answer for the operator
+     */
+    public static BuildersAnswer startBuilders(ServerLevel level, ResourceLocation template, BlockPos origin,
+            Rotation rotation, Mirror mirror, BoundingBox box, @Nullable UUID operator) {
+        if (WorldConfig.BUILDERS.get() <= 0) {
+            return new BuildersAnswer(Optional.empty(), Component.translatable(KEY + "no_builders"));
+        }
+        Optional<BlockPos> heart = BuilderSites.villageFor(level, box);
+        if (heart.isEmpty()) {
+            return new BuildersAnswer(Optional.empty(), Component.translatable(KEY + "no_village"));
+        }
+        BuilderSite site = BuilderSites.start(level, template, origin, rotation, mirror, heart.get(), operator);
+        int before = BuilderSites.sitesBefore(level, site);
+        Component message = before == 0
+                ? Component.translatable(KEY + "builders_started", template.toString())
+                : Component.translatable(KEY + "builders_queued", template.toString(), before);
+        return new BuildersAnswer(Optional.of(site), message);
     }
 
     /** Sends the end of a construction to the operator that started it, if the operator is online. */

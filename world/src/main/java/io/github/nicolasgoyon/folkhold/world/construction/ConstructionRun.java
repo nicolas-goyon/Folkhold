@@ -23,7 +23,8 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.material.FluidState;
 
 /**
- * Applies the steps of a construction plan to the level, a number of steps for each tick. The run puts the blocks in
+ * Applies the steps of a construction plan to the level, a number of steps for each tick. For the builders of a site,
+ * the run applies one step at a time (see {@link #applyNext} and {@link BuilderSite}). The run puts the blocks in
  * place directly, as a command does: it uses no items, and it drops no items. It does not use the positions to stand
  * of the steps.
  *
@@ -84,6 +85,13 @@ public final class ConstructionRun {
     /** Applies now all the steps that the run did not apply. */
     public void finish() {
         while (!finished()) {
+            apply(steps.get(next++));
+        }
+    }
+
+    /** Applies the next step, if the run did not apply all its steps. */
+    public void applyNext() {
+        if (!finished()) {
             apply(steps.get(next++));
         }
     }
@@ -179,7 +187,7 @@ public final class ConstructionRun {
     }
 
     /** The block state of a text, or empty for a text that is not valid (the run skips the step). */
-    private Optional<BlockState> state(String text) {
+    Optional<BlockState> state(String text) {
         return states.computeIfAbsent(text, key -> {
             try {
                 return Optional.of(BlockStateParser.parseForBlock(level.holderLookup(Registries.BLOCK), key, false)
