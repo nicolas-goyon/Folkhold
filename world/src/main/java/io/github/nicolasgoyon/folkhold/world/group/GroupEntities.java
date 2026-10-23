@@ -32,7 +32,8 @@ import net.neoforged.neoforge.event.EventHooks;
  *   <li>Merchant: a {@link CaravanMerchant}. It walks on the route. The name of a caravan merchant is "Caravan of"
  *       and the name of the origin settlement. The name of a traveling merchant is "Traveling Merchant".</li>
  *   <li>Pack animal: a tamed vanilla mule with a chest. It follows the merchant (see {@link FollowEntityGoal}).
- *       Its chest holds a part of the cargo (see {@link CaravanCargo}). All mules have the same speed.</li>
+ *       Its chest holds a part of the cargo (see {@link CaravanCargo}). All mules have the same speed. A mule finds
+ *       long paths, for example around the wall of a village to the gate.</li>
  *   <li>Guard: a faction guard of the faction of the group, with no village. It follows the merchant when it has no
  *       target. Its home position follows the merchant (see {@link GroupMaterializer}), so its chase area has its
  *       center on the merchant.</li>
@@ -45,6 +46,12 @@ public final class GroupEntities {
     private static final double MULE_MOVEMENT_SPEED = 0.25;
     /** Speed factor of a mule that follows the merchant. */
     private static final double MULE_SPEED = 1.0;
+    /**
+     * Follow range of a mule of a group, in blocks. The follow range sets the length of a path search. A vanilla mule
+     * has 16 blocks: with its merchant on the other side of the wall of a village, its path around the wall to the
+     * gate can be longer.
+     */
+    private static final double MULE_PATH_RANGE = 48.0;
     /** Speed factor of a guard that follows the merchant. */
     private static final double GUARD_FOLLOW_SPEED = 1.0;
     /** Priority of the follow goal of a guard: after the attack goal, before the walk near the home position. */
@@ -98,6 +105,14 @@ public final class GroupEntities {
             AttributeInstance movement = mule.getAttribute(Attributes.MOVEMENT_SPEED);
             if (movement != null) {
                 movement.setBaseValue(MULE_MOVEMENT_SPEED);
+            }
+            AttributeInstance range = mule.getAttribute(Attributes.FOLLOW_RANGE);
+            if (range != null) {
+                // The navigation of the mule gets the number of nodes of its path search from the follow range at
+                // the creation of the mule. A multiplier gives the number of nodes for the new range.
+                double vanillaRange = range.getBaseValue();
+                range.setBaseValue(MULE_PATH_RANGE);
+                mule.getNavigation().setMaxVisitedNodesMultiplier((float) (MULE_PATH_RANGE / vanillaRange));
             }
             group.merchant().ifPresent(leader ->
                     mule.goalSelector.addGoal(2, new FollowEntityGoal(mule, leader.id(), MULE_SPEED)));
