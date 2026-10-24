@@ -2,13 +2,20 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
+import io.github.nicolasgoyon.folkhold.core.sim.quest.Quests;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
+import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.RepairRules;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -22,12 +29,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
@@ -70,6 +79,8 @@ public final class VillageRepairGameTests {
     /** A torch of the palisade in the box of a construction site of the village. */
     private static final BlockPos CONSTRUCTION_TORCH = new BlockPos(12, 6, 2);
     private static final int BUILDERS = 2;
+    /** The quantity of each delivered material in the stock. */
+    private static final int STOCK = 64;
 
     private VillageRepairGameTests() {
     }
@@ -232,6 +243,81 @@ public final class VillageRepairGameTests {
                     // A heart of this template near a later test can take the bank chests of that test.
                     level.setBlock(heartPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
                     WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A repair asks at once for the materials that the stock does not have: the village offers delivery quests long
+     * before the wait of the common materials ({@link WorldConfig#CONSTRUCTION_MATERIAL_QUEST_MINUTES}). When the
+     * stock has the materials, the builders repair the wall, and the offers go away.
+     */
+    @GameTest(template = "village/center", timeoutTicks = 3000, batch = "village_repair_quests")
+    public static void repairAsksForItsMaterialsAtOnce(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+        BlockPos heartPos = heart.getBlockPos();
+        BuilderSites.stop(level);
+        WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(1);
+        VillageHearts.register(level, heartPos);
+        helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
+        heart.ensureSettlement();
+        Settlement settlement = Settlements.of(server, heart).orElseThrow();
+        Settlements.startEconomy(server, settlement);
+        TestSupport.emptyStock(settlement);
+        BlockPos origin = templateOrigin(helper, heartPos);
+        VillageReference reference = new VillageReference(List.of(new VillageReference.Piece(CENTER, origin,
+                Rotation.NONE)));
+        heart.setRepairReference(reference);
+        long[] time = {TestSupport.NOON};
+        helper.onEachTick(() -> level.setDayTime(time[0]));
+        for (BlockPos relative : WALL) {
+            level.setBlock(origin.offset(relative), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        }
+        List<Villager> builders = new ArrayList<>();
+        for (int i = 0; i < BUILDERS; i++) {
+            Villager builder = VillageFolk.spawn(level, heartPos, ModProfessions.BUILDER.get());
+            helper.assertTrue(builder != null, "The builder must spawn");
+            builders.add(builder);
+        }
+        Quests quests = QuestData.get(server).quests();
+        List<Quest> offers = new ArrayList<>();
+        long[] askedAt = {-1};
+        BuilderSite[] site = new BuilderSite[1];
+
+        helper.startSequence()
+                .thenExecute(() -> {
+                    site[0] = VillageRepairs.check(level, heart).orElse(null);
+                    helper.assertTrue(site[0] != null && site[0].isRepair(), "The repair must start");
+                })
+                .thenWaitUntil(() -> {
+                    offers.clear();
+                    site[0].materialQuests().values().forEach(id -> quests.byId(id).ifPresent(offers::add));
+                    helper.assertTrue(!offers.isEmpty(), "The repair must ask for its materials: "
+                            + site[0].phase() + " " + site[0].status());
+                    askedAt[0] = helper.getTick();
+                })
+                .thenExecute(() -> {
+                    helper.assertTrue(askedAt[0] < SharedConstants.TICKS_PER_MINUTE,
+                            "The repair must not wait for the common materials: tick " + askedAt[0]);
+                    for (Quest offer : offers) {
+                        helper.assertTrue(offer.kind() == QuestKind.DELIVERY && offer.count() > 0
+                                && offer.state() == QuestState.OFFERED, "A delivery of a missing material: " + offer);
+                        // The players deliver the materials: they go into the stock of the village.
+                        settlement.economy().stock().set(offer.target(), STOCK);
+                    }
+                })
+                .thenWaitUntil(() -> helper.assertTrue(BuilderSites.of(level, heartPos).isEmpty(),
+                        "The builders must finish the repair: " + site[0].phase() + " " + site[0].status() + " "
+                        + site[0].appliedSteps() + "/" + site[0].totalSteps()))
+                .thenExecute(() -> {
+                    boolean offered = offers.stream().anyMatch(offer -> quests.byId(offer.id())
+                            .filter(quest -> quest.state() == QuestState.OFFERED).isPresent());
+                    builders.forEach(Entity::discard);
+                    level.setBlock(heartPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                    WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
+                    helper.assertFalse(offered, "The repair must withdraw its offers when the stock has the items");
                 })
                 .thenSucceed();
     }
