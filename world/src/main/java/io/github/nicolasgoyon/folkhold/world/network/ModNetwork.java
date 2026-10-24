@@ -8,11 +8,13 @@ import io.github.nicolasgoyon.folkhold.world.client.ClientTerritory;
 import io.github.nicolasgoyon.folkhold.world.client.ConstructionGhost;
 import io.github.nicolasgoyon.folkhold.world.client.ConstructionScreen;
 import io.github.nicolasgoyon.folkhold.world.client.InfoScreen;
+import io.github.nicolasgoyon.folkhold.world.client.JournalScreen;
 import io.github.nicolasgoyon.folkhold.world.client.NoticeToasts;
 import io.github.nicolasgoyon.folkhold.world.client.QuestBoardScreen;
 import io.github.nicolasgoyon.folkhold.world.client.TerritoryTitleHud;
 import io.github.nicolasgoyon.folkhold.world.client.VillageHeartScreen;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionPlacement;
+import io.github.nicolasgoyon.folkhold.world.journal.Journals;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestBoards;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -60,6 +62,14 @@ public final class ModNetwork {
                 (payload, context) -> InfoScreen.open(payload));
         registrar.playToClient(VillageHeartPayload.TYPE, VillageHeartPayload.STREAM_CODEC,
                 (payload, context) -> VillageHeartScreen.open(payload));
+        registrar.playToServer(JournalRequestPayload.TYPE, JournalRequestPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    if (context.player() instanceof ServerPlayer player) {
+                        Journals.request(player);
+                    }
+                });
+        registrar.playToClient(JournalPayload.TYPE, JournalPayload.STREAM_CODEC,
+                (payload, context) -> JournalScreen.open(payload));
         registrar.playToServer(QuestBoardRequestPayload.TYPE, QuestBoardRequestPayload.STREAM_CODEC,
                 (payload, context) -> {
                     if (context.player() instanceof ServerPlayer player) {

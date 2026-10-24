@@ -44,6 +44,8 @@ public final class FolkholdWorldClient {
         // Lowest priority: the other listeners of the event see the villager before it changes renderer.
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, AnimatedVillagerRenderer::onRenderLiving);
         modEventBus.addListener(ConstructionKeys::register);
+        modEventBus.addListener(JournalKeys::register);
+        NeoForge.EVENT_BUS.addListener(JournalScreen::onClientTick);
         NeoForge.EVENT_BUS.addListener(ConstructionGhost::onClientTick);
         NeoForge.EVENT_BUS.addListener(ConstructionGhostRenderer::onRenderLevel);
     }
@@ -54,6 +56,7 @@ public final class FolkholdWorldClient {
         ClientQuestLog.clear();
         TerritoryTitleHud.clear();
         AdminScreen.clear();
+        JournalScreen.clear();
         ConstructionScreen.clear();
         ConstructionGhost.clear();
         FactionGolemModel.forgetLevel();
