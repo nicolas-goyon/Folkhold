@@ -22,6 +22,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
@@ -494,6 +495,28 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
+     * Puts the gates of the palisade into the settlement: the routes of the caravans go through them (see
+     * {@link io.github.nicolasgoyon.folkhold.core.sim.group.RouteGates}). A gate in a chunk that is not loaded is not
+     * in the list.
+     */
+    public void recordGates() {
+        if (!(level instanceof ServerLevel serverLevel) || !layout.isScanned()) {
+            return;
+        }
+        List<Settlement.Gate> gates = new ArrayList<>();
+        for (VillageExits.Approach approach : VillageExits.approaches(serverLevel, worldPosition, layout.gates())) {
+            BlockPos middle = approach.gates().get(approach.gates().size() / 2);
+            gates.add(new Settlement.Gate(middle.getX(), middle.getZ(), approach.point().getX(),
+                    approach.point().getZ()));
+        }
+        Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
+            if (!gates.isEmpty() && settlement.setGates(gates)) {
+                SettlementData.get(serverLevel.getServer()).setDirty();
+            }
+        });
+    }
+
+    /**
      * Creates the missing units of the garrison now (see {@link Garrison#ensure}). Before the first garrison, the
      * heart scans the village. The method does nothing while a chunk of the scan area is not ready
      * ({@link VillageLayout#isScanAreaReady}).
@@ -515,6 +538,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
             exitStairs = true;
             setChanged();
         }
+        recordGates();
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }

@@ -73,6 +73,18 @@ public class JournalScreen extends UiScreen {
     private static final int MAP_MARGIN = 8;
     /** The smallest span of the map, in blocks. */
     private static final int MAP_MIN_SPAN = 64;
+    /** The background of the map. */
+    private static final int MAP_BACKGROUND = 0xFFFFFFFF;
+    /** The grey of the lowest floor of the relief (0 to 255). */
+    private static final int RELIEF_LOW = 250;
+    /** The grey of the highest floor of the relief (0 to 255). */
+    private static final int RELIEF_HIGH = 175;
+    /** The smallest height range of the relief, in blocks: a flat area stays light. */
+    private static final int RELIEF_MIN_RANGE = 24;
+    /** The color of the water on the map. */
+    private static final int RELIEF_WATER = 0xFFD5E6F3;
+    /** The width of the progress bar, in pixels. */
+    private static final int PROGRESS_BAR = 60;
 
     /** The end of the route that the next click in the list of the tab "Routes" sets. */
     private enum RouteSlot {
@@ -130,6 +142,8 @@ public class JournalScreen extends UiScreen {
     private UiRect mapArea = listArea;
     /** The area at the right of the button of the line in the world. */
     private UiRect lineInfo = listArea;
+    /** The row of the state of the calculation, above the map. */
+    private UiRect statusArea = listArea;
 
     public JournalScreen(JournalPayload journal) {
         super(Component.translatable(KEY + "title"));
@@ -263,6 +277,7 @@ public class JournalScreen extends UiScreen {
         detailsArea = showsDetails() ? right.inset(UiTheme.PADDING) : new UiRect(0, 0, 0, 0);
         mapArea = new UiRect(0, 0, 0, 0);
         lineInfo = mapArea;
+        statusArea = mapArea;
         if (showsList()) {
             switch (lastTab) {
                 case TAB_VILLAGES, TAB_ROUTES -> initVillageList(left);
@@ -606,8 +621,9 @@ public class JournalScreen extends UiScreen {
         if (!hasSelection()) {
             return;
         }
-        int mapHeight = area.height() - UiTheme.CONTROL - LEGEND - 2 * UiTheme.GAP;
-        mapArea = new UiRect(area.x(), area.y(), area.width(), Math.max(0, mapHeight));
+        statusArea = area.top(LEGEND);
+        int mapHeight = area.height() - UiTheme.CONTROL - 2 * LEGEND - 3 * UiTheme.GAP;
+        mapArea = new UiRect(area.x(), area.y() + LEGEND + UiTheme.GAP, area.width(), Math.max(0, mapHeight));
         Component label = Component.translatable(KEY + (ClientRouteView.inWorld() ? "route.hide" : "route.show"));
         UiRect row = area.bottomPart(UiTheme.CONTROL);
         UiRect buttonRect = row.left(Math.min(row.width(), font.width(label) + 20));
@@ -663,12 +679,19 @@ public class JournalScreen extends UiScreen {
         if (rect.width() < 2 * MAP_MARGIN || rect.height() < 2 * MAP_MARGIN) {
             return;
         }
-        UiDraw.box(graphics, rect, UiTheme.PARCHMENT, UiTheme.PARCHMENT_EDGE, false);
+        UiDraw.box(graphics, rect, MAP_BACKGROUND, UiTheme.PARCHMENT_EDGE, false);
         Optional<Route> route = shownRoute();
+        RoutePayload.Relief relief = ClientRouteView.relief();
         int minX = Math.min(from.x(), to.x());
         int maxX = Math.max(from.x(), to.x());
         int minZ = Math.min(from.z(), to.z());
         int maxZ = Math.max(from.z(), to.z());
+        if (relief != null) {
+            minX = Math.min(minX, relief.minX());
+            minZ = Math.min(minZ, relief.minZ());
+            maxX = Math.max(maxX, relief.minX() + (relief.width() - 1) * relief.cell());
+            maxZ = Math.max(maxZ, relief.minZ() + (relief.height() - 1) * relief.cell());
+        }
         if (route.isPresent()) {
             for (Route.Point point : route.get().points()) {
                 minX = Math.min(minX, point.x());
@@ -683,6 +706,9 @@ public class JournalScreen extends UiScreen {
         MapProjection map = new MapProjection(inner, (minX + maxX) / 2.0, (minZ + maxZ) / 2.0,
                 Math.min(inner.width() / spanX, inner.height() / spanZ));
         graphics.enableScissor(rect.x() + 1, rect.y() + 1, rect.right() - 1, rect.bottom() - 1);
+        if (relief != null) {
+            renderRelief(graphics, map, relief);
+        }
         for (Village village : journal.villages()) {
             if (!village.id().equals(from.id()) && !village.id().equals(to.id())) {
                 int x = map.x(village.x());
@@ -718,6 +744,82 @@ public class JournalScreen extends UiScreen {
             }
         }
         graphics.disableScissor();
+    }
+
+    /**
+     * Draws the relief of the map: a light grey for each cell, darker for a higher floor. A cell with water is light
+     * blue.
+     */
+    private static void renderRelief(GuiGraphics graphics, MapProjection map, RoutePayload.Relief relief) {
+        int low = Integer.MAX_VALUE;
+        int high = Integer.MIN_VALUE;
+        for (int j = 0; j < relief.height(); j++) {
+            for (int i = 0; i < relief.width(); i++) {
+                if (relief.water(i, j) == 0) {
+                    low = Math.min(low, relief.floor(i, j));
+                    high = Math.max(high, relief.floor(i, j));
+                }
+            }
+        }
+        double range = Math.max(RELIEF_MIN_RANGE, high - low);
+        int half = relief.cell() / 2;
+        for (int j = 0; j < relief.height(); j++) {
+            int z = relief.minZ() + j * relief.cell();
+            int y0 = map.y(z - half);
+            int y1 = Math.max(y0 + 1, map.y(z - half + relief.cell()));
+            for (int i = 0; i < relief.width(); i++) {
+                int x = relief.minX() + i * relief.cell();
+                int x0 = map.x(x - half);
+                int x1 = Math.max(x0 + 1, map.x(x - half + relief.cell()));
+                int color;
+                if (relief.water(i, j) > 0) {
+                    color = RELIEF_WATER;
+                } else {
+                    double t = Math.max(0.0, Math.min(1.0, (relief.floor(i, j) - low) / range));
+                    int grey = (int) Math.round(RELIEF_LOW - t * (RELIEF_LOW - RELIEF_HIGH));
+                    color = 0xFF000000 | grey << 16 | grey << 8 | grey;
+                }
+                graphics.fill(x0, y0, x1, y1, color);
+            }
+        }
+    }
+
+    /** Draws the state of the calculation of the route: the progress, or why the route is coarse. */
+    private void renderRouteStatus(GuiGraphics graphics, UiRect rect) {
+        RoutePayload payload = ClientRouteView.route();
+        if (payload == null || rect.width() <= 0) {
+            return;
+        }
+        RoutePayload.Progress progress = payload.progress();
+        Component text;
+        double fraction = -1;
+        if (progress != null) {
+            String kind = progress.detail() ? "detailed" : "coarse";
+            if (progress.ahead() > 0) {
+                text = Component.translatable(KEY + "route.progress.waiting." + kind, progress.ahead());
+            } else {
+                text = Component.translatable(KEY + "route.progress.running." + kind, progress.percent(),
+                        progress.examined(), progress.budget());
+                fraction = progress.percent() / 100.0;
+            }
+        } else if (payload.status() == RoutePayload.Status.PENDING) {
+            text = Component.translatable(KEY + "route.progress.starting");
+        } else if (payload.status() == RoutePayload.Status.READY && !payload.detailed()) {
+            text = Component.translatable(KEY + "route.progress.coarse_final");
+        } else if (payload.status() == RoutePayload.Status.READY && payload.more()) {
+            text = Component.translatable(KEY + "route.progress.relief");
+        } else if (payload.status() == RoutePayload.Status.READY) {
+            text = Component.translatable(KEY + "route.progress.done");
+        } else {
+            return;
+        }
+        int textRight = rect.right();
+        if (fraction >= 0) {
+            UiRect bar = rect.rightPart(Math.min(PROGRESS_BAR, rect.width() / 3)).inset(0, 3);
+            UiDraw.bar(graphics, bar, fraction, UiTheme.WOOD_DARK, UiTheme.GILT);
+            textRight = bar.x() - UiTheme.PADDING;
+        }
+        UiText.draw(graphics, font, text, rect.x(), UiText.textY(rect), textRight - rect.x(), UiTheme.TEXT_MUTED);
     }
 
     /** Draws an end of the route: a square and the name of the village. */
@@ -852,6 +954,7 @@ public class JournalScreen extends UiScreen {
                 return;
             }
             renderRouteHeader(graphics, header, from.get(), to.get());
+            renderRouteStatus(graphics, statusArea);
             renderRouteMap(graphics, mapArea, from.get(), to.get());
             renderRouteLegend(graphics, mapArea.x(), mapArea.bottom() + UiTheme.GAP + 2, mapArea.right());
             if (ClientRouteView.inWorld() && lineInfo.width() > 0) {

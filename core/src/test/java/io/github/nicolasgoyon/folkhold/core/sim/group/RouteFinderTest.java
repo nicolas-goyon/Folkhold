@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.core.sim.group;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -47,6 +48,23 @@ class RouteFinderTest {
         Route route = result.route().orElseThrow();
         assertEquals(List.of(new Route.Point(0, 0), new Route.Point(1000, 0)), route.points());
         assertEquals(1000.0, route.length(), 1e-9);
+    }
+
+    @Test
+    void searchGivesItsProgress() {
+        List<double[]> updates = new ArrayList<>();
+        RouteFinder.Result result = RouteFinder.find(0, 0, 1000, 0, LAKE, settings(8, RouteFinder.NO_RISE_LIMIT,
+                false, 3000.0, 1.0), null, (examined, fraction) -> updates.add(new double[] {examined, fraction}));
+
+        assertTrue(result.route().isPresent(), "The search must find a route");
+        assertTrue(updates.size() > 1, "The search must give its progress more than once: " + updates.size());
+        for (int i = 1; i < updates.size(); i++) {
+            assertTrue(updates.get(i)[0] > updates.get(i - 1)[0], "The number of examined cells increases");
+            assertTrue(updates.get(i)[1] >= updates.get(i - 1)[1], "The covered part does not decrease");
+        }
+        double[] last = updates.get(updates.size() - 1);
+        assertEquals(1.0, last[1], 1e-9, "The progress ends at 1 when the search finds the route");
+        assertEquals(result.examined(), (int) last[0], "The last progress gives all the examined cells");
     }
 
     @Test

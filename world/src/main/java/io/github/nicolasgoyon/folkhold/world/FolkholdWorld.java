@@ -24,6 +24,7 @@ import io.github.nicolasgoyon.folkhold.world.group.MobileGroupSystem;
 import io.github.nicolasgoyon.folkhold.world.group.RoadNetwork;
 import io.github.nicolasgoyon.folkhold.world.group.TravelingMerchants;
 import io.github.nicolasgoyon.folkhold.world.group.VillageTrade;
+import io.github.nicolasgoyon.folkhold.world.journal.RouteReliefs;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.quest.Escorts;
@@ -115,6 +116,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerTick);
         NeoForge.EVENT_BUS.addListener(SimulationTicker::onServerStopped);
         NeoForge.EVENT_BUS.addListener(CaravanRoutes::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(RouteReliefs::onServerStopping);
         NeoForge.EVENT_BUS.addListener(RoadNetwork::onChunkLoad);
         NeoForge.EVENT_BUS.addListener(RoadNetwork::onChunkUnload);
         NeoForge.EVENT_BUS.addListener(RoadNetwork::onBlockPlaced);

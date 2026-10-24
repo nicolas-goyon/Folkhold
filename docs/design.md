@@ -695,6 +695,9 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
   - The route is the route of the next caravan: the detailed route, or the coarse route when the corridor has no detailed route. The server does not calculate a route on the server thread: the worker thread calculates a missing route, and the journal asks again until the route is ready. The data keeps the route for the caravans.
   - A button shows the route in the world (`ClientRouteOverlay`): a yellow line above the blocks that the caravans walk on, near the player, also after the player closes the journal. On a road segment, the line is on the road floor, on a bridge or in a tunnel. The player sees where to build roads, bridges and defenses.
   - While the server calculates a route again (for example after a change of the roads), the journal keeps the last route.
+  - The routes go through the gates of the palisades (`RouteGates`): from the heart to a gate, through the gate, then to the route outside the village. The heart records the gates of its village in the settlement when a player is near. The selected gate gives the shortest route.
+  - Above the map, a line gives the state of the calculation: the number of calculations before it, or the part of the distance that the search covered and the number of examined cells. A coarse route with no detailed route in the corridor is final.
+  - The map has a white background with the relief in a light grey gradient (darker for a higher floor) and the water in light blue (`RouteReliefs`). The worker thread of the routes calculates the relief from the chunk generator.
 
 ## Events mod
 

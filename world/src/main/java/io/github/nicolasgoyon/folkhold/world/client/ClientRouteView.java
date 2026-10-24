@@ -17,14 +17,14 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *
  * <ul>
  *   <li>When the two villages change, the client asks the server for the route.</li>
- *   <li>While the server calculates the route, the client asks again every {@link #POLL_TICKS} ticks, also when the
- *       journal is closed.</li>
+ *   <li>While the server calculates the route or its relief, the client asks again every {@link #POLL_TICKS} ticks,
+ *       also when the journal is closed.</li>
  *   <li>The player can show the route in the world ({@link ClientRouteOverlay}).</li>
  * </ul>
  */
 public final class ClientRouteView {
     /** The interval between two requests while the server calculates the route, in ticks. */
-    static final int POLL_TICKS = 40;
+    static final int POLL_TICKS = 20;
 
     @Nullable
     private static String fromId;
@@ -35,6 +35,8 @@ public final class ClientRouteView {
     /** The last route of the two villages: the server can calculate the route again after a change of the roads. */
     private static Optional<Route> shown = Optional.empty();
     private static boolean shownDetailed;
+    @Nullable
+    private static RoutePayload.Relief shownRelief;
     private static boolean inWorld;
     private static int pollTimer;
     /** Increases each time the route changes. */
@@ -67,6 +69,12 @@ public final class ClientRouteView {
      */
     public static Optional<Route> shownRoute() {
         return shown;
+    }
+
+    /** The relief of the map of the route, or null before the server sends it. */
+    @Nullable
+    public static RoutePayload.Relief relief() {
+        return shownRelief;
     }
 
     /** True if the route to show is the detailed route, false for the coarse route. */
@@ -104,6 +112,7 @@ public final class ClientRouteView {
         route = null;
         shown = Optional.empty();
         shownDetailed = false;
+        shownRelief = null;
         version++;
         refresh();
     }
@@ -123,6 +132,9 @@ public final class ClientRouteView {
             return;
         }
         route = payload;
+        if (payload.relief() != null) {
+            shownRelief = payload.relief();
+        }
         Optional<Route> received = payload.route();
         if (received.isPresent()) {
             shown = received;
@@ -135,9 +147,9 @@ public final class ClientRouteView {
         JournalScreen.onRoute();
     }
 
-    /** While the server calculates the route, asks for it again at an interval. */
+    /** While the server calculates the route or its relief, asks for it again at an interval. */
     public static void onClientTick(ClientTickEvent.Post event) {
-        if (route == null || route.status() != RoutePayload.Status.PENDING) {
+        if (route == null || !route.more()) {
             return;
         }
         pollTimer--;
@@ -153,6 +165,7 @@ public final class ClientRouteView {
         route = null;
         shown = Optional.empty();
         shownDetailed = false;
+        shownRelief = null;
         inWorld = false;
         pollTimer = 0;
         version++;

@@ -28,6 +28,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 /**
  * In-game tests for the routes between the settlements. The heights come from the chunk generator of the test
  * world. See {@link TestSupport} for the templates.
+ *
+ * <p>The GameTest server does not wait between two ticks, but the worker thread of the routes takes real time. So
+ * the tests that wait for the worker thread have a large number of ticks.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -132,7 +135,7 @@ public final class RouteGameTests {
      * An error (not an exception) in the search gives no result: nothing stays on the way, and the data has no
      * result for the pair, so the simulation can ask again. The worker thread calculates the next routes.
      */
-    @GameTest(template = "empty", timeoutTicks = 400, batch = "route_error")
+    @GameTest(template = "empty", timeoutTicks = 2000, batch = "route_error")
     public static void errorInSearchLetsThePairAskAgain(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         List<Settlement> ends = settlements(server, 12_000);
@@ -160,7 +163,7 @@ public final class RouteGameTests {
      * An error in the calculation of a detailed route does not block the group: the group continues with its coarse
      * route, and nothing stays on the way.
      */
-    @GameTest(template = "empty", timeoutTicks = 400, batch = "route_detail_error")
+    @GameTest(template = "empty", timeoutTicks = 2000, batch = "route_detail_error")
     public static void errorInDetailedRouteReleasesTheGroup(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         List<Settlement> ends = settlements(server, 14_000);
@@ -194,7 +197,7 @@ public final class RouteGameTests {
      * goes from the origin to the destination. A second group between the same settlements gets the
      * detailed route at once.
      */
-    @GameTest(template = "empty", timeoutTicks = 600, batch = "route_detail")
+    @GameTest(template = "empty", timeoutTicks = 4000, batch = "route_detail")
     public static void groupWaitsForItsDetailedRoute(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         List<Settlement> ends = settlements(server, 10_000);
