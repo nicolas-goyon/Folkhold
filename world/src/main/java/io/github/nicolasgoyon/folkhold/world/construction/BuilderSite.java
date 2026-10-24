@@ -444,7 +444,7 @@ public final class BuilderSite {
         }
         Settlement economy = settlement;
         if (phase == Phase.BUILD && economy != null && Math.floorMod(now + id, QUEST_TICKS) == 0) {
-            materials.offerQuests(level.getServer(), economy, needs(level, economy), now);
+            materials.offerQuests(level.getServer(), economy, needs(level, economy), now, isRepair());
         }
         List<ServerPlayer> intruders = playersInZone(level);
         status = !intruders.isEmpty() ? Status.PLAYER : workers.isEmpty() ? Status.NO_BUILDERS : Status.WORKING;
@@ -533,6 +533,11 @@ public final class BuilderSite {
     /** The items that the builders wait for now, by item id. */
     public Set<String> missingMaterials() {
         return materials.missing();
+    }
+
+    /** The ids of the open delivery quests of the site, by item id. */
+    public Map<String, String> materialQuests() {
+        return materials.quests();
     }
 
     /** One tick of work of the builders while the chunks of the site are not loaded. */

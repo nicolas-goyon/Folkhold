@@ -16,6 +16,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -36,7 +37,8 @@ import net.minecraft.server.MinecraftServer;
  *   <li>A block waits when the stock does not have its materials: the steps after it wait too.</li>
  *   <li>The site asks the players for its rare and valuable blocks with delivery quests of the village. The site also
  *       asks for a common material when it waits for this material for some time
- *       ({@link WorldConfig#CONSTRUCTION_MATERIAL_QUEST_MINUTES}). The delivered items go into the stock of the
+ *       ({@link WorldConfig#CONSTRUCTION_MATERIAL_QUEST_MINUTES}). A repair asks for all its materials at once. The
+ *       quests follow the stock (see {@link #offerQuests}). The delivered items go into the stock of the
  *       village, and the builders take them there.</li>
  *   <li>At the end of the site, the whole items that the site did not use go back to the stock.</li>
  * </ul>
@@ -71,6 +73,11 @@ final class SiteMaterials {
     /** Forgets the items that the builders waited for in the tick before. */
     void clearMissing() {
         missing.clear();
+    }
+
+    /** The ids of the delivery quests of the site, by item id. */
+    Map<String, String> quests() {
+        return Map.copyOf(quests);
     }
 
     /** The parts of items that the site keeps, by item id. */
@@ -173,17 +180,27 @@ final class SiteMaterials {
     }
 
     /**
-     * Offers delivery quests for the materials that the site needs and that the stock does not have. A quest for a
-     * rare or a valuable block comes at once. A quest for a common material comes after a wait of
-     * {@link WorldConfig#CONSTRUCTION_MATERIAL_QUEST_MINUTES}. The village offers one quest at a time for each item. The
-     * quest asks for the quantity that the stock does not have, up to the maximum quantity of a delivery.
+     * Offers delivery quests for the materials that the site needs and that the stock does not have. The site checks
+     * its quests at an interval, so the quests follow the stock.
+     *
+     * <ul>
+     *   <li>A quest for a rare or a valuable block comes at once. A repair also asks for all its materials at once.
+     *       For the other sites, a quest for a common material comes after a wait of
+     *       {@link WorldConfig#CONSTRUCTION_MATERIAL_QUEST_MINUTES}.</li>
+     *   <li>The village offers one quest at a time for each item. The quest asks for the quantity that the stock does
+     *       not have, up to the maximum quantity of a delivery.</li>
+     *   <li>When the quantity that the stock does not have changes, an offered quest of the site changes to the new
+     *       quantity. When the stock has the item, the site withdraws its offer. An accepted quest does not change.</li>
+     * </ul>
      *
      * @param server     the server
      * @param settlement the village
      * @param needs      the materials that the rest of the site needs, by item id
      * @param now        the game time of the level of the site
+     * @param urgent     true to ask for all the materials at once, for example for a repair
      */
-    void offerQuests(MinecraftServer server, Settlement settlement, Map<String, Need> needs, long now) {
+    void offerQuests(MinecraftServer server, Settlement settlement, Map<String, Need> needs, long now,
+            boolean urgent) {
         QuestData data = QuestData.get(server);
         Quests all = data.quests();
         QuestGenerator.Settings settings = QuestSystem.settings();
@@ -191,12 +208,23 @@ final class SiteMaterials {
         long delay = WorldConfig.CONSTRUCTION_MATERIAL_QUEST_MINUTES.get() * (long) SharedConstants.TICKS_PER_MINUTE;
         quests.values().removeIf(questId -> !isOpen(all, questId));
         boolean changed = false;
+        for (Map.Entry<String, String> entry : List.copyOf(quests.entrySet())) {
+            Need need = needs.get(entry.getKey());
+            int lacking = need == null ? 0 : need.count() - settlement.economy().stock().count(entry.getKey());
+            int wanted = Math.min(Math.max(lacking, 0), settings.maxDeliveryCount());
+            boolean offered = all.byId(entry.getValue()).filter(quest -> quest.state() == QuestState.OFFERED
+                    && quest.count() != wanted).isPresent();
+            if (offered && all.withdraw(entry.getValue())) {
+                quests.remove(entry.getKey());
+                changed = true;
+            }
+        }
         for (Map.Entry<String, Need> entry : needs.entrySet()) {
             String item = entry.getKey();
             Need need = entry.getValue();
             int lacking = need.count() - settlement.economy().stock().count(item);
             Long since = waitingSince.get(item);
-            boolean ask = need.rare() || (delay > 0 && since != null && now - since >= delay);
+            boolean ask = urgent || need.rare() || (delay > 0 && since != null && now - since >= delay);
             if (lacking <= 0 || !ask || quests.containsKey(item) || villageAsksFor(all, settlement, item)) {
                 continue;
             }
