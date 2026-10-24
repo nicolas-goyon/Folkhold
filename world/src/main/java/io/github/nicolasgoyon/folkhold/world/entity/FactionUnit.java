@@ -10,10 +10,14 @@ import io.github.nicolasgoyon.folkhold.world.entity.ai.ReturnToAnchorGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitHurtByTargetGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UsePassageGoal;
+import io.github.nicolasgoyon.folkhold.world.faction.Culture;
+import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
+import io.github.nicolasgoyon.folkhold.world.registry.ModSounds;
+import io.github.nicolasgoyon.folkhold.world.registry.ModSounds.UnitVoice;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
@@ -34,6 +38,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -105,6 +110,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
 
     private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
 
+    /** A unit gives an alert at most once in this time, in ticks: 5 seconds. */
+    private static final int ALERT_INTERVAL = 100;
     /** Color of the tabard (dyed leather chestplate) of a unit without a faction. */
     public static final int DEFAULT_TABARD_COLOR = 0x3C5A9A;
 
@@ -162,6 +169,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private long routedUntil;
     /** Game time until which the unit ignores all targets, after the end of a chase. Not saved. */
     private long gaveUpUntil;
+    /** The value of {@code tickCount} at the last alert of the unit (see {@link UnitVoice#ALERT}). Not saved. */
+    private int lastAlert = -ALERT_INTERVAL;
     /** Time in ticks with no path to the target and no line of sight to it. Not saved. */
     private int unreachableTicks;
     /** Time in ticks on the way to the post. Not saved. */
@@ -322,7 +331,23 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         if (target != null && (isRouted() || level().getGameTime() < gaveUpUntil || !canAttack(target))) {
             return;
         }
+        LivingEntity previous = getTarget();
         super.setTarget(target);
+        if (previous == null && target != null && getTarget() == target && !level().isClientSide()
+                && tickCount - lastAlert >= ALERT_INTERVAL) {
+            lastAlert = tickCount;
+            playVoice(UnitVoice.ALERT);
+        }
+    }
+
+    /** A unit that hits its target makes the sound of an attack. */
+    @Override
+    public boolean doHurtTarget(Entity target) {
+        boolean hit = super.doHurtTarget(target);
+        if (hit) {
+            playVoice(UnitVoice.ATTACK);
+        }
+        return hit;
     }
 
     /** The id of the faction of the unit, or null if the unit has no faction. */
@@ -755,23 +780,39 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return false;
     }
 
-    /**
-     * The ambient sound of a calm unit: the vanilla villager sound. A unit with a target makes no ambient sound.
-     */
+    /** The ambient sound of a calm unit (see {@link UnitVoice#AMBIENT}). A unit with a target has no ambient sound. */
     @Override
     @Nullable
     protected SoundEvent getAmbientSound() {
-        return getTarget() == null ? SoundEvents.VILLAGER_AMBIENT : null;
+        return getTarget() == null ? voice(UnitVoice.AMBIENT, SoundEvents.VILLAGER_AMBIENT) : null;
     }
 
     @Override
     protected SoundEvent getHurtSound(DamageSource damageSource) {
-        return SoundEvents.VILLAGER_HURT;
+        return voice(UnitVoice.HURT, SoundEvents.VILLAGER_HURT);
     }
 
     @Override
     protected SoundEvent getDeathSound() {
-        return SoundEvents.VILLAGER_DEATH;
+        return voice(UnitVoice.DEATH, SoundEvents.VILLAGER_DEATH);
+    }
+
+    /** The pitch of the voice of the unit: the culture of its faction changes it (see {@link Culture#voicePitch()}). */
+    @Override
+    public float getVoicePitch() {
+        float culture = faction().flatMap(spec -> Cultures.byId(spec.cultureId())).map(Culture::voicePitch)
+                .orElse(1.0F);
+        return super.getVoicePitch() * culture;
+    }
+
+    /** The sound of a voice of the unit, or the fallback for a role with no voice. */
+    private SoundEvent voice(UnitVoice voice, SoundEvent fallback) {
+        return ModSounds.unitVoice(role(), voice).orElse(fallback);
+    }
+
+    /** Plays a voice of the unit, with the pitch of its voice. A role with no voice makes no sound. */
+    protected void playVoice(UnitVoice voice) {
+        ModSounds.unitVoice(role(), voice).ifPresent(sound -> playSound(sound, getSoundVolume(), getVoicePitch()));
     }
 
     /** Units do not pick up items. */

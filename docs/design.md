@@ -164,7 +164,7 @@ The faction of a new village is the faction with the nearest territory center.
 
 ### Cultures
 
-A culture is a template for factions: name, colors, banner, name syllables (for faction and village names). **Implemented**: the cultures are Java definitions (`Cultures`). **Planned**: each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
+A culture is a template for factions: name, colors, banner, name syllables (for faction and village names), pitch of the voices of its units. **Implemented**: the cultures are Java definitions (`Cultures`). **Planned**: each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
 
 The factions of a world are not static content. The mod creates them when the world starts, from the cultures, and saves them in the world.
 
