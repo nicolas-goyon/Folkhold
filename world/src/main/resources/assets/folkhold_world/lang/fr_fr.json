@@ -410,7 +410,7 @@
   "commands.folkhold_world.caravan.info.header": "%s : %s de %s, %s",
   "commands.folkhold_world.caravan.info.journey": "%s → %s, %s/%s blocs, tick de départ %s, entités : %s, gardé : %s",
   "commands.folkhold_world.caravan.info.member": "%s : %s points de vie (%s)",
-  "commands.folkhold_world.caravan.info.route": "Route : %s points, %s, terre %s blocs, gué %s blocs, eau %s blocs",
+  "commands.folkhold_world.caravan.info.route": "Route : %s points, %s, terre %s blocs, gué %s blocs, eau %s blocs, route %s blocs",
   "commands.folkhold_world.caravan.route.ready": "route détaillée prête",
   "commands.folkhold_world.caravan.route.pending": "attend sa route détaillée",
   "commands.folkhold_world.caravan.role.merchant": "Marchand",

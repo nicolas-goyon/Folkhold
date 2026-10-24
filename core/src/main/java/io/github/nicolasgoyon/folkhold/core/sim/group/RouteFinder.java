@@ -16,12 +16,17 @@ import java.util.PriorityQueue;
  *   <li>The grid has its origin at the start position. One cell is {@code step} blocks.</li>
  *   <li>Each cell has a surface from its water depth: land (no water), ford (water of {@code fordDepth} blocks or
  *       less) or water (deeper water). A group crosses water in boats, only if {@code boats} is true.</li>
+ *   <li>A cell can also have a road (see {@link Column#road()}): a second level of the cell, at the height of the
+ *       road, with no water. The road can be under the terrain (a tunnel) or above the water (a bridge). A move goes
+ *       from one level of a cell to one level of the next cell. A move between two road levels costs
+ *       {@code roadFactor} times its length, and its segment has the surface {@link Route.Surface#ROAD}.</li>
  *   <li>The cost of a move is its length, plus a cost for the slope, for the ford and for the boat, plus a fixed
  *       cost each time the group gets into or out of the boats.</li>
  *   <li>A move with a height change of more than {@code maxRise} blocks is not possible (a cliff). The first move
  *       and the move to the end are always possible: the villages are on terrain that the search does not see.</li>
- *   <li>The heuristic is the direct distance to the end, multiplied by a weight. A weight above 1 examines fewer
- *       cells, and the route can be a little longer than the best route.</li>
+ *   <li>The heuristic is the direct distance to the end, multiplied by a weight and by {@code roadFactor}. A weight
+ *       above 1 examines fewer cells, and the route can be a little longer than the best route. A road factor below
+ *       1 examines more cells: the search can then find a road that is not on the direct line.</li>
  *   <li>With a {@link Corridor}, the search uses only the cells near a route (for example a route on a coarse
  *       grid). So a search on a fine grid examines fewer cells.</li>
  *   <li>A route that is longer than {@code maxLength} is not valid. The search also stops after
@@ -33,6 +38,12 @@ import java.util.PriorityQueue;
 public final class RouteFinder {
     /** No limit for the height change of a move. */
     public static final int NO_RISE_LIMIT = Integer.MAX_VALUE;
+    /** The value of {@link Column#road()} for a column with no road. */
+    public static final int NO_ROAD = Integer.MIN_VALUE;
+    /** The level of a cell on the terrain. */
+    private static final int TERRAIN = 0;
+    /** The level of a cell on its road. */
+    private static final int ROAD = 1;
 
     /** The 8 directions on the grid. */
     private static final int[][] DIRECTIONS = {
@@ -40,12 +51,23 @@ public final class RouteFinder {
     };
 
     /**
-     * The ground and the water at one position.
+     * The ground, the water and the road at one position.
      *
      * @param floor the Y of the highest solid block. Water is not solid.
      * @param water the depth of the water above the floor, in blocks (0 on dry ground)
+     * @param road  the Y of the floor of a road, or {@link #NO_ROAD}. The road can be lower than the floor (a tunnel)
+     *              or above the water (a bridge).
      */
-    public record Column(int floor, int water) {
+    public record Column(int floor, int water, int road) {
+        /** A column with no road. */
+        public Column(int floor, int water) {
+            this(floor, water, NO_ROAD);
+        }
+
+        /** True if the column has a road. */
+        public boolean hasRoad() {
+            return road != NO_ROAD;
+        }
     }
 
     /** Gives the ground and the water at a position, without the generation of chunks. */
@@ -75,14 +97,23 @@ public final class RouteFinder {
      * @param maxLength  maximum length of a route in blocks
      * @param maxNodes   maximum number of cells that the search examines
      * @param weight     weight of the heuristic (1 or more)
+     * @param roadFactor the cost of a move on a road, as a multiple of its length (above 0, 1 or less)
      */
     public record Settings(int step, int fordDepth, int maxRise, double slopeCost, double fordCost, boolean boats,
-            double boatCost, double embarkCost, double maxLength, int maxNodes, double weight) {
+            double boatCost, double embarkCost, double maxLength, int maxNodes, double weight, double roadFactor) {
         public Settings {
             if (step < 1 || fordDepth < 0 || maxRise < 0 || slopeCost < 0 || fordCost < 0 || boatCost < 0
-                    || embarkCost < 0 || maxLength <= 0 || maxNodes < 1 || weight < 1.0) {
+                    || embarkCost < 0 || maxLength <= 0 || maxNodes < 1 || weight < 1.0 || roadFactor <= 0.0
+                    || roadFactor > 1.0) {
                 throw new IllegalArgumentException("Invalid route settings");
             }
+        }
+
+        /** Settings with no reduction of the cost on the roads. */
+        public Settings(int step, int fordDepth, int maxRise, double slopeCost, double fordCost, boolean boats,
+                double boatCost, double embarkCost, double maxLength, int maxNodes, double weight) {
+            this(step, fordDepth, maxRise, slopeCost, fordCost, boats, boatCost, embarkCost, maxLength, maxNodes,
+                    weight, 1.0);
         }
     }
 
@@ -104,7 +135,7 @@ public final class RouteFinder {
     public record Result(Optional<Route> route, int examined) {
     }
 
-    private record Node(int i, int j, double cost, double estimate) {
+    private record Node(int i, int j, int level, double cost, double estimate) {
     }
 
     private RouteFinder() {
@@ -149,13 +180,13 @@ public final class RouteFinder {
         Map<Long, Double> bestCost = new HashMap<>();
         Map<Long, Long> parent = new HashMap<>();
         PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.estimate(), b.estimate()));
-        long startKey = IntPair.pack(0, 0);
+        long startKey = key(0, 0, TERRAIN);
         bestCost.put(startKey, 0.0);
-        open.add(new Node(0, 0, 0.0, settings.weight() * heuristic(0, 0, goalI, goalJ, settings.step())));
+        open.add(new Node(0, 0, TERRAIN, 0.0, heuristic(0, 0, goalI, goalJ, settings)));
         int examined = 0;
         while (!open.isEmpty() && examined < settings.maxNodes()) {
             Node node = open.poll();
-            long nodeKey = IntPair.pack(node.i(), node.j());
+            long nodeKey = key(node.i(), node.j(), node.level());
             if (node.cost() > bestCost.getOrDefault(nodeKey, Double.MAX_VALUE)) {
                 continue;
             }
@@ -168,17 +199,23 @@ public final class RouteFinder {
                 int ni = node.i() + direction[0];
                 int nj = node.j() + direction[1];
                 boolean goal = ni == goalI && nj == goalJ;
-                double moveCost = grid.moveCost(node.i(), node.j(), ni, nj, fromStart || goal);
-                if (moveCost < 0.0) {
-                    continue;
-                }
-                double cost = node.cost() + moveCost;
-                long neighborKey = IntPair.pack(ni, nj);
-                if (cost < bestCost.getOrDefault(neighborKey, Double.MAX_VALUE)) {
-                    bestCost.put(neighborKey, cost);
-                    parent.put(neighborKey, nodeKey);
-                    open.add(new Node(ni, nj, cost,
-                            cost + settings.weight() * heuristic(ni, nj, goalI, goalJ, settings.step())));
+                for (int level = TERRAIN; level <= ROAD; level++) {
+                    if (level == ROAD && !grid.column(ni, nj).hasRoad()) {
+                        continue;
+                    }
+                    double moveCost = grid.moveCost(node.i(), node.j(), node.level(), ni, nj, level,
+                            fromStart || goal);
+                    if (moveCost < 0.0) {
+                        continue;
+                    }
+                    double cost = node.cost() + moveCost;
+                    long neighborKey = key(ni, nj, level);
+                    if (cost < bestCost.getOrDefault(neighborKey, Double.MAX_VALUE)) {
+                        bestCost.put(neighborKey, cost);
+                        parent.put(neighborKey, nodeKey);
+                        open.add(new Node(ni, nj, level, cost,
+                                cost + heuristic(ni, nj, goalI, goalJ, settings)));
+                    }
                 }
             }
         }
@@ -209,6 +246,19 @@ public final class RouteFinder {
         return new Result(second.route(), first.examined() + second.examined());
     }
 
+    /** The key of a node: the cell and its level. */
+    private static long key(int i, int j, int level) {
+        return IntPair.pack(i, 2 * j + level);
+    }
+
+    private static int cellJ(long key) {
+        return Math.floorDiv(IntPair.second(key), 2);
+    }
+
+    private static int level(long key) {
+        return Math.floorMod(IntPair.second(key), 2);
+    }
+
     /** The surface of a column. */
     static Route.Surface surface(Column column, Settings settings) {
         if (column.water() <= 0) {
@@ -233,7 +283,7 @@ public final class RouteFinder {
         List<long[]> cells = new ArrayList<>();
         Long current = goalKey;
         while (current != null) {
-            cells.add(new long[] {IntPair.first(current), IntPair.second(current)});
+            cells.add(new long[] {IntPair.first(current), cellJ(current), level(current)});
             current = parent.get(current);
         }
         Collections.reverse(cells);
@@ -250,8 +300,9 @@ public final class RouteFinder {
         for (int index = 1; index < cells.size(); index++) {
             long[] previous = cells.get(index - 1);
             long[] cell = cells.get(index);
-            Route.Surface moveSurface = moveSurface(grid.surface((int) previous[0], (int) previous[1]),
-                    grid.surface((int) cell[0], (int) cell[1]));
+            Route.Surface moveSurface = previous[2] == ROAD && cell[2] == ROAD ? Route.Surface.ROAD
+                    : moveSurface(grid.surface((int) previous[0], (int) previous[1], (int) previous[2]),
+                            grid.surface((int) cell[0], (int) cell[1], (int) cell[2]));
             if (index > 1) {
                 long[] before = cells.get(index - 2);
                 boolean turn = cell[0] - previous[0] != previous[0] - before[0]
@@ -270,8 +321,8 @@ public final class RouteFinder {
         return route.length() <= settings.maxLength() ? Optional.of(route) : Optional.empty();
     }
 
-    private static double heuristic(int i, int j, int goalI, int goalJ, int step) {
-        return step * Math.hypot(goalI - i, goalJ - j);
+    private static double heuristic(int i, int j, int goalI, int goalJ, Settings settings) {
+        return settings.weight() * settings.roadFactor() * settings.step() * Math.hypot(goalI - i, goalJ - j);
     }
 
     /** The cells of one search, with their columns and their place in the corridor. */
@@ -297,8 +348,9 @@ public final class RouteFinder {
                     k -> heights.column(startX + i * settings.step(), startZ + j * settings.step()));
         }
 
-        Route.Surface surface(int i, int j) {
-            return RouteFinder.surface(column(i, j), settings);
+        /** The surface of a level of a cell. The road level has no water. */
+        Route.Surface surface(int i, int j, int level) {
+            return level == ROAD ? Route.Surface.LAND : RouteFinder.surface(column(i, j), settings);
         }
 
         boolean inCorridor(int i, int j) {
@@ -309,8 +361,14 @@ public final class RouteFinder {
                     startX + i * settings.step(), startZ + j * settings.step()) <= corridor.width());
         }
 
-        /** The height where a group stands in a cell: the floor, or the water surface for a boat. */
-        int standHeight(Column column) {
+        /**
+         * The height where a group stands in a level of a cell: the road, the floor, or the water surface for a
+         * boat.
+         */
+        int standHeight(Column column, int level) {
+            if (level == ROAD) {
+                return column.road();
+            }
             return RouteFinder.surface(column, settings) == Route.Surface.WATER
                     ? column.floor() + column.water() : column.floor();
         }
@@ -321,24 +379,25 @@ public final class RouteFinder {
          * @param free true for the first move and the move to the end: no limits for the corridor, the water and
          *             the height change
          */
-        double moveCost(int fromI, int fromJ, int toI, int toJ, boolean free) {
+        double moveCost(int fromI, int fromJ, int fromLevel, int toI, int toJ, int toLevel, boolean free) {
             if (!free && !inCorridor(toI, toJ)) {
                 return -1.0;
             }
             Column from = column(fromI, fromJ);
             Column to = column(toI, toJ);
-            Route.Surface fromSurface = RouteFinder.surface(from, settings);
-            Route.Surface toSurface = RouteFinder.surface(to, settings);
+            Route.Surface fromSurface = surface(fromI, fromJ, fromLevel);
+            Route.Surface toSurface = surface(toI, toJ, toLevel);
             if (toSurface == Route.Surface.WATER && !settings.boats() && !free) {
                 return -1.0;
             }
-            int rise = Math.abs(standHeight(to) - standHeight(from));
+            int rise = Math.abs(standHeight(to, toLevel) - standHeight(from, fromLevel));
             if (rise > settings.maxRise() && !free) {
                 return -1.0;
             }
             double length = settings.step() * Math.hypot(toI - fromI, toJ - fromJ);
             Route.Surface surface = moveSurface(fromSurface, toSurface);
-            double cost = length;
+            boolean road = fromLevel == ROAD && toLevel == ROAD;
+            double cost = road ? length * settings.roadFactor() : length;
             if (surface == Route.Surface.WATER) {
                 cost += settings.boatCost() * length;
             } else {

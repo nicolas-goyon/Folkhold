@@ -9,7 +9,7 @@ import java.util.List;
  *
  * <ul>
  *   <li>The progress on a route is a distance in blocks from the first point, from 0 to {@link #length()}.</li>
- *   <li>Each segment (from point i to point i + 1) has a {@link Surface}: land, ford or water.</li>
+ *   <li>Each segment (from point i to point i + 1) has a {@link Surface}: land, ford, water or road.</li>
  * </ul>
  */
 public final class Route {
@@ -54,7 +54,9 @@ public final class Route {
         /** Shallow water: the group walks in the water. */
         FORD(1),
         /** Deep water: the group crosses in boats. */
-        WATER(2);
+        WATER(2),
+        /** A road of the world: the group walks on it, also in a tunnel or on a bridge. */
+        ROAD(3);
 
         private final int code;
 

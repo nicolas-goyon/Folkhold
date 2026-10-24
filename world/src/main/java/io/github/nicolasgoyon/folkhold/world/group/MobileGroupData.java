@@ -8,16 +8,19 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroups;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.saveddata.SavedData;
 
 /**
@@ -114,6 +117,48 @@ public final class MobileGroupData extends SavedData {
     public void putDetailedRoute(RouteEntry entry) {
         detailedRoutes.put(Route.pairKey(entry.fromId(), entry.toId()), entry);
         setDirty();
+    }
+
+    /**
+     * Forgets the routes near chunks with changed roads (see {@link RoadNetwork}): the simulation and the groups ask
+     * for them again.
+     *
+     * <ul>
+     *   <li>A route is near a chunk when the center of the chunk is at two grid steps of the route or nearer (two
+     *       corridor widths for a detailed route).</li>
+     *   <li>A result "no route" is near a chunk when the chunk is in the box of the two settlements, with a margin
+     *       of half their distance: a new bridge or a new tunnel there can give a route.</li>
+     * </ul>
+     *
+     * @param chunks the keys of the chunks ({@link ChunkPos#toLong()})
+     * @return the number of forgotten routes
+     */
+    public int forgetRoutesNear(Set<Long> chunks) {
+        int forgotten = forgetNear(routes, chunks, 2.0 * WorldConfig.ROUTE_STEP.get())
+                + forgetNear(detailedRoutes, chunks, 2.0 * WorldConfig.ROUTE_CORRIDOR.get());
+        if (forgotten > 0) {
+            setDirty();
+            FolkholdWorld.LOGGER.debug("Roads changed in {} chunks: {} routes to calculate again", chunks.size(),
+                    forgotten);
+        }
+        return forgotten;
+    }
+
+    private static int forgetNear(Map<String, RouteEntry> entries, Set<Long> chunks, double margin) {
+        int before = entries.size();
+        entries.values().removeIf(entry -> chunks.stream().anyMatch(chunk -> isNear(entry,
+                ChunkPos.getX(chunk) * 16 + 8, ChunkPos.getZ(chunk) * 16 + 8, margin)));
+        return before - entries.size();
+    }
+
+    private static boolean isNear(RouteEntry entry, int x, int z, double margin) {
+        if (entry.route().isPresent()) {
+            return entry.route().get().distanceTo(x, z) <= margin + 12.0;
+        }
+        double extra = Math.max(margin, Math.hypot(entry.toX() - entry.fromX(), entry.toZ() - entry.fromZ()) / 2.0);
+        return x >= Math.min(entry.fromX(), entry.toX()) - extra && x <= Math.max(entry.fromX(), entry.toX()) + extra
+                && z >= Math.min(entry.fromZ(), entry.toZ()) - extra
+                && z <= Math.max(entry.fromZ(), entry.toZ()) + extra;
     }
 
     /**

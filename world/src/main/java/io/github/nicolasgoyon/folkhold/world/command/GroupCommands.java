@@ -185,7 +185,7 @@ public final class GroupCommands {
                 Component.translatable(KEY + (group.isRouteReady() ? "caravan.route.ready"
                         : "caravan.route.pending")),
                 Math.round(lengths.get(Route.Surface.LAND)), Math.round(lengths.get(Route.Surface.FORD)),
-                Math.round(lengths.get(Route.Surface.WATER))), false);
+                Math.round(lengths.get(Route.Surface.WATER)), Math.round(lengths.get(Route.Surface.ROAD))), false);
         for (GroupMember member : group.members()) {
             source.sendSuccess(() -> Component.translatable(KEY + "caravan.info.member",
                     Component.translatable(KEY + "caravan.role." + member.role().serializedName()),

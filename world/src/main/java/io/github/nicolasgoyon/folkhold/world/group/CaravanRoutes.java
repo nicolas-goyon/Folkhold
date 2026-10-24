@@ -36,6 +36,10 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
  *   <li>The heights come from the chunk generator of the Overworld. The calculation does not generate chunks. One
  *       column of blocks from the terrain noise gives the 2 heights of a cell: the surface (water included) and the
  *       floor. The water depth is the difference between the two.</li>
+ *   <li>The roads come from the blocks of the world (see {@link RoadNetwork}): a road in a cell gives the cell a
+ *       second level at the height of the road, with no water. Thus a route takes a bridge, a tunnel or a covered
+ *       bridge with a road floor. On a detailed route, a move on the roads also costs less ({@link #ROAD_FACTOR}).
+ *       When the roads near a route change, the mod calculates the route again.</li>
  *   <li>One column costs a calculation of the terrain noise, and a search reads thousands of columns. So the
  *       simulation requests the routes ({@link #request}): one worker thread calculates them, and the server thread
  *       puts each result into the data. The simulation uses only the routes that are in the data
@@ -71,6 +75,8 @@ public final class CaravanRoutes {
     private static final double BOAT_COST = 1.0;
     /** Extra cost each time the group gets into or out of the boats. */
     private static final double EMBARK_COST = 64.0;
+    /** The cost of a move on a road of a detailed route, as a multiple of its length. */
+    private static final double ROAD_FACTOR = 0.7;
     /** Weight of the heuristic of the coarse search: fewer examined cells, a route a little longer than the best. */
     private static final double HEURISTIC_WEIGHT = 1.5;
     /** Weight of the heuristic of the detailed search. */
@@ -178,7 +184,7 @@ public final class CaravanRoutes {
      * @return true if the route is on the way (new or earlier request)
      */
     public static boolean requestDetail(MinecraftServer server, MobileGroup group) {
-        return requestDetail(server, group, heights(server.overworld()));
+        return requestDetail(server, group, heights(server.overworld(), WorldConfig.ROUTE_DETAIL_STEP.get()));
     }
 
     /**
@@ -332,7 +338,7 @@ public final class CaravanRoutes {
      * @return true if the route is on the way (new or earlier request)
      */
     public static boolean request(MinecraftServer server, Settlement from, Settlement to) {
-        return request(server, from, to, heights(server.overworld()));
+        return request(server, from, to, heights(server.overworld(), WorldConfig.ROUTE_STEP.get()));
     }
 
     /**
@@ -418,14 +424,17 @@ public final class CaravanRoutes {
      */
     public static Calculation calculate(MinecraftServer server, Settlement from, Settlement to) {
         long start = System.nanoTime();
-        RouteFinder.Result result = RouteFinder.find(from.x(), from.z(), to.x(), to.z(), heights(server.overworld()),
-                settings());
+        RouteFinder.Result result = RouteFinder.find(from.x(), from.z(), to.x(), to.z(),
+                heights(server.overworld(), WorldConfig.ROUTE_STEP.get()), settings());
         MobileGroupData.get(server).putRoute(new RouteEntry(from.id(), to.id(), from.x(), from.z(), to.x(), to.z(),
                 result.route()));
         return new Calculation(result.route(), result.examined(), System.nanoTime() - start);
     }
 
-    /** The settings of the coarse search from the server configuration. No height limit: the cells are large. */
+    /**
+     * The settings of the coarse search from the server configuration. No height limit: the cells are large. A road
+     * gives a cell its level (a bridge, a tunnel), but no lower cost: the heuristic stays strong for the long routes.
+     */
     public static RouteFinder.Settings settings() {
         return new RouteFinder.Settings(WorldConfig.ROUTE_STEP.get(), FORD_DEPTH, RouteFinder.NO_RISE_LIMIT,
                 SLOPE_COST, FORD_COST, WorldConfig.ROUTE_BOATS.get(), BOAT_COST, EMBARK_COST,
@@ -437,7 +446,7 @@ public final class CaravanRoutes {
         return new RouteFinder.Settings(WorldConfig.ROUTE_DETAIL_STEP.get(), FORD_DEPTH,
                 WorldConfig.ROUTE_MAX_RISE.get(), SLOPE_COST, FORD_COST, WorldConfig.ROUTE_BOATS.get(), BOAT_COST,
                 EMBARK_COST, WorldConfig.ROUTE_MAX_LENGTH.get() * DETAIL_LENGTH_FACTOR,
-                WorldConfig.ROUTE_DETAIL_MAX_NODES.get(), DETAIL_HEURISTIC_WEIGHT);
+                WorldConfig.ROUTE_DETAIL_MAX_NODES.get(), DETAIL_HEURISTIC_WEIGHT, ROAD_FACTOR);
     }
 
     /**
@@ -454,16 +463,38 @@ public final class CaravanRoutes {
     }
 
     /**
-     * The heights of the Overworld from its chunk generator. The calculation generates no chunks. One column of the
-     * terrain noise gives the 2 heights, with the rules of the world generation heightmaps: the surface is above the
-     * highest block that is not air ({@link Heightmap.Types#WORLD_SURFACE_WG}), and the floor is above the highest
-     * block that blocks the motion ({@link Heightmap.Types#OCEAN_FLOOR_WG}).
+     * The heights of the Overworld from its chunk generator, with the roads of the world. The calculation generates
+     * no chunks. One column of the terrain noise gives the 2 heights, with the rules of the world generation
+     * heightmaps: the surface is above the highest block that is not air ({@link Heightmap.Types#WORLD_SURFACE_WG}),
+     * and the floor is above the highest block that blocks the motion ({@link Heightmap.Types#OCEAN_FLOOR_WG}).
+     *
+     * @param level the Overworld
+     * @param step  the size of a grid cell: the road of a cell is in the square of the cell around its position
      */
-    private static RouteFinder.HeightSource heights(ServerLevel level) {
+    private static RouteFinder.HeightSource heights(ServerLevel level, int step) {
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         RandomState randomState = level.getChunkSource().randomState();
-        return (x, z) -> column(generator.getBaseColumn(x, z, level, randomState), level.getMinBuildHeight(),
-                level.getMaxBuildHeight());
+        RouteFinder.HeightSource terrain = (x, z) -> column(generator.getBaseColumn(x, z, level, randomState),
+                level.getMinBuildHeight(), level.getMaxBuildHeight());
+        return withRoads(terrain, RoadNetwork.get(level), step / 2);
+    }
+
+    /**
+     * Adds the roads to a height source: a column gets the road of the square around it, with the height nearest to
+     * its floor (see {@link RoadNetwork#roadNear}).
+     *
+     * @param terrain the heights of the terrain
+     * @param roads   the road network
+     * @param radius  the half size of the square, in blocks
+     * @return the height source with the roads
+     */
+    public static RouteFinder.HeightSource withRoads(RouteFinder.HeightSource terrain, RoadNetwork roads,
+            int radius) {
+        return (x, z) -> {
+            RouteFinder.Column column = terrain.column(x, z);
+            int road = roads.roadNear(x, z, radius, column.floor());
+            return road == RouteFinder.NO_ROAD ? column : new RouteFinder.Column(column.floor(), column.water(), road);
+        };
     }
 
     /**
