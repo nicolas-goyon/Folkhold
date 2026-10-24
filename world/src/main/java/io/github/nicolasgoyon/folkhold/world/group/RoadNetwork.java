@@ -243,8 +243,14 @@ public final class RoadNetwork extends SavedData {
      * @param z     block Z
      * @param minY  the lowest Y to read
      * @param maxY  the Y above the highest block to read
-     * @return the Y of the road block, or {@link #NONE}
+     * @return the Y of the road block, or {@link RouteFinder#NO_ROAD}
      */
+    public static int roadFloorAt(BlockGetter level, int x, int z, int minY, int maxY) {
+        int y = roadFloor(level, x, z, minY, maxY);
+        return y == NONE ? RouteFinder.NO_ROAD : y;
+    }
+
+    /** The Y of the road floor of a column, or {@link #NONE} (see {@link #roadFloorAt}). */
     static int roadFloor(BlockGetter level, int x, int z, int minY, int maxY) {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int y = maxY; y >= minY; y--) {

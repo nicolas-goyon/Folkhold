@@ -46,6 +46,8 @@ public final class FolkholdWorldClient {
         modEventBus.addListener(ConstructionKeys::register);
         modEventBus.addListener(JournalKeys::register);
         NeoForge.EVENT_BUS.addListener(JournalScreen::onClientTick);
+        NeoForge.EVENT_BUS.addListener(ClientRouteView::onClientTick);
+        NeoForge.EVENT_BUS.addListener(ClientRouteOverlay::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(ConstructionGhost::onClientTick);
         NeoForge.EVENT_BUS.addListener(ConstructionGhostRenderer::onRenderLevel);
     }
@@ -57,6 +59,8 @@ public final class FolkholdWorldClient {
         TerritoryTitleHud.clear();
         AdminScreen.clear();
         JournalScreen.clear();
+        ClientRouteView.clear();
+        ClientRouteOverlay.clear();
         ConstructionScreen.clear();
         ConstructionGhost.clear();
         FactionGolemModel.forgetLevel();
