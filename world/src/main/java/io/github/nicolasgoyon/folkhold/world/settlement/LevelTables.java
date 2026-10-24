@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable.StartChance;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
@@ -12,7 +13,9 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
@@ -31,11 +34,15 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  * {
  *   "tiers": [{"id": "hamlet", "min_level": 1, "max_level": 4}, ...],
  *   "levels": [{"experience": 15, "claim_radius": 9, "max_population": 9, "job_slots": 2,
- *               "stock_capacity": 128, "trade_offers": 3, "cats": 1}, ...],
+ *               "stock_capacity": 128, "trade_offers": 3, "cats": 1,
+ *               "garrison": {"guard": 2, "archer": 2, "captain": 1}, "equipment": "hamlet"}, ...],
  *   "start_levels": [{"min_level": 1, "max_level": 1, "weight": 40}, ...]
  * }
  * </pre>
  * The first entry of {@code levels} is the level 1. {@code experience} is the experience to go to the next level.
+ * {@code garrison} gives the number of units of each garrison role, and {@code equipment} the equipment set of the
+ * units (see {@link io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment}). A level with no
+ * {@code garrison} uses the garrison and the equipment set of the same level in {@link LevelTable#DEFAULT}.
  */
 public final class LevelTables extends SimplePreparableReloadListener<LevelTable> {
     public static final ResourceLocation FILE =
@@ -92,7 +99,8 @@ public final class LevelTables extends SimplePreparableReloadListener<LevelTable
             levels.add(new LevelTraits(GsonHelper.getAsInt(level, "experience"),
                     GsonHelper.getAsInt(level, "claim_radius"), GsonHelper.getAsInt(level, "max_population"),
                     GsonHelper.getAsInt(level, "job_slots"), GsonHelper.getAsInt(level, "stock_capacity"),
-                    GsonHelper.getAsInt(level, "trade_offers"), GsonHelper.getAsInt(level, "cats")));
+                    GsonHelper.getAsInt(level, "trade_offers"), GsonHelper.getAsInt(level, "cats"),
+                    garrison(level, levels.size() + 1)));
         }
         JsonArray starts = GsonHelper.getAsJsonArray(json, "start_levels");
         List<StartChance> chances = new ArrayList<>();
@@ -102,5 +110,20 @@ public final class LevelTables extends SimplePreparableReloadListener<LevelTable
                     GsonHelper.getAsInt(chance, "max_level"), GsonHelper.getAsInt(chance, "weight")));
         }
         return new LevelTable(levels, tiers, chances);
+    }
+
+    /**
+     * Reads the garrison of a level. A level with no {@code garrison} uses the garrison of the same level in
+     * {@link LevelTable#DEFAULT}.
+     */
+    private static GarrisonTraits garrison(JsonObject level, int number) {
+        if (!level.has("garrison")) {
+            return LevelTable.DEFAULT.traits(number).garrison();
+        }
+        Map<String, Integer> units = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : GsonHelper.getAsJsonObject(level, "garrison").entrySet()) {
+            units.put(entry.getKey(), GsonHelper.convertToInt(entry.getValue(), entry.getKey()));
+        }
+        return new GarrisonTraits(units, GsonHelper.getAsString(level, "equipment"));
     }
 }

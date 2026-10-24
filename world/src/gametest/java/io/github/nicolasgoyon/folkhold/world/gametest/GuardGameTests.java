@@ -9,11 +9,15 @@ import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -49,8 +53,12 @@ public final class GuardGameTests {
     public static void guardSpawnsWithEquipmentAndConfiguredHealth(GameTestHelper helper) {
         GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(0, 1, 0));
 
-        helper.assertTrue(guard.getItemBySlot(EquipmentSlot.MAINHAND).is(Items.IRON_SWORD),
-                "The guard must hold an iron sword");
+        // A heart of an earlier test can be near: the guard then has the equipment set of its level.
+        GarrisonEquipment.Piece sword = GarrisonEquipment.get().pieces(guard.getEquipmentSet(), GarrisonRole.GUARD)
+                .get(EquipmentSlot.MAINHAND);
+        helper.assertTrue(guard.getItemBySlot(EquipmentSlot.MAINHAND)
+                        .is(BuiltInRegistries.ITEM.get(ResourceLocation.parse(sword.item()))),
+                "The guard must hold the sword of its equipment set " + guard.getEquipmentSet());
         helper.assertTrue(guard.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD),
                 "The guard must hold a shield");
 

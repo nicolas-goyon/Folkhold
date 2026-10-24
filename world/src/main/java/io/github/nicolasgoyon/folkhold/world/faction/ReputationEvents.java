@@ -2,10 +2,12 @@ package io.github.nicolasgoyon.folkhold.world.faction;
 
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionHorseEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -34,6 +36,9 @@ public final class ReputationEvents {
         LivingEntity victim = event.getEntity();
         if (victim instanceof FactionUnit unit) {
             applyToUnit(player, unit, WorldConfig.REPUTATION_KILL_UNIT.get());
+        } else if (victim instanceof FactionHorseEntity horse) {
+            // The death of a horse of the garrison counts as a hit on a unit of its village.
+            applyToVillage(player, horse.getVillagePos(), horse, WorldConfig.REPUTATION_HIT_UNIT.get());
         } else if (victim instanceof VillageCat cat) {
             applyToCat(player, cat, WorldConfig.REPUTATION_KILL_CAT.get());
         } else if (victim instanceof Enemy && victim.level() instanceof ServerLevel level) {
@@ -53,14 +58,22 @@ public final class ReputationEvents {
         }
         if (event.getEntity() instanceof FactionUnit unit) {
             applyToUnit(player, unit, WorldConfig.REPUTATION_HIT_UNIT.get());
+        } else if (event.getEntity() instanceof FactionHorseEntity horse) {
+            applyToVillage(player, horse.getVillagePos(), horse, WorldConfig.REPUTATION_HIT_UNIT.get());
         } else if (event.getEntity() instanceof VillageCat cat) {
             applyToCat(player, cat, WorldConfig.REPUTATION_HIT_CAT.get());
         }
     }
 
     private static void applyToCat(ServerPlayer player, VillageCat cat, int delta) {
-        if (cat.getVillagePos() != null && cat.level() instanceof ServerLevel level
-                && level.getBlockEntity(cat.getVillagePos()) instanceof VillageHeartBlockEntity heart
+        applyToVillage(player, cat.getVillagePos(), cat, delta);
+    }
+
+    /** Changes the reputation of the player with the village of a heart, and with its faction. */
+    private static void applyToVillage(ServerPlayer player, @Nullable BlockPos villagePos, LivingEntity victim,
+            int delta) {
+        if (villagePos != null && victim.level() instanceof ServerLevel level
+                && level.getBlockEntity(villagePos) instanceof VillageHeartBlockEntity heart
                 && heart.getFactionId() != null) {
             Reputations.apply(player.server, player, heart.getFactionId(), heart.getVillageId().toString(), delta);
         }

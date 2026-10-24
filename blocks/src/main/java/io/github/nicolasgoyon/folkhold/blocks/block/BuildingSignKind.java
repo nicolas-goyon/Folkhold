@@ -3,8 +3,8 @@ package io.github.nicolasgoyon.folkhold.blocks.block;
 import java.util.Locale;
 
 /**
- * The kinds of building signs. Each kind has its own block ({@code building_sign_<name>}). The script
- * {@code tools/textures/building_signs.py} makes the resources of each kind: it must have the same kinds.
+ * The kinds of building signs. Each kind has its own block ({@code building_sign_<name>}). The description
+ * {@code tools/pixvox/building_signs.py} makes the model and the resources of each kind: it must have the same kinds.
  */
 public enum BuildingSignKind {
     /** A house of the inhabitants. */

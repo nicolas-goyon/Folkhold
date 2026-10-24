@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.settlement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable;
 import java.io.IOException;
@@ -31,5 +32,30 @@ class LevelTablesTest {
                 assertEquals(code.startLevel(seed), file.startLevel(seed), "Seed " + seed);
             }
         }
+    }
+
+    /** A level with no garrison uses the garrison of the same level in the default table. */
+    @Test
+    void levelWithNoGarrisonUsesTheDefaultGarrison() {
+        JsonObject json = JsonParser.parseString("""
+                {
+                  "tiers": [{"id": "hamlet", "min_level": 1, "max_level": 2}],
+                  "levels": [
+                    {"experience": 15, "claim_radius": 9, "max_population": 9, "job_slots": 2,
+                     "stock_capacity": 128, "trade_offers": 3, "cats": 1},
+                    {"experience": 20, "claim_radius": 9, "max_population": 14, "job_slots": 3,
+                     "stock_capacity": 256, "trade_offers": 4, "cats": 1,
+                     "garrison": {"guard": 7}, "equipment": "elite"}
+                  ],
+                  "start_levels": [{"min_level": 1, "max_level": 1, "weight": 1}]
+                }
+                """).getAsJsonObject();
+
+        LevelTable table = LevelTables.parse(json);
+
+        assertEquals(LevelTable.DEFAULT.traits(1).garrison(), table.traits(1).garrison());
+        assertEquals(7, table.traits(2).garrison().count("guard"));
+        assertEquals(0, table.traits(2).garrison().count("archer"));
+        assertEquals("elite", table.traits(2).garrison().equipment());
     }
 }

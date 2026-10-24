@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.core.sim.group;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -47,6 +48,23 @@ class RouteFinderTest {
         Route route = result.route().orElseThrow();
         assertEquals(List.of(new Route.Point(0, 0), new Route.Point(1000, 0)), route.points());
         assertEquals(1000.0, route.length(), 1e-9);
+    }
+
+    @Test
+    void searchGivesItsProgress() {
+        List<double[]> updates = new ArrayList<>();
+        RouteFinder.Result result = RouteFinder.find(0, 0, 1000, 0, LAKE, settings(8, RouteFinder.NO_RISE_LIMIT,
+                false, 3000.0, 1.0), null, (examined, fraction) -> updates.add(new double[] {examined, fraction}));
+
+        assertTrue(result.route().isPresent(), "The search must find a route");
+        assertTrue(updates.size() > 1, "The search must give its progress more than once: " + updates.size());
+        for (int i = 1; i < updates.size(); i++) {
+            assertTrue(updates.get(i)[0] > updates.get(i - 1)[0], "The number of examined cells increases");
+            assertTrue(updates.get(i)[1] >= updates.get(i - 1)[1], "The covered part does not decrease");
+        }
+        double[] last = updates.get(updates.size() - 1);
+        assertEquals(1.0, last[1], 1e-9, "The progress ends at 1 when the search finds the route");
+        assertEquals(result.examined(), (int) last[0], "The last progress gives all the examined cells");
     }
 
     @Test
@@ -234,5 +252,82 @@ class RouteFinderTest {
 
         assertTrue(result.route().isEmpty(), "A wall across the corridor gives no route");
         assertTrue(result.examined() > 0);
+    }
+
+    /** Fine settings with a road factor: maximum rise 3, no boats. */
+    private static RouteFinder.Settings roadSettings(double roadFactor) {
+        return new RouteFinder.Settings(4, 2, 3, 2.0, 1.0, false, 0.5, 40.0, 3000.0, 200_000, 1.0, roadFactor);
+    }
+
+    /** Adds roads to a height source: a road at the given height where the predicate is true. */
+    private static RouteFinder.HeightSource withRoad(RouteFinder.HeightSource terrain, Floor road) {
+        return (x, z) -> {
+            RouteFinder.Column column = terrain.column(x, z);
+            int y = road.at(x, z);
+            return y == RouteFinder.NO_ROAD ? column : new RouteFinder.Column(column.floor(), column.water(), y);
+        };
+    }
+
+    private static double surfaceLength(Route route, Route.Surface surface) {
+        double length = 0.0;
+        for (int i = 0; i < route.surfaces().size(); i++) {
+            if (route.surfaces().get(i) == surface) {
+                length += route.progressOf(i + 1) - route.progressOf(i);
+            }
+        }
+        return length;
+    }
+
+    /** A deep river across the whole map: with no boats, only a bridge with a road gives a route. */
+    @Test
+    void bridgeCrossesDeepWater() {
+        RouteFinder.HeightSource river = withSea((x, z) -> x > 400 && x < 600 ? 40 : GROUND);
+        RouteFinder.HeightSource bridge = withRoad(river,
+                (x, z) -> x > 380 && x < 620 && Math.abs(z - 40) <= 4 ? GROUND : RouteFinder.NO_ROAD);
+
+        assertTrue(RouteFinder.find(0, 0, 1000, 0, river, roadSettings(0.7)).route().isEmpty(),
+                "With no boats and no bridge, the river stops the route");
+        Route route = RouteFinder.find(0, 0, 1000, 0, bridge, roadSettings(0.7)).route().orElseThrow();
+        Route.Position middle = route.positionAt(route.progressNear(500, 40));
+        assertTrue(Math.abs(middle.z() - 40) <= 6, "The route must cross on the bridge: " + middle);
+        assertEquals(0.0, surfaceLength(route, Route.Surface.WATER), 1e-9);
+        assertTrue(surfaceLength(route, Route.Surface.ROAD) >= 200.0, "The bridge is a road");
+    }
+
+    /** A ridge with cliffs across the whole map: a tunnel with a road floor goes through it. */
+    @Test
+    void tunnelGoesThroughARidge() {
+        RouteFinder.HeightSource ridge = withSea((x, z) -> x > 400 && x < 600 ? GROUND + 60 : GROUND);
+        RouteFinder.HeightSource tunnel = withRoad(ridge,
+                (x, z) -> x > 390 && x < 610 && Math.abs(z) <= 4 ? GROUND : RouteFinder.NO_ROAD);
+
+        assertTrue(RouteFinder.find(0, 0, 1000, 0, ridge, roadSettings(0.7)).route().isEmpty(),
+                "The cliffs stop the route");
+        Route route = RouteFinder.find(0, 0, 1000, 0, tunnel, roadSettings(0.7)).route().orElseThrow();
+        assertTrue(route.length() < 1010.0, "The route goes straight through the tunnel: " + route.length());
+        assertTrue(surfaceLength(route, Route.Surface.ROAD) >= 200.0, "The tunnel is a road");
+    }
+
+    /** A road near the direct line: the route takes it, because a move on a road costs less. */
+    @Test
+    void routeTakesANearRoad() {
+        RouteFinder.HeightSource road = withRoad(FLAT,
+                (x, z) -> Math.abs(z - 12) <= 2 ? GROUND : RouteFinder.NO_ROAD);
+
+        Route route = RouteFinder.find(0, 0, 1000, 0, road, roadSettings(0.7)).route().orElseThrow();
+
+        assertTrue(surfaceLength(route, Route.Surface.ROAD) > 900.0,
+                "The route must follow the road: " + surfaceLength(route, Route.Surface.ROAD));
+    }
+
+    /** A road far below the terrain (a mine) does not change a route on the terrain. */
+    @Test
+    void deepRoadWithNoEntranceIsNotUsed() {
+        RouteFinder.HeightSource mine = withRoad(FLAT, (x, z) -> x > 300 && x < 700 ? GROUND - 40 : RouteFinder.NO_ROAD);
+
+        Route route = RouteFinder.find(0, 0, 1000, 0, mine, roadSettings(0.7)).route().orElseThrow();
+
+        assertEquals(0.0, surfaceLength(route, Route.Surface.ROAD), 1e-9);
+        assertEquals(1000.0, route.length(), 1e-9);
     }
 }

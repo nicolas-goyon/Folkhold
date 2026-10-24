@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import java.util.stream.Stream;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -77,7 +78,7 @@ public final class VillagePlacementGameTests {
     public static void discoveryIgnoresARemovedCandidate(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         RandomSpreadStructurePlacement faction = placement(level, SettlementDiscovery.VILLAGE_SET);
-        ChunkGeneratorStructureState state = level.getChunkSource().getGeneratorState();
+        ChunkGeneratorStructureState state = TestSupport.villageStructures(level);
         int spacing = faction.spacing();
         // Regions far from the spawn and from the areas of the other tests.
         for (int x = 400; x < 440; x++) {
@@ -85,7 +86,7 @@ public final class VillagePlacementGameTests {
             ChunkPos candidate = faction.getPotentialStructureChunk(state.getLevelSeed(), region.minChunkX(spacing),
                     region.minChunkZ(spacing));
             if (!faction.isStructureChunk(state, candidate.x, candidate.z)) {
-                helper.assertTrue(SettlementDiscovery.checkRegion(level, region).isEmpty(),
+                helper.assertTrue(SettlementDiscovery.checkRegion(level, state, region).isEmpty(),
                         "The discovery must find no settlement in the region " + region);
                 helper.assertTrue(SettlementData.get(level.getServer()).registry()
                         .byStart(candidate.x, candidate.z).isEmpty(), "No settlement must start in " + candidate);
@@ -94,6 +95,32 @@ public final class VillagePlacementGameTests {
             }
         }
         helper.fail("40 regions must contain a candidate that the exclusion zone removes");
+    }
+
+    /**
+     * The GameTest world is a vanilla Superflat world: its generator generates the vanilla villages, not the faction
+     * villages. The discovery with the generator of the level adds no settlement and checks no region.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "village_placement_flat")
+    public static void discoveryFindsNoVillageWhenTheGeneratorHasNone(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ChunkGeneratorStructureState generator = level.getChunkSource().getGeneratorState();
+        boolean factionVillages = generator.possibleStructureSets().stream()
+                .anyMatch(set -> set.is(SettlementDiscovery.VILLAGE_SET));
+        SettlementData data = SettlementData.get(level.getServer());
+        int before = data.registry().all().size();
+        // A position far from the spawn and from the areas of the other tests.
+        BlockPos center = new BlockPos(-300_000, 64, -300_000);
+        RandomSpreadStructurePlacement faction = placement(level, SettlementDiscovery.VILLAGE_SET);
+        RegionPos region = RegionPos.ofChunk(center.getX() >> 4, center.getZ() >> 4, faction.spacing());
+
+        SettlementDiscovery.Discovery discovery = SettlementDiscovery.discoverAround(level, center, 2048);
+
+        helper.assertFalse(factionVillages, "The generator of the GameTest world must not generate faction villages");
+        helper.assertTrue(discovery.found() == 0, "The discovery must add no settlement: " + discovery.found());
+        helper.assertTrue(data.registry().all().size() == before, "The registry must not change");
+        helper.assertFalse(data.isRegionChecked(region.x(), region.z()), "The discovery must check no region");
+        helper.succeed();
     }
 
     private static RandomSpreadStructurePlacement placement(ServerLevel level, ResourceKey<StructureSet> key) {

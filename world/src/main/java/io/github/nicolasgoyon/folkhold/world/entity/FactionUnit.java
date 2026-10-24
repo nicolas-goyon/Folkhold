@@ -10,11 +10,17 @@ import io.github.nicolasgoyon.folkhold.world.entity.ai.ReturnToAnchorGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitHurtByTargetGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UsePassageGoal;
+import io.github.nicolasgoyon.folkhold.world.faction.Culture;
+import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
+import io.github.nicolasgoyon.folkhold.world.registry.ModSounds;
+import io.github.nicolasgoyon.folkhold.world.registry.ModSounds.UnitVoice;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Objects;
 import java.util.Optional;
@@ -32,6 +38,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -51,6 +58,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BowItem;
+import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.DyedItemColor;
@@ -68,7 +76,7 @@ import software.bernie.geckolib.constant.DefaultAnimations;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 /**
- * Base class of the faction units (guard, archer, captain).
+ * Base class of the faction units (guard, archer, captain, healer, faction golem, rider).
  *
  * <p>A unit has:
  * <ul>
@@ -91,10 +99,19 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final RawAnimation SWING = RawAnimation.begin().thenPlay("attack.swing");
     private static final RawAnimation BLOCK = RawAnimation.begin().thenPlay("attack.block");
     private static final RawAnimation DRAW_BOW = RawAnimation.begin().thenPlay("attack.charge");
+    private static final RawAnimation CHARGE_CROSSBOW = RawAnimation.begin().thenPlay("attack.crossbow_charge");
+    private static final RawAnimation AIM_CROSSBOW = RawAnimation.begin().thenPlay("attack.crossbow_aim");
+    private static final RawAnimation SHOOT_CROSSBOW = RawAnimation.begin().thenPlay("attack.crossbow_shoot");
+    /** The controller of the hold animations (shield, bow, crossbow). */
+    public static final String HOLD_CONTROLLER = "hold";
+    /** The animation of the shot of a crossbow, on {@link #HOLD_CONTROLLER}. The server triggers it. */
+    public static final String CROSSBOW_SHOT = "crossbow_shot";
     private static final RawAnimation HURT = RawAnimation.begin().thenPlay("misc.hurt");
 
     private final AnimatableInstanceCache animationCache = GeckoLibUtil.createInstanceCache(this);
 
+    /** A unit gives an alert at most once in this time, in ticks: 5 seconds. */
+    private static final int ALERT_INTERVAL = 100;
     /** Color of the tabard (dyed leather chestplate) of a unit without a faction. */
     public static final int DEFAULT_TABARD_COLOR = 0x3C5A9A;
 
@@ -106,6 +123,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final String ROUTED_TAG = "RoutedUntil";
     private static final String NIGHT_TAG = "NightPos";
     private static final String FACTION_TAG = "Faction";
+    private static final String EQUIPMENT_TAG = "Equipment";
     /** Speed of a routed unit that runs back home. */
     private static final double ROUT_SPEED = 1.3;
     /** After the end of a chase at the limit of the chase area, the unit ignores all targets for this time. */
@@ -142,6 +160,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /** Id of the faction of the unit, or null. */
     @Nullable
     private String factionId;
+    /** Id of the equipment set of the unit (see {@link GarrisonEquipment}). */
+    private String equipmentSet = GarrisonEquipment.DEFAULT_SET;
     /** Position of the night watch (near a gate), or null. The village heart sets it. */
     @Nullable
     private BlockPos nightPos;
@@ -149,6 +169,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private long routedUntil;
     /** Game time until which the unit ignores all targets, after the end of a chase. Not saved. */
     private long gaveUpUntil;
+    /** The value of {@code tickCount} at the last alert of the unit (see {@link UnitVoice#ALERT}). Not saved. */
+    private int lastAlert = -ALERT_INTERVAL;
     /** Time in ticks with no path to the target and no line of sight to it. Not saved. */
     private int unreachableTicks;
     /** Time in ticks on the way to the post. Not saved. */
@@ -160,6 +182,21 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         setPersistenceRequired();
     }
 
+    /**
+     * Tells if an entity of a type fits at a position: a block with a collision shape is below the position, and no
+     * block is in the space of the entity.
+     *
+     * @param type  the entity type
+     * @param level the level
+     * @param pos   the position of the feet of the entity
+     * @return true if the entity can stand at the position
+     */
+    public static boolean fitsAt(EntityType<?> type, Level level, BlockPos pos) {
+        BlockPos below = pos.below();
+        return !level.getBlockState(below).getCollisionShape(level, below).isEmpty()
+                && level.noCollision(type.getSpawnAABB(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5));
+    }
+
     /** Ground navigation that goes through fence gates and wooden doors (see {@link UnitNavigation}). */
     @Override
     protected PathNavigation createNavigation(Level level) {
@@ -169,8 +206,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /** The configured values of this unit type. */
     protected abstract UnitStats stats();
 
-    /** Puts the equipment of this unit type in the equipment slots. */
-    protected abstract void equip();
+    /** The role of this unit type in a garrison. The equipment sets use it (see {@link GarrisonEquipment}). */
+    public abstract GarrisonRole role();
 
     /**
      * Adds the goals of all unit types and the attack goals of this unit type ({@link #registerAttackGoals}).
@@ -294,7 +331,23 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         if (target != null && (isRouted() || level().getGameTime() < gaveUpUntil || !canAttack(target))) {
             return;
         }
+        LivingEntity previous = getTarget();
         super.setTarget(target);
+        if (previous == null && target != null && getTarget() == target && !level().isClientSide()
+                && tickCount - lastAlert >= ALERT_INTERVAL) {
+            lastAlert = tickCount;
+            playVoice(UnitVoice.ALERT);
+        }
+    }
+
+    /** A unit that hits its target makes the sound of an attack. */
+    @Override
+    public boolean doHurtTarget(Entity target) {
+        boolean hit = super.doHurtTarget(target);
+        if (hit) {
+            playVoice(UnitVoice.ATTACK);
+        }
+        return hit;
     }
 
     /** The id of the faction of the unit, or null if the unit has no faction. */
@@ -374,8 +427,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     /**
      * Tells if a position is in the chase area of the unit:
      * <ul>
-     *   <li>not farther than the chase radius ({@link WorldConfig#CHASE_RADIUS}) from the village heart, or from
-     *       the home position for a unit without a village;</li>
+     *   <li>not farther than the chase radius ({@link #chaseRadius()}) from the center of the chase area
+     *       ({@link #chaseCenter()});</li>
      *   <li>not in the territory of another faction, for a unit with a faction.</li>
      * </ul>
      *
@@ -386,11 +439,25 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return isInChaseRadius(pos) && isInTerritory(pos);
     }
 
-    /** True if the position is not farther than the chase radius from the village heart (or the home position). */
+    /** True if the position is not farther than the chase radius from the center of the chase area. */
     private boolean isInChaseRadius(BlockPos pos) {
-        BlockPos center = villagePos != null ? villagePos : getHomePos();
-        double chase = WorldConfig.CHASE_RADIUS.get();
-        return pos.getCenter().distanceToSqr(center.getCenter()) <= chase * chase;
+        double chase = chaseRadius();
+        return pos.getCenter().distanceToSqr(chaseCenter().getCenter()) <= chase * chase;
+    }
+
+    /** The center of the chase area: the village heart, or the home position for a unit without a village. */
+    protected BlockPos chaseCenter() {
+        return villagePos != null ? villagePos : getHomePos();
+    }
+
+    /** The radius of the chase area, in blocks ({@link WorldConfig#CHASE_RADIUS}). */
+    protected double chaseRadius() {
+        return WorldConfig.CHASE_RADIUS.get();
+    }
+
+    /** True if the unit talks to the players: it greets the friendly players and gives the warnings of its village. */
+    public boolean canSpeak() {
+        return true;
     }
 
     /**
@@ -456,15 +523,17 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
      * Animation controllers (GeckoLib). The animations are in
      * {@code assets/folkhold_world/animations/entity/faction_unit.animation.json}.
      * <ul>
-     *   <li>movement: walk or idle;</li>
+     *   <li>movement: walk or idle (see {@link #movementController()});</li>
      *   <li>attack: wind-up and swing of the weapon arm, when the unit swings;</li>
-     *   <li>hold: shield up while the unit blocks, bow drawn while an archer has a target;</li>
+     *   <li>hold: shield up while the unit blocks, bow drawn while an archer has a target. With a crossbow: the
+     *       charge, then the aim while the crossbow holds a bolt and the archer has a target. The shot is a triggered
+     *       animation ({@link #CROSSBOW_SHOT}).</li>
      *   <li>hurt: short step back when the unit takes damage.</li>
      * </ul>
      */
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(DefaultAnimations.genericWalkIdleController(this));
+        controllers.add(movementController());
         controllers.add(new AnimationController<>(this, "attack", 2, state -> {
             if (swinging) {
                 return state.setAndContinue(SWING);
@@ -472,15 +541,24 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             state.getController().forceAnimationReset();
             return PlayState.STOP;
         }));
-        controllers.add(new AnimationController<>(this, "hold", 3, state -> {
+        controllers.add(new AnimationController<>(this, HOLD_CONTROLLER, 3, state -> {
             if (isBlocking()) {
                 return state.setAndContinue(BLOCK);
             }
-            if (isAggressive() && getMainHandItem().getItem() instanceof BowItem) {
+            ItemStack weapon = getMainHandItem();
+            if (isAggressive() && weapon.getItem() instanceof BowItem) {
                 return state.setAndContinue(DRAW_BOW);
             }
+            if (weapon.getItem() instanceof CrossbowItem) {
+                if (isChargingCrossbow()) {
+                    return state.setAndContinue(CHARGE_CROSSBOW);
+                }
+                if (isAggressive() && CrossbowItem.isCharged(weapon)) {
+                    return state.setAndContinue(AIM_CROSSBOW);
+                }
+            }
             return PlayState.STOP;
-        }));
+        }).triggerableAnim(CROSSBOW_SHOT, SHOOT_CROSSBOW));
         controllers.add(new AnimationController<>(this, "hurt", 0, state -> {
             if (hurtTime > 0) {
                 return state.setAndContinue(HURT);
@@ -488,6 +566,16 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             state.getController().forceAnimationReset();
             return PlayState.STOP;
         }));
+    }
+
+    /** True while the unit charges a crossbow. Only an archer charges a crossbow (see {@link ArcherEntity}). */
+    public boolean isChargingCrossbow() {
+        return false;
+    }
+
+    /** The controller of the movement animations: walk when the unit moves, else idle. */
+    protected AnimationController<FactionUnit> movementController() {
+        return DefaultAnimations.genericWalkIdleController(this);
     }
 
     @Override
@@ -557,7 +645,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
                     heart.markHostile(player);
                 }
             });
-        } else if (tickCount % 40 == 0) {
+        } else if (tickCount % 40 == 0 && canSpeak()) {
             greetFriendlyPlayer();
         }
         unitServerAiStep(target);
@@ -607,7 +695,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         applyConfiguredAttributes(stats());
         // The animations use the right arm for the weapon.
         setLeftHanded(false);
-        equip();
+        equip(getVillageHeart().map(heart -> heart.garrisonTraits().equipment())
+                .orElse(GarrisonEquipment.DEFAULT_SET));
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             setDropChance(slot, 0.0F);
         }
@@ -648,6 +737,32 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return faction().map(FactionSpec::color).orElse(DEFAULT_TABARD_COLOR);
     }
 
+    /** The id of the equipment set of the unit (see {@link GarrisonEquipment}). */
+    public String getEquipmentSet() {
+        return equipmentSet;
+    }
+
+    /**
+     * Puts the items of an equipment set in the equipment slots of the unit (see {@link GarrisonEquipment}).
+     *
+     * @param set the id of the set
+     */
+    public void equip(String set) {
+        equipmentSet = set;
+        GarrisonEquipment.equip(this, set);
+    }
+
+    /** A leather chestplate in the color of the faction of the unit. */
+    public ItemStack factionTabard() {
+        return tabard(factionColor());
+    }
+
+    /** The banner of the faction of the unit, or a blue banner for a unit with no faction. */
+    public ItemStack factionBanner() {
+        ItemStack banner = faction().map(f -> FactionVisuals.banner(level(), f)).orElse(ItemStack.EMPTY);
+        return banner.isEmpty() ? new ItemStack(Items.BLUE_BANNER) : banner;
+    }
+
     /** The faction of the unit, if it has one and the server knows it. */
     public Optional<FactionSpec> faction() {
         return FactionVisuals.faction(level().getServer(), factionId);
@@ -665,23 +780,39 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         return false;
     }
 
-    /**
-     * The ambient sound of a calm unit: the vanilla villager sound. A unit with a target makes no ambient sound.
-     */
+    /** The ambient sound of a calm unit (see {@link UnitVoice#AMBIENT}). A unit with a target has no ambient sound. */
     @Override
     @Nullable
     protected SoundEvent getAmbientSound() {
-        return getTarget() == null ? SoundEvents.VILLAGER_AMBIENT : null;
+        return getTarget() == null ? voice(UnitVoice.AMBIENT, SoundEvents.VILLAGER_AMBIENT) : null;
     }
 
     @Override
     protected SoundEvent getHurtSound(DamageSource damageSource) {
-        return SoundEvents.VILLAGER_HURT;
+        return voice(UnitVoice.HURT, SoundEvents.VILLAGER_HURT);
     }
 
     @Override
     protected SoundEvent getDeathSound() {
-        return SoundEvents.VILLAGER_DEATH;
+        return voice(UnitVoice.DEATH, SoundEvents.VILLAGER_DEATH);
+    }
+
+    /** The pitch of the voice of the unit: the culture of its faction changes it (see {@link Culture#voicePitch()}). */
+    @Override
+    public float getVoicePitch() {
+        float culture = faction().flatMap(spec -> Cultures.byId(spec.cultureId())).map(Culture::voicePitch)
+                .orElse(1.0F);
+        return super.getVoicePitch() * culture;
+    }
+
+    /** The sound of a voice of the unit, or the fallback for a role with no voice. */
+    private SoundEvent voice(UnitVoice voice, SoundEvent fallback) {
+        return ModSounds.unitVoice(role(), voice).orElse(fallback);
+    }
+
+    /** Plays a voice of the unit, with the pitch of its voice. A role with no voice makes no sound. */
+    protected void playVoice(UnitVoice voice) {
+        ModSounds.unitVoice(role(), voice).ifPresent(sound -> playSound(sound, getSoundVolume(), getVoicePitch()));
     }
 
     /** Units do not pick up items. */
@@ -709,6 +840,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         if (factionId != null) {
             tag.putString(FACTION_TAG, factionId);
         }
+        tag.putString(EQUIPMENT_TAG, equipmentSet);
     }
 
     @Override
@@ -720,5 +852,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         routedUntil = tag.getLong(ROUTED_TAG);
         NbtUtils.readBlockPos(tag, NIGHT_TAG).ifPresent(this::setNightPos);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
+        if (tag.contains(EQUIPMENT_TAG)) {
+            equipmentSet = tag.getString(EQUIPMENT_TAG);
+        }
     }
 }

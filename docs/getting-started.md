@@ -61,7 +61,7 @@ Other IDEs: IntelliJ IDEA can also open a dev container. The support depends on 
    ./gradlew :dev:runGameTestServer
    ```
 
-   The server starts, runs all GameTests, then stops. The result is in the console.
+   The server starts, runs all GameTests, then stops. The result is in the console. The GameTest server uses the folder `dev/run-gametest`, with a new world for each run. It does not change the world of the dev server, `dev/run/world`.
 
 Without VS Code, use the scripts from a terminal on the host:
 
@@ -97,6 +97,8 @@ Each mod has:
 - `src/gametest/java/` and `src/gametest/resources/`: GameTests and their test structures. The dev project loads them with the mod in its runs. The jar of the mod does not contain them.
 - `gradle.properties`: `mod_id`, `mod_name`, `mod_description`.
 
+The world mod also contains the optional data pack of the test world, in `world/src/main/resources/datapacks/test_world/` (see [Test world](#test-world)).
+
 The shared versions are in the root `gradle.properties`.
 
 ## Daily commands
@@ -110,7 +112,7 @@ Run these commands in the container.
 | `./gradlew :core:test --tests '*RegionPosTest'` | One test class. |
 | `./gradlew spotlessApply` | Fixes the format of the sources (imports, trailing spaces, final newline). |
 | `./gradlew checkTranslations` | Checks that `en_us.json` and `fr_fr.json` have the same keys. |
-| `./gradlew :dev:runGameTestServer` | Runs all GameTests in a server. |
+| `./gradlew :dev:runGameTestServer` | Runs all GameTests in a server, in a new world (folder `dev/run-gametest`). |
 | `./gradlew :dev:runServer` | Dedicated server with all mods. |
 
 ## Test in the game
@@ -171,6 +173,36 @@ Start `Folkhold-dev` in Prism Launcher. Click **Multiplayer**, then add the serv
 
 Hot reload: when the debugger is attached, VS Code can replace the body of a changed method without a restart. Changes to class structure (new fields, new methods) need a restart.
 
+## Test world
+
+The data pack "Folkhold test world" adds the world type "Folkhold Test". It is a flat world (plains, no trees) with one faction village next to the spawn point. The village starts in the chunk (5, 0), about 80 blocks to the east of the spawn point. It is a normal faction village: heart, garrison, bank, quest board and settlement in the simulation. A test of the villages starts with no search for a village.
+
+The data pack is part of `folkhold_world` and is off by default. It also changes the placement of the faction villages for all the world types: one village only, in the chunk (5, 0). Turn it on only for a test world.
+
+In the client:
+
+1. Click **Singleplayer**, then **Create New World**.
+2. In the tab **More**, click **Data Packs**. Move "Folkhold test world" to the column **Selected**, then click **Done**.
+3. In the tab **World**, click **World Type** until it shows "Folkhold Test".
+4. Click **Create New World**.
+
+On the dev server, the world type and the data pack apply when the server creates a new world. Stop the server, delete the folder `dev/run/world`, then set these two lines in `dev/run/server.properties`:
+
+```properties
+level-type=folkhold_world:test
+initial-enabled-packs=vanilla,mod/folkhold_world:datapacks/test_world
+```
+
+The garrison of the village depends on the level of the village. The healers come from the level 5, the riders from the level 9, and the faction golems from the level 13. To see them, change the level of the village with a command. `/folkhold settlement list` gives the id of the village, then `/folkhold settlement level <id> 17` makes it a capital. The new units come when a player is near the village heart.
+
+To try the construction plans, run `/folkhold construction place` and select `village/house_cottage`. Look at a free area: the ghost of the house follows your view. Press R to turn it and M to mirror it, then press Enter to build it. The command `/folkhold construction build folkhold_world:village/house_cottage 2` also builds the house at your position. Near a faction village, select the speed "Builders". The builders of the village put fences around the work zone, then build the house block by block during the day. Stay out of the fences, else the builders stop. The builders take the materials from the stock of the village: for the rare blocks, the village gives delivery quests. `/folkhold construction sites` shows the sites of the builders and their missing materials. To repair a house of the village, keep its blocks with `/folkhold construction capture <from> <to>`. Break some blocks, then run `/folkhold construction restore`. The section "Construction" of [design.md](design.md) gives the rules of the plans.
+
+To see a repair, break 3 blocks of the palisade of a faction village with builders. In 60 seconds or less, the builders put fences around the broken blocks, then repair them during the day. `/folkhold construction sites` shows the repair site.
+
+To see the work of the builders while the chunks are not loaded, start a site with the builders during the day. Then go far away from the village. `/folkhold construction sites` shows the steps of work that wait. Come back: the site applies these steps, then the builders go on.
+
+To see the handyman of a faction village at work, stand near the plaza of the village. Run `/time set 11000`: the handyman lights the 4 braziers of the plaza before the night. Run `/time set 0`: in the morning, the handyman puts out the braziers.
+
 ## Translations
 
 The mods support English and French. Each text that the player sees needs one key in `en_us.json` and in `fr_fr.json`. `./gradlew build` fails when a key is missing in one file. See [CONTRIBUTING.md](../CONTRIBUTING.md#translations).
@@ -190,32 +222,45 @@ The village has:
 
 To see a village in the game: `/locate structure folkhold_world:village`, then `/tp` to the position.
 
-## Block models from a script
-
-The models and the block states of the quest board and of the brazier (library `blocks`) come from scripts: the board has 9 parts, and the brazier has a lit model and a model that does not burn. Change a script, then run it:
-
-```bash
-python3 tools/models/quest_board.py
-python3 tools/models/brazier.py
-```
-
 ## Textures from a script
 
-The textures of the building signs (library `blocks`) and of the villager and zombie villager professions (world mod) come from scripts (Pillow is in the container). The sign script also writes the models, the block states, the loot tables, the lang keys and the tag of the signs. Change a script, then run it:
+Scripts make the textures of the villager and zombie villager professions and the armband of the faction golem (world mod). Pillow is in the container. Change a script, then run it:
 
 ```bash
-python3 tools/textures/building_signs.py
 python3 tools/textures/villager_professions.py
+python3 tools/textures/golem_armband.py
 ```
+
+## Blocks from PixVox
+
+The blocks of the library `blocks` come from the descriptions in `tools/pixvox`: village heart, watch post, bank chest, bank wall, brazier, building signs and quest board. [PixVox](https://github.com/nicolas-goyon/PixVox) makes them: a description is a volume of voxels in Python, and PixVox reads the texture of each face on the volume. PixVox renders each block as the game does, checks the export, and makes a review board. The container has PixVox. Change a description, then run the export:
+
+```bash
+python3 tools/pixvox/export.py            # models/block/<model>.json and textures/block/<model>/
+python3 tools/pixvox/export.py --review   # also the review boards, in build/pixvox
+```
+
+A description can make more than one model. The brazier has a lit model (`brazier_lit`) and a model that does not burn (`brazier`). The building signs have a model for each kind of building (`building_sign_<kind>`). The quest board has a model for the board, a model for each paper and a model with all the papers for the item. The block states and the item models do not come from PixVox. Two descriptions also run as scripts and write the other resources of their blocks:
+
+- `building_signs.py`: the block states, the item models, the loot tables, the tag and the names of the signs.
+- `quest_board.py`: the multipart block state of the 9 parts of the board, the model of the other parts and the item model.
+
+```bash
+python3 tools/pixvox/building_signs.py
+python3 tools/pixvox/quest_board.py
+```
+
+Look at the review board of each changed model (`build/pixvox/<model>.review.png`) before the commit. An animated model also has an animation board (`<model>.anim.png`). Outside the container, install PixVox first: `pip install -r tools/pixvox/requirements.txt`.
 
 ## Test structures
 
-The GameTest templates `empty`, `arena` and `arena_large` are boxes of air. The tests build their floor and their walls. The script writes a template:
+The GameTest templates `empty`, `arena`, `arena_large` and `arena_huge` are boxes of air. The tests build their floor and their walls. The script writes a template:
 
 ```bash
 python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/empty.nbt
 python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16
 python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena_large.nbt --size 32 4 32
+python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena_huge.nbt --size 56 4 56
 ```
 
 The workflow **Generated files** runs all the scripts of `tools/` and fails when their output differs from the repository: commit the output of a script with the script.

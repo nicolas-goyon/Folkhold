@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.village;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
@@ -39,9 +40,14 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
  *
  * <ul>
  *   <li>Each villager records the position of the heart of its village ({@link Merchants#VILLAGE_TAG}).</li>
- *   <li>Each inhabitant shows a job of its settlement: its profession is the profession of the job (see
- *       {@link EconomyData#profession(String)}). The inhabitants show the jobs in proportion to the workers of each
- *       job (see {@link #professions(Settlement, int)}).</li>
+ *   <li>The number of inhabitants is the population of the settlement, minus the merchants. The mod sets no
+ *       maximum, except with the setting {@link WorldConfig#INHABITANT_LIMIT}.</li>
+ *   <li>The first inhabitants are the builders and the handymen of the village ({@link WorldConfig#BUILDERS},
+ *       {@link WorldConfig#HANDYMEN}): they work for the village, also in a small village. The builders build the
+ *       construction sites of the village (see {@link BuilderSites}).</li>
+ *   <li>The workers of the settlement show its jobs: the profession of a worker is the profession of its job (see
+ *       {@link EconomyData#profession(String)}). The other inhabitants have the inhabitant profession: they give life
+ *       to the village (see {@link #professions(Settlement, int)}).</li>
  *   <li>Only the merchants trade. A player cannot trade with an inhabitant: the vanilla trades of its profession
  *       would bypass the economy of the village.</li>
  *   <li>A villager has 1 experience point, so it keeps its profession with no job site block and does not take
@@ -114,18 +120,48 @@ public final class VillageFolk {
     }
 
     /**
-     * The professions of the inhabitants of a settlement: one for each inhabitant.
+     * The professions of the inhabitants of a settlement: one for each inhabitant. The builders and the handymen come
+     * first. Then the workers of the settlement (see {@link #workerCount}) show its jobs, in proportion to the job
+     * slots. The other inhabitants have the inhabitant profession.
      *
      * @param settlement the settlement
      * @param count      the number of inhabitants
      * @return the professions
      */
     public static List<VillagerProfession> professions(Settlement settlement, int count) {
-        List<String> jobs = pickJobs(settlement.economy().jobs(), count);
-        if (jobs.isEmpty()) {
-            return Collections.nCopies(Math.max(0, count), ModProfessions.INHABITANT.get());
+        List<VillagerProfession> professions = new ArrayList<>(Math.max(0, count));
+        addUpTo(professions, count, ModProfessions.BUILDER.get(), WorldConfig.BUILDERS.get());
+        addUpTo(professions, count, ModProfessions.HANDYMAN.get(), WorldConfig.HANDYMEN.get());
+        List<String> jobs = settlement.economy().jobs();
+        int workers = Math.min(count - professions.size(), workerCount(jobs.size(),
+                settlement.economy().population(), WorldConfig.ECONOMY_WORKERS_PER_JOB.get()));
+        for (String job : pickJobs(jobs, workers)) {
+            professions.add(professionOf(job));
         }
-        return jobs.stream().map(VillageFolk::professionOf).toList();
+        addUpTo(professions, count, ModProfessions.INHABITANT.get(), count);
+        return professions;
+    }
+
+    /** Adds a profession to a list, at most a number of times, with a maximum size of the list. */
+    private static void addUpTo(List<VillagerProfession> professions, int maxSize, VillagerProfession profession,
+            int times) {
+        for (int i = 0; i < times && professions.size() < maxSize; i++) {
+            professions.add(profession);
+        }
+    }
+
+    /**
+     * The number of workers of a settlement, as in the economy: {@code workersPerJob} inhabitants for each active job.
+     * The number of active jobs is the population divided by {@code workersPerJob}, with a maximum of the job slots.
+     *
+     * @param jobSlots      the number of job slots of the settlement
+     * @param population    the population of the settlement
+     * @param workersPerJob the inhabitants for one active job
+     * @return the number of workers
+     */
+    public static int workerCount(int jobSlots, int population, int workersPerJob) {
+        int perJob = Math.max(1, workersPerJob);
+        return Math.min(jobSlots, Math.max(0, population) / perJob) * perJob;
     }
 
     /**
@@ -160,15 +196,16 @@ public final class VillageFolk {
     }
 
     /**
-     * The target number of inhabitants: the population minus the merchants, with a maximum
-     * ({@link WorldConfig#MAX_INHABITANTS}).
+     * The target number of inhabitants: the population minus the merchants. The setting
+     * {@link WorldConfig#INHABITANT_LIMIT} can set a maximum (0: no maximum).
      *
      * @param settlement the settlement
      * @return the number of inhabitants
      */
     public static int inhabitantCount(Settlement settlement) {
-        int population = settlement.economy().population() - Merchants.merchantCount(settlement);
-        return Math.max(0, Math.min(WorldConfig.MAX_INHABITANTS.get(), population));
+        int count = Math.max(0, settlement.economy().population() - Merchants.merchantCount(settlement));
+        int limit = WorldConfig.INHABITANT_LIMIT.get();
+        return limit > 0 ? Math.min(limit, count) : count;
     }
 
     /**

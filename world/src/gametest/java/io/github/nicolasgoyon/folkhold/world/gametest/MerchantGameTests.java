@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
@@ -47,6 +48,8 @@ public final class MerchantGameTests {
     /** The treasury of the faction in the test of a purchase: the merchants can pay. */
     private static final long BUYER_TREASURY = 1_000L;
     private static final BlockPos HEART = new BlockPos(8, 1, 8);
+    /** The tests call the checks of the heart this number of times to create all the villagers. */
+    private static final int FILL_CHECKS = 30;
 
     private static final Comparator<VillagerProfession> BY_ID =
             Comparator.comparing(profession -> BuiltInRegistries.VILLAGER_PROFESSION.getKey(profession).toString());
@@ -68,11 +71,17 @@ public final class MerchantGameTests {
         return new Village(heart, settlement);
     }
 
-    /** The heart creates the merchants and the inhabitants of the village. */
+    /**
+     * The heart creates the merchants and the inhabitants of the village, in groups: one check creates
+     * {@link VillageHeartBlockEntity#VILLAGER_GROUP} villagers at most, and the next checks create the others.
+     */
     @GameTest(template = "arena", timeoutTicks = 40, batch = "merchant_spawn")
     public static void heartCreatesItsMerchants(GameTestHelper helper) {
         Village village = village(helper);
         village.heart().ensureGarrison(helper.getLevel().getGameTime());
+        int firstGroup = Merchants.merchantsOf(helper.getLevel(), village.heart().getBlockPos()).size()
+                + VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos()).size();
+        fill(helper, village);
 
         List<Villager> merchants = Merchants.merchantsOf(helper.getLevel(), village.heart().getBlockPos());
         boolean professions = merchants.stream()
@@ -89,12 +98,68 @@ public final class MerchantGameTests {
         merchants.forEach(Entity::discard);
         inhabitants.forEach(Entity::discard);
 
+        helper.assertTrue(firstGroup > 0 && firstGroup <= VillageHeartBlockEntity.VILLAGER_GROUP,
+                "The first check must create a group of villagers, not " + firstGroup);
         helper.assertTrue(merchants.size() == expected, "Expected " + expected + " merchants, found " + merchants.size());
         helper.assertTrue(professions, "Each merchant must have the merchant profession");
         helper.assertTrue(inhabitants.size() == expectedInhabitants && expectedInhabitants > 0,
                 "Expected " + expectedInhabitants + " inhabitants, found " + inhabitants.size());
         helper.assertTrue(found.equals(wanted), "Expected the professions " + wanted + ", found " + found);
         helper.succeed();
+    }
+
+    /**
+     * A village with a large population has all its inhabitants: the mod sets no maximum. The workers show the job of
+     * the settlement. Of the other inhabitants, some are builders and handymen, and the rest have the inhabitant
+     * profession.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "village_folk_large")
+    public static void largeVillageHasAllItsInhabitants(GameTestHelper helper) {
+        Village village = village(helper);
+        int population = 40;
+        int jobSlots = 3;
+        village.settlement().economy().setPopulation(population);
+        village.settlement().economy().setJobs(Collections.nCopies(jobSlots, "folkhold_world:farmer"));
+        fill(helper, village);
+
+        BlockPos heartPos = village.heart().getBlockPos();
+        List<Villager> merchants = Merchants.merchantsOf(helper.getLevel(), heartPos);
+        List<Villager> inhabitants = VillageFolk.inhabitants(helper.getLevel(), heartPos);
+        long farmers = inhabitants.stream()
+                .filter(villager -> villager.getVillagerData().getProfession() == VillagerProfession.FARMER).count();
+        long others = inhabitants.stream().filter(villager -> villager.getVillagerData().getProfession()
+                == ModProfessions.INHABITANT.get()).count();
+        long builders = inhabitants.stream().filter(villager -> villager.getVillagerData().getProfession()
+                == ModProfessions.BUILDER.get()).count();
+        long handymen = inhabitants.stream().filter(villager -> villager.getVillagerData().getProfession()
+                == ModProfessions.HANDYMAN.get()).count();
+        int expected = population - Merchants.merchantCount(village.settlement());
+        int workers = VillageFolk.workerCount(jobSlots, population, WorldConfig.ECONOMY_WORKERS_PER_JOB.get());
+        village.heart().getUnits().forEach(Entity::discard);
+        village.heart().getCats().forEach(Entity::discard);
+        merchants.forEach(Entity::discard);
+        inhabitants.forEach(Entity::discard);
+
+        helper.assertTrue(inhabitants.size() == expected,
+                "Expected " + expected + " inhabitants, found " + inhabitants.size());
+        int expectedBuilders = WorldConfig.BUILDERS.get();
+        int expectedHandymen = WorldConfig.HANDYMEN.get();
+        int expectedOthers = expected - workers - expectedBuilders - expectedHandymen;
+        helper.assertTrue(farmers == workers, "Expected " + workers + " farmers, found " + farmers);
+        helper.assertTrue(builders == expectedBuilders && handymen == expectedHandymen,
+                "Expected " + expectedBuilders + " builders and " + expectedHandymen + " handymen, found " + builders
+                        + " and " + handymen);
+        helper.assertTrue(others == expectedOthers,
+                "Expected " + expectedOthers + " inhabitants with no job, found " + others);
+        helper.succeed();
+    }
+
+    /** Calls the checks of the heart until the village has all its villagers: the fill uses groups. */
+    private static void fill(GameTestHelper helper, Village village) {
+        long now = helper.getLevel().getGameTime();
+        for (int i = 0; i < FILL_CHECKS; i++) {
+            village.heart().ensureGarrison(now + i);
+        }
     }
 
     /** The player buys bread: the bread leaves the stock and the emeralds go into the treasury. */
@@ -294,7 +359,10 @@ public final class MerchantGameTests {
         helper.succeed();
     }
 
-    /** When the jobs of the settlement change, the heart gives the new professions to the inhabitants. */
+    /**
+     * When the jobs of the settlement change, the heart gives the new professions to the inhabitants. The builders and
+     * the handymen come first, then the workers of the jobs.
+     */
     @GameTest(template = "arena", timeoutTicks = 40, batch = "village_folk_reassign")
     public static void heartGivesTheJobProfessions(GameTestHelper helper) {
         Village village = village(helper);
@@ -306,16 +374,18 @@ public final class MerchantGameTests {
 
         VillagerProfession profession = inhabitant.getVillagerData().getProfession();
         List<Villager> inhabitants = VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos());
-        boolean allFarmers = inhabitants.stream()
-                .allMatch(villager -> villager.getVillagerData().getProfession() == VillagerProfession.FARMER);
+        List<VillagerProfession> working = List.of(ModProfessions.BUILDER.get(), ModProfessions.HANDYMAN.get(),
+                VillagerProfession.FARMER);
+        boolean allWorking = inhabitants.stream()
+                .allMatch(villager -> working.contains(villager.getVillagerData().getProfession()));
         village.heart().getUnits().forEach(Entity::discard);
         village.heart().getCats().forEach(Entity::discard);
         Merchants.merchantsOf(helper.getLevel(), village.heart().getBlockPos()).forEach(Entity::discard);
         inhabitants.forEach(Entity::discard);
 
-        helper.assertTrue(profession == VillagerProfession.FARMER,
-                "The inhabitant must become a farmer, not " + profession);
-        helper.assertTrue(allFarmers, "Each inhabitant must be a farmer");
+        helper.assertTrue(profession != ModProfessions.INHABITANT.get(),
+                "The inhabitant must get a profession of the settlement, not " + profession);
+        helper.assertTrue(allWorking, "Each inhabitant must be a builder, a handyman or a farmer");
         helper.succeed();
     }
 

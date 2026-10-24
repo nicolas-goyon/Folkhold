@@ -1,0 +1,118 @@
+{
+  "entity.faction_golem.attack": {
+    "subtitle": "subtitles.folkhold_world.entity.faction_golem.attack",
+    "sounds": [{"name": "minecraft:entity.iron_golem.attack", "type": "event"}]
+  },
+  "entity.faction_golem.damage": {
+    "subtitle": "subtitles.folkhold_world.entity.faction_golem.damage",
+    "sounds": [{"name": "minecraft:entity.iron_golem.damage", "type": "event"}]
+  },
+  "entity.faction_golem.death": {
+    "subtitle": "subtitles.folkhold_world.entity.faction_golem.death",
+    "sounds": [{"name": "minecraft:entity.iron_golem.death", "type": "event"}]
+  },
+  "entity.faction_golem.hurt": {
+    "subtitle": "subtitles.folkhold_world.entity.faction_golem.hurt",
+    "sounds": [{"name": "minecraft:entity.iron_golem.hurt", "type": "event"}]
+  },
+  "entity.unit.guard.ambient": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.guard.ambient",
+    "sounds": [{"name": "minecraft:entity.pillager.ambient", "type": "event", "pitch": 0.9}, {"name": "minecraft:entity.villager.ambient", "type": "event", "pitch": 0.7}]
+  },
+  "entity.unit.guard.alert": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.guard.alert",
+    "sounds": [{"name": "minecraft:entity.vindicator.celebrate", "type": "event", "pitch": 0.9}]
+  },
+  "entity.unit.guard.attack": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.guard.attack",
+    "sounds": [{"name": "minecraft:entity.player.attack.strong", "type": "event", "volume": 0.8}, {"name": "minecraft:entity.player.attack.sweep", "type": "event", "volume": 0.8}]
+  },
+  "entity.unit.guard.hurt": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.guard.hurt",
+    "sounds": [{"name": "minecraft:entity.pillager.hurt", "type": "event", "pitch": 0.9}, {"name": "minecraft:entity.player.hurt", "type": "event", "pitch": 0.9, "volume": 0.8}]
+  },
+  "entity.unit.guard.death": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.guard.death",
+    "sounds": [{"name": "minecraft:entity.pillager.death", "type": "event", "pitch": 0.9}]
+  },
+  "entity.unit.archer.ambient": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.archer.ambient",
+    "sounds": [{"name": "minecraft:entity.pillager.ambient", "type": "event", "pitch": 1.05}, {"name": "minecraft:entity.villager.ambient", "type": "event", "pitch": 0.85}]
+  },
+  "entity.unit.archer.alert": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.archer.alert",
+    "sounds": [{"name": "minecraft:entity.pillager.celebrate", "type": "event", "pitch": 1.1}]
+  },
+  "entity.unit.archer.attack": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.archer.attack",
+    "sounds": [{"name": "minecraft:entity.vindicator.ambient", "type": "event", "pitch": 1.2, "volume": 0.6}]
+  },
+  "entity.unit.archer.hurt": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.archer.hurt",
+    "sounds": [{"name": "minecraft:entity.pillager.hurt", "type": "event", "pitch": 1.1}]
+  },
+  "entity.unit.archer.death": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.archer.death",
+    "sounds": [{"name": "minecraft:entity.pillager.death", "type": "event", "pitch": 1.1}]
+  },
+  "entity.unit.captain.ambient": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.captain.ambient",
+    "sounds": [{"name": "minecraft:entity.vindicator.ambient", "type": "event", "pitch": 0.8}, {"name": "minecraft:entity.evoker.ambient", "type": "event", "pitch": 0.9}]
+  },
+  "entity.unit.captain.alert": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.captain.alert",
+    "sounds": [{"name": "minecraft:entity.vindicator.celebrate", "type": "event", "pitch": 0.8, "volume": 1.2}]
+  },
+  "entity.unit.captain.attack": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.captain.attack",
+    "sounds": [{"name": "minecraft:entity.player.attack.strong", "type": "event", "pitch": 0.9}, {"name": "minecraft:entity.player.attack.knockback", "type": "event", "pitch": 0.9}]
+  },
+  "entity.unit.captain.hurt": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.captain.hurt",
+    "sounds": [{"name": "minecraft:entity.vindicator.hurt", "type": "event", "pitch": 0.85}]
+  },
+  "entity.unit.captain.death": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.captain.death",
+    "sounds": [{"name": "minecraft:entity.vindicator.death", "type": "event", "pitch": 0.85}]
+  },
+  "entity.unit.healer.ambient": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.healer.ambient",
+    "sounds": [{"name": "minecraft:entity.wandering_trader.ambient", "type": "event"}, {"name": "minecraft:entity.villager.ambient", "type": "event", "pitch": 1.1}]
+  },
+  "entity.unit.healer.alert": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.healer.alert",
+    "sounds": [{"name": "minecraft:entity.villager.no", "type": "event"}]
+  },
+  "entity.unit.healer.attack": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.healer.attack",
+    "sounds": [{"name": "minecraft:entity.player.attack.weak", "type": "event"}]
+  },
+  "entity.unit.healer.hurt": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.healer.hurt",
+    "sounds": [{"name": "minecraft:entity.wandering_trader.hurt", "type": "event"}]
+  },
+  "entity.unit.healer.death": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.healer.death",
+    "sounds": [{"name": "minecraft:entity.wandering_trader.death", "type": "event"}]
+  },
+  "entity.unit.rider.ambient": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.rider.ambient",
+    "sounds": [{"name": "minecraft:entity.pillager.ambient", "type": "event", "pitch": 0.85}]
+  },
+  "entity.unit.rider.alert": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.rider.alert",
+    "sounds": [{"name": "minecraft:entity.vindicator.celebrate", "type": "event"}]
+  },
+  "entity.unit.rider.attack": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.rider.attack",
+    "sounds": [{"name": "minecraft:entity.player.attack.sweep", "type": "event"}, {"name": "minecraft:entity.player.attack.strong", "type": "event", "pitch": 1.1, "volume": 0.8}]
+  },
+  "entity.unit.rider.hurt": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.rider.hurt",
+    "sounds": [{"name": "minecraft:entity.pillager.hurt", "type": "event", "pitch": 0.85}]
+  },
+  "entity.unit.rider.death": {
+    "subtitle": "subtitles.folkhold_world.entity.unit.rider.death",
+    "sounds": [{"name": "minecraft:entity.pillager.death", "type": "event", "pitch": 0.85}]
+  }
+}

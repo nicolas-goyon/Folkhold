@@ -2,10 +2,10 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -19,13 +19,10 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 
@@ -171,13 +168,7 @@ public class CaptainEntity extends GuardEntity {
     }
 
     @Override
-    protected void equip() {
-        setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
-        setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
-        ItemStack banner = faction().map(f -> FactionVisuals.banner(level(), f)).orElse(ItemStack.EMPTY);
-        setItemSlot(EquipmentSlot.HEAD, banner.isEmpty() ? new ItemStack(Items.BLUE_BANNER) : banner);
-        setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.IRON_CHESTPLATE));
-        setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.IRON_LEGGINGS));
-        setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
+    public GarrisonRole role() {
+        return GarrisonRole.CAPTAIN;
     }
 }

@@ -34,6 +34,7 @@ Thumbs.db
 ### Minecraft modding ###
 run/
 run-data/
+run-gametest/
 !**/src/**/run/
 **/src/generated/**/.cache/
 repo/

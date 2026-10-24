@@ -1,0 +1,8 @@
+{
+  "pack": {
+    "description": {
+      "translate": "pack.folkhold_world.test_world.description"
+    },
+    "pack_format": 48
+  }
+}

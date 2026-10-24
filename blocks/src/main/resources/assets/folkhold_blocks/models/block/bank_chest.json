@@ -1,8 +1,88 @@
 {
-  "parent": "minecraft:block/cube_bottom_top",
+  "parent": "minecraft:block/block",
   "textures": {
-    "top": "minecraft:block/iron_block",
-    "bottom": "minecraft:block/iron_block",
-    "side": "minecraft:block/barrel_side"
-  }
+    "up": "folkhold_blocks:block/bank_chest/top",
+    "down": "folkhold_blocks:block/bank_chest/bottom",
+    "north": "folkhold_blocks:block/bank_chest/north",
+    "south": "folkhold_blocks:block/bank_chest/south",
+    "west": "folkhold_blocks:block/bank_chest/west",
+    "east": "folkhold_blocks:block/bank_chest/east",
+    "particle": "folkhold_blocks:block/bank_chest/north"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        0,
+        0
+      ],
+      "to": [
+        16,
+        16,
+        16
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#up",
+          "cullface": "up"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#down",
+          "cullface": "down"
+        },
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#north",
+          "cullface": "north"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#south",
+          "cullface": "south"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#west",
+          "cullface": "west"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#east",
+          "cullface": "east"
+        }
+      }
+    }
+  ]
 }

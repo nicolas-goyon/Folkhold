@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.block.BankChestBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
@@ -13,15 +14,22 @@ import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -34,6 +42,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
@@ -64,6 +73,17 @@ final class TestSupport {
     private static final long RETIRE_RADIUS = 4096;
 
     private TestSupport() {
+    }
+
+    /**
+     * A structure state of the level with the structure set of the faction villages. The GameTest world is a vanilla
+     * Superflat world: its generator does not generate the faction villages. The tests of the discovery use this state.
+     */
+    static ChunkGeneratorStructureState villageStructures(ServerLevel level) {
+        ServerChunkCache chunks = level.getChunkSource();
+        return ChunkGeneratorStructureState.createForFlat(chunks.randomState(), level.getSeed(),
+                chunks.getGenerator().getBiomeSource(), Stream.of(level.registryAccess()
+                        .registryOrThrow(Registries.STRUCTURE_SET).getHolderOrThrow(SettlementDiscovery.VILLAGE_SET)));
     }
 
     /**
@@ -161,12 +181,39 @@ final class TestSupport {
         }
     }
 
+    /**
+     * Finds the heart in the area of a test with a village template. The test does not use a fixed relative position:
+     * the position of a template block and the relative positions of {@link GameTestHelper} do not always agree.
+     * The entities and the settlements of earlier tests go away first (see {@link #sweep} and
+     * {@link #retireEarlierSettlements}).
+     */
+    static VillageHeartBlockEntity findHeart(GameTestHelper helper) {
+        sweep(helper);
+        retireEarlierSettlements(helper);
+        AABB bounds = helper.getBounds();
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
+                BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
+            if (helper.getLevel().getBlockEntity(pos) instanceof VillageHeartBlockEntity heart) {
+                return heart;
+            }
+        }
+        throw new GameTestAssertException("No village heart in the test area");
+    }
+
     /** Spawns a unit as a spawn egg or a command does: equipment, configured values, home, village. */
     static <T extends FactionUnit> T spawnUnit(GameTestHelper helper, EntityType<T> type, BlockPos relativePos) {
         T unit = helper.spawn(type, relativePos);
         EventHooks.finalizeMobSpawn(unit, helper.getLevel(), helper.getLevel().getCurrentDifficultyAt(unit.blockPosition()),
                 MobSpawnType.COMMAND, null);
         return unit;
+    }
+
+    /** Sets the level of the settlement of a heart. The heart gets its settlement first. */
+    static void setLevel(GameTestHelper helper, VillageHeartBlockEntity heart, int level) {
+        MinecraftServer server = helper.getLevel().getServer();
+        heart.ensureSettlement();
+        Settlement settlement = Settlements.of(server, heart).orElseThrow();
+        SettlementLevels.setProgress(server, settlement, level, 0);
     }
 
     /** Spawns a guard. See {@link #spawnUnit(GameTestHelper, EntityType, BlockPos)}. */

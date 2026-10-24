@@ -3,7 +3,7 @@
 //
 //   ./gradlew :dev:runServer                     dedicated server (port 25565)
 //   ./gradlew :dev:runServer -PdebugPort=5005    same, with a Java debugger on port 5005
-//   ./gradlew :dev:runGameTestServer             runs all GameTests, then stops
+//   ./gradlew :dev:runGameTestServer             runs all GameTests in a new world (folder run-gametest), then stops
 //   ./gradlew :dev:runClient                     client (needs a display, not available in the container)
 
 plugins {
@@ -49,7 +49,8 @@ neoForge {
         }
 
         configureEach {
-            gameDirectory = project.file('run')
+            // The GameTest server has its own folder: it does not open the world of the client and the server.
+            gameDirectory = project.file(name == 'gameTestServer' ? 'run-gametest' : 'run')
             systemProperty 'neoforge.enabledGameTestNamespaces', gameTestNamespaces
             // The CI reads the logs through tee: INFO keeps them short. A developer gets DEBUG and the registry
             // markers.
@@ -79,4 +80,12 @@ modProjects.each { path ->
 // The dev project has no code. Do not make an empty jar.
 tasks.named('jar') {
     enabled = false
+}
+
+// Each GameTest run starts in a new world: the tests do not see the saved data of an earlier run.
+def gameTestWorld = project.file('run-gametest/world')
+tasks.named('runGameTestServer') {
+    doFirst {
+        gameTestWorld.deleteDir()
+    }
 }

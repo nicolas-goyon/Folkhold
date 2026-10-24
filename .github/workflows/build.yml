@@ -55,7 +55,7 @@ jobs:
           path: |
             build/ci-build.log
             build/ci-gametest.log
-            dev/run/logs
+            dev/run-gametest/logs
           if-no-files-found: ignore
 
       - name: Upload the coverage report of core

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable.StartChance;
 import java.util.HashMap;
 import java.util.List;
@@ -11,6 +12,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class LevelTableTest {
+    private static final GarrisonTraits GARRISON = new GarrisonTraits(Map.of("guard", 1), "hamlet");
+
     private static final LevelTable TABLE = LevelTable.DEFAULT;
 
     @Test
@@ -22,6 +25,36 @@ class LevelTableTest {
         assertEquals("village", TABLE.tier(5).id());
         assertEquals("city", TABLE.tier(16).id());
         assertEquals("capital", TABLE.tier(17).id());
+    }
+
+    /** The garrison grows with the tier, and its equipment set has the id of the tier. */
+    @Test
+    void defaultGarrisonGrowsWithTheTier() {
+        GarrisonTraits hamlet = TABLE.traits(1).garrison();
+        GarrisonTraits capital = TABLE.traits(20).garrison();
+
+        assertEquals(2, hamlet.count("guard"));
+        assertEquals(2, hamlet.count("archer"));
+        assertEquals(1, hamlet.count("captain"));
+        assertEquals(0, hamlet.count("healer"));
+        assertEquals("hamlet", hamlet.equipment());
+        assertEquals(1, TABLE.traits(5).garrison().count("healer"));
+        assertEquals(2, TABLE.traits(17).garrison().count("healer"));
+        assertEquals(0, hamlet.count("golem"));
+        assertEquals(0, TABLE.traits(12).garrison().count("golem"));
+        assertEquals(1, TABLE.traits(13).garrison().count("golem"));
+        assertEquals(2, capital.count("golem"));
+        assertEquals(0, TABLE.traits(8).garrison().count("rider"));
+        assertEquals(1, TABLE.traits(9).garrison().count("rider"));
+        assertEquals(2, TABLE.traits(13).garrison().count("rider"));
+        assertEquals(3, capital.count("rider"));
+        assertEquals(6, capital.count("guard"));
+        assertEquals(5, capital.count("archer"));
+        assertEquals("capital", capital.equipment());
+        assertEquals(0, capital.count("unknown"));
+        for (int level = 1; level <= TABLE.maxLevel(); level++) {
+            assertEquals(TABLE.tier(level).id(), TABLE.traits(level).garrison().equipment(), "Level " + level);
+        }
     }
 
     @Test
@@ -63,7 +96,7 @@ class LevelTableTest {
 
     @Test
     void tiersWithAGapAreRejected() {
-        List<LevelTraits> levels = List.of(new LevelTraits(10, 1, 1, 1, 1, 1, 1), new LevelTraits(10, 1, 1, 1, 1, 1, 1));
+        List<LevelTraits> levels = List.of(new LevelTraits(10, 1, 1, 1, 1, 1, 1, GARRISON), new LevelTraits(10, 1, 1, 1, 1, 1, 1, GARRISON));
         List<StartChance> chances = List.of(new StartChance(1, 1, 1));
         assertThrows(IllegalArgumentException.class,
                 () -> new LevelTable(levels, List.of(new Tier("a", 1, 1), new Tier("b", 3, 3)), chances));

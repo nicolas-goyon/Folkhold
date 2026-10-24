@@ -1,0 +1,19 @@
+{
+  "values": [
+    "folkhold_blocks:village_heart",
+    "folkhold_blocks:watch_post",
+    "folkhold_blocks:bank_chest",
+    "folkhold_blocks:bank_wall",
+    "folkhold_blocks:quest_board",
+    "folkhold_blocks:brazier",
+    "folkhold_blocks:building_sign_house",
+    "folkhold_blocks:building_sign_barracks",
+    "folkhold_blocks:building_sign_forge",
+    "folkhold_blocks:building_sign_storehouse",
+    "folkhold_blocks:building_sign_bank",
+    "folkhold_blocks:building_sign_hall",
+    "folkhold_blocks:building_sign_farm",
+    "folkhold_blocks:building_sign_market",
+    "minecraft:bell"
+  ]
+}

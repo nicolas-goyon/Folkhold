@@ -164,7 +164,7 @@ The faction of a new village is the faction with the nearest territory center.
 
 ### Cultures
 
-A culture is a template for factions: name, colors, banner, name syllables (for faction and village names). **Implemented**: the cultures are Java definitions (`Cultures`). **Planned**: each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
+A culture is a template for factions: name, colors, banner, name syllables (for faction and village names), pitch of the voices of its units. **Implemented**: the cultures are Java definitions (`Cultures`). **Planned**: each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
 
 The factions of a world are not static content. The mod creates them when the world starts, from the cultures, and saves them in the world.
 
@@ -178,8 +178,23 @@ Each faction village has fortifications and guards. A player in iron armor with 
 
 - Generated as *jigsaw* structures, one set for each culture (building pools: center, houses, workshops, wall, towers, gates).
 - The size follows the abstract state: a hamlet has a palisade, a city has a stone wall and archer towers.
-- Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation uses the same method to know the villages of a region before the player goes there, and it also applies the exclusion zone around the vanilla villages, as the chunk generation does. The `/locate` command does not apply the exclusion zone: in chunks that the game did not generate, it can show a village that does not start. The discovery covers 1024 blocks around each player and the world spawn (`discoveryRadius`), and the simulation runs on all the discovered villages: the world around the player changes with no visit. The admin screen lists these villages, with the name in italics while the game did not generate them. Its discover action checks at once the regions up to 3000 blocks in each direction around the operator (`adminDiscoveryRadius`).
+- Settlement positions come from the seed. The village is a jigsaw structure with a vanilla placement (structure set, random spread). The game can calculate where a structure starts from the seed and the biomes, without the generation of chunks: the `/locate` command uses this method. The abstract simulation uses the same method to know the villages of a region before the player goes there, and it also applies the exclusion zone around the vanilla villages, as the chunk generation does. The discovery reads the placement from the structure sets of the chunk generator: in a world whose generator does not generate the faction villages, for example a vanilla Superflat world, it finds no village. The `/locate` command does not apply the exclusion zone: in chunks that the game did not generate, it can show a village that does not start. The discovery covers 1024 blocks around each player and the world spawn (`discoveryRadius`), and the simulation runs on all the discovered villages: the world around the player changes with no visit. The admin screen lists these villages, with the name in italics while the game did not generate them. Its discover action checks at once the regions up to 3000 blocks in each direction around the operator (`adminDiscoveryRadius`).
 - Materialization: when the player comes near, the mod creates the garrison and the inhabitants from the `Settlement` state. When the player goes away, the mod removes them and writes their state back (health, deaths, equipment).
+- Villagers: the villagers of a village are its population: the merchants, and the inhabitants for the rest of the population. The mod sets no maximum, so a city can have 100 villagers. The setting `inhabitantLimit` can set a maximum (0: no maximum), and the server and the other mods can limit the entities.
+  - The first inhabitants are 2 builders and 1 handyman (settings `builders` and `handymen`), also in a small village. The builders build the construction sites of the village (see Construction). The handymen light the braziers in the evening and put them out in the morning (see Shelter at night). Then the workers show the jobs of the settlement: 2 inhabitants (`workersPerJob`) for each active job. The rest have no job: they give life to the village.
+  - The builders and the handymen stay vanilla villagers (bed, bell, raids, zombies), with no trades. Only their model changes: a GeckoLib model with arms that move (place a block, use a brazier). It uses the vanilla textures of the villagers: the skin, the type and the profession. The other villagers keep the vanilla model.
+  - The heart creates the villagers in groups of 4, one group every 2 seconds while a player is near.
+
+### Vanilla villages in a territory
+
+The Folkhold villages are the main settlements of a territory. A vanilla village inside the territory of a faction gets a small detachment of guards of this faction. It gets nothing more: no village heart, no garrison of a faction village, no quest board, no economy and no claim.
+
+- A vanilla village is a bell with 2 beds or more in 32 blocks around it. A bell of a faction village does not count.
+- Every 10 seconds, the mod checks the bells in 64 blocks around each player, in the loaded chunks.
+- A vanilla village in a chunk that an active settlement claims gets 2 guards of the faction of this settlement. The setting `detachmentGuards` sets this number, and 0 turns off the detachments. The guards have the equipment of a hamlet. They spawn near the bell and patrol around it. They use the colors and the reputation of the faction: they defend the villagers against the monsters and against a hostile player.
+- A dead guard comes back after the refill delay of the garrisons, when no guard of the detachment fights.
+- When the territory changes owner, the guards change their faction. When no settlement claims the chunk, the guards go away. A vanilla village with no territory has no guards.
+- When the bell is not there any more (a player broke or moved it), the detachment of this bell leaves. A bell at a new position is a new village for the scan.
 
 ### Village styles and terrain
 
@@ -195,7 +210,7 @@ Each faction village has fortifications and guards. A player in iron armor with 
 
 ### Village growth
 
-Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are names for ranges of levels. The level sets the traits of the settlement: claim radius, maximum population, job slots, stock capacity, number of trade offers, number of village cats. A data file holds the level table, the tier table and the traits. More levels and tiers can exist later.
+Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are names for ranges of levels. The level sets the traits of the settlement: claim radius, maximum population, job slots, stock capacity, number of trade offers, number of village cats, the units of the garrison and their equipment. A data file holds the level table, the tier table and the traits. More levels and tiers can exist later.
 
 | Levels | Tier | Trades |
 | --- | --- | --- |
@@ -208,18 +223,67 @@ Growth is gradual. Each settlement has a **level** from 1 to 20. The tiers are n
 - **Start level**: when the mod creates a settlement, the settlement gets a random start level from 1 to 16 (configurable chances). Only growth makes a Capital. A settlement with a higher start level also starts with more stocks.
 - **Experience**: at each cycle, the settlement gets experience from its prosperity: food need covered, inputs of the jobs available, treasury above a minimum. The experience for each level increases with the level.
 - **Loss**: a shortage of food, a pillage of the bank or the death of the captain removes experience. A settlement can go down one level.
-- **Level event**: the mod sends an event when the level changes. Other systems use it: the garrison from the level, the physical growth.
+- **Level event**: the mod sends an event when the level changes. Other systems can use it, for example the physical growth.
+- **Garrison**: the garrison follows the level of the village (see "Balancing"). When the level changes, the heart adds the missing units, and the units that are alive get the equipment of the new level.
 
 **Implemented**: the level does not change the blocks of the village. The variants of the village are simple and do not change the structure.
 
-**Physical growth (planned)**: the village grows in the world. New buildings, larger walls, farms, mills, fields, a forge. Each building, wall section and defense has a minimum level. This milestone also contains the construction and the repair of the village.
+**Physical growth (planned, J6 · Village architecture)**: the village grows in the world. New buildings, larger walls, farms, mills, fields, a forge. Each building, wall section and defense has a minimum level. The growth uses the construction system of J5 · Living villages.
 
 ### Construction
 
-This section describes the physical growth (planned). New elements go into the **construction queue** of the settlement. The mod never changes blocks that the player placed.
+The construction system changes the blocks of the level into the blocks of a **target**. A target is a set of block states at positions, for example a building of the village. The repair of the village (J5) and the physical growth (J6) use it.
 
-- **Chunks not loaded**: the construction progresses in the abstract simulation. The mod cannot change blocks in a chunk that is not loaded. It applies the finished elements when the chunk loads, before the player can see them.
-- **Chunks loaded** (planned): builder villagers do the construction block by block. The player sees the village grow. This is useful when the player often comes back to the same village.
+**Implemented**: the plan, the kinds of the blocks, the capture of a target and a run with no villager. Also the construction tool of the operators, the construction sites of the builders and the repairs of the villages.
+
+- **Plan** (`folkhold_core`): from a target and the blocks of the level, the planner makes an ordered list of steps. A step removes a block, places a block, places or removes scaffolding, or adds a fluid. Each step has the full state of the block (facing, axis, half, shape) and the position where the builder stands.
+- **Order**: the plan removes the obstacles first: the attached blocks first, then from the top to the bottom. A block that needs an obstacle as its support also goes, and comes back if the target has it. Then the placements go from the bottom to the top. A block comes after the block that holds it: a falling block after the block below it, an attached block after its support. A connected block comes after the solid blocks next to it. One step places the two parts of a door, a bed or a tall plant.
+- **Fluids**: the sources of water and lava come at the end. A waterlogged block goes in place with no water, and gets its water at the end. A flowing fluid is not part of a target: it comes back from its source.
+- **Reach**: a builder places and removes the blocks of a zone around its feet. The zone goes 2 blocks on the X axis and on the Z axis. On the Y axis, it goes from the layer of the floor of the builder to one block above its head (config `construction.reachHorizontal`, `reachBelow` and `reachAbove`).
+- **Position to stand**: a builder stands in a free space of two blocks, on a block with a full top face. It does not climb on the top of a new wall, which is 1 block wide. The block below the builder is one of these blocks:
+  - a block of the level, or the scaffolding of the plan
+  - a block that the plan puts directly on a block of the level, for example the floor of a house on the ground
+  - a block of the plan in a square of 2 × 2 floor blocks. Examples: the floor of a house on its foundation, the floor of an upper storey.
+- **Scaffolding**: with no position to stand, the plan adds a column of vanilla scaffolding next to the block. The builder stands on the column, with the block at the height of its head. Under a roof, the block can be one block above the head. The plan selects a column on the ground before a column on a block of the plan, so the columns stand around a new house. Then it selects the column with the fewest new blocks: a column on top of an existing column makes it higher. The column stays out of the positions that the target fills, and it does not stand on a block that a later step removes. The plan removes the scaffolding at the end, from the top.
+- **Warnings**: the plan reports these problems of a target: a falling block above air, an attached block with no support, a cycle of supports. It also reports a block with no position to stand.
+- **Kinds of blocks** (`folkhold_world`): the class of a block gives its kind and the side of its support. The block state gives the side (`face`, `facing`, `hanging`, the half of a door). A trapdoor, a chain, a flower pot, a grindstone and a wall hanging sign stay in place alone. They come after the block on their side. A fence, a wall, a pane, stairs, a chest, a fence gate and a tripwire get their shape from their neighbors. Redstone wire is an attached block. The block tags `folkhold_world:construction/support_below` and `folkhold_world:construction/support_above` add the special cases, for example sugar cane and cave vines.
+- **Block data**: the construction keeps the data of the blocks in the block tag `folkhold_world:construction/keep_data`. Examples: the text of a sign, the patterns of a banner, the profile of a head. The items of a container do not come with the block.
+- **Capture**: a target comes from a box of the level, or from a structure template at a position, with its rotation and its mirror. A jigsaw block becomes its final state, as in a village.
+- **Run**: a run applies the steps of a plan, with a number of steps for each tick. It puts the blocks directly, with no villager. It uses no items, and no block drops an item. The other part of a door or a bed goes first with no update, so that the primary part does not break.
+- **Builders**: the builders of a village build a structure block by block, as players do. The village is the nearest village heart at the village radius from the center of the structure, or nearer.
+  - The work zone is the box of the structure and a band of the horizontal reach around it. First, the builders put spruce fences on the ground at the edge of the zone. The ring of fences has an opening on the side of the village. Then they apply the steps of the plan in their order. At the end, they remove the scaffolding that stays and the fences.
+  - Each builder claims the next free step. It walks to a position where the block is in its reach zone: the position to stand of the plan, or a free position near the block. It looks at the block and moves its arm. Then the block changes, with the sound of a placement or the particles of a break. One step takes 20 ticks (config `construction.builderTicksPerStep`), and a step of the scaffolding takes half this time. Thus a builder puts about 1 block each second, plus the time to walk. A builder that is in position for the next step takes it from a builder that walks to it.
+  - For a position on a scaffolding column, the builder walks to the bottom of the column and climbs it. To go to another position, it goes down the column first. A builder adds and removes the blocks of a column from its bottom, as a player does.
+  - A builder that cannot get to its position in 15 seconds goes there directly. With no free position, it works from where it is. A block does not go into an entity: after 2 seconds, the entity moves to a free position near it.
+  - The builders work during the day, when the village is calm. At night and during an alert, they go down from the scaffolding and stop. When a player is in the work zone, the builders stop and look at the player. Every 5 seconds, the player gets a message above the hotbar: go out of the zone.
+  - The builders never change a block that a player placed in the village (see Repairs). The step of this position goes with no change.
+  - The sites of one village come one after the other. Each level keeps its sites (`folkhold_builder_sites.dat`): the template, the position, the phase, the fences and the scaffolding. After a load, a site makes a new plan from the blocks of the level.
+  - Chunks not loaded: during the day, the builders of the oldest site of a village go on with the work in the abstract. Each builder of the village (`builders`) does 1 step each `construction.builderTicksPerStep` ticks. The site keeps the steps of this work. When the chunks load, the site applies these steps before the builders go on: 32 steps at most for each tick (`construction.catchUpStepsPerTick`). Thus a player who comes to the village sees the work of this time. No chunk stays loaded for a site.
+  - A step that an entity blocks, or that waits for materials, stops this work: the builders go on from this step.
+  - Materials: the builders take the materials of each block from the stock of the village. The cost of a block is in items of the economy. It comes from the recipes of the server: crafting, smelting, stonecutting, and the axe that strips a log. Example: 1 oak stairs costs 1.5 oak planks. The parts of items that the builders took and did not use stay in the site for the next blocks. They go back to the stock at the end.
+  - A block waits when the stock does not have its materials. The steps after it wait too.
+  - A rare block has no recipe from the items of the economy, for example calcite. A valuable block costs 1 emerald or more (`construction.valuableBlockPrice`), for example a gold block. The builders take a rare or a valuable block as it is from the stock. The village asks the players for it at once with a delivery quest, and the delivered blocks go into the stock.
+  - The village also asks for a common material when the builders wait for it for 5 minutes (`construction.materialQuestMinutes`).
+  - The fences of the work zone and the scaffolding use no materials. A removed block drops no item.
+  - With the setting `construction.freeMaterials`, or in a village with no economy, the builders use no materials.
+  - The blocks of the block tag `folkhold_world:construction/free_materials` use no materials: the blocks of the village library and the bell. The village makes them.
+- **Repairs**: the builders of a village repair the damaged blocks of the village (config `construction.repairs`).
+  - Reference: the structure pieces of the village at the generation: the center, the bank and the houses. The repairs change only the positions of the pieces inside the palisade. The gates give the size of the palisade. Thus the stairs of the gates stay.
+  - Every 60 seconds (`construction.repairCheckSeconds`), a loaded village heart compares the blocks of the village with the reference. It does this when the village is calm, has builders and has no site.
+  - The comparison ignores the changes that come with the life of a village. Examples: open doors and gates, lit braziers, the color of the banners, the age of the plants. It also ignores the connections of the fences and the walls, the shape of the stairs and the water in a block. Grass, dirt, podzol and paths are one soil (block tag `folkhold_world:construction/repair_soil`). Water and ice are equal, and a brazier can take the place of a campfire.
+  - On an empty position, the repairs keep the blocks of the weather and of the plants: snow, grass, flowers, trees (block tag `folkhold_world:construction/repair_natural`). The jigsaw blocks and the structure blocks also stay.
+  - The repairs never change the blocks that a player placed in a village. When the player breaks such a block, the repairs can change the position again. The repairs also keep the boxes of the construction sites of the village: the new buildings. Each level keeps these positions (`folkhold_village_repairs.dat`).
+  - The damaged blocks make groups: two blocks at 3 blocks or less on each axis are in the same group. The builders repair the largest group first, with a repair site: fences, materials and quests, as for a construction site. A repair asks at once for the materials that the stock does not have, with delivery quests. The quests follow the stock: an offered quest changes to the new missing quantity, and goes away when the stock has the item. With the setting `construction.freeRepairs`, the repairs use no materials.
+  - After a repair, its positions wait 20 minutes before a new repair. Thus a block that does not stay in place does not start a repair at each check. At the end of a repair, the heart gives the color of the faction to the banners again.
+- **Commands** (operators): `/folkhold construction build <template> [stepsPerTick]` builds a structure template at the position of the player, and `/folkhold construction build <template> builders` gives it to the builders of the nearest village. `/folkhold construction capture <from> <to>` keeps the blocks of a box, and `/folkhold construction restore [stepsPerTick]` puts them back. `/folkhold construction sites` shows the sites of the builders: phase, steps, state, builders and missing materials. A repair site shows the number of its blocks. A site shows the steps of the work that wait for the load of its chunks. `/folkhold construction stop` stops the constructions and the sites of the level: the fences and the scaffolding of a site go away. Each command that builds with no villager shows the steps and the warnings of its plan.
+- **Loaded chunks**: a construction starts only when its chunks are ready (loaded and complete). These chunks contain the box of the construction and a margin of the horizontal reach plus 1 block. The plan reads the blocks in this margin for the positions to stand and the scaffolding.
+- **Construction tool** (operators): `/folkhold construction place` opens a menu with the structure templates of the server, a text filter and the speed of the construction. The speeds are slow, normal, fast and "builders": the builders of the nearest village build the structure. A key can also open the menu. After the selection, a ghost of the structure follows the block that the player looks at, 64 blocks away or nearer. The ghost stands on this block, with its center above it.
+  - The ghost shows the blocks of the structure, translucent, and the box of the structure. A red outline shows each block of the level that the construction removes. Grass and flowers have no outline.
+  - Keys: turn by 90 degrees (R), mirror (M), lock the position (G), build (Enter), remove the ghost (Backspace). The arrow keys, Page Up and Page Down move the ghost by one block, and lock it. The panel above the hotbar shows the keys.
+  - The key "build" sends the template, the origin, the turn and the mirror to the server. The server checks the permission and the size of the structure: 32,768 blocks at most, air included. It also checks the distance (96 blocks at most) and the loaded chunks. Then it starts the construction as the command `build`. With the speed "builders", it starts a site of the builders of the nearest village.
+  - During the construction, the ghost shows only the blocks that are not in place. It goes away when all its blocks are in place. It also goes away at the end of the construction, and when the command `stop` stops the construction.
+
+**Planned**: new elements go into the **construction queue** of the settlement (growth, J6). The builders build them, also while the chunks are not loaded.
 
 ### Reputation and welcome
 
@@ -241,23 +305,41 @@ This section describes the physical growth (planned). New elements go into the *
 
 ### Shelter at night
 
-- At night, the guards light torches and braziers, close the gates and patrol the walls. The village heart lights the braziers at night and puts them out by day. A brazier (block of the library) is 1.5 blocks high, so the mobs do not jump on it, and it does not burn the entities. A campfire of the village layout becomes a brazier.
+- At night, the guards light torches and braziers, close the gates and patrol the walls. A brazier (block of the library) is 1.5 blocks high, so the mobs do not jump on it, and it does not burn the entities. A campfire of the village layout becomes a brazier.
+- Braziers: the handymen of the village light the braziers in the evening and put them out in the morning. The times come from the schedule of the vanilla villagers.
+  - Evening: from the day time 11000, when the villagers stop their work, to the rest time of the villagers (12000).
+  - Morning: from the end of the rest time (day time 10) to the day time 2000, when the villagers start their work.
+  - A handyman takes the nearest brazier that no other handyman took. It walks to a position next to the brazier, looks at the brazier and uses it: the brazier changes.
+  - A handyman works when it is awake and calm: not in bed, not in the rest time, not in a panic or a raid.
+  - The village heart lights the braziers that do not burn at the start of the night. In a village with no handymen, the heart puts out the braziers at the start of the day. In a village with handymen, the braziers burn until the handymen put them out. At the day time 2000, the heart puts out the braziers that burn.
+  - A handyman that cannot go to a brazier stops. No handyman tries this brazier again in the same period, and the heart changes it at the end of the period.
 - The village heart prevents monster spawns in its area.
 - Village cats stay near the gates and the center. The creepers run away from them. The player cannot tame them.
 - A neutral or friendly player can take shelter in the village. From the Town tier, the player can rent a bed at the inn for emeralds.
+
+### Raids against the faction villages
+
+The vanilla raid stays. Near a faction village, Folkhold changes where the raiders spawn and how they march on the village. A raid is at a faction village when a loaded village heart is 64 blocks or less from the center of the raid.
+
+- Spawn: all the raiders of a wave spawn at one position, 40 to 56 blocks from the heart. The position is on natural ground (tag `folkhold_world:raid_spawn_ground`: dirt, sand, stone, terracotta, gravel, paths and snow), on land and under the open sky. It is not in a hole or a ravine, it has room for a ravager, and it has a path to the village. When no position is good, the raiders keep the vanilla position.
+- March: a raider walks to the approach of the nearest gate, 8 blocks outside the gate. In water, the approach is at the surface. At an open gate, it goes through the gate to the heart, and it keeps this way while the gate stays open. At a closed gate, it waits outside. It swims across the rivers.
+- When a raider has a target, it attacks. When it loses the target, it marches again. At 12 blocks from the heart, the raider arrives: the vanilla goals of the raid move it in the village. After its arrival, a raider marches again only when it is outside the palisade.
+- The raiders target the faction units, as the other monsters do. A garrison can stop a wave outside the palisade.
 
 ### NPC types
 
 | NPC | Role | Key behavior |
 | --- | --- | --- |
 | Inhabitant | Population, economic job | Day/night routine, runs away from fights, takes shelter in buildings |
+| Builder | Constructions of the village | Inhabitant with no economic job, with an animated model. Puts fences around a site, builds it block by block, climbs the scaffolding. Stops at night, during an alert, and when a player is in the work zone |
+| Handyman | Small work of the village | Inhabitant with no economic job, with an animated model. Lights the braziers of the village in the evening and puts them out in the morning |
 | Merchant | Trade with the player | Sells the stocks of the village, buys the items of the player. Compatible with the vanilla villager systems (raids, Hero of the Village, zombie conversion, iron golems, gossip) |
 | Guard | Basic defense | Fixed patrol, sword and shield, chases in a limited radius |
-| Archer | Ranged defense | Takes position on towers and walls. Priority target: hostile players |
-| Rider | Interceptor | Patrols outside the walls, charges isolated threats |
-| Faction golem | Heavy unit | Guards the gates and the center, very resistant, slow |
+| Archer | Ranged defense | Takes position on towers and walls. Priority target: hostile players. A bow, or a crossbow in the larger villages: it charges the crossbow, aims and shoots a faster bolt |
+| Rider | Interceptor | Rides a faction horse with a saddle and a leather horse armor in the color of the faction. Patrols on a ring outside the walls, and goes through the gates on its horse. Charges the threats near the village at a gallop, then goes back to its patrol. When its horse dies, fights on foot and gets a new horse after the refill delay. A player cannot ride the horse. A horse with no rider disappears after 30 seconds. From the Town tier |
+| Faction golem | Heavy unit | Model and animations of the vanilla iron golem, with an armband in the color of the faction. Guards a post inside a gate, or the center when the village has more golems than gates. Very resistant and slow. Chases a target only near its post. Its attack throws the target up. In a village with faction golems, the villagers do not call vanilla iron golems. From the City tier |
 | Captain | Garrison leader | Morale buff, general alarm. Its death lowers morale (some units run away) |
-| Healer | Field medic | Stays behind the fighting units. Heals or buffs with potions, with long cooldowns and a limited supply. Not in a village of the first level |
+| Healer | Field medic | Heals a wounded unit of its village with a bandage. During an alert, stays near the captain, behind the fighting units, and gives a short buff (regeneration and resistance) to the units near it. Long cooldowns and a limited supply of bandages that refills while the village is calm. Does not attack, runs away from threats. Not in a hamlet |
 
 ### AI
 
@@ -275,7 +357,26 @@ This section describes the physical growth (planned). New elements go into the *
 
 Difficulty target: a player in iron armor with no enchantments loses a frontal attack against the garrison of an average village in most cases. This is a design target, not an automatic test.
 
-All values are configurable (health, damage, armor, garrison size for each type), with a global difficulty multiplier. This lets us adjust the difficulty without a new build.
+All values are configurable, with a global difficulty multiplier. This lets us adjust the difficulty without a new build:
+
+- the health, the damage and the armor of each unit type: server config;
+- the heal value, the cooldowns and the supply of the healer: server config;
+- the chase radius and the knockback resistance of the faction golem: server config;
+- the patrol radius of the riders, and the health and the speed of their horses: server config;
+- the number of units of each role for each level: `garrison` in the level table (`levels.json`);
+- the equipment of each role for each level: the equipment set of the level (`equipment` in `levels.json`), defined in `garrison_equipment.json`. A role can have variants: each unit takes one variant, from its id. The archers of the town, the city and the capital have a bow variant and a crossbow variant.
+
+The garrison and its equipment grow with the tier. The units do not drop their equipment.
+
+| Tier | Guards | Archers | Captain | Healers | Golems | Riders | Equipment |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Hamlet | 2 | 2 | 1 | 0 | 0 | 0 | Iron (guards, captain) and chainmail (archers) |
+| Village | 3 | 2 | 1 | 1 | 0 | 0 | Same, with Protection I and Power I |
+| Town | 4 | 3 | 1 | 1 | 0 | 1 | Diamond swords, Protection I to II, a crossbow for some archers |
+| City | 5 | 4 | 1 | 1 | 1 | 2 | Diamond (guards, captain), Protection II, Sharpness II, Power II, Quick Charge I |
+| Capital | 6 | 5 | 1 | 2 | 2 | 3 | Diamond and netherite, Protection III, Sharpness III, Power III, Quick Charge I and Piercing I |
+
+Most villages start as a hamlet. The garrison of a hamlet keeps the difficulty target.
 
 ## World mod: simulated economy
 
@@ -399,7 +500,12 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - Two levels of routes:
   - The **coarse route** uses a grid of 32 blocks. Slopes have a cost. A route has a maximum length. The trade uses the coarse routes to find the partners. When there is no route, the two villages do not trade. The mod keeps this result too.
   - The **detailed route** uses a grid of 4 blocks, in a corridor of 48 blocks around the coarse route. A height step of more than 3 blocks between two cells is a cliff: the route goes around it. If the corridor has no route, the search tries again with a corridor two times wider. If there is still no route, the group uses the coarse route.
-- Each segment of a route has a surface: land, ford (water of 2 blocks or less) or water. On water, the group crosses in boats. Getting into and out of the boats has a cost, so a route goes around a small lake.
+- Each segment of a route has a surface: land, ford (water of 2 blocks or less), water or road. On water, the group crosses in boats. Getting into and out of the boats has a cost, so a route goes around a small lake.
+- **Roads**: the routes use the roads of the world (`RoadNetwork`). The tag `folkhold_world:road` has the road blocks: paths, gravel, cobblestone, bricks, planks, slabs, the blocks of The Roads More Travelled. A column of blocks is a road when a road block has 2 blocks of free space above it. The highest such block counts, also under a roof. The mod reads the roads of a chunk when the chunk loads and unloads, and one column after a player changes a block in it.
+  - A cell with a road has a second level at the height of the road, with no water. Thus a route takes a bridge instead of a ford or boats, and a tunnel or a covered bridge instead of a pass. A road far below the terrain (a mine) has no entrance within the height limit, so the route does not use it.
+  - On a detailed route, a move on the roads costs 0.7 times its length. The heuristic uses the same factor, so the search finds a road near the direct line.
+  - The merchant walks to the height of the road on a road segment: in a tunnel, not on the mountain above it.
+  - When the roads near a route change, the mod forgets the route and calculates it again at the next need. It does this every 30 seconds for all the changed chunks.
 - A new group waits at its village until its detailed route is ready, also after its departure time. The escort offer stays open. The mod keeps the detailed route for the next groups between the same villages.
 - One column of the terrain noise gives the 2 heights of a cell (the surface, water included, and the floor). One column costs a calculation of the terrain noise, and a search reads thousands of columns. A worker thread calculates the routes. The simulation uses only the routes that are in the world data, and a group or a trade waits for its route. When an error stops a calculation, the world data gets no result, so the simulation can ask again, and a group that waits for its detailed route continues with its coarse route. The search uses a weighted heuristic: it examines fewer cells, and a route can be a little longer than the best route.
 
@@ -465,13 +571,14 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 - `/folkhold caravan list|info|spawn|tp|remove`: follow, make, find and remove the mobile groups.
 - `/folkhold quest list|give|complete|fail`: the quests of a player. `give` makes a delivery or an escort of the village nearest to the player.
 - `/folkhold settlement route <from> <to>`: calculates a route again and shows its time.
+- `/folkhold construction build|place|capture|restore|sites|stop`: builds a structure template, places it with a ghost, or puts back the blocks of a captured box. The builders of a village can also build a template (see Construction).
 - `/folkhold admin` opens the admin screen (operators only). Left: all settlements of the world, with a text filter and chips for the state, the level range and the sort order. Right: the selected settlement, with its badges (level, state, alert), its rows and its largest stocks.
 - The actions of the admin screen are in menus: Village (teleport, set the level, add experience, restore, ruin), Economy (one cycle, reset), Garrison (alert state, bells, if the heart is loaded) and World (copy the position, the id or a `/tp` command). The header has Refresh, Simulation (one tick or one cycle for all settlements, and the discovery of the villages up to 3000 blocks around the operator now) and "Caravans and quests": three tabs with the caravans, the traveling merchants and the quests of the world.
 - The result of an action shows in the status line of the screen. To ruin a settlement, the operator types its name. To reset an economy, the operator confirms.
 
 ### Synergy with the pack mods
 
-With The Roads More Travelled, the materialized caravans that walk on their route can create real paths over time. This gives visible trade routes. To check: TRMT reacts to mobs, not only to players (its Forge port says so).
+With The Roads More Travelled, the materialized caravans that walk on their route create real paths over time. This gives visible trade routes. The eroded blocks of TRMT are in the tag `folkhold_world:road`, so the next routes follow these paths. An in-game check with the modpack shows that TRMT reacts to the caravans, not only to the players.
 
 ## World mod: reputation and quests
 
@@ -581,6 +688,18 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
 - The vanilla maps also show the territory borders and the known villages.
 - The player can update a map at a distance: a cartographer block, or a surveyor map that updates itself (for example each 10 minutes).
 - A **faction journal** shows the discovered factions and villages: reputation, relations, position, distance.
+  - **Implemented** (`Journals`, `JournalScreen`, key J): a player discovers a village when the player enters its territory. The player visits the village when the player comes near its heart (the village message). The server keeps the journal of each player.
+  - Tab "Villages": a text filter, a filter on the visits, a sort by distance, name or reputation. The details show the faction, the reputation in the village, the position and the direction, the day of the discovery and of the last visit.
+  - Tab "Factions": the factions of the discovered villages, with the culture, the attitude, the reputation of the player and the discovered villages.
+  - Tab "Routes" (`RouteViews`, `ClientRouteView`): the player selects two discovered villages. The map shows the route of the caravans between them, with a color for each surface: road, land, ford, boats. The server shows only the routes between two villages of the journal of the player.
+  - The route is the route of the next caravan: the detailed route, or the coarse route when the corridor has no detailed route. The server does not calculate a route on the server thread: the worker thread calculates a missing route, and the journal asks again until the route is ready. The data keeps the route for the caravans.
+  - A button shows the route in the world (`ClientRouteOverlay`): a yellow line above the blocks that the caravans walk on, near the player, also after the player closes the journal. On a road segment, the line is on the road floor, on a bridge or in a tunnel. The player sees where to build roads, bridges and defenses.
+  - The journal keeps the last route and the relief of each pair of villages (`RouteViewData`). It shows them again with no new search, also after a change of the roads near the route. Only the button "Recalculate" starts a new search. The button "✕" clears the two selected villages.
+  - The line in the world follows a walk on the blocks (`RouteWalker`), as the path finder of the mobs: one block at a time, up by one block or down by three blocks at most, through the fence gates and the doors, never through a wall, a ceiling or the ground, on the surface of deep water. The search stays in a corridor of 8 blocks around the route, in parts of 24 blocks. When a part has no walk, the line follows the floors of the columns, paler. Two modes: approximate (a point every 3 blocks of the walk) and precise (a point on each block). A change of height is a vertical step at the edge of the higher block, above the lower block.
+  - The button "Recalculate" asks the server to calculate the route and its relief again, for example after the player builds a road. The caravans also take the new route. A player can ask once each 20 seconds.
+  - The routes go through the gates of the palisades (`RouteGates`): from the heart to a gate, through the gate, then to the route outside the village. The heart records the gates of its village in the settlement when a player is near. The selected gate gives the shortest route.
+  - Above the map, a line gives the state of the calculation: the number of calculations before it, or the part of the distance that the search covered and the number of examined cells. A coarse route with no detailed route in the corridor is final.
+  - The map has a white background with the relief in a light grey gradient (darker for a higher floor) and the water in light blue (`RouteReliefs`). The worker thread of the routes calculates the relief from the chunk generator.
 
 ## Events mod
 
@@ -590,6 +709,7 @@ This mod adds ground events and rare disasters. Players can protect their buildi
 | --- | --- | --- | --- |
 | Earthquake | Random, more frequent near mountains | Camera shake, unstable blocks fall (sand, gravel, cracked stone), cracks in the surface | Medium |
 | Collapse | Cavity below the surface + earthquake or rain | An area of 5 to 15 blocks collapses into falling blocks | Medium |
+| Storm | Random and rare: one storm every 15 to 30 game days on average | A strong wind tears up the fragile blocks, lightning, the wind throws and hurts the entities | Medium |
 | Landslide | Steep slope + long rain | Dirt and gravel slide down | Medium |
 | Wildfire | Summer (Serene Seasons, optional dependency) + lightning | Faster spread, ash, regrowth with Dynamic Trees | Low |
 | Flood | Heavy rain near rivers | Temporary rise of the water on the banks | Difficult |
@@ -601,7 +721,7 @@ This mod adds ground events and rare disasters. Players can protect their buildi
 - Batch updates: maximum N changed blocks for each tick, to keep the TPS stable.
 - Link with the world mod: a village that an event hits produces less and starts reconstruction quests.
 
-For the first milestone, only the earthquake with local collapses is planned. The other events come later.
+The milestone J8 · Additional mods contains the earthquake with local collapses and the storm. The other events come later.
 
 ## Assets and content for a non-artist
 
@@ -633,7 +753,9 @@ The strategy:
 
 ### Textures
 
-For new blocks (stabilizer, world anchor, quest board), start from a similar vanilla texture and change it a little. A frame or a color is enough.
+The blocks of the library `folkhold_blocks` are volumes of voxels in Python, in `tools/pixvox`. PixVox (MIT license) reads the texture of each face on the volume: the voxel of an edge has one color on its two faces. PixVox renders each block as the game does, checks the export, and makes a review board. The colors come from the materials of the villages: spruce, stone, deepslate, iron and gold. A new block gets a description in `tools/pixvox`.
+
+**Implemented**: all the blocks of the library. These are the village heart, the watch post, the bank chest, the bank wall, the brazier, the building signs and the quest board. The embers and the flames of the brazier move and glow. The plaque of a building sign has a raised frame and a raised icon. The papers of the quest board show notices, maps and a sea chart.
 
 ## Technical stack and tools
 
@@ -683,10 +805,10 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J2 · Factions, reputation | Faction definitions, relations, player reputation | Allies, neutral factions and hostile factions behave differently |
 | J3 · Abstract simulation | `SavedData`, abstract tick, village level, territory claims, economy, bank, merchant | Villages grow, territories change owner |
 | J4 · Caravans, quests | Trade between villages, caravans, traveling merchants, materialization, delivery and escort quests | The player meets convoys and can escort them |
-| J5 · Additional mods | Balance mod: farms, trades, anvil. Earthquakes and collapses | Farms have limits, the anvil has no cap, first earthquakes |
-| J6 · Living villages | Vanilla villages with a garrison, repair and growth by the villagers, equipment from the village level, healer | Villages repair and improve themselves |
-| J7 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages | Each faction has its own look, villages fit the terrain |
-| J8 · Maps and journal | Territories on the maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
+| J5 · Living villages | Vanilla villages with a garrison, construction system, repair by the villagers, equipment and garrison size from the village level, healer, rider, faction golem, raids against the villages | Villages repair themselves, their garrison grows with the level, a large village resists a raid |
+| J6 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages, growth with new buildings, walls and paths | Each faction has its own look, villages fit the terrain and grow with their level |
+| J7 · Maps and journal | Territories on the maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
+| J8 · Additional mods | Balance mod: farms, trades, anvil. Events mod: earthquakes, collapses and storms | Farms have limits, the anvil has no cap, first earthquakes and storms |
 
 ```mermaid
 flowchart TB
@@ -694,11 +816,11 @@ flowchart TB
     J1 --> J2["J2 · Factions, reputation"]
     J2 --> J3["J3 · Abstract simulation"]
     J3 --> J4["J4 · Caravans, quests"]
-    J4 --> J5["J5 · Additional mods"]
-    J2 -. "balance mod can start here" .-> J5
-    J3 --> J6["J6 · Living villages"]
-    J2 --> J7["J7 · Village architecture"]
-    J2 --> J8["J8 · Maps and journal"]
+    J3 --> J5["J5 · Living villages"]
+    J2 --> J6["J6 · Village architecture"]
+    J2 --> J7["J7 · Maps and journal"]
+    J5 -- "villages repair the damage of the events" --> J8["J8 · Additional mods"]
+    J2 -. "balance mod can start here" .-> J8
 ```
 
 Notes:
@@ -707,6 +829,7 @@ Notes:
 - The abstract simulation is the core of the project and the part with the highest risk: it is pure Java with JUnit tests.
 - Wars between factions come in phase 2, after the caravans and the quests.
 - Version 1 contains the milestones of the table. The living villages, the architecture and the maps depend on the factions and the abstract simulation, not on each other: their order can change.
+- The additional mods come last. The balance mod removes comfort that comes from the farms and the vanilla trades. The villages, the trade and the NPCs give this comfort first. The natural events damage the villages, and the villages repair this damage (J5).
 
 ## Risks and open questions
 

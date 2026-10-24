@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemInfo;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.PlayerReputation;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationSettings;
@@ -262,12 +263,13 @@ public final class VillageInfo {
 
     private static Section garrisonSection(VillageHeartBlockEntity heart) {
         List<Row> rows = new ArrayList<>();
+        GarrisonTraits traits = heart.garrisonTraits();
         for (GarrisonRole role : GarrisonRole.values()) {
             int alive = (int) heart.getGarrison().entries().stream()
                     .filter(entry -> entry.role() == role && !entry.isDead()).count();
             int dead = (int) heart.getGarrison().entries().stream()
                     .filter(entry -> entry.role() == role && entry.isDead()).count();
-            int configured = role.configuredCount();
+            int configured = role.count(traits);
             MutableComponent value = Component.translatable(KEY + "units_alive", alive, configured);
             if (dead > 0) {
                 value.append(UiStrings.separator())

@@ -21,11 +21,12 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
- * Brazier: a stone bowl of embers on a square pedestal. The script {@code tools/models/brazier.py} makes its models.
+ * Brazier: a stone bowl of embers on a square pedestal. The description {@code tools/pixvox/brazier.py} makes its
+ * models with PixVox. The shape of the block follows the parts of the model.
  *
  * <ul>
- *   <li>{@link #LIT}: a lit brazier gives light (see {@link #LIGHT}) and shows small flames and smoke over the
- *       embers.</li>
+ *   <li>{@link #LIT}: a lit brazier gives light (see {@link #LIGHT}). Its embers glow and its model shows flames.
+ *       Small flames and smoke rise over the embers.</li>
  *   <li>The brazier does not burn the entities, as a campfire does.</li>
  *   <li>The collision box is 1.5 blocks high, as a fence: a mob cannot jump on the brazier. The path finders do not
  *       go through it.</li>
@@ -43,7 +44,7 @@ public class BrazierBlock extends FeatureBlock {
 
     private static final VoxelShape SHAPE = Shapes.or(
             Block.box(2.0, 0.0, 2.0, 14.0, 3.0, 14.0),
-            Block.box(4.5, 3.0, 4.5, 11.5, 12.0, 11.5),
+            Block.box(5.0, 3.0, 5.0, 11.0, 12.0, 11.0),
             Block.box(3.0, 12.0, 3.0, 13.0, 14.0, 13.0),
             Block.box(1.0, 14.0, 1.0, 15.0, 22.0, 15.0));
     private static final VoxelShape COLLISION = Block.box(1.0, 0.0, 1.0, 15.0, 24.0, 15.0);

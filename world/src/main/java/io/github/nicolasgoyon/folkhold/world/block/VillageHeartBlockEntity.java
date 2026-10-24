@@ -1,8 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
-import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
-import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
+import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -10,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
@@ -22,13 +22,20 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
+import io.github.nicolasgoyon.folkhold.world.village.Handymen;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBraziers;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
+import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -55,7 +62,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BellBlock;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -104,6 +110,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String CAT_SPAWN_TAG = "LastCatSpawn";
     private static final String VILLAGERS_TAG = "VillagersSpawned";
     private static final String VILLAGER_SPAWN_TAG = "LastVillagerSpawn";
+    private static final String VILLAGERS_FILLING_TAG = "VillagersFilling";
+    /** The heart creates this number of villagers at most at each check of the garrison. */
+    public static final int VILLAGER_GROUP = 4;
     private static final String FACTION_TAG = "Faction";
     private static final String NAME_TAG = "Name";
     /** Name of the village, or null before the village has a faction. */
@@ -114,8 +123,22 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private String factionId;
     /** A guard on night watch stays at this distance from the gate, toward the heart. */
     private static final int GATE_WATCH_DISTANCE = 2;
+    /** A faction golem guards a gate at this distance from the middle of the gate, toward the heart. */
+    private static final int GOLEM_GATE_DISTANCE = 4;
     /** True after the heart closed the gates and lit the braziers for the night. */
     private boolean nightMode;
+    /** The period of the day of the last check of the braziers, or null before the first check. Not saved. */
+    @Nullable
+    private VillageBraziers.Period brazierPeriod;
+    /** The handymen at work on the braziers. Not saved: the heart gives the work again after a load. */
+    private final Handymen handymen = new Handymen();
+    /** The structure pieces of the village for the repairs, or null. Not saved: the heart finds them after a load. */
+    @Nullable
+    private VillageReference repairReference;
+    /** True after the search of {@link #repairReference}. */
+    private boolean repairReferenceSearched;
+    /** The positions of the last repairs, with the game time of their end. Not saved. */
+    private final Map<BlockPos, Long> repaired = new HashMap<>();
     /** True when the stairs of the gates are built (see {@link VillageExits}). */
     private boolean exitStairs;
     /** True after the first cats of the village appeared. */
@@ -124,6 +147,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private long lastCatSpawn;
     /** True after the first villagers (merchants and inhabitants) of the village appeared. */
     private boolean villagersSpawned;
+    /** True while the heart creates the villagers of an incomplete fill (see {@link #ensureVillagers}). */
+    private boolean villagersFilling;
     /** Game time of the last creation of villagers. */
     private long lastVillagerSpawn;
     /** Game time of the last ring of the bells. Not saved. */
@@ -251,6 +276,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private void warn(ServerPlayer player) {
         List<FactionUnit> units = getUnits();
         FactionUnit speaker = units.stream()
+                .filter(FactionUnit::canSpeak)
                 .min((a, b) -> Double.compare(a.distanceToSqr(player), b.distanceToSqr(player)))
                 .orElse(null);
         Component name = speaker != null ? speaker.getDisplayName() : Component.translatable("entity.folkhold_world.guard");
@@ -469,6 +495,28 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
+     * Puts the gates of the palisade into the settlement: the routes of the caravans go through them (see
+     * {@link io.github.nicolasgoyon.folkhold.core.sim.group.RouteGates}). A gate in a chunk that is not loaded is not
+     * in the list.
+     */
+    public void recordGates() {
+        if (!(level instanceof ServerLevel serverLevel) || !layout.isScanned()) {
+            return;
+        }
+        List<Settlement.Gate> gates = new ArrayList<>();
+        for (VillageExits.Approach approach : VillageExits.approaches(serverLevel, worldPosition, layout.gates())) {
+            BlockPos middle = approach.gates().get(approach.gates().size() / 2);
+            gates.add(new Settlement.Gate(middle.getX(), middle.getZ(), approach.point().getX(),
+                    approach.point().getZ()));
+        }
+        Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
+            if (!gates.isEmpty() && settlement.setGates(gates)) {
+                SettlementData.get(serverLevel.getServer()).setDirty();
+            }
+        });
+    }
+
+    /**
      * Creates the missing units of the garrison now (see {@link Garrison#ensure}). Before the first garrison, the
      * heart scans the village. The method does nothing while a chunk of the scan area is not ready
      * ({@link VillageLayout#isScanAreaReady}).
@@ -490,16 +538,31 @@ public class VillageHeartBlockEntity extends BlockEntity {
             exitStairs = true;
             setChanged();
         }
+        recordGates();
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }
         if (alertState == AlertState.CALM && ensureVillagers(serverLevel, now)) {
             setChanged();
         }
-        if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now,
-                layout.validPosts())) {
+        Map<GarrisonRole, List<BlockPos>> posts = Map.of(GarrisonRole.ARCHER, layout.validPosts(),
+                GarrisonRole.GOLEM, golemPosts());
+        if (garrison.ensure(serverLevel, worldPosition, factionId, alertState == AlertState.CALM, now, posts,
+                garrisonTraits())) {
             setChanged();
         }
+    }
+
+    /**
+     * The garrison of the level of the settlement of the heart (see {@code garrison} in the level table). A heart with
+     * no settlement uses the level 1.
+     */
+    public GarrisonTraits garrisonTraits() {
+        int settlementLevel = 1;
+        if (level != null && level.getServer() != null) {
+            settlementLevel = Settlements.of(level.getServer(), this).map(Settlement::level).orElse(1);
+        }
+        return LevelTables.get().traits(settlementLevel).garrison();
     }
 
     /** The loaded cats of this village. */
@@ -579,10 +642,17 @@ public class VillageHeartBlockEntity extends BlockEntity {
 
     /**
      * Creates the missing villagers of the village: the merchants ({@link Merchants#merchantCount}), then the
-     * inhabitants ({@link VillageFolk#inhabitantCount}) with the professions of the jobs of the settlement
-     * ({@link VillageFolk#professions}). The first villagers appear at once. A dead villager comes back after the
-     * refill delay of the garrison. When the jobs change, the inhabitants get the new professions at once
+     * inhabitants ({@link VillageFolk#inhabitantCount}) with the professions of the settlement
+     * ({@link VillageFolk#professions}). When the jobs change, the inhabitants get the new professions at once
      * ({@link VillageFolk#assign}).
+     *
+     * <ul>
+     *   <li>The villagers appear in groups of {@link #VILLAGER_GROUP} at most, one group at each call. A large
+     *       village fills in some seconds, with no spike of work on the server.</li>
+     *   <li>The first villagers of the village and the rest of an incomplete fill come at the next calls. After a
+     *       complete fill, the missing villagers (a dead villager, a larger population) come after the refill delay
+     *       of the garrison.</li>
+     * </ul>
      *
      * @param serverLevel the level
      * @param now         the current game time
@@ -599,18 +669,30 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 VillageFolk.inhabitantCount(settlement.get()));
         List<VillagerProfession> missingInhabitants =
                 VillageFolk.assign(VillageFolk.inhabitants(serverLevel, worldPosition), wanted);
+        int missing = Math.max(0, missingMerchants) + missingInhabitants.size();
+        if (missing == 0) {
+            boolean changed = villagersFilling;
+            villagersFilling = false;
+            return changed;
+        }
         long refill = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get() * 20L;
-        if ((missingMerchants <= 0 && missingInhabitants.isEmpty())
-                || (villagersSpawned && now - lastVillagerSpawn < refill)) {
+        if (villagersSpawned && !villagersFilling && now - lastVillagerSpawn < refill) {
             return false;
         }
-        for (int i = 0; i < missingMerchants; i++) {
+        int spawned = 0;
+        for (int i = 0; i < missingMerchants && spawned < VILLAGER_GROUP; i++) {
             VillageFolk.spawn(serverLevel, worldPosition, ModProfessions.MERCHANT.get());
+            spawned++;
         }
         for (VillagerProfession profession : missingInhabitants) {
+            if (spawned >= VILLAGER_GROUP) {
+                break;
+            }
             VillageFolk.spawn(serverLevel, worldPosition, profession);
+            spawned++;
         }
         villagersSpawned = true;
+        villagersFilling = spawned < missing;
         lastVillagerSpawn = now;
         return true;
     }
@@ -636,12 +718,58 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
+     * The structure pieces of the village for the repairs (see {@link VillageRepairs}). The heart looks for them once
+     * after a load.
+     *
+     * @param serverLevel the level of the heart
+     * @return the pieces, or empty for a heart outside a village structure
+     */
+    public Optional<VillageReference> repairReference(ServerLevel serverLevel) {
+        if (!repairReferenceSearched) {
+            repairReferenceSearched = true;
+            repairReference = VillageReference.find(serverLevel, worldPosition).orElse(null);
+        }
+        return Optional.ofNullable(repairReference);
+    }
+
+    /**
+     * Sets the structure pieces of the village for the repairs, for example for a village that a test places.
+     *
+     * @param reference the pieces, or null for no repairs
+     */
+    public void setRepairReference(@Nullable VillageReference reference) {
+        repairReference = reference;
+        repairReferenceSearched = true;
+    }
+
+    /** True if a repair of the village ended at a position less than {@link VillageRepairs#RETRY_TICKS} ago. */
+    public boolean isRecentlyRepaired(BlockPos pos, long now) {
+        Long end = repaired.get(pos);
+        return end != null && now - end < VillageRepairs.RETRY_TICKS;
+    }
+
+    /**
+     * Records the end of a repair: the heart keeps its positions, and gives the color of the faction to the banners
+     * again.
+     *
+     * @param positions the positions of the repair
+     * @param now       the game time
+     */
+    public void onRepaired(Set<BlockPos> positions, long now) {
+        repaired.values().removeIf(end -> now - end >= VillageRepairs.RETRY_TICKS);
+        positions.forEach(pos -> repaired.put(pos.immutable(), now));
+        paintBanners();
+    }
+
+    /**
      * Applies the day or the night state to the village.
      *
      * <ul>
      *   <li>Night: the gates close, the braziers burn, and the guards (not the captain, not the units with a
      *       post) watch the gates.</li>
-     *   <li>Day: the gates open, the braziers go out, and the guards patrol around their home again.</li>
+     *   <li>Day: the gates open, and the guards patrol around their home again. In a village with no handymen, the
+     *       braziers go out. In a village with handymen, the braziers burn until the handymen put them out in the
+     *       morning (see {@link VillageBraziers}).</li>
      *   <li>A campfire of the layout becomes a brazier of the block library, which does not burn the entities.</li>
      * </ul>
      *
@@ -665,18 +793,41 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 }
             }
         }
-        for (BlockPos brazier : layout.braziers()) {
-            BlockState brazierState = level.getBlockState(brazier);
-            if (brazierState.getBlock() instanceof CampfireBlock) {
-                // A campfire burns the entities: the brazier of the block library takes its place.
-                level.setBlock(brazier, ModBlocks.BRAZIER.get().defaultBlockState().setValue(BrazierBlock.LIT, night),
-                        Block.UPDATE_ALL);
-            } else if (brazierState.getBlock() instanceof BrazierBlock
-                    && brazierState.getValue(BrazierBlock.LIT) != night) {
-                level.setBlock(brazier, brazierState.setValue(BrazierBlock.LIT, night), Block.UPDATE_ALL);
-            }
+        if (night || !(level instanceof ServerLevel serverLevel) || !Handymen.exist(serverLevel, worldPosition)) {
+            setBraziers(night);
         }
         assignGateWatch(night);
+    }
+
+    /** Lights all the braziers of the village, or puts them all out. */
+    private void setBraziers(boolean lit) {
+        if (level == null) {
+            return;
+        }
+        for (BlockPos brazier : layout.braziers()) {
+            VillageBraziers.set(level, brazier, lit);
+        }
+    }
+
+    /**
+     * The work of the braziers at each check. At the start of the day, the heart puts out the braziers that burn: the
+     * braziers that the handymen did not put out in the morning. Then the heart gives the work of the current period
+     * to the handymen: in the evening they light the braziers, in the morning they put them out.
+     */
+    private void updateBraziers(ServerLevel serverLevel) {
+        VillageBraziers.Period period = VillageBraziers.period(serverLevel.getDayTime(), nightMode);
+        if (period != brazierPeriod) {
+            brazierPeriod = period;
+            if (period == VillageBraziers.Period.DAY) {
+                setBraziers(false);
+            }
+        }
+        Optional<Boolean> lit = switch (period) {
+            case EVENING -> Optional.of(true);
+            case MORNING -> Optional.of(false);
+            case DAY, NIGHT -> Optional.empty();
+        };
+        handymen.update(serverLevel, worldPosition, layout.braziers(), lit);
     }
 
     private void assignGateWatch(boolean night) {
@@ -697,12 +848,58 @@ public class VillageHeartBlockEntity extends BlockEntity {
 
     /** The position at {@link #GATE_WATCH_DISTANCE} blocks from the gate, toward the heart. */
     private BlockPos gateWatchPosition(BlockPos gate) {
+        return towardHeart(gate, GATE_WATCH_DISTANCE);
+    }
+
+    /** The position at the given distance from a gate block, toward the heart, on the main axis to the heart. */
+    private BlockPos towardHeart(BlockPos gate, int distance) {
         int dx = worldPosition.getX() - gate.getX();
         int dz = worldPosition.getZ() - gate.getZ();
         if (Math.abs(dx) >= Math.abs(dz)) {
-            return gate.offset(Integer.signum(dx) * GATE_WATCH_DISTANCE, 0, 0);
+            return gate.offset(Integer.signum(dx) * distance, 0, 0);
         }
-        return gate.offset(0, 0, Integer.signum(dz) * GATE_WATCH_DISTANCE);
+        return gate.offset(0, 0, Integer.signum(dz) * distance);
+    }
+
+    /**
+     * The posts of the faction golems: one position inside each gate, at {@link #GOLEM_GATE_DISTANCE} blocks from the
+     * middle of the gate, toward the heart. A position where a golem does not fit is not a post. The golems with no
+     * post stay near the heart.
+     */
+    public List<BlockPos> golemPosts() {
+        List<BlockPos> posts = new ArrayList<>();
+        if (level == null) {
+            return posts;
+        }
+        for (List<BlockPos> gate : gateGroups()) {
+            BlockPos middle = gate.get(gate.size() / 2);
+            int bottom = gate.stream().mapToInt(BlockPos::getY).min().orElse(middle.getY());
+            BlockPos post = towardHeart(middle.atY(bottom), GOLEM_GATE_DISTANCE);
+            if (ReadyChunks.isReady(level, post) && FactionGolemEntity.fitsAt(level, post)) {
+                posts.add(post);
+            }
+        }
+        return posts;
+    }
+
+    /**
+     * The gate blocks of the village, in one list for each gate. The gate blocks of one gate are side by side. Each
+     * list keeps the order of the scan, so the middle block of the list is the middle of the gate.
+     */
+    private List<List<BlockPos>> gateGroups() {
+        List<List<BlockPos>> groups = new ArrayList<>();
+        for (BlockPos gate : layout.gates()) {
+            List<BlockPos> group = groups.stream()
+                    .filter(blocks -> blocks.stream().anyMatch(other -> other.distManhattan(gate) <= 1))
+                    .findFirst()
+                    .orElse(null);
+            if (group == null) {
+                group = new ArrayList<>();
+                groups.add(group);
+            }
+            group.add(gate);
+        }
+        return groups;
     }
 
     /** True if the player pillaged the bank of this village since the heart loaded. */
@@ -734,6 +931,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
      */
     void onDestroyed() {
         List<FactionUnit> units = getUnits();
+        if (level instanceof ServerLevel serverLevel) {
+            VillageRepairData.get(serverLevel).forget(worldPosition);
+        }
         if (level instanceof ServerLevel serverLevel && factionId != null) {
             List<CaptainEntity> captains = units.stream()
                     .filter(unit -> unit instanceof CaptainEntity && unit.isAlive())
@@ -755,6 +955,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
      * the hearts of a world do their work on different ticks.
      */
     public static void serverTick(Level level, BlockPos pos, BlockState state, VillageHeartBlockEntity heart) {
+        if (level instanceof ServerLevel serverLevel) {
+            heart.handymen.tick(serverLevel);
+        }
         long time = level.getGameTime() + Math.floorMod(pos.hashCode(), ROTATION_INTERVAL);
         if (time % CHECK_INTERVAL != 0) {
             return;
@@ -778,6 +981,13 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (heart.layout.isScanned() && level.isNight() != heart.nightMode) {
             heart.applyDayNight(level.isNight());
         }
+        if (heart.layout.isScanned() && level instanceof ServerLevel serverLevel) {
+            heart.updateBraziers(serverLevel);
+            long repairTicks = WorldConfig.CONSTRUCTION_REPAIR_CHECK_SECONDS.get() * 20L;
+            if (heart.alertState == AlertState.CALM && time % repairTicks < CHECK_INTERVAL) {
+                VillageRepairs.check(serverLevel, heart);
+            }
+        }
         long calmDelayTicks = WorldConfig.CALM_DELAY_SECONDS.get() * 20L;
         if (heart.alertState != AlertState.CALM && level.getGameTime() - heart.lastBellTick >= BELL_INTERVAL) {
             heart.ringBells();
@@ -800,6 +1010,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level != null) {
             VillageHearts.unregister(level, worldPosition);
         }
+        if (level instanceof ServerLevel serverLevel) {
+            handymen.stop(serverLevel);
+        }
         super.setRemoved();
     }
 
@@ -807,6 +1020,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     public void onChunkUnloaded() {
         if (level != null) {
             VillageHearts.unregister(level, worldPosition);
+        }
+        if (level instanceof ServerLevel serverLevel) {
+            handymen.stop(serverLevel);
         }
         super.onChunkUnloaded();
     }
@@ -825,6 +1041,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putLong(CAT_SPAWN_TAG, lastCatSpawn);
         tag.putBoolean(VILLAGERS_TAG, villagersSpawned);
         tag.putLong(VILLAGER_SPAWN_TAG, lastVillagerSpawn);
+        tag.putBoolean(VILLAGERS_FILLING_TAG, villagersFilling);
         if (factionId != null) {
             tag.putString(FACTION_TAG, factionId);
         }
@@ -855,6 +1072,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         lastCatSpawn = tag.getLong(CAT_SPAWN_TAG);
         villagersSpawned = tag.getBoolean(VILLAGERS_TAG);
         lastVillagerSpawn = tag.getLong(VILLAGER_SPAWN_TAG);
+        villagersFilling = tag.getBoolean(VILLAGERS_FILLING_TAG);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
         villageName = tag.contains(NAME_TAG) ? tag.getString(NAME_TAG) : null;
     }

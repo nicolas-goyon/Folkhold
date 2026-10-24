@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.FollowEntityGoal;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanCargo;
 import io.github.nicolasgoyon.folkhold.world.group.Caravans;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
@@ -28,6 +29,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.horse.AbstractChestedHorse;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -278,6 +280,40 @@ public final class CaravanGameTests {
                     heart.getCats().forEach(Entity::discard);
                     destination.setState(SettlementState.RUINS);
                     SettlementData.get(server).setDirty();
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A mule of a caravan outside the wall of a village gets to its merchant inside the walls. The path around the
+     * wall to the open gate is more than 30 blocks. The mule walks on this path, or it moves directly near its merchant
+     * when it has no path (see {@link FollowEntityGoal}).
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 600, batch = "caravan_mule_wall")
+    public static void muleOutsideTheWallGetsToItsMerchant(GameTestHelper helper) {
+        TestSupport.buildFloor(helper, LARGE_ARENA);
+        walls(helper, 10, 30, 6, 26);
+        gate(helper, new BlockPos(20, 1, 6), Direction.NORTH, true);
+        // The end of the route is far from the merchant: the caravan does not arrive during the test.
+        MobileGroup group = groundCaravan(helper, "test_destination", new BlockPos(20, 1, 20),
+                new BlockPos(20, 1, 120));
+        Mob merchant = (Mob) entity(helper, group, 0);
+        Entity mule = entity(helper, group, 1);
+        // The merchant stays inside the walls. The mule starts outside the west wall.
+        merchant.setNoAi(true);
+        BlockPos outside = helper.absolutePos(new BlockPos(8, 1, 13));
+        mule.teleportTo(outside.getX() + 0.5, outside.getY(), outside.getZ() + 0.5);
+        BlockPos min = helper.absolutePos(new BlockPos(10, 1, 6));
+        BlockPos max = helper.absolutePos(new BlockPos(30, 1, 26));
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(inside(mule, min, max),
+                        "The mule must follow its merchant into the walls, mule at " + mule.blockPosition()))
+                .thenExecute(() -> {
+                    GroupMaterializer.keep(group.id(), false);
+                    MobileGroupData.get(helper.getLevel().getServer()).groups().remove(group.id());
+                    merchant.discard();
+                    mule.discard();
                 })
                 .thenSucceed();
     }

@@ -34,10 +34,14 @@ import net.minecraft.world.phys.Vec3;
  *   <li>If the merchant does not go forward and does not walk for {@link #STUCK_TICKS}, it moves directly to the
  *       target, on the ground. A merchant that walks with no progress (a detour, for example to a gate) is not stuck
  *       for {@link #MAX_DETOUR_TICKS}.</li>
+ *   <li>On a road segment of the route, the target is on the road (see {@link RoadNetwork#standY}): in a tunnel or on
+ *       a covered bridge, not on the terrain above it.</li>
  *   <li>In a boat, the merchant does not walk (see {@link GroupBoats}).</li>
  * </ul>
  */
 public class RouteWalkGoal extends Goal {
+    /** A target on a road segment of the route is on the road at this distance in blocks or nearer. */
+    private static final int ROAD_RADIUS = 2;
     /** Distance in blocks from the merchant to its target on the route. */
     private static final double LOOKAHEAD = 12.0;
     /** Game ticks between two new paths. */
@@ -148,14 +152,16 @@ public class RouteWalkGoal extends Goal {
         double targetX;
         double targetZ;
         double measure;
-        if (heart.isPresent() && approach) {
+        double targetProgress = Math.max(progress + LOOKAHEAD, DEPARTURE_DISTANCE);
+        boolean approachingHeart = heart.isPresent() && approach;
+        if (approachingHeart) {
             // The heart itself: the path goes through a gate of the village. The heart can be far from the end of a
             // route of an earlier position.
             targetX = heart.get().getX() + 0.5;
             targetZ = heart.get().getZ() + 0.5;
             measure = -toHeart;
         } else {
-            Route.Position next = route.positionAt(Math.max(progress + LOOKAHEAD, DEPARTURE_DISTANCE));
+            Route.Position next = route.positionAt(targetProgress);
             targetX = next.x();
             targetZ = next.z();
             measure = progress;
@@ -178,7 +184,8 @@ public class RouteWalkGoal extends Goal {
             mob.getNavigation().stop();
             return;
         }
-        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        int y = approachingHeart ? level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z)
+                : RoadNetwork.standY(level, route, targetProgress, x, z, ROAD_RADIUS);
         if (stuckTicks > STUCK_TICKS) {
             mob.getNavigation().stop();
             mob.moveTo(x + 0.5, y, z + 0.5, mob.getYRot(), mob.getXRot());

@@ -137,16 +137,92 @@ def baker():
     return image
 
 
+def builder():
+    """Slate-blue work tunic, a leather apron with a tool pocket on the front, a belt with an iron buckle, and a felt
+    cap."""
+    slate = (66, 84, 108, 255)
+    slate_dark = (50, 64, 84, 255)
+    leather = (124, 84, 48, 255)
+    leather_dark = (92, 60, 34, 255)
+    iron = (176, 176, 168, 255)
+    felt = (172, 128, 64, 255)
+    felt_dark = (138, 100, 48, 255)
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    x1, y1, x2, y2 = BODY
+    for x in range(x1, x2):
+        for y in range(y1, y2):
+            image.putpixel((x, y), slate_dark if (x + y) % 6 == 0 else slate)
+    x1, y1, x2, y2 = ROBE
+    for x in range(x1, x2):
+        for y in range(y1, y2):
+            image.putpixel((x, y), slate_dark if (x + 2 * y) % 7 == 0 else slate)
+    # Apron: the front faces of the body (below the chest) and of the robe.
+    for x in range(BODY_FRONT_X + 1, BODY_FRONT_X + 7):
+        for y in range(30, BODY[3]):
+            image.putpixel((x, y), leather)
+    for x in range(ROBE_FRONT_X, ROBE_FRONT_X + 8):
+        for y in range(44, 58):
+            image.putpixel((x, y), leather_dark if x in (ROBE_FRONT_X, ROBE_FRONT_X + 7) else leather)
+    # Tool pocket on the apron.
+    fill(image, (ROBE_FRONT_X + 2, 50, ROBE_FRONT_X + 6, 54), leather_dark)
+    image.putpixel((ROBE_FRONT_X + 3, 49), iron)
+    # Belt with a buckle, around the robe.
+    for x in range(ROBE[0], ROBE[2]):
+        image.putpixel((x, 46), leather_dark)
+    image.putpixel((ROBE_FRONT_X + 3, 46), iron)
+    image.putpixel((ROBE_FRONT_X + 4, 46), iron)
+    # Felt cap: the top face of the hat and the two top rows of its four sides.
+    fill(image, (40, 0, 48, 8), felt)
+    fill(image, (32, 8, 64, 10), felt)
+    for x in range(32, 64, 3):
+        image.putpixel((x, 9), felt_dark)
+    return image
+
+
+def handyman():
+    """Olive tunic with patches, a rope belt, and the strap of a bag across the front of the body."""
+    olive = (98, 100, 60, 255)
+    olive_dark = (78, 80, 46, 255)
+    patch = (140, 120, 82, 255)
+    rope = (196, 170, 120, 255)
+    rope_dark = (160, 136, 92, 255)
+    strap = (110, 74, 44, 255)
+    image = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    x1, y1, x2, y2 = BODY
+    for x in range(x1, x2):
+        for y in range(y1, y2):
+            image.putpixel((x, y), olive_dark if (x * 3 + y) % 8 == 0 else olive)
+    x1, y1, x2, y2 = ROBE
+    for x in range(x1, x2):
+        for y in range(y1, y2):
+            image.putpixel((x, y), olive_dark if (x + y * 3) % 9 == 0 else olive)
+    # Patches on the robe.
+    fill(image, (ROBE_FRONT_X + 1, 52, ROBE_FRONT_X + 4, 55), patch)
+    fill(image, (ROBE[0] + 1, 58, ROBE[0] + 4, 61), patch)
+    fill(image, (ROBE[2] - 5, 49, ROBE[2] - 2, 52), patch)
+    # Strap of the bag: a diagonal on the front of the body.
+    for i in range(10):
+        x = BODY_FRONT_X + 7 - (i * 7) // 9
+        image.putpixel((x, 27 + i), strap)
+    # Rope belt around the robe.
+    for x in range(ROBE[0], ROBE[2]):
+        image.putpixel((x, 46), rope if x % 2 == 0 else rope_dark)
+    return image
+
+
 PROFESSIONS = {
     "merchant": merchant,
     "inhabitant": inhabitant,
     "lumberjack": lumberjack,
     "baker": baker,
+    "builder": builder,
+    "handyman": handyman,
 }
 
 # The hat of a profession: "partial" hides the hat of the villager type (biome) under the profession hat.
 HATS = {
     "baker": "partial",
+    "builder": "partial",
 }
 
 

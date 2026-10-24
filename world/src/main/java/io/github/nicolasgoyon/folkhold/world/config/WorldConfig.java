@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.config;
 
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -25,17 +26,30 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue VILLAGE_MESSAGE_RADIUS;
     public static final ModConfigSpec.IntValue SPAWN_PROTECTION_RADIUS;
     public static final ModConfigSpec.IntValue CALM_DELAY_SECONDS;
+    public static final ModConfigSpec.IntValue BUILDERS;
+    public static final ModConfigSpec.IntValue HANDYMEN;
 
-    public static final ModConfigSpec.IntValue GARRISON_GUARDS;
-    public static final ModConfigSpec.IntValue GARRISON_ARCHERS;
-    public static final ModConfigSpec.IntValue GARRISON_CAPTAINS;
 
     public static final ModConfigSpec.IntValue CAPTAIN_AURA_RADIUS;
     public static final ModConfigSpec.DoubleValue CAPTAIN_ROUT_SHARE;
     public static final ModConfigSpec.IntValue CAPTAIN_ROUT_SECONDS;
+    public static final ModConfigSpec.DoubleValue HEALER_HEAL_AMOUNT;
+    public static final ModConfigSpec.IntValue HEALER_HEAL_COOLDOWN_SECONDS;
+    public static final ModConfigSpec.DoubleValue HEALER_WOUNDED_SHARE;
+    public static final ModConfigSpec.DoubleValue HEALER_SEARCH_RADIUS;
+    public static final ModConfigSpec.IntValue HEALER_BUFF_COOLDOWN_SECONDS;
+    public static final ModConfigSpec.IntValue HEALER_BUFF_SECONDS;
+    public static final ModConfigSpec.IntValue HEALER_SUPPLY;
+    public static final ModConfigSpec.IntValue HEALER_SUPPLY_REFILL_SECONDS;
+    public static final ModConfigSpec.IntValue GOLEM_CHASE_RADIUS;
+    public static final ModConfigSpec.DoubleValue GOLEM_KNOCKBACK_RESISTANCE;
+    public static final ModConfigSpec.IntValue RIDER_PATROL_RADIUS;
+    public static final ModConfigSpec.DoubleValue RIDER_HORSE_HEALTH;
+    public static final ModConfigSpec.DoubleValue RIDER_HORSE_SPEED;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
+    public static final ModConfigSpec.IntValue DETACHMENT_GUARDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
-    public static final ModConfigSpec.IntValue MAX_INHABITANTS;
+    public static final ModConfigSpec.IntValue INHABITANT_LIMIT;
     public static final ModConfigSpec.IntValue ARCHER_ROTATION_SECONDS;
 
     public static final ModConfigSpec.DoubleValue REPUTATION_VILLAGE_WEIGHT;
@@ -109,9 +123,25 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue BANK_PILLAGE_LOSS;
     public static final ModConfigSpec.DoubleValue BANK_TREASURY_SHARE;
 
+    public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_HORIZONTAL;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_BELOW;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_REACH_ABOVE;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_BUILDER_TICKS;
+    public static final ModConfigSpec.BooleanValue CONSTRUCTION_FREE_MATERIALS;
+    public static final ModConfigSpec.DoubleValue CONSTRUCTION_VALUABLE_PRICE;
+    public static final ModConfigSpec.DoubleValue CONSTRUCTION_RARE_PRICE;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_MATERIAL_QUEST_MINUTES;
+    public static final ModConfigSpec.BooleanValue CONSTRUCTION_REPAIRS;
+    public static final ModConfigSpec.BooleanValue CONSTRUCTION_FREE_REPAIRS;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_REPAIR_CHECK_SECONDS;
+    public static final ModConfigSpec.IntValue CONSTRUCTION_CATCH_UP_STEPS;
+
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
     public static final UnitStats CAPTAIN;
+    public static final UnitStats HEALER;
+    public static final UnitStats GOLEM;
+    public static final UnitStats RIDER;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -178,23 +208,21 @@ public final class WorldConfig {
                 .comment("Time in seconds without a threat before an alerted village becomes calm again.")
                 .translation(KEY_PREFIX + "calmDelaySeconds")
                 .defineInRange("calmDelaySeconds", 60, 5, 3600);
+        BUILDERS = builder
+                .comment("Number of builders in each village. The builders are inhabitants with no economic job.")
+                .translation(KEY_PREFIX + "builders")
+                .defineInRange("builders", 2, 0, 32);
+        HANDYMEN = builder
+                .comment("Number of handymen in each village. The handymen are inhabitants with no economic job.",
+                        "They light the braziers of the village in the evening and put them out in the morning.")
+                .translation(KEY_PREFIX + "handymen")
+                .defineInRange("handymen", 1, 0, 16);
         builder.pop();
 
-        builder.comment("Garrison of each village.")
+        builder.comment("Garrison of each village. The level table sets the number of units and their equipment",
+                        "(data/folkhold_world/folkhold/levels.json and garrison_equipment.json).")
                 .translation(KEY_PREFIX + "garrison")
                 .push("garrison");
-        GARRISON_GUARDS = builder
-                .comment("Number of guards in a full garrison.")
-                .translation(KEY_PREFIX + "garrisonGuards")
-                .defineInRange("guards", 2, 0, 32);
-        GARRISON_ARCHERS = builder
-                .comment("Number of archers in a full garrison.")
-                .translation(KEY_PREFIX + "garrisonArchers")
-                .defineInRange("archers", 2, 0, 32);
-        GARRISON_CAPTAINS = builder
-                .comment("Number of captains in a full garrison.")
-                .translation(KEY_PREFIX + "garrisonCaptains")
-                .defineInRange("captains", 1, 0, 4);
         GARRISON_REFILL_DELAY_SECONDS = builder
                 .comment("Time in seconds before the village spawns a new unit for a dead one. The village must be calm.")
                 .translation(KEY_PREFIX + "garrisonRefillDelaySeconds")
@@ -203,16 +231,27 @@ public final class WorldConfig {
                 .comment("A heart creates its missing units only when a player is in this radius, in blocks.")
                 .translation(KEY_PREFIX + "garrisonActivationRadius")
                 .defineInRange("activationRadius", 64, 16, 256);
-        MAX_INHABITANTS = builder
+        INHABITANT_LIMIT = builder
                 .comment("Maximum number of inhabitants (villagers with no trades) in the world for each village.",
-                        "The number comes from the population of the settlement, minus the merchants.")
-                .translation(KEY_PREFIX + "maxInhabitants")
-                .defineInRange("maxInhabitants", 6, 0, 64);
+                        "0: no maximum. The number comes from the population of the settlement, minus the merchants.",
+                        "The server and the other mods can limit the number of entities.")
+                .translation(KEY_PREFIX + "inhabitantLimit")
+                .defineInRange("inhabitantLimit", 0, 0, 10000);
         ARCHER_ROTATION_SECONDS = builder
                 .comment("Mean time in seconds that a calm archer stays on one tower before it moves to another tower.",
                         "0 turns off the rotation.")
                 .translation(KEY_PREFIX + "archerRotationSeconds")
                 .defineInRange("archerRotationSeconds", 120, 0, 3600);
+        builder.pop();
+
+        builder.comment("Detachments: the guards of a faction in a vanilla village inside its territory.")
+                .translation(KEY_PREFIX + "detachment")
+                .push("detachment");
+        DETACHMENT_GUARDS = builder
+                .comment("Number of guards in a vanilla village inside the territory of a faction. 0 turns off the",
+                        "detachments.")
+                .translation(KEY_PREFIX + "detachmentGuards")
+                .defineInRange("guards", 2, 0, 4);
         builder.pop();
 
         builder.comment("Captain: morale aura and effect of its death.")
@@ -230,6 +269,75 @@ public final class WorldConfig {
                 .comment("Duration in seconds of the rout and of the Weakness effect after the death of the captain.")
                 .translation(KEY_PREFIX + "captainRoutSeconds")
                 .defineInRange("routSeconds", 20, 1, 600);
+        builder.pop();
+
+        builder.comment("Healer: heals with bandages and gives buffs, with cooldowns and a limited supply.")
+                .translation(KEY_PREFIX + "healer")
+                .push("healer");
+        HEALER_HEAL_AMOUNT = builder
+                .comment("Health that a bandage gives back (half hearts).")
+                .translation(KEY_PREFIX + "healerHealAmount")
+                .defineInRange("healAmount", 8.0, 0.0, 1024.0);
+        HEALER_HEAL_COOLDOWN_SECONDS = builder
+                .comment("Time in seconds between two bandages.")
+                .translation(KEY_PREFIX + "healerHealCooldownSeconds")
+                .defineInRange("healCooldownSeconds", 25, 1, 3600);
+        HEALER_WOUNDED_SHARE = builder
+                .comment("A unit below this share of its maximum health is wounded (0 to 1).")
+                .translation(KEY_PREFIX + "healerWoundedShare")
+                .defineInRange("woundedShare", 0.75, 0.0, 1.0);
+        HEALER_SEARCH_RADIUS = builder
+                .comment("Distance in blocks at which the healer looks for a wounded unit.")
+                .translation(KEY_PREFIX + "healerSearchRadius")
+                .defineInRange("searchRadius", 12.0, 1.0, 64.0);
+        HEALER_BUFF_COOLDOWN_SECONDS = builder
+                .comment("Time in seconds between two buffs. The healer gives a buff only during an alert.")
+                .translation(KEY_PREFIX + "healerBuffCooldownSeconds")
+                .defineInRange("buffCooldownSeconds", 60, 1, 3600);
+        HEALER_BUFF_SECONDS = builder
+                .comment("Duration in seconds of the buff (Regeneration I and Resistance I).")
+                .translation(KEY_PREFIX + "healerBuffSeconds")
+                .defineInRange("buffSeconds", 10, 1, 600);
+        HEALER_SUPPLY = builder
+                .comment("Number of bandages of a healer. Each bandage and each buff uses one bandage.")
+                .translation(KEY_PREFIX + "healerSupply")
+                .defineInRange("supply", 6, 0, 64);
+        HEALER_SUPPLY_REFILL_SECONDS = builder
+                .comment("Time in seconds to get back one bandage while the village is calm.")
+                .translation(KEY_PREFIX + "healerSupplyRefillSeconds")
+                .defineInRange("supplyRefillSeconds", 30, 1, 3600);
+        builder.pop();
+
+        builder.comment("Faction golem: the heavy unit of the large villages. It guards a gate or the village heart.")
+                .translation(KEY_PREFIX + "golem")
+                .push("golem");
+        GOLEM_CHASE_RADIUS = builder
+                .comment("Radius in blocks of the chase area around the post of the golem (a gate) or its home. The",
+                        "golem chases a target only in this area.")
+                .translation(KEY_PREFIX + "golemChaseRadius")
+                .defineInRange("chaseRadius", 12, 2, 64);
+        GOLEM_KNOCKBACK_RESISTANCE = builder
+                .comment("Knockback resistance of the golem (0 to 1). At 1, the attacks do not push the golem.")
+                .translation(KEY_PREFIX + "golemKnockbackResistance")
+                .defineInRange("knockbackResistance", 1.0, 0.0, 1.0);
+        builder.pop();
+
+        builder.comment("Rider: a mounted unit that patrols outside the walls and charges the threats.")
+                .translation(KEY_PREFIX + "rider")
+                .push("rider");
+        RIDER_PATROL_RADIUS = builder
+                .comment("Radius in blocks of the patrol ring of the riders around the village heart. The walls of a",
+                        "village are at about 20 blocks from the heart.")
+                .translation(KEY_PREFIX + "riderPatrolRadius")
+                .defineInRange("patrolRadius", 30, 8, 96);
+        RIDER_HORSE_HEALTH = builder
+                .comment("Maximum health of the horse of a rider (half hearts).")
+                .translation(KEY_PREFIX + "riderHorseHealth")
+                .defineInRange("horseHealth", 30.0, 1.0, 1024.0);
+        RIDER_HORSE_SPEED = builder
+                .comment("Movement speed attribute of the horse of a rider (vanilla horses: 0.11 to 0.34).")
+                .translation(KEY_PREFIX + "riderHorseSpeed")
+                .defineInRange("horseSpeed", 0.3, 0.05, 1.0);
         builder.pop();
 
         builder.comment("Reputation of the players with the factions and the villages (-1000 to +1000).")
@@ -553,6 +661,71 @@ public final class WorldConfig {
                 .defineInRange("treasuryShare", 0.4, 0.0, 1.0);
         builder.pop();
 
+        builder.comment("Construction plans of the buildings.")
+                .translation(KEY_PREFIX + "construction")
+                .push("construction");
+        CONSTRUCTION_REACH_HORIZONTAL = builder
+                .comment("Distance in blocks from the feet of a builder to a block that it places or removes, on the",
+                        "X axis and on the Z axis.")
+                .translation(KEY_PREFIX + "constructionReachHorizontal")
+                .defineInRange("reachHorizontal", Reach.DEFAULT.horizontal(), 1, 4);
+        CONSTRUCTION_REACH_BELOW = builder
+                .comment("Number of layers below the feet of a builder where it places or removes blocks. 1 is the",
+                        "layer of its floor.")
+                .translation(KEY_PREFIX + "constructionReachBelow")
+                .defineInRange("reachBelow", Reach.DEFAULT.below(), 0, 2);
+        CONSTRUCTION_REACH_ABOVE = builder
+                .comment("Number of layers above the feet of a builder where it places or removes blocks. 1 is the",
+                        "layer of its head, 2 is one block above its head. With no position to stand near a block, the",
+                        "plan adds scaffolding.")
+                .translation(KEY_PREFIX + "constructionReachAbove")
+                .defineInRange("reachAbove", Reach.DEFAULT.above(), 1, 3);
+        CONSTRUCTION_BUILDER_TICKS = builder
+                .comment("Time in ticks that a builder of a village works on one step of a construction site: one",
+                        "block. 20 ticks are 1 second. The steps of the scaffolding take half this time.")
+                .translation(KEY_PREFIX + "constructionBuilderTicks")
+                .defineInRange("builderTicksPerStep", 20, 1, 1200);
+        CONSTRUCTION_FREE_MATERIALS = builder
+                .comment("True: the builders of the villages use no materials. False: the builders take the",
+                        "materials of each block from the stock of the village.")
+                .translation(KEY_PREFIX + "constructionFreeMaterials")
+                .define("freeMaterials", false);
+        CONSTRUCTION_VALUABLE_PRICE = builder
+                .comment("A block with a material price at this value or more, in emeralds, is valuable. The",
+                        "builders do not make it from the stock: the village asks the players for it with a quest.")
+                .translation(KEY_PREFIX + "constructionValuablePrice")
+                .defineInRange("valuableBlockPrice", 1.0, 0.01, 10000.0);
+        CONSTRUCTION_RARE_PRICE = builder
+                .comment("Price in emeralds of a rare block, for the reward of its quest. No recipe makes a rare",
+                        "block from the items of the economy, for example calcite.")
+                .translation(KEY_PREFIX + "constructionRarePrice")
+                .defineInRange("rareBlockPrice", 0.1, 0.0, 1000.0);
+        CONSTRUCTION_MATERIAL_QUEST_MINUTES = builder
+                .comment("A site of the builders that waits for a common material for this time, in minutes, asks",
+                        "the players for it with a quest. 0: no quest for the common materials.")
+                .translation(KEY_PREFIX + "constructionMaterialQuestMinutes")
+                .defineInRange("materialQuestMinutes", 5, 0, 1440);
+        CONSTRUCTION_REPAIRS = builder
+                .comment("True: the builders of a village repair the damaged blocks of the village: the walls, the",
+                        "gates, the buildings and the paths of its structure pieces.")
+                .translation(KEY_PREFIX + "constructionRepairs")
+                .define("repairs", true);
+        CONSTRUCTION_FREE_REPAIRS = builder
+                .comment("True: the repairs of the builders use no materials. False: the repairs take the materials",
+                        "from the stock of the village, as the construction sites.")
+                .translation(KEY_PREFIX + "constructionFreeRepairs")
+                .define("freeRepairs", false);
+        CONSTRUCTION_REPAIR_CHECK_SECONDS = builder
+                .comment("A loaded village with builders looks for its damaged blocks every this number of seconds.")
+                .translation(KEY_PREFIX + "constructionRepairCheckSeconds")
+                .defineInRange("repairCheckSeconds", 60, 5, 3600);
+        CONSTRUCTION_CATCH_UP_STEPS = builder
+                .comment("When the chunks of a site load, the site applies the work of the builders while its chunks",
+                        "were not loaded: this number of steps at most for each tick.")
+                .translation(KEY_PREFIX + "constructionCatchUpSteps")
+                .defineInRange("catchUpStepsPerTick", 32, 1, 4096);
+        builder.pop();
+
         builder.comment("Base values of each unit type.")
                 .translation(KEY_PREFIX + "unit")
                 .push("unit");
@@ -560,9 +733,20 @@ public final class WorldConfig {
         // For the archer, attackDamage is the base damage of its arrows.
         ARCHER = new UnitStats(builder, "archer", new UnitStats.Defaults(20.0, 2.0, 2.0, 0.3, 32.0));
         CAPTAIN = new UnitStats(builder, "captain", new UnitStats.Defaults(40.0, 4.0, 6.0, 0.3, 28.0));
+        HEALER = new UnitStats(builder, "healer", new UnitStats.Defaults(20.0, 1.0, 0.0, 0.32, 24.0));
+        // For the golem, an attack does between half and one and a half of attackDamage.
+        GOLEM = new UnitStats(builder, "golem", new UnitStats.Defaults(120.0, 14.0, 6.0, 0.22, 24.0));
+        // For the rider, movementSpeed is the speed on foot. The horse has its own speed.
+        RIDER = new UnitStats(builder, "rider", new UnitStats.Defaults(30.0, 3.0, 2.0, 0.3, 32.0));
         builder.pop();
 
         SPEC = builder.build();
+    }
+
+    /** The reach zone of a builder, from the values of the section {@code construction}. */
+    public static Reach constructionReach() {
+        return new Reach(CONSTRUCTION_REACH_HORIZONTAL.get(), CONSTRUCTION_REACH_BELOW.get(),
+                CONSTRUCTION_REACH_ABOVE.get());
     }
 
     private WorldConfig() {
