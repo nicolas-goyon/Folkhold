@@ -14,21 +14,21 @@ public final class Cultures {
             List.of(new Culture.BannerLayer(BannerPatterns.STRIPE_CENTER, DyeColor.WHITE),
                     new Culture.BannerLayer(BannerPatterns.BORDER, DyeColor.LIGHT_BLUE)),
             List.of("val", "hal", "brim", "ost", "ald", "thor"),
-            List.of("holm", "gard", "mere", "wick", "stead", "vik"));
+            List.of("holm", "gard", "mere", "wick", "stead", "vik"), 1.0F);
 
-    /** Red, dark wood. Harsh names. */
+    /** Red, dark wood. Harsh names, low voices. */
     public static final Culture ASHMARK = new Culture("ashmark", 0x9A3C3C, DyeColor.RED,
             List.of(new Culture.BannerLayer(BannerPatterns.CROSS, DyeColor.BLACK),
                     new Culture.BannerLayer(BannerPatterns.STRIPE_BOTTOM, DyeColor.BLACK)),
             List.of("ash", "kar", "dren", "mor", "vel", "grim"),
-            List.of("mark", "haven", "fell", "crag", "moor", "hold"));
+            List.of("mark", "haven", "fell", "crag", "moor", "hold"), 0.9F);
 
-    /** Gold, sandstone. Bright names. */
+    /** Gold, sandstone. Bright names, high voices. */
     public static final Culture SUNREACH = new Culture("sunreach", 0xC8A030, DyeColor.YELLOW,
             List.of(new Culture.BannerLayer(BannerPatterns.CIRCLE_MIDDLE, DyeColor.ORANGE),
                     new Culture.BannerLayer(BannerPatterns.STRIPE_TOP, DyeColor.WHITE)),
             List.of("sol", "ar", "lum", "cal", "ser", "eli"),
-            List.of("reach", "ford", "vale", "dale", "spire", "mont"));
+            List.of("reach", "ford", "vale", "dale", "spire", "mont"), 1.1F);
 
     public static final List<Culture> ALL = List.of(VALEHOLM, ASHMARK, SUNREACH);
 

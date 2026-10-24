@@ -11,7 +11,8 @@ files and the data files (jobs, items, level tables, loot tables, tags) are part
 
 All the assets of the project are original work. No file copies a Mojang asset. The models refer to vanilla
 textures by their id (for example `minecraft:block/spruce_log`). The game provides these textures. In the same way,
-the faction golem uses the model, the textures and the sounds of the vanilla iron golem by their id.
+the faction golem uses the model, the textures and the sounds of the vanilla iron golem by their id. The voices of the
+faction units are vanilla sounds of illagers, villagers and players, by their id (`sounds.json`).
 
 | Asset | Files | Origin |
 | --- | --- | --- |

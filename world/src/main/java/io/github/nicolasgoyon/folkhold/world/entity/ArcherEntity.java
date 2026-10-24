@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.CrossbowAttackGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.PostRangedAttackGoal;
+import io.github.nicolasgoyon.folkhold.world.registry.ModSounds.UnitVoice;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import javax.annotation.Nullable;
 import net.minecraft.core.component.DataComponents;
@@ -169,6 +170,7 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
         bolt.pickup = AbstractArrow.Pickup.DISALLOWED;
         aim(bolt, target, CROSSBOW_VELOCITY, 0.1);
         playSound(SoundEvents.CROSSBOW_SHOOT, 1.0F, 1.0F / (getRandom().nextFloat() * 0.4F + 0.8F));
+        playVoice(UnitVoice.ATTACK);
         level().addFreshEntity(bolt);
         crossbow.set(DataComponents.CHARGED_PROJECTILES, ChargedProjectiles.EMPTY);
         triggerAnim(HOLD_CONTROLLER, CROSSBOW_SHOT);
@@ -183,6 +185,7 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
         aim(arrow, target, 1.6F, 0.2);
         playSound(SoundEvents.SKELETON_SHOOT, 1.0F, 1.0F / (getRandom().nextFloat() * 0.4F + 0.8F));
+        playVoice(UnitVoice.ATTACK);
         level().addFreshEntity(arrow);
     }
 

@@ -15,9 +15,11 @@ import net.minecraft.world.level.block.entity.BannerPattern;
  * @param bannerLayers the pattern layers of the banner, bottom to top
  * @param prefixes     first syllables of the faction names
  * @param suffixes     last syllables of the faction names
+ * @param voicePitch   the pitch of the voices of the units of the culture, as a multiple of the pitch of their sounds
+ *                     (see {@link io.github.nicolasgoyon.folkhold.world.registry.ModSounds.UnitVoice})
  */
 public record Culture(String id, int color, DyeColor bannerBase, List<BannerLayer> bannerLayers,
-        List<String> prefixes, List<String> suffixes) {
+        List<String> prefixes, List<String> suffixes, float voicePitch) {
 
     /** One pattern layer of a banner. */
     public record BannerLayer(ResourceKey<BannerPattern> pattern, DyeColor color) {
