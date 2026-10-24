@@ -4,31 +4,23 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.nicolasgoyon.folkhold.world.client.ConstructionGhost.Ghost;
 import io.github.nicolasgoyon.folkhold.world.client.ConstructionGhost.Phase;
-import java.util.List;
+import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.culling.Frustum;
-import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.util.FastColor;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.block.RenderShape;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import net.neoforged.neoforge.client.model.data.ModelData;
 
 /**
  * Draws the ghost of {@link ConstructionGhost} in the level, after the translucent blocks:
  * <ul>
- *   <li>the blocks of the ghost that are not in place: translucent, a little blue, with full light;</li>
+ *   <li>the blocks of the ghost that it shows, from the vertex buffers of a {@link GhostMesh}: translucent, a little
+ *       blue, with full light;</li>
  *   <li>an outline for a block with no block model, for example a chest or a bed;</li>
  *   <li>the box of the structure: blue while the ghost follows the view, gold when it is locked, green during the
  *       construction;</li>
@@ -36,67 +28,42 @@ import net.neoforged.neoforge.client.model.data.ModelData;
  * </ul>
  */
 public final class ConstructionGhostRenderer {
-    /** The opacity of the blocks of the ghost, from 0 to 255. */
-    private static final int ALPHA = 150;
-    private static final float TINT_RED = 0.75F;
-    private static final float TINT_GREEN = 0.9F;
     private static final double OUTLINE_INSET = 0.1;
+
+    /** The vertex buffers of the current ghost, or null. */
+    @Nullable
+    private static GhostMesh mesh;
 
     private ConstructionGhostRenderer() {
     }
 
     public static void onRenderLevel(RenderLevelStageEvent event) {
-        Ghost ghost = ConstructionGhost.current();
-        Minecraft minecraft = Minecraft.getInstance();
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS || ghost == null
-                || minecraft.level != ghost.level) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
             return;
         }
-        PoseStack pose = event.getPoseStack();
+        Ghost ghost = ConstructionGhost.current();
+        Minecraft minecraft = Minecraft.getInstance();
+        if (ghost == null || minecraft.level != ghost.level) {
+            release();
+            return;
+        }
+        if (mesh == null || !mesh.isFor(ghost)) {
+            release();
+            mesh = new GhostMesh(ghost);
+        }
         Vec3 camera = event.getCamera().getPosition();
         Frustum frustum = event.getFrustum();
+        mesh.render(event.getModelViewMatrix(), event.getProjectionMatrix(), camera, frustum);
+
+        PoseStack pose = event.getPoseStack();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
         pose.pushPose();
         pose.translate(-camera.x, -camera.y, -camera.z);
-
-        BlockRenderDispatcher dispatcher = minecraft.getBlockRenderer();
-        VertexConsumer blocks = new GhostVertexConsumer(buffers.getBuffer(RenderType.translucent()), ALPHA);
-        RandomSource random = RandomSource.create();
-        List<BlockPos> positions = ghost.positions;
-        List<BlockState> states = ghost.placedStates;
-        boolean[] outlined = new boolean[positions.size()];
-        for (int i = 0; i < positions.size(); i++) {
-            BlockPos pos = positions.get(i);
-            BlockState state = states.get(i);
-            if (ghost.level.getBlockState(pos).is(state.getBlock()) || !frustum.isVisible(new AABB(pos))) {
-                continue;
-            }
-            if (state.getRenderShape() != RenderShape.MODEL) {
-                outlined[i] = true;
-                continue;
-            }
-            BakedModel model = dispatcher.getBlockModel(state);
-            int color = minecraft.getBlockColors().getColor(state, ghost.level, pos, 0);
-            float red = color == -1 ? 1.0F : FastColor.ARGB32.red(color) / 255.0F;
-            float green = color == -1 ? 1.0F : FastColor.ARGB32.green(color) / 255.0F;
-            float blue = color == -1 ? 1.0F : FastColor.ARGB32.blue(color) / 255.0F;
-            pose.pushPose();
-            pose.translate(pos.getX(), pos.getY(), pos.getZ());
-            random.setSeed(42L);
-            for (RenderType type : model.getRenderTypes(state, random, ModelData.EMPTY)) {
-                dispatcher.getModelRenderer().renderModel(pose.last(), blocks, state, model, red * TINT_RED,
-                        green * TINT_GREEN, blue, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY,
-                        ModelData.EMPTY, type);
-            }
-            pose.popPose();
-        }
-        buffers.endBatch(RenderType.translucent());
-
         VertexConsumer lines = buffers.getBuffer(RenderType.lines());
-        for (int i = 0; i < positions.size(); i++) {
-            if (outlined[i]) {
-                LevelRenderer.renderLineBox(pose, lines, new AABB(positions.get(i)).deflate(OUTLINE_INSET), 0.8F,
-                        0.9F, 1.0F, 1.0F);
+        for (BlockPos relative : mesh.outlines()) {
+            AABB block = new AABB(relative.offset(ghost.origin));
+            if (frustum.isVisible(block)) {
+                LevelRenderer.renderLineBox(pose, lines, block.deflate(OUTLINE_INSET), 0.8F, 0.9F, 1.0F, 1.0F);
             }
         }
         if (ghost.phase == Phase.PLACING) {
@@ -117,60 +84,11 @@ public final class ConstructionGhostRenderer {
         pose.popPose();
     }
 
-    /**
-     * A vertex consumer that gives the same opacity to all the vertices of a block model. The block renderer writes
-     * opaque vertices.
-     */
-    private static final class GhostVertexConsumer implements VertexConsumer {
-        private final VertexConsumer delegate;
-        private final int alpha;
-
-        GhostVertexConsumer(VertexConsumer delegate, int alpha) {
-            this.delegate = delegate;
-            this.alpha = alpha;
-        }
-
-        @Override
-        public VertexConsumer addVertex(float x, float y, float z) {
-            delegate.addVertex(x, y, z);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setColor(int red, int green, int blue, int unused) {
-            delegate.setColor(red, green, blue, alpha);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setUv(float u, float v) {
-            delegate.setUv(u, v);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setUv1(int u, int v) {
-            delegate.setUv1(u, v);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setUv2(int u, int v) {
-            delegate.setUv2(u, v);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer setNormal(float x, float y, float z) {
-            delegate.setNormal(x, y, z);
-            return this;
-        }
-
-        @Override
-        public void addVertex(float x, float y, float z, int color, float u, float v, int packedOverlay,
-                int packedLight, float normalX, float normalY, float normalZ) {
-            delegate.addVertex(x, y, z, FastColor.ARGB32.color(alpha, color), u, v, packedOverlay, packedLight,
-                    normalX, normalY, normalZ);
+    /** Frees the vertex buffers of the ghost. Called when the ghost changes or goes away. */
+    static void release() {
+        if (mesh != null) {
+            mesh.close();
+            mesh = null;
         }
     }
 }

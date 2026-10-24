@@ -10,10 +10,13 @@ import io.github.nicolasgoyon.folkhold.world.network.ConstructionPlacePayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPreviewPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionPreviewPayload.Entry;
 import io.github.nicolasgoyon.folkhold.world.network.ConstructionStatusPayload;
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.client.DeltaTracker;
@@ -52,6 +55,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * </ul>
  * The panel above the hotbar shows the state of the ghost and its keys. {@link ConstructionGhostRenderer} draws the
  * ghost in the level.
+ *
+ * <p>The client reads the blocks of the level in the box of the ghost at most once in {@link #MIN_CHECK_TICKS} ticks,
+ * and at least once in {@link #CHECK_TICKS} ticks. While the ghost follows the view, it shows all its blocks. After
+ * the operator locks it, and during the construction, it shows only the blocks that are not in place.
  */
 public final class ConstructionGhost {
     /** The ghost follows the blocks at this distance from the eyes or nearer, in blocks. */
@@ -61,6 +68,8 @@ public final class ConstructionGhost {
     private static final String KEY = "hud.folkhold_world.ghost.";
     /** The client checks the blocks of the level in the box every this number of ticks. */
     private static final int CHECK_TICKS = 10;
+    /** After a change of the ghost, the client checks the blocks of the level after this number of ticks or more. */
+    private static final int MIN_CHECK_TICKS = 4;
     /** The bottom of the panel is at this distance from the bottom of the screen: above the hotbar and its texts. */
     private static final int PANEL_BOTTOM = 76;
     private static final int PAD = 4;
@@ -96,15 +105,30 @@ public final class ConstructionGhost {
         Phase phase = Phase.PLACING;
         BlockPos origin = BlockPos.ZERO;
         BoundingBox box = new BoundingBox(BlockPos.ZERO);
-        /** The positions of the blocks in the level, in the order of {@link #placedStates}. */
-        List<BlockPos> positions = List.of();
+        /**
+         * The positions of the blocks after the turn and the mirror, relative to {@link #origin}, in the order of
+         * {@link #placedStates}. They do not change when the ghost moves.
+         */
+        List<BlockPos> relatives = List.of();
         /** The states of the blocks, after the turn and the mirror. */
         List<BlockState> placedStates = List.of();
+        /** The indexes of the blocks in each section of {@link GhostSections}. */
+        Long2ObjectMap<int[]> sections = new Long2ObjectOpenHashMap<>();
+        /** The number of the turn and the mirror: it changes at each turn and at each mirror. */
+        int shape;
+        /** True for the blocks that the ghost shows. */
+        boolean[] shown = new boolean[0];
+        /** For each section, a number that changes when the blocks that the ghost shows in the section change. */
+        final Long2IntMap sectionStamps = new Long2IntOpenHashMap();
         /** The blocks of the level in the box that the construction removes. */
         List<BlockPos> obstacles = List.of();
         /** The number of blocks of the ghost that are not in place. */
         int missing;
         int ticks;
+        /** The tick of the last check of the blocks of the level. */
+        int lastCheck;
+        /** True if the ghost changed after the last check. */
+        boolean checkDue;
 
         Ghost(ResourceLocation template, Vec3i size, List<BlockPos> locals, List<BlockState> states,
                 int stepsPerTick, ClientLevel level, BlockPos anchor) {
@@ -140,7 +164,8 @@ public final class ConstructionGhost {
         BlockPos anchor = pick(player).orElse(player.blockPosition().relative(player.getDirection(), 4));
         Ghost created = new Ghost(payload.template(), payload.size(), List.copyOf(locals), List.copyOf(states),
                 ConstructionScreen.stepsPerTick(), minecraft.level, anchor);
-        update(created);
+        update(created, true);
+        check(created);
         ghost = created;
         ConstructionScreen.closeForGhost();
     }
@@ -174,6 +199,7 @@ public final class ConstructionGhost {
     /** Removes the ghost. Called when the player leaves a world or a server. */
     public static void clear() {
         ghost = null;
+        ConstructionGhostRenderer.release();
     }
 
     public static void onClientTick(ClientTickEvent.Post event) {
@@ -205,11 +231,12 @@ public final class ConstructionGhost {
         if (current.phase == Phase.PLACING && !current.locked) {
             pick(player).filter(anchor -> !anchor.equals(current.anchor)).ifPresent(anchor -> {
                 current.anchor = anchor;
-                update(current);
+                update(current, false);
             });
         }
         current.ticks++;
-        if (current.ticks % CHECK_TICKS == 0) {
+        int sinceCheck = current.ticks - current.lastCheck;
+        if (sinceCheck >= CHECK_TICKS || (current.checkDue && sinceCheck >= MIN_CHECK_TICKS)) {
             check(current);
         }
     }
@@ -217,18 +244,20 @@ public final class ConstructionGhost {
     /** The keys of a ghost that the operator moves. */
     private static void placingKeys(Ghost current, LocalPlayer player) {
         boolean changed = false;
+        boolean reshaped = false;
         int turns = clicks(ConstructionKeys.ROTATE);
         for (int i = 0; i < turns; i++) {
             current.rotation = current.rotation.getRotated(Rotation.CLOCKWISE_90);
-            changed = true;
+            reshaped = true;
         }
         int mirrors = clicks(ConstructionKeys.MIRROR);
         for (int i = 0; i < mirrors; i++) {
             current.mirror = nextMirror(current.mirror);
-            changed = true;
+            reshaped = true;
         }
         if (clicks(ConstructionKeys.LOCK) % 2 == 1) {
             current.locked = !current.locked;
+            current.checkDue = true;
         }
         Direction facing = player.getDirection();
         BlockPos moved = current.anchor
@@ -243,8 +272,8 @@ public final class ConstructionGhost {
             current.locked = true;
             changed = true;
         }
-        if (changed) {
-            update(current);
+        if (changed || reshaped) {
+            update(current, reshaped);
         }
         if (clicks(ConstructionKeys.BUILD) > 0) {
             current.phase = Phase.WAITING;
@@ -280,37 +309,64 @@ public final class ConstructionGhost {
         return Optional.empty();
     }
 
-    /** Calculates the positions of the blocks again, after a change of the anchor, the turn or the mirror. */
-    private static void update(Ghost current) {
+    /**
+     * Calculates the position of the ghost again after a change of the anchor, the turn or the mirror. The next
+     * check reads the blocks of the level (see {@link #MIN_CHECK_TICKS}).
+     *
+     * @param current  the ghost
+     * @param reshaped true after a turn or a mirror: the blocks of the ghost change
+     */
+    private static void update(Ghost current, boolean reshaped) {
         current.origin = GhostPlacement.originFor(current.size, current.rotation, current.mirror, current.anchor);
         current.box = GhostPlacement.box(current.size, current.rotation, current.mirror, current.origin);
-        List<BlockPos> positions = new ArrayList<>(current.locals.size());
+        current.checkDue = true;
+        if (!reshaped) {
+            return;
+        }
+        List<BlockPos> relatives = new ArrayList<>(current.locals.size());
         List<BlockState> states = new ArrayList<>(current.locals.size());
         for (int i = 0; i < current.locals.size(); i++) {
-            BlockPos pos = GhostPlacement.levelPos(current.locals.get(i), current.rotation, current.mirror,
-                    current.origin);
-            positions.add(pos);
-            states.add(current.states.get(i).mirror(current.mirror).rotate(current.level, pos, current.rotation));
+            BlockPos relative = GhostPlacement.levelPos(current.locals.get(i), current.rotation, current.mirror,
+                    BlockPos.ZERO);
+            relatives.add(relative);
+            states.add(current.states.get(i).mirror(current.mirror)
+                    .rotate(current.level, relative.offset(current.origin), current.rotation));
         }
-        current.positions = List.copyOf(positions);
+        current.relatives = List.copyOf(relatives);
         current.placedStates = List.copyOf(states);
-        check(current);
+        current.sections = GhostSections.group(current.relatives);
+        current.shown = new boolean[relatives.size()];
+        Arrays.fill(current.shown, true);
+        current.sectionStamps.clear();
+        current.shape++;
     }
 
     /**
-     * Compares the ghost with the blocks of the level: the number of blocks that are not in place, and the blocks of
-     * the box that the construction removes. A replaceable block (grass, flowers) is not an obstacle on the screen.
-     * During the construction, the ghost goes away when all its blocks are in place.
+     * Compares the ghost with the blocks of the level: the number of blocks that are not in place, the blocks that
+     * the ghost shows, and the blocks of the box that the construction removes. A replaceable block (grass, flowers)
+     * is not an obstacle on the screen. During the construction, the ghost goes away when all its blocks are in
+     * place.
      */
     private static void check(Ghost current) {
-        Map<BlockPos, BlockState> wanted = new HashMap<>();
+        current.lastCheck = current.ticks;
+        current.checkDue = false;
+        boolean following = current.phase == Phase.PLACING && !current.locked;
+        Long2ObjectMap<BlockState> wanted = new Long2ObjectOpenHashMap<>(current.relatives.size());
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         int missing = 0;
-        for (int i = 0; i < current.positions.size(); i++) {
-            BlockPos pos = current.positions.get(i);
+        for (int i = 0; i < current.relatives.size(); i++) {
+            BlockPos relative = current.relatives.get(i);
             BlockState state = current.placedStates.get(i);
-            wanted.put(pos, state);
-            if (!current.level.getBlockState(pos).is(state.getBlock())) {
+            pos.setWithOffset(relative, current.origin);
+            wanted.put(pos.asLong(), state);
+            boolean inPlace = current.level.getBlockState(pos).is(state.getBlock());
+            if (!inPlace) {
                 missing++;
+            }
+            boolean show = following || !inPlace;
+            if (show != current.shown[i]) {
+                current.shown[i] = show;
+                current.sectionStamps.mergeInt(GhostSections.key(relative), 1, Integer::sum);
             }
         }
         current.missing = missing;
@@ -320,15 +376,15 @@ public final class ConstructionGhost {
         }
         List<BlockPos> obstacles = new ArrayList<>();
         BoundingBox box = current.box;
-        for (BlockPos pos : BlockPos.betweenClosed(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(),
+        for (BlockPos inBox : BlockPos.betweenClosed(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(),
                 box.maxZ())) {
-            BlockState found = current.level.getBlockState(pos);
+            BlockState found = current.level.getBlockState(inBox);
             if (found.isAir() || found.canBeReplaced()) {
                 continue;
             }
-            BlockState state = wanted.get(pos);
+            BlockState state = wanted.get(inBox.asLong());
             if (state == null || !found.is(state.getBlock())) {
-                obstacles.add(pos.immutable());
+                obstacles.add(inBox.immutable());
                 if (obstacles.size() >= MAX_OBSTACLES) {
                     break;
                 }
