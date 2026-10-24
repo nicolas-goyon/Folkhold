@@ -120,6 +120,25 @@ public final class MobileGroupData extends SavedData {
     }
 
     /**
+     * Forgets the coarse route and the detailed route between two settlements: the simulation and the groups ask
+     * for them again.
+     *
+     * @param firstId  the id of one settlement
+     * @param secondId the id of the other settlement
+     * @return true if the data had a route between the two settlements
+     */
+    public boolean forgetRoute(String firstId, String secondId) {
+        String key = Route.pairKey(firstId, secondId);
+        boolean coarse = routes.remove(key) != null;
+        boolean detailed = detailedRoutes.remove(key) != null;
+        boolean forgotten = coarse || detailed;
+        if (forgotten) {
+            setDirty();
+        }
+        return forgotten;
+    }
+
+    /**
      * Forgets the routes near chunks with changed roads (see {@link RoadNetwork}): the simulation and the groups ask
      * for them again.
      *

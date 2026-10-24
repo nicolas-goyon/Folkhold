@@ -19,7 +19,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li>When the two villages change, the client asks the server for the route.</li>
  *   <li>While the server calculates the route or its relief, the client asks again every {@link #POLL_TICKS} ticks,
  *       also when the journal is closed.</li>
- *   <li>The player can show the route in the world ({@link ClientRouteOverlay}).</li>
+ *   <li>The player can show the route in the world ({@link ClientRouteOverlay}), as an approximate or a precise
+ *       line ({@link LineMode}).</li>
+ *   <li>The player can ask the server to calculate the route again ({@link #recalculate}).</li>
  * </ul>
  */
 public final class ClientRouteView {
@@ -38,11 +40,33 @@ public final class ClientRouteView {
     @Nullable
     private static RoutePayload.Relief shownRelief;
     private static boolean inWorld;
+    private static LineMode lineMode = LineMode.APPROXIMATE;
     private static int pollTimer;
     /** Increases each time the route changes. */
     private static int version;
 
+    /** How the line in the world follows the blocks (see {@link ClientRouteOverlay}). */
+    public enum LineMode {
+        /** A smooth line on the ground, with a point every few blocks. */
+        APPROXIMATE,
+        /** A line on the top of each block of the route, with a step at each change of height. */
+        PRECISE
+    }
+
     private ClientRouteView() {
+    }
+
+    /** How the line in the world follows the blocks. */
+    public static LineMode lineMode() {
+        return lineMode;
+    }
+
+    /** Changes how the line in the world follows the blocks. */
+    public static void setLineMode(LineMode mode) {
+        if (mode != lineMode) {
+            lineMode = mode;
+            version++;
+        }
     }
 
     /** The settlement id of the start, or null. */
@@ -119,11 +143,24 @@ public final class ClientRouteView {
 
     /** Asks the server for the route of the two villages again, if the two villages are set. */
     public static void refresh() {
+        send(false);
+    }
+
+    /**
+     * Asks the server to calculate the route of the two villages again. The client keeps the last route until the new
+     * route comes, and reads the blocks of the line again.
+     */
+    public static void recalculate() {
+        version++;
+        send(true);
+    }
+
+    private static void send(boolean recalculate) {
         if (fromId == null || toId == null || fromId.equals(toId) || Minecraft.getInstance().getConnection() == null) {
             return;
         }
         pollTimer = POLL_TICKS;
-        PacketDistributor.sendToServer(new RouteRequestPayload(fromId, toId));
+        PacketDistributor.sendToServer(new RouteRequestPayload(fromId, toId, recalculate));
     }
 
     /** Receives a route from the server. A route for other villages is dropped. Called by the network handler. */

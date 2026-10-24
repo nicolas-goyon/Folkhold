@@ -776,5 +776,11 @@
   "screen.folkhold_world.journal.route.show_hint": "Affiche la route comme une ligne jaune au-dessus des blocs où passent les caravanes, autour de vous. La ligne reste après la fermeture du journal.",
   "screen.folkhold_world.journal.route.line_blocks": "Ligne : %s blocs autour de vous",
   "screen.folkhold_world.journal.route.line_far": "Aucune partie de la route à moins de 128 blocs de vous.",
-  "screen.folkhold_world.journal.route.no_line": "La route n'est pas prête."
+  "screen.folkhold_world.journal.route.no_line": "La route n'est pas prête.",
+  "screen.folkhold_world.journal.route.mode.approximate": "Tracé : approximatif",
+  "screen.folkhold_world.journal.route.mode.precise": "Tracé : précis",
+  "screen.folkhold_world.journal.route.mode_hint": "Approximatif : une ligne lissée au sol. Précis : une ligne sur le dessus de chaque bloc de la route, avec une marche à chaque changement de hauteur.",
+  "screen.folkhold_world.journal.route.recalculate": "Recalculer",
+  "screen.folkhold_world.journal.route.recalculate_hint": "Demande au serveur de recalculer la route, par exemple après la construction d'une route, d'un pont ou d'un tunnel. Les caravanes prennent aussi la nouvelle route.",
+  "screen.folkhold_world.journal.route.recalculate_busy": "Le serveur calcule la route."
 }

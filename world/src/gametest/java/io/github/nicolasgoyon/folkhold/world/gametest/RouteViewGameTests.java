@@ -96,6 +96,44 @@ public final class RouteViewGameTests {
         helper.succeed();
     }
 
+    /**
+     * A new calculation forgets the route, and the next answers give the route again. A second request right after
+     * the first does nothing.
+     */
+    @GameTest(template = "empty", timeoutTicks = 4000, batch = "route_view_recalculate")
+    public static void recalculationGivesTheRouteAgain(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<Settlement> ends = settlements(server, 38_000);
+        Settlement from = ends.get(0);
+        Settlement to = ends.get(1);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        JournalData journal = JournalData.get(server);
+        journal.discover(player.getUUID(), from.id(), 0);
+        journal.discover(player.getUUID(), to.id(), 0);
+        boolean[] second = new boolean[1];
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(RouteViews.answer(player, from.id(), to.id()).status()
+                        == Status.READY, "The route must become ready"))
+                .thenExecute(() -> {
+                    helper.assertTrue(RouteViews.recalculate(player, from.id(), to.id()),
+                            "The server must forget the route");
+                    helper.assertTrue(CaravanRoutes.cached(server, from, to) == null,
+                            "The data must have no route after the request");
+                    second[0] = RouteViews.recalculate(player, from.id(), to.id());
+                })
+                .thenWaitUntil(() -> {
+                    RoutePayload answer = RouteViews.answer(player, from.id(), to.id());
+                    helper.assertTrue(answer.status() == Status.READY && !answer.more(),
+                            "The route must become ready again: " + answer.status());
+                })
+                .thenExecute(() -> {
+                    server.getPlayerList().remove(player);
+                    helper.assertFalse(second[0], "A second request right after the first must do nothing");
+                })
+                .thenSucceed();
+    }
+
     /** The server does not show a route to a village that is not in the journal of the player. */
     @GameTest(template = "empty", batch = "route_view_refused")
     public static void villageOutsideTheJournalIsRefused(GameTestHelper helper) {

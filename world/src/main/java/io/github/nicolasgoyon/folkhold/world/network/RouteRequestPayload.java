@@ -12,17 +12,19 @@ import net.minecraft.resources.ResourceLocation;
  * player. The server answers with a {@link RoutePayload} (see
  * {@link io.github.nicolasgoyon.folkhold.world.journal.RouteViews}).
  *
- * @param fromId the settlement id of the start
- * @param toId   the settlement id of the end
+ * @param fromId      the settlement id of the start
+ * @param toId        the settlement id of the end
+ * @param recalculate true to calculate the route again before the answer
  */
-public record RouteRequestPayload(String fromId, String toId) implements CustomPacketPayload {
+public record RouteRequestPayload(String fromId, String toId, boolean recalculate) implements CustomPacketPayload {
 
     public static final Type<RouteRequestPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "route_request"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, RouteRequestPayload> STREAM_CODEC =
             StreamCodec.composite(ByteBufCodecs.STRING_UTF8, RouteRequestPayload::fromId, ByteBufCodecs.STRING_UTF8,
-                    RouteRequestPayload::toId, RouteRequestPayload::new);
+                    RouteRequestPayload::toId, ByteBufCodecs.BOOL, RouteRequestPayload::recalculate,
+                    RouteRequestPayload::new);
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

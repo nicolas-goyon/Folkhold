@@ -75,7 +75,7 @@ public final class ModNetwork {
         registrar.playToServer(RouteRequestPayload.TYPE, RouteRequestPayload.STREAM_CODEC,
                 (payload, context) -> {
                     if (context.player() instanceof ServerPlayer player) {
-                        RouteViews.request(player, payload.fromId(), payload.toId());
+                        RouteViews.request(player, payload.fromId(), payload.toId(), payload.recalculate());
                     }
                 });
         registrar.playToClient(RoutePayload.TYPE, RoutePayload.STREAM_CODEC,

@@ -624,17 +624,42 @@ public class JournalScreen extends UiScreen {
         statusArea = area.top(LEGEND);
         int mapHeight = area.height() - UiTheme.CONTROL - 2 * LEGEND - 3 * UiTheme.GAP;
         mapArea = new UiRect(area.x(), area.y() + LEGEND + UiTheme.GAP, area.width(), Math.max(0, mapHeight));
-        Component label = Component.translatable(KEY + (ClientRouteView.inWorld() ? "route.hide" : "route.show"));
         UiRect row = area.bottomPart(UiTheme.CONTROL);
-        UiRect buttonRect = row.left(Math.min(row.width(), font.width(label) + 20));
-        lineInfo = row.afterLeft(buttonRect.width(), UiTheme.PADDING);
-        UiButton button = addRenderableWidget(UiButton.normal(buttonRect, label, b -> {
+        int x = row.x();
+        Component show = Component.translatable(KEY + (ClientRouteView.inWorld() ? "route.hide" : "route.show"));
+        UiButton showButton = addRenderableWidget(UiButton.normal(buttonRect(row, x, show), show, b -> {
             ClientRouteView.setInWorld(!ClientRouteView.inWorld());
             rebuild();
         }).setDetails(Component.translatable(KEY + "route.show_hint")));
         if (shownRoute().isEmpty() && !ClientRouteView.inWorld()) {
-            button.setDisabled(Component.translatable(KEY + "route.no_line"));
+            showButton.setDisabled(Component.translatable(KEY + "route.no_line"));
         }
+        x = showButton.getX() + showButton.getWidth() + UiTheme.GAP;
+        boolean precise = ClientRouteView.lineMode() == ClientRouteView.LineMode.PRECISE;
+        Component mode = Component.translatable(KEY + (precise ? "route.mode.precise" : "route.mode.approximate"));
+        UiButton modeButton = addRenderableWidget(UiButton.normal(buttonRect(row, x, mode), mode, b -> {
+            ClientRouteView.setLineMode(precise ? ClientRouteView.LineMode.APPROXIMATE
+                    : ClientRouteView.LineMode.PRECISE);
+            rebuild();
+        }).setDetails(Component.translatable(KEY + "route.mode_hint")));
+        x = modeButton.getX() + modeButton.getWidth() + UiTheme.GAP;
+        Component again = Component.translatable(KEY + "route.recalculate");
+        UiButton againButton = addRenderableWidget(UiButton.normal(buttonRect(row, x, again), again, b -> {
+            ClientRouteView.recalculate();
+            rebuild();
+        }).setDetails(Component.translatable(KEY + "route.recalculate_hint")));
+        RoutePayload payload = ClientRouteView.route();
+        if (payload == null || payload.more()) {
+            againButton.setDisabled(Component.translatable(KEY + "route.recalculate_busy"));
+        }
+        x = againButton.getX() + againButton.getWidth() + UiTheme.PADDING;
+        lineInfo = new UiRect(x, row.y(), Math.max(0, row.right() - x), row.height());
+    }
+
+    /** The rectangle of a button of the bottom row of the routes, from a position, in the width of its label. */
+    private UiRect buttonRect(UiRect row, int x, Component label) {
+        int width = Math.max(0, Math.min(font.width(label) + 16, row.right() - x));
+        return new UiRect(Math.min(x, row.right()), row.y(), width, row.height());
     }
 
     private void renderRouteHeader(GuiGraphics graphics, UiRect header, Village from, Village to) {
