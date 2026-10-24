@@ -745,6 +745,7 @@
   "screen.folkhold_world.journal.route.none": "—",
   "screen.folkhold_world.journal.route.slot_hint": "Select this end, then click a village in the list.",
   "screen.folkhold_world.journal.route.swap": "Swap the two ends",
+  "screen.folkhold_world.journal.route.reset": "Clear the two villages",
   "screen.folkhold_world.journal.route.from_mark": "start",
   "screen.folkhold_world.journal.route.to_mark": "end",
   "screen.folkhold_world.journal.route.select": "Select two villages: the start and the end of the route.",

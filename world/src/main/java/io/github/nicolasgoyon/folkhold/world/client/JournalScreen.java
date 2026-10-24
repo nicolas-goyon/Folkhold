@@ -567,11 +567,21 @@ public class JournalScreen extends UiScreen {
                     }).setDetails(Component.translatable(KEY + "route.slot_hint")));
             y += CHIP + UiTheme.GAP;
         }
-        addRenderableWidget(new UiButton(new UiRect(inner.right() - CHIP, inner.y(), CHIP, 2 * CHIP + UiTheme.GAP),
+        addRenderableWidget(new UiButton(new UiRect(inner.right() - CHIP, inner.y(), CHIP, CHIP),
                 Component.literal("⇅"), UiButton.Style.CHIP, button -> {
                     ClientRouteView.select(ClientRouteView.toId(), ClientRouteView.fromId());
                     rebuild();
                 }).setDetails(Component.translatable(KEY + "route.swap")));
+        UiButton reset = addRenderableWidget(new UiButton(new UiRect(inner.right() - CHIP,
+                inner.y() + CHIP + UiTheme.GAP, CHIP, CHIP), Component.literal("✕"), UiButton.Style.CHIP, button -> {
+                    ClientRouteView.select(null, null);
+                    lastSlot = RouteSlot.FROM;
+                    compactDetails = false;
+                    rebuild();
+                }).setDetails(Component.translatable(KEY + "route.reset")));
+        if (ClientRouteView.fromId() == null && ClientRouteView.toId() == null) {
+            reset.disable();
+        }
         return inner.belowTop(y - inner.y(), UiTheme.GAP);
     }
 

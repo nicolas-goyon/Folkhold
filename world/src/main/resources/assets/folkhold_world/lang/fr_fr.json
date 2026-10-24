@@ -745,6 +745,7 @@
   "screen.folkhold_world.journal.route.none": "—",
   "screen.folkhold_world.journal.route.slot_hint": "Choisissez cette extrémité, puis cliquez sur un village de la liste.",
   "screen.folkhold_world.journal.route.swap": "Inverser le départ et l'arrivée",
+  "screen.folkhold_world.journal.route.reset": "Effacer les deux villages",
   "screen.folkhold_world.journal.route.from_mark": "départ",
   "screen.folkhold_world.journal.route.to_mark": "arrivée",
   "screen.folkhold_world.journal.route.select": "Choisissez deux villages : le départ et l'arrivée de la route.",

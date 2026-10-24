@@ -108,4 +108,22 @@ class RouteTest {
         }
         assertEquals(Route.Surface.LAND, Route.Surface.fromCode(99));
     }
+
+    @Test
+    void partOfTheRouteKeepsItsPointsAndSurfaces() {
+        Route route = new Route(List.of(new Route.Point(0, 0), new Route.Point(30, 0), new Route.Point(30, 40)),
+                List.of(Route.Surface.LAND, Route.Surface.ROAD));
+        Route part = route.between(10.0, 50.0);
+        assertEquals(List.of(new Route.Point(10, 0), new Route.Point(30, 0), new Route.Point(30, 20)), part.points());
+        assertEquals(List.of(Route.Surface.LAND, Route.Surface.ROAD), part.surfaces());
+        assertEquals(40.0, part.length(), EPSILON);
+    }
+
+    @Test
+    void partInOneSegmentHasTwoPoints() {
+        Route part = lRoute().between(5.0, 25.0);
+        assertEquals(List.of(new Route.Point(5, 0), new Route.Point(25, 0)), part.points());
+        Route empty = lRoute().between(80.0, 90.0);
+        assertEquals(2, empty.points().size());
+    }
 }

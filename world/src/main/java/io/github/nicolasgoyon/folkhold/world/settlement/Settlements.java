@@ -18,6 +18,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.journal.JournalData;
+import io.github.nicolasgoyon.folkhold.world.journal.RouteViewData;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -278,6 +279,7 @@ public final class Settlements {
         MobileGroupData.get(server).renameSettlement(oldId, newId);
         QuestData.get(server).renameSettlement(oldId, newId);
         JournalData.get(server).renameSettlement(oldId, newId);
+        RouteViewData.get(server).renameSettlement(oldId, newId);
         SettlementData.get(server).setDirty();
     }
 

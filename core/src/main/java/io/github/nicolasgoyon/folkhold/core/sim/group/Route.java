@@ -212,6 +212,46 @@ public final class Route {
         return new Route(reversedPoints, reversedSurfaces);
     }
 
+    /**
+     * A part of the route. The ends of the part are the positions at the two progresses, rounded to blocks. The part
+     * has the points of the route between them, and their surfaces.
+     *
+     * @param fromProgress the progress of the start, clamped to the route
+     * @param toProgress   the progress of the end, clamped to the route, not before the start
+     * @return the part, with 2 points or more
+     */
+    public Route between(double fromProgress, double toProgress) {
+        double from = Math.max(0.0, Math.min(fromProgress, length()));
+        double to = Math.max(from, Math.min(toProgress, length()));
+        List<Point> partPoints = new ArrayList<>();
+        List<Surface> partSurfaces = new ArrayList<>();
+        partPoints.add(rounded(positionAt(from)));
+        double previous = from;
+        for (int i = 1; i < points.size() - 1; i++) {
+            if (distances[i] > from && distances[i] < to) {
+                addPart(partPoints, partSurfaces, points.get(i), surfaceAt((previous + distances[i]) / 2.0));
+                previous = distances[i];
+            }
+        }
+        addPart(partPoints, partSurfaces, rounded(positionAt(to)), surfaceAt((previous + to) / 2.0));
+        if (partPoints.size() < 2) {
+            partPoints.add(partPoints.get(0));
+            partSurfaces.add(surfaceAt(from));
+        }
+        return new Route(partPoints, partSurfaces);
+    }
+
+    private static void addPart(List<Point> partPoints, List<Surface> partSurfaces, Point point, Surface surface) {
+        if (!partPoints.get(partPoints.size() - 1).equals(point)) {
+            partPoints.add(point);
+            partSurfaces.add(surface);
+        }
+    }
+
+    private static Point rounded(Position position) {
+        return new Point((int) Math.round(position.x()), (int) Math.round(position.z()));
+    }
+
     /** The progress and the squared distance of the point of the route that is nearest to a position. */
     private double[] nearest(double x, double z) {
         double best = 0.0;
