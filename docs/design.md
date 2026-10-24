@@ -688,6 +688,9 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
 - The vanilla maps also show the territory borders and the known villages.
 - The player can update a map at a distance: a cartographer block, or a surveyor map that updates itself (for example each 10 minutes).
 - A **faction journal** shows the discovered factions and villages: reputation, relations, position, distance.
+  - **Implemented** (`Journals`, `JournalScreen`, key J): a player discovers a village when the player enters its territory. The player visits the village when the player comes near its heart (the village message). The server keeps the journal of each player.
+  - Tab "Villages": a text filter, a filter on the visits, a sort by distance, name or reputation. The details show the faction, the reputation in the village, the position and the direction, the day of the discovery and of the last visit.
+  - Tab "Factions": the factions of the discovered villages, with the culture, the attitude, the reputation of the player and the discovered villages.
 
 ## Events mod
 

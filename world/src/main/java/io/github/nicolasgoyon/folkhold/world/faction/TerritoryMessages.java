@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.journal.Journals;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryStatusPayload;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryTitlePayload;
@@ -45,6 +46,8 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  *   <li><b>village message</b>: when a player comes near a village (see {@link WorldConfig#VILLAGE_MESSAGE_RADIUS}),
  *       the action bar shows the village name, the faction, the level and tier of the village, the reputation tier
  *       in this village, and what the guards do.</li>
+ *   <li><b>journal</b>: the territory discovers its village, and the village message is a visit (see
+ *       {@link Journals}).</li>
  *   <li><b>territory status</b>: the server sends the territory, the tier and the nearest village of the
  *       territory (also a village that the game did not generate yet) to the client when they change. Out of the
  *       territories, the village is the village near the player. The client shows them in the territory HUD (on
@@ -92,6 +95,10 @@ public final class TerritoryMessages {
                 .map(VillageHeartBlockEntity.class::cast);
         BlockPos villagePos = village.map(VillageHeartBlockEntity::getBlockPos).orElse(null);
         State previous = STATES.get(player.getUUID());
+        if (overworld) {
+            Journals.update(player, Territories.settlementAt(server, player.blockPosition()),
+                    village.map(heart -> heart.getVillageId().toString()));
+        }
 
         // No title for the first check after the login: the player did not cross a border.
         if (previous != null && !previous.territoryId().equals(territoryId) && overworld) {
