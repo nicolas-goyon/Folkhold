@@ -693,7 +693,8 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
   - Tab "Factions": the factions of the discovered villages, with the culture, the attitude, the reputation of the player and the discovered villages.
   - Tab "Routes" (`RouteViews`, `ClientRouteView`): the player selects two discovered villages. The map shows the route of the caravans between them, with a color for each surface: road, land, ford, boats. The server shows only the routes between two villages of the journal of the player.
   - The route is the route of the next caravan: the detailed route, or the coarse route when the corridor has no detailed route. The server does not calculate a route on the server thread: the worker thread calculates a missing route, and the journal asks again until the route is ready. The data keeps the route for the caravans.
-  - A button shows the route in the world (`ClientRouteOverlay`): a line on the ground near the player, also when the journal is closed. On a road segment, the line is on the road floor, on a bridge or in a tunnel. The player sees where to build roads, bridges and defenses.
+  - A button shows the route in the world (`ClientRouteOverlay`): a yellow line above the blocks that the caravans walk on, near the player, also after the player closes the journal. On a road segment, the line is on the road floor, on a bridge or in a tunnel. The player sees where to build roads, bridges and defenses.
+  - While the server calculates a route again (for example after a change of the roads), the journal keeps the last route.
 
 ## Events mod
 

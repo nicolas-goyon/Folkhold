@@ -128,6 +128,8 @@ public class JournalScreen extends UiScreen {
     private UiRect searchRow = listArea;
     private UiRect detailsArea = listArea;
     private UiRect mapArea = listArea;
+    /** The area at the right of the button of the line in the world. */
+    private UiRect lineInfo = listArea;
 
     public JournalScreen(JournalPayload journal) {
         super(Component.translatable(KEY + "title"));
@@ -260,6 +262,7 @@ public class JournalScreen extends UiScreen {
         listArea = showsList() ? left : new UiRect(0, 0, 0, 0);
         detailsArea = showsDetails() ? right.inset(UiTheme.PADDING) : new UiRect(0, 0, 0, 0);
         mapArea = new UiRect(0, 0, 0, 0);
+        lineInfo = mapArea;
         if (showsList()) {
             switch (lastTab) {
                 case TAB_VILLAGES, TAB_ROUTES -> initVillageList(left);
@@ -596,8 +599,7 @@ public class JournalScreen extends UiScreen {
 
     /** The route of the two selected villages, if the server sent it. */
     private static Optional<Route> shownRoute() {
-        RoutePayload payload = ClientRouteView.route();
-        return payload == null ? Optional.empty() : payload.route();
+        return ClientRouteView.shownRoute();
     }
 
     private void initRouteDetails(UiRect area) {
@@ -609,6 +611,7 @@ public class JournalScreen extends UiScreen {
         Component label = Component.translatable(KEY + (ClientRouteView.inWorld() ? "route.hide" : "route.show"));
         UiRect row = area.bottomPart(UiTheme.CONTROL);
         UiRect buttonRect = row.left(Math.min(row.width(), font.width(label) + 20));
+        lineInfo = row.afterLeft(buttonRect.width(), UiTheme.PADDING);
         UiButton button = addRenderableWidget(UiButton.normal(buttonRect, label, b -> {
             ClientRouteView.setInWorld(!ClientRouteView.inWorld());
             rebuild();
@@ -690,11 +693,11 @@ public class JournalScreen extends UiScreen {
             }
         }
         RoutePayload payload = ClientRouteView.route();
-        if (route.isPresent() && payload != null) {
+        if (route.isPresent()) {
             List<Route.Point> points = route.get().points();
             List<Route.Surface> surfaces = route.get().surfaces();
             for (int i = 0; i < surfaces.size(); i++) {
-                int color = mapColor(surfaces.get(i), payload.detailed());
+                int color = mapColor(surfaces.get(i), ClientRouteView.isDetailed());
                 Route.Point a = points.get(i);
                 Route.Point b = points.get(i + 1);
                 drawLine(graphics, map.x(a.x()), map.y(a.z()), map.x(b.x()), map.y(b.z()), color);
@@ -756,11 +759,10 @@ public class JournalScreen extends UiScreen {
     /** Draws the legend: for each surface on the route, its color, its name and its part of the length. */
     private void renderRouteLegend(GuiGraphics graphics, int x, int y, int right) {
         Optional<Route> route = shownRoute();
-        RoutePayload payload = ClientRouteView.route();
-        if (route.isEmpty() || payload == null) {
+        if (route.isEmpty()) {
             return;
         }
-        if (!payload.detailed()) {
+        if (!ClientRouteView.isDetailed()) {
             UiDraw.mark(graphics, x, y + 1, 7, UiTheme.INK_MUTED);
             UiText.draw(graphics, font, Component.translatable(KEY + "route.coarse_legend"), x + 10, y,
                     right - x - 10, UiTheme.TEXT_MUTED);
@@ -852,6 +854,12 @@ public class JournalScreen extends UiScreen {
             renderRouteHeader(graphics, header, from.get(), to.get());
             renderRouteMap(graphics, mapArea, from.get(), to.get());
             renderRouteLegend(graphics, mapArea.x(), mapArea.bottom() + UiTheme.GAP + 2, mapArea.right());
+            if (ClientRouteView.inWorld() && lineInfo.width() > 0) {
+                int blocks = ClientRouteOverlay.segmentCount();
+                Component info = blocks > 0 ? Component.translatable(KEY + "route.line_blocks", blocks)
+                        : Component.translatable(KEY + "route.line_far");
+                UiText.drawLeft(graphics, font, info, lineInfo, UiTheme.TEXT_MUTED);
+            }
         } else if (lastTab == TAB_VILLAGES) {
             Optional<Village> village = selectedVillage();
             if (village.isEmpty()) {

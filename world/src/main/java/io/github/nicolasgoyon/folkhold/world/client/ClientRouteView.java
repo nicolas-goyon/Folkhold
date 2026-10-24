@@ -1,8 +1,10 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
+import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
 import io.github.nicolasgoyon.folkhold.world.network.RouteRequestPayload;
 import java.util.Objects;
+import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -30,6 +32,9 @@ public final class ClientRouteView {
     private static String toId;
     @Nullable
     private static RoutePayload route;
+    /** The last route of the two villages: the server can calculate the route again after a change of the roads. */
+    private static Optional<Route> shown = Optional.empty();
+    private static boolean shownDetailed;
     private static boolean inWorld;
     private static int pollTimer;
     /** Increases each time the route changes. */
@@ -54,6 +59,19 @@ public final class ClientRouteView {
     @Nullable
     public static RoutePayload route() {
         return route;
+    }
+
+    /**
+     * The route to show for the two villages. While the server calculates the route again, it is the last route
+     * that the server sent.
+     */
+    public static Optional<Route> shownRoute() {
+        return shown;
+    }
+
+    /** True if the route to show is the detailed route, false for the coarse route. */
+    public static boolean isDetailed() {
+        return shownDetailed;
     }
 
     /** True if the route shows in the world. */
@@ -84,6 +102,8 @@ public final class ClientRouteView {
         fromId = from;
         toId = to;
         route = null;
+        shown = Optional.empty();
+        shownDetailed = false;
         version++;
         refresh();
     }
@@ -103,6 +123,14 @@ public final class ClientRouteView {
             return;
         }
         route = payload;
+        Optional<Route> received = payload.route();
+        if (received.isPresent()) {
+            shown = received;
+            shownDetailed = payload.detailed();
+        } else if (payload.status() != RoutePayload.Status.PENDING) {
+            shown = Optional.empty();
+            shownDetailed = false;
+        }
         version++;
         JournalScreen.onRoute();
     }
@@ -123,6 +151,8 @@ public final class ClientRouteView {
         fromId = null;
         toId = null;
         route = null;
+        shown = Optional.empty();
+        shownDetailed = false;
         inWorld = false;
         pollTimer = 0;
         version++;
