@@ -765,6 +765,8 @@
   "screen.folkhold_world.journal.route.surface.water": "Boats %s%%",
   "screen.folkhold_world.journal.route.show": "Show in the world",
   "screen.folkhold_world.journal.route.hide": "Hide in the world",
-  "screen.folkhold_world.journal.route.show_hint": "Shows the route as a line on the ground near you, also when the journal is closed.",
+  "screen.folkhold_world.journal.route.show_hint": "Shows the route as a yellow line above the blocks that the caravans walk on, near you. The line stays after you close the journal.",
+  "screen.folkhold_world.journal.route.line_blocks": "Line: %s blocks near you",
+  "screen.folkhold_world.journal.route.line_far": "No part of the route within 128 blocks of you.",
   "screen.folkhold_world.journal.route.no_line": "The route is not ready."
 }

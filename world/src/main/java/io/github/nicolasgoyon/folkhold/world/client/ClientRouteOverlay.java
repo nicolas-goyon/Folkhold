@@ -5,7 +5,6 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.core.sim.group.RouteFinder;
 import io.github.nicolasgoyon.folkhold.world.group.RoadNetwork;
-import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -18,16 +17,18 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import org.joml.Matrix4f;
 
 /**
- * Draws the route of the journal in the world ({@link ClientRouteView}), as a line a little above the ground near the
- * player.
+ * Draws the route of the journal in the world ({@link ClientRouteView}): a yellow line above the blocks that the
+ * caravans walk on, near the player.
  *
  * <ul>
- *   <li>The color of the line shows the surface: gold on a road, green on land, cyan in a ford, blue on deep water.
- *       A coarse route is grey.</li>
+ *   <li>The line goes from the center of a block of the route to the center of the next block. It is a flat strip
+ *       above the blocks and a vertical strip, so the player sees it from above and from the side.</li>
  *   <li>On a road segment, the line is on the road floor, also on a bridge or in a tunnel. On the other segments, the
  *       line is on the terrain.</li>
+ *   <li>A coarse route (the detailed route is not ready) is pale and translucent.</li>
  *   <li>The client reads the heights only in the loaded chunks, in a radius of {@link #RADIUS} blocks around the
  *       player. It calculates the line again when the route changes, when the player moves, and at an interval.</li>
  * </ul>
@@ -35,17 +36,25 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 public final class ClientRouteOverlay {
     /** The radius around the player where the line shows, in blocks. */
     private static final int RADIUS = 128;
-    /** The distance between two points of the line, in blocks. */
-    private static final double SAMPLE = 2.0;
-    /** The height of the line above the floor, in blocks. */
-    private static final float LIFT = 0.08F;
+    /** The distance between two samples of the route, in blocks: smaller than a block, so no block is missed. */
+    private static final double SAMPLE = 0.25;
+    /** The height of the bottom of the line above the floor, in blocks. */
+    private static final float LIFT = 0.1F;
+    /** The width of the flat strip, in blocks. */
+    private static final float WIDTH = 0.3F;
+    /** The height of the vertical strip, in blocks. */
+    private static final float HEIGHT = 0.2F;
     /** The distance that the player moves before the client calculates the line again, in blocks. */
     private static final double MOVE = 8.0;
     /** The interval between two calculations of the line, in ticks: the chunks near the player load. */
     private static final int INTERVAL = 40;
+    /** The color of the line of a detailed route, as ARGB. */
+    private static final int DETAILED_COLOR = 0xF0FFD21F;
+    /** The color of the line of a coarse route, as ARGB. */
+    private static final int COARSE_COLOR = 0x80FFF0A0;
 
-    /** A segment of the line, in world coordinates, with its color as ARGB. */
-    private record Segment(float ax, float ay, float az, float bx, float by, float bz, int color) {
+    /** A segment of the line, from the center of a block to the center of the next block, at the floor height. */
+    private record Segment(float ax, float ay, float az, float bx, float by, float bz) {
     }
 
     private static List<Segment> segments = List.of();
@@ -56,6 +65,11 @@ public final class ClientRouteOverlay {
     private ClientRouteOverlay() {
     }
 
+    /** The number of segments of the line near the player. 0 if the line does not show. */
+    public static int segmentCount() {
+        return ClientRouteView.inWorld() ? segments.size() : 0;
+    }
+
     public static void onRenderLevel(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
             return;
@@ -63,19 +77,16 @@ public final class ClientRouteOverlay {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
         LocalPlayer player = minecraft.player;
-        RoutePayload payload = ClientRouteView.route();
-        if (!ClientRouteView.inWorld() || level == null || player == null || payload == null
+        Optional<Route> route = ClientRouteView.shownRoute();
+        if (!ClientRouteView.inWorld() || level == null || player == null || route.isEmpty()
                 || level.dimension() != Level.OVERWORLD) {
-            return;
-        }
-        Optional<Route> route = payload.route();
-        if (route.isEmpty()) {
+            segments = List.of();
             return;
         }
         long tick = level.getGameTime();
         if (builtVersion != ClientRouteView.version() || tick - builtTick >= INTERVAL || tick < builtTick
                 || builtCenter.distanceToSqr(player.position()) > MOVE * MOVE) {
-            segments = build(level, route.get(), payload.detailed(), player.getX(), player.getZ());
+            segments = build(level, route.get(), player.getX(), player.getZ());
             builtVersion = ClientRouteView.version();
             builtTick = tick;
             builtCenter = player.position();
@@ -83,56 +94,78 @@ public final class ClientRouteOverlay {
         if (segments.isEmpty()) {
             return;
         }
+        int color = ClientRouteView.isDetailed() ? DETAILED_COLOR : COARSE_COLOR;
         Vec3 camera = event.getCamera().getPosition();
         PoseStack pose = event.getPoseStack();
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
         pose.pushPose();
         pose.translate(-camera.x, -camera.y, -camera.z);
-        PoseStack.Pose last = pose.last();
-        VertexConsumer lines = buffers.getBuffer(RenderType.lines());
+        Matrix4f matrix = pose.last().pose();
+        VertexConsumer quads = buffers.getBuffer(RenderType.debugQuads());
         for (Segment segment : segments) {
             float dx = segment.bx - segment.ax;
-            float dy = segment.by - segment.ay;
             float dz = segment.bz - segment.az;
-            float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            float length = (float) Math.sqrt(dx * dx + dz * dz);
             if (length < 1.0E-4F) {
                 continue;
             }
-            lines.addVertex(last, segment.ax, segment.ay, segment.az).setColor(segment.color)
-                    .setNormal(last, dx / length, dy / length, dz / length);
-            lines.addVertex(last, segment.bx, segment.by, segment.bz).setColor(segment.color)
-                    .setNormal(last, dx / length, dy / length, dz / length);
+            float px = -dz / length * WIDTH / 2;
+            float pz = dx / length * WIDTH / 2;
+            // The flat strip above the blocks.
+            quad(quads, matrix, color, segment.ax + px, segment.ay, segment.az + pz, segment.ax - px, segment.ay,
+                    segment.az - pz, segment.bx - px, segment.by, segment.bz - pz, segment.bx + px, segment.by,
+                    segment.bz + pz);
+            // The vertical strip on the center of the flat strip.
+            quad(quads, matrix, color, segment.ax, segment.ay, segment.az, segment.ax, segment.ay + HEIGHT,
+                    segment.az, segment.bx, segment.by + HEIGHT, segment.bz, segment.bx, segment.by, segment.bz);
         }
-        buffers.endBatch(RenderType.lines());
+        buffers.endBatch(RenderType.debugQuads());
         pose.popPose();
     }
 
-    /** The segments of the line near a position. A point in a chunk that is not loaded cuts the line. */
-    private static List<Segment> build(ClientLevel level, Route route, boolean detailed, double x, double z) {
+    private static void quad(VertexConsumer quads, Matrix4f matrix, int color, float x0, float y0, float z0,
+            float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3) {
+        quads.addVertex(matrix, x0, y0, z0).setColor(color);
+        quads.addVertex(matrix, x1, y1, z1).setColor(color);
+        quads.addVertex(matrix, x2, y2, z2).setColor(color);
+        quads.addVertex(matrix, x3, y3, z3).setColor(color);
+    }
+
+    /**
+     * The segments of the line near a position: one segment between the centers of two blocks that follow each
+     * other on the route. A block in a chunk that is not loaded cuts the line.
+     */
+    private static List<Segment> build(ClientLevel level, Route route, double x, double z) {
         List<Segment> result = new ArrayList<>();
         double length = route.length();
+        int lastX = Integer.MIN_VALUE;
+        int lastZ = Integer.MIN_VALUE;
         float[] previous = null;
         for (double progress = 0; progress <= length + SAMPLE - 1.0E-6; progress += SAMPLE) {
             double at = Math.min(progress, length);
             Route.Position position = route.positionAt(at);
             int bx = (int) Math.floor(position.x());
             int bz = (int) Math.floor(position.z());
-            if (Math.abs(bx - x) > RADIUS || Math.abs(bz - z) > RADIUS || !level.hasChunk(bx >> 4, bz >> 4)) {
+            if (bx == lastX && bz == lastZ) {
+                continue;
+            }
+            lastX = bx;
+            lastZ = bz;
+            if (Math.abs(bx + 0.5 - x) > RADIUS || Math.abs(bz + 0.5 - z) > RADIUS
+                    || !level.hasChunk(bx >> 4, bz >> 4)) {
                 previous = null;
                 continue;
             }
-            Route.Surface surface = route.surfaceAt(at);
-            float[] point = {(float) position.x(), floorY(level, surface, bx, bz) + LIFT, (float) position.z()};
+            float[] point = {bx + 0.5F, floorY(level, route.surfaceAt(at), bx, bz) + LIFT, bz + 0.5F};
             if (previous != null) {
-                result.add(new Segment(previous[0], previous[1], previous[2], point[0], point[1], point[2],
-                        color(surface, detailed)));
+                result.add(new Segment(previous[0], previous[1], previous[2], point[0], point[1], point[2]));
             }
             previous = point;
         }
         return result;
     }
 
-    /** The Y of the floor at a point of the route: the road floor on a road segment, else the terrain. */
+    /** The Y of the floor of a block of the route: the road floor on a road segment, else the terrain. */
     private static int floorY(ClientLevel level, Route.Surface surface, int x, int z) {
         int terrain = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         if (surface != Route.Surface.ROAD) {
@@ -141,25 +174,6 @@ public final class ClientRouteOverlay {
         int road = RoadNetwork.roadFloorAt(level, x, z, level.getMinBuildHeight(),
                 level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z));
         return road == RouteFinder.NO_ROAD ? terrain : road + 1;
-    }
-
-    /**
-     * The color of a segment in the world, as ARGB.
-     *
-     * @param surface  the surface of the segment
-     * @param detailed false for a coarse route: grey
-     * @return the color
-     */
-    static int color(Route.Surface surface, boolean detailed) {
-        if (!detailed) {
-            return 0xFFCCCCCC;
-        }
-        return switch (surface) {
-            case ROAD -> 0xFFFFD37F;
-            case LAND -> 0xFF9AE680;
-            case FORD -> 0xFF73D9FF;
-            case WATER -> 0xFF598CFF;
-        };
     }
 
     /** Forgets the line. Called when the player leaves a world or a server. */

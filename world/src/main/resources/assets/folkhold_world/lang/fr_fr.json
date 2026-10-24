@@ -765,6 +765,8 @@
   "screen.folkhold_world.journal.route.surface.water": "Bateaux %s %%",
   "screen.folkhold_world.journal.route.show": "Afficher dans le monde",
   "screen.folkhold_world.journal.route.hide": "Masquer dans le monde",
-  "screen.folkhold_world.journal.route.show_hint": "Affiche la route comme une ligne au sol autour de vous, même journal fermé.",
+  "screen.folkhold_world.journal.route.show_hint": "Affiche la route comme une ligne jaune au-dessus des blocs où passent les caravanes, autour de vous. La ligne reste après la fermeture du journal.",
+  "screen.folkhold_world.journal.route.line_blocks": "Ligne : %s blocs autour de vous",
+  "screen.folkhold_world.journal.route.line_far": "Aucune partie de la route à moins de 128 blocs de vous.",
   "screen.folkhold_world.journal.route.no_line": "La route n'est pas prête."
 }
