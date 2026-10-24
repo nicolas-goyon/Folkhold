@@ -13,9 +13,14 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
 
@@ -165,15 +170,44 @@ public final class ClientRouteOverlay {
         return result;
     }
 
-    /** The Y of the floor of a block of the route: the road floor on a road segment, else the terrain. */
-    private static int floorY(ClientLevel level, Route.Surface surface, int x, int z) {
-        int terrain = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        if (surface != Route.Surface.ROAD) {
-            return terrain;
+    /**
+     * The Y of the floor of a block of the route: the top of the road block on a road segment, else the top of the
+     * highest block that the caravans walk on. The client reads the blocks: it does not use the heightmaps that the
+     * server does not send.
+     */
+    private static float floorY(ClientLevel level, Route.Surface surface, int x, int z) {
+        int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
+        if (surface == Route.Surface.ROAD) {
+            int road = RoadNetwork.roadFloorAt(level, x, z, level.getMinBuildHeight(), top);
+            if (road != RouteFinder.NO_ROAD) {
+                BlockPos pos = new BlockPos(x, road, z);
+                return road + topOf(level, pos, level.getBlockState(pos));
+            }
         }
-        int road = RoadNetwork.roadFloorAt(level, x, z, level.getMinBuildHeight(),
-                level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z));
-        return road == RouteFinder.NO_ROAD ? terrain : road + 1;
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, top - 1, z);
+        for (int y = top - 1; y > level.getMinBuildHeight(); y--) {
+            pos.setY(y);
+            BlockState state = level.getBlockState(pos);
+            if (!state.getFluidState().isEmpty()) {
+                return y + state.getFluidState().getHeight(level, pos);
+            }
+            if (!isPassable(level, pos, state)) {
+                return y + topOf(level, pos, state);
+            }
+        }
+        return top;
+    }
+
+    /** True for a block that the caravans walk through: leaves, a fence gate, a door, or a block with no collision. */
+    private static boolean isPassable(ClientLevel level, BlockPos pos, BlockState state) {
+        return state.is(BlockTags.LEAVES) || state.is(BlockTags.FENCE_GATES) || state.is(BlockTags.DOORS)
+                || state.getCollisionShape(level, pos).isEmpty();
+    }
+
+    /** The top of the collision shape of a block, from 0 to 1. A block with no collision gives 1. */
+    private static float topOf(ClientLevel level, BlockPos pos, BlockState state) {
+        VoxelShape shape = state.getCollisionShape(level, pos);
+        return shape.isEmpty() ? 1.0F : (float) Math.min(1.0, shape.max(Direction.Axis.Y));
     }
 
     /** Forgets the line. Called when the player leaves a world or a server. */

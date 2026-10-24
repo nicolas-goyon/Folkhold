@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.core.sim.settlement;
 
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -27,6 +28,18 @@ public final class Settlement {
     private int experience;
     private String biome = "";
     private final EconomyState economy = new EconomyState();
+    private List<Gate> gates = List.of();
+
+    /**
+     * A gate of the palisade of the village: the caravans go in and out of the village there.
+     *
+     * @param x    block X of the middle of the gate
+     * @param z    block Z of the middle of the gate
+     * @param outX block X of the position outside the gate, after its stairs
+     * @param outZ block Z of the position outside the gate, after its stairs
+     */
+    public record Gate(int x, int z, int outX, int outZ) {
+    }
 
     /**
      * Makes an active settlement with no known heart.
@@ -164,6 +177,26 @@ public final class Settlement {
 
     public EconomyState economy() {
         return economy;
+    }
+
+    /** The gates of the palisade, as the heart saw them the last time. Empty if the heart did not see them. */
+    public List<Gate> gates() {
+        return gates;
+    }
+
+    /**
+     * Sets the gates of the palisade.
+     *
+     * @param gates the gates
+     * @return true if the gates changed
+     */
+    public boolean setGates(List<Gate> gates) {
+        List<Gate> copy = List.copyOf(gates);
+        if (copy.equals(this.gates)) {
+            return false;
+        }
+        this.gates = copy;
+        return true;
     }
 
     /** Square of the horizontal distance from the settlement to a position, in blocks. */

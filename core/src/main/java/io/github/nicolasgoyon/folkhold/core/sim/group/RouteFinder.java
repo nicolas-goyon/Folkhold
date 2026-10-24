@@ -138,6 +138,27 @@ public final class RouteFinder {
     private record Node(int i, int j, int level, double cost, double estimate) {
     }
 
+    /** Receives the progress of a search, on the thread of the search. */
+    @FunctionalInterface
+    public interface Progress {
+        /** A progress that does nothing. */
+        Progress NONE = (examined, fraction) -> {
+        };
+
+        /**
+         * Receives the progress.
+         *
+         * @param examined the number of cells that the search examined (for a refinement, the total of the searches)
+         * @param fraction the part of the direct distance from the start to the end that the search covered, from 0
+         *                 to 1: 1 minus the smallest distance from an examined cell to the end, divided by the
+         *                 distance from the start to the end
+         */
+        void update(int examined, double fraction);
+    }
+
+    /** The search gives its progress every this number of examined cells. */
+    static final int PROGRESS_INTERVAL = 256;
+
     private RouteFinder() {
     }
 
@@ -170,6 +191,29 @@ public final class RouteFinder {
      */
     public static Result find(int startX, int startZ, int endX, int endZ, HeightSource heights, Settings settings,
             Corridor corridor) {
+        return find(startX, startZ, endX, endZ, heights, settings, corridor, Progress.NONE, 0);
+    }
+
+    /**
+     * Finds a route and gives the progress of the search.
+     *
+     * @param startX   block X of the start
+     * @param startZ   block Z of the start
+     * @param endX     block X of the end
+     * @param endZ     block Z of the end
+     * @param heights  the height source
+     * @param settings the settings
+     * @param corridor the area of the search, or null for all the grid
+     * @param progress receives the progress
+     * @return the result
+     */
+    public static Result find(int startX, int startZ, int endX, int endZ, HeightSource heights, Settings settings,
+            Corridor corridor, Progress progress) {
+        return find(startX, startZ, endX, endZ, heights, settings, corridor, progress, 0);
+    }
+
+    private static Result find(int startX, int startZ, int endX, int endZ, HeightSource heights, Settings settings,
+            Corridor corridor, Progress progress, int examinedBefore) {
         double direct = Math.hypot(endX - startX, endZ - startZ);
         if (direct > settings.maxLength()) {
             return new Result(Optional.empty(), 0);
@@ -184,6 +228,8 @@ public final class RouteFinder {
         bestCost.put(startKey, 0.0);
         open.add(new Node(0, 0, TERRAIN, 0.0, heuristic(0, 0, goalI, goalJ, settings)));
         int examined = 0;
+        double startDistance = Math.max(1.0, Math.hypot(goalI, goalJ));
+        double nearest = startDistance;
         while (!open.isEmpty() && examined < settings.maxNodes()) {
             Node node = open.poll();
             long nodeKey = key(node.i(), node.j(), node.level());
@@ -191,7 +237,12 @@ public final class RouteFinder {
                 continue;
             }
             examined++;
+            nearest = Math.min(nearest, Math.hypot(goalI - node.i(), goalJ - node.j()));
+            if (examined % PROGRESS_INTERVAL == 0) {
+                progress.update(examinedBefore + examined, 1.0 - nearest / startDistance);
+            }
             if (node.i() == goalI && node.j() == goalJ) {
+                progress.update(examinedBefore + examined, 1.0);
                 return new Result(build(nodeKey, parent, grid, endX, endZ, settings), examined);
             }
             boolean fromStart = nodeKey == startKey;
@@ -238,11 +289,33 @@ public final class RouteFinder {
      */
     public static Result refine(int startX, int startZ, int endX, int endZ, Route coarse, double width,
             HeightSource heights, Settings settings) {
-        Result first = find(startX, startZ, endX, endZ, heights, settings, new Corridor(coarse, width));
+        return refine(startX, startZ, endX, endZ, coarse, width, heights, settings, Progress.NONE);
+    }
+
+    /**
+     * Finds a route on a fine grid near a coarse route, and gives the progress of the searches (see
+     * {@link #refine(int, int, int, int, Route, double, HeightSource, Settings)}). The progress of the second search
+     * starts again from 0.
+     *
+     * @param startX   block X of the start
+     * @param startZ   block Z of the start
+     * @param endX     block X of the end
+     * @param endZ     block Z of the end
+     * @param coarse   the coarse route
+     * @param width    the width of the first corridor, in blocks
+     * @param heights  the height source
+     * @param settings the settings of the fine grid
+     * @param progress receives the progress
+     * @return the result. The number of examined cells is the total of the searches.
+     */
+    public static Result refine(int startX, int startZ, int endX, int endZ, Route coarse, double width,
+            HeightSource heights, Settings settings, Progress progress) {
+        Result first = find(startX, startZ, endX, endZ, heights, settings, new Corridor(coarse, width), progress, 0);
         if (first.route().isPresent()) {
             return first;
         }
-        Result second = find(startX, startZ, endX, endZ, heights, settings, new Corridor(coarse, width * 2.0));
+        Result second = find(startX, startZ, endX, endZ, heights, settings, new Corridor(coarse, width * 2.0),
+                progress, first.examined());
         return new Result(second.route(), first.examined() + second.examined());
     }
 

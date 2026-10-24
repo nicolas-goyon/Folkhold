@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.world.network.RoutePayload.Status;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Map;
 import java.util.Optional;
+import javax.annotation.Nullable;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -20,8 +21,10 @@ import net.minecraft.server.level.ServerPlayer;
  *   <li>The route is the route that the caravans take (see {@link CaravanRoutes}): the detailed route, or the coarse
  *       route when no detailed route is in the corridor.</li>
  *   <li>The server does not calculate a route on the server thread. When a route is not in the data, the worker
- *       thread calculates it, and the answer is {@link Status#PENDING}. The journal asks again some seconds later.
- *       The calculated route stays in the data, so the next caravan between the two villages uses it.</li>
+ *       thread calculates it, and the answer is {@link Status#PENDING}, with the progress of the calculation. The
+ *       journal asks again some seconds later. The calculated route stays in the data, so the next caravan between
+ *       the two villages uses it.</li>
+ *   <li>The answer also has the relief of the map ({@link RouteReliefs}) when the server calculated it.</li>
  * </ul>
  */
 public final class RouteViews {
@@ -54,20 +57,44 @@ public final class RouteViews {
         if (from.isEmpty() || to.isEmpty()) {
             return RoutePayload.empty(fromId, toId, Status.REFUSED);
         }
-        Optional<Route> coarse = CaravanRoutes.cached(server, from.get(), to.get());
+        RoutePayload route = route(server, from.get(), to.get());
+        Optional<Route> shown = route.route();
+        RoutePayload.Relief relief = shown.flatMap(found -> RouteReliefs.relief(server,
+                Route.pairKey(fromId, toId), found)).orElse(null);
+        boolean reliefPending = shown.isPresent() && relief == null
+                && RouteReliefs.isPending(Route.pairKey(fromId, toId));
+        RoutePayload.Progress progress = progress(fromId, toId, route);
+        return route.with(progress, relief, route.status() == Status.PENDING || reliefPending);
+    }
+
+    /** The route between two settlements, with no progress and no relief. */
+    private static RoutePayload route(MinecraftServer server, Settlement from, Settlement to) {
+        Optional<Route> coarse = CaravanRoutes.cached(server, from, to);
         if (coarse == null) {
-            CaravanRoutes.request(server, from.get(), to.get());
-            return RoutePayload.empty(fromId, toId, Status.PENDING);
+            CaravanRoutes.request(server, from, to);
+            return RoutePayload.empty(from.id(), to.id(), Status.PENDING);
         }
         if (coarse.isEmpty()) {
-            return RoutePayload.empty(fromId, toId, Status.NONE);
+            return RoutePayload.empty(from.id(), to.id(), Status.NONE);
         }
-        Optional<Route> detail = CaravanRoutes.cachedDetail(server, from.get(), to.get());
+        Optional<Route> detail = CaravanRoutes.cachedDetail(server, from, to);
         if (detail == null) {
-            CaravanRoutes.requestDetail(server, from.get(), to.get(), coarse.get());
-            return RoutePayload.of(fromId, toId, Status.PENDING, false, coarse.get());
+            CaravanRoutes.requestDetail(server, from, to, coarse.get());
+            return RoutePayload.of(from.id(), to.id(), Status.PENDING, false, coarse.get());
         }
-        return detail.map(route -> RoutePayload.of(fromId, toId, Status.READY, true, route))
-                .orElseGet(() -> RoutePayload.of(fromId, toId, Status.READY, false, coarse.get()));
+        return detail.map(found -> RoutePayload.of(from.id(), to.id(), Status.READY, true, found))
+                .orElseGet(() -> RoutePayload.of(from.id(), to.id(), Status.READY, false, coarse.get()));
+    }
+
+    /** The progress of the calculation of a pending route, or null. */
+    @Nullable
+    private static RoutePayload.Progress progress(String fromId, String toId, RoutePayload route) {
+        if (route.status() != Status.PENDING) {
+            return null;
+        }
+        boolean detail = route.route().isPresent();
+        String key = detail ? CaravanRoutes.detailKey(fromId, toId) : CaravanRoutes.coarseKey(fromId, toId);
+        return CaravanRoutes.state(key).map(state -> new RoutePayload.Progress(detail, state.ahead(),
+                state.examined(), state.budget(), (int) Math.round(100 * state.fraction()))).orElse(null);
     }
 }

@@ -5,23 +5,30 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.GroupMember;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
+import io.github.nicolasgoyon.folkhold.core.sim.group.RouteGates;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.journal.JournalData;
 import io.github.nicolasgoyon.folkhold.world.journal.RouteViews;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload.Status;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -53,6 +60,42 @@ public final class RouteViewGameTests {
         return List.of(from, to);
     }
 
+    /**
+     * The heart records the gates of its palisade in the settlement. A route from the heart goes through a gate: the
+     * heart, a point inside the gate, the gate, then the position outside it.
+     */
+    @GameTest(template = "village/center", timeoutTicks = 20, batch = "route_view_gates")
+    public static void routeGoesThroughAGateOfThePalisade(GameTestHelper helper) {
+        VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos heartPos = heart.getBlockPos();
+        helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
+        heart.ensureSettlement();
+        Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
+
+        heart.recordGates();
+
+        List<Settlement.Gate> gates = settlement.gates();
+        Route route = new Route(List.of(new Route.Point(settlement.x(), settlement.z()),
+                new Route.Point(settlement.x() + 4, settlement.z() + 4),
+                new Route.Point(settlement.x() + 400, settlement.z() + 400)));
+        Route gated = RouteGates.atStart(route, gates);
+        level.setBlock(heartPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+
+        helper.assertFalse(gates.isEmpty(), "The heart must record the gates of the palisade");
+        for (Settlement.Gate gate : gates) {
+            double gateDistance = Math.hypot(gate.x() - settlement.x(), gate.z() - settlement.z());
+            double outDistance = Math.hypot(gate.outX() - settlement.x(), gate.outZ() - settlement.z());
+            helper.assertTrue(outDistance > gateDistance, "The outside of a gate is farther from the heart: " + gate);
+        }
+        Route.Point door = gated.points().get(2);
+        helper.assertTrue(gates.stream().anyMatch(gate -> gate.x() == door.x() && gate.z() == door.z()),
+                "The route must go through a gate: " + gated.points());
+        helper.assertTrue(gated.points().get(gated.points().size() - 1).equals(route.points().get(2)),
+                "The end of the route must not change");
+        helper.succeed();
+    }
+
     /** The server does not show a route to a village that is not in the journal of the player. */
     @GameTest(template = "empty", batch = "route_view_refused")
     public static void villageOutsideTheJournalIsRefused(GameTestHelper helper) {
@@ -82,7 +125,7 @@ public final class RouteViewGameTests {
      * The first answer is "pending": the worker thread calculates the route. The next answers (the journal asks again)
      * come with the route. The route is the route of the next caravan between the two villages, in both directions.
      */
-    @GameTest(template = "empty", timeoutTicks = 600, batch = "route_view_ready")
+    @GameTest(template = "empty", timeoutTicks = 4000, batch = "route_view_ready")
     public static void pendingRouteBecomesTheCaravanRoute(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         List<Settlement> ends = settlements(server, 34_000);
@@ -100,7 +143,8 @@ public final class RouteViewGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> {
                     RoutePayload answer = RouteViews.answer(player, from.id(), to.id());
-                    helper.assertTrue(answer.status() == Status.READY, "The route must become ready");
+                    helper.assertTrue(answer.status() == Status.READY && answer.relief() != null && !answer.more(),
+                            "The route and the relief of its map must become ready: " + answer.status());
                     ready.set(answer);
                 })
                 .thenExecute(() -> {
@@ -109,6 +153,11 @@ public final class RouteViewGameTests {
                     server.getPlayerList().remove(player);
                     List<Route.Point> points = payload.points();
                     helper.assertTrue(payload.detailed(), "The flat test world must have a detailed route");
+                    RoutePayload.Relief relief = payload.relief();
+                    helper.assertTrue(relief.minX() < from.x() && relief.minZ() < from.z()
+                            && relief.minX() + (relief.width() - 1) * relief.cell() > to.x()
+                            && relief.minZ() + (relief.height() - 1) * relief.cell() > to.z(),
+                            "The relief must cover the route");
                     helper.assertTrue(points.get(0).equals(new Route.Point(from.x(), from.z()))
                             && points.get(points.size() - 1).equals(new Route.Point(to.x(), to.z())),
                             "The route must go from the start to the end: " + points.get(0));

@@ -166,6 +166,17 @@ public final class SettlementData extends SavedData {
             entry.putInt("Level", settlement.level());
             entry.putInt("Experience", settlement.experience());
             entry.putString("Biome", settlement.biome());
+            if (!settlement.gates().isEmpty()) {
+                int[] gates = new int[settlement.gates().size() * 4];
+                for (int g = 0; g < settlement.gates().size(); g++) {
+                    Settlement.Gate gate = settlement.gates().get(g);
+                    gates[4 * g] = gate.x();
+                    gates[4 * g + 1] = gate.z();
+                    gates[4 * g + 2] = gate.outX();
+                    gates[4 * g + 3] = gate.outZ();
+                }
+                entry.putIntArray("Gates", gates);
+            }
             entry.put("Economy", saveEconomy(settlement.economy()));
             list.add(entry);
         }
@@ -206,6 +217,12 @@ public final class SettlementData extends SavedData {
                 settlement.setProgress(Settlements.startLevel(settlement.id()), 0);
             }
             settlement.setBiome(entry.getString("Biome"));
+            int[] gates = entry.getIntArray("Gates");
+            List<Settlement.Gate> loadedGates = new ArrayList<>();
+            for (int g = 0; g + 3 < gates.length; g += 4) {
+                loadedGates.add(new Settlement.Gate(gates[g], gates[g + 1], gates[g + 2], gates[g + 3]));
+            }
+            settlement.setGates(loadedGates);
             loadEconomy(settlement.economy(), entry.getCompound("Economy"));
             if (data.registry.byId(settlement.id()).isEmpty()) {
                 data.registry.add(settlement);
