@@ -3,12 +3,15 @@ package io.github.nicolasgoyon.folkhold.world.journal;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
+import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload.Status;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,15 +28,60 @@ import net.minecraft.server.level.ServerPlayer;
  *       journal asks again some seconds later. The calculated route stays in the data, so the next caravan between
  *       the two villages uses it.</li>
  *   <li>The answer also has the relief of the map ({@link RouteReliefs}) when the server calculated it.</li>
+ *   <li>The player can ask for a new calculation of the route ({@link #recalculate}).</li>
  * </ul>
  */
 public final class RouteViews {
+    /** The minimum time between two new calculations that a player asks for, in ticks. */
+    static final long RECALCULATE_TICKS = 20L * 20L;
+    /** The game time of the last new calculation that each player asked for. */
+    private static final Map<UUID, Long> LAST_RECALCULATION = new ConcurrentHashMap<>();
+
     private RouteViews() {
     }
 
-    /** Sends the route between two villages to a player. */
-    public static void request(ServerPlayer player, String fromId, String toId) {
+    /**
+     * Sends the route between two villages to a player.
+     *
+     * @param player      the player
+     * @param fromId      the settlement id of the start
+     * @param toId        the settlement id of the end
+     * @param recalculate true to calculate the route again first (see {@link #recalculate})
+     */
+    public static void request(ServerPlayer player, String fromId, String toId, boolean recalculate) {
+        if (recalculate) {
+            recalculate(player, fromId, toId);
+        }
         ModNetwork.send(player, answer(player, fromId, toId));
+    }
+
+    /**
+     * Forgets the route between two villages of the journal of a player, and its relief: the next answer requests
+     * them again. The caravans also use the new route. A player can ask for this once each
+     * {@link #RECALCULATE_TICKS} ticks. While the worker thread calculates the route, nothing changes.
+     *
+     * @param player the player
+     * @param fromId the settlement id of the start
+     * @param toId   the settlement id of the end
+     * @return true if the server forgot the route
+     */
+    public static boolean recalculate(ServerPlayer player, String fromId, String toId) {
+        MinecraftServer server = player.server;
+        Map<String, JournalData.Visit> journal = JournalData.get(server).visits(player.getUUID());
+        if (fromId.equals(toId) || !journal.containsKey(fromId) || !journal.containsKey(toId)
+                || CaravanRoutes.state(CaravanRoutes.coarseKey(fromId, toId)).isPresent()
+                || CaravanRoutes.state(CaravanRoutes.detailKey(fromId, toId)).isPresent()) {
+            return false;
+        }
+        long now = server.overworld().getGameTime();
+        Long last = LAST_RECALCULATION.get(player.getUUID());
+        if (last != null && now - last < RECALCULATE_TICKS && now >= last) {
+            return false;
+        }
+        LAST_RECALCULATION.put(player.getUUID(), now);
+        RouteReliefs.forget(Route.pairKey(fromId, toId));
+        MobileGroupData.get(server).forgetRoute(fromId, toId);
+        return true;
     }
 
     /**

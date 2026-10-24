@@ -776,5 +776,11 @@
   "screen.folkhold_world.journal.route.show_hint": "Shows the route as a yellow line above the blocks that the caravans walk on, near you. The line stays after you close the journal.",
   "screen.folkhold_world.journal.route.line_blocks": "Line: %s blocks near you",
   "screen.folkhold_world.journal.route.line_far": "No part of the route within 128 blocks of you.",
-  "screen.folkhold_world.journal.route.no_line": "The route is not ready."
+  "screen.folkhold_world.journal.route.no_line": "The route is not ready.",
+  "screen.folkhold_world.journal.route.mode.approximate": "Line: approximate",
+  "screen.folkhold_world.journal.route.mode.precise": "Line: precise",
+  "screen.folkhold_world.journal.route.mode_hint": "Approximate: a smooth line on the ground. Precise: a line on the top of each block of the route, with a step at each change of height.",
+  "screen.folkhold_world.journal.route.recalculate": "Recalculate",
+  "screen.folkhold_world.journal.route.recalculate_hint": "Asks the server to calculate the route again, for example after you build a road, a bridge or a tunnel. The caravans also take the new route.",
+  "screen.folkhold_world.journal.route.recalculate_busy": "The server calculates the route."
 }

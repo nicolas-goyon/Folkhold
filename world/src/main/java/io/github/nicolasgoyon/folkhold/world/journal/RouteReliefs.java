@@ -67,6 +67,11 @@ public final class RouteReliefs {
         return Optional.empty();
     }
 
+    /** Forgets the relief of a pair of villages: the next request calculates it again. */
+    public static void forget(String key) {
+        RELIEFS.remove(key);
+    }
+
     /** True if the server calculates the relief of a pair of villages. */
     public static boolean isPending(String key) {
         return PENDING.contains(key);
