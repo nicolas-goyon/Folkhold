@@ -1,0 +1,22 @@
+{
+  "values": [
+    "minecraft:dirt_path",
+    "minecraft:gravel",
+    "minecraft:cobblestone",
+    "minecraft:mossy_cobblestone",
+    "minecraft:stone_bricks",
+    "minecraft:mossy_stone_bricks",
+    "minecraft:cracked_stone_bricks",
+    "minecraft:bricks",
+    "minecraft:mud_bricks",
+    "minecraft:polished_andesite",
+    "minecraft:polished_diorite",
+    "minecraft:polished_granite",
+    "#minecraft:planks",
+    "#minecraft:slabs",
+    {"id": "trmt:eroded_grass_block", "required": false},
+    {"id": "trmt:eroded_dirt", "required": false},
+    {"id": "trmt:eroded_coarse_dirt", "required": false},
+    {"id": "trmt:eroded_sand", "required": false}
+  ]
+}
