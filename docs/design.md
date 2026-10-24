@@ -578,7 +578,7 @@ Mobile groups travel in an abstract form along a route. They become entities onl
 
 ### Synergy with the pack mods
 
-With The Roads More Travelled, the materialized caravans that walk on their route can create real paths over time. This gives visible trade routes. The eroded blocks of TRMT are in the tag `folkhold_world:road`, so the next routes follow these paths. To check: TRMT reacts to mobs, not only to players (its Forge port says so).
+With The Roads More Travelled, the materialized caravans that walk on their route create real paths over time. This gives visible trade routes. The eroded blocks of TRMT are in the tag `folkhold_world:road`, so the next routes follow these paths. An in-game check with the modpack shows that TRMT reacts to the caravans, not only to the players.
 
 ## World mod: reputation and quests
 
