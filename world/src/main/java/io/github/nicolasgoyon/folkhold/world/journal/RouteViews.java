@@ -27,6 +27,8 @@ import net.minecraft.server.level.ServerPlayer;
  *       thread calculates it, and the answer is {@link Status#PENDING}, with the progress of the calculation. The
  *       journal asks again some seconds later. The calculated route stays in the data, so the next caravan between
  *       the two villages uses it.</li>
+ *   <li>The journal shows the last route of a pair of villages again with no new search ({@link RouteViewData}).
+ *       Only a request of the player starts a new search ({@link #recalculate}).</li>
  *   <li>The answer also has the relief of the map ({@link RouteReliefs}) when the server calculated it.</li>
  *   <li>The player can ask for a new calculation of the route ({@link #recalculate}).</li>
  * </ul>
@@ -79,7 +81,7 @@ public final class RouteViews {
             return false;
         }
         LAST_RECALCULATION.put(player.getUUID(), now);
-        RouteReliefs.forget(Route.pairKey(fromId, toId));
+        RouteViewData.get(server).forget(fromId, toId);
         MobileGroupData.get(server).forgetRoute(fromId, toId);
         return true;
     }
@@ -115,23 +117,42 @@ public final class RouteViews {
         return route.with(progress, relief, route.status() == Status.PENDING || reliefPending);
     }
 
-    /** The route between two settlements, with no progress and no relief. */
+    /**
+     * The route between two settlements, with no progress and no relief.
+     *
+     * <ul>
+     *   <li>A ready route of the data goes into {@link RouteViewData}.</li>
+     *   <li>When the data has no ready route, the last route of {@link RouteViewData} comes with no new search: the
+     *       roads can change near a route, but only a request of the player ({@link #recalculate}) starts a new
+     *       search.</li>
+     *   <li>With no route in the data and no last route, the worker thread calculates the route.</li>
+     * </ul>
+     */
     private static RoutePayload route(MinecraftServer server, Settlement from, Settlement to) {
+        RouteViewData views = RouteViewData.get(server);
         Optional<Route> coarse = CaravanRoutes.cached(server, from, to);
+        Optional<Route> detail = coarse != null && coarse.isPresent() ? CaravanRoutes.cachedDetail(server, from, to)
+                : null;
+        if (detail != null) {
+            Route ready = detail.orElse(coarse.get());
+            views.putRoute(new RouteViewData.Snapshot(from.id(), to.id(), detail.isPresent(), ready));
+            return RoutePayload.of(from.id(), to.id(), Status.READY, detail.isPresent(), ready);
+        }
+        if (coarse != null && coarse.isEmpty()) {
+            views.forget(from.id(), to.id());
+            return RoutePayload.empty(from.id(), to.id(), Status.NONE);
+        }
+        Optional<RouteViewData.Snapshot> last = views.route(from.id(), to.id());
+        if (last.isPresent()) {
+            return RoutePayload.of(from.id(), to.id(), Status.READY, last.get().detailed(),
+                    last.get().from(from.id()));
+        }
         if (coarse == null) {
             CaravanRoutes.request(server, from, to);
             return RoutePayload.empty(from.id(), to.id(), Status.PENDING);
         }
-        if (coarse.isEmpty()) {
-            return RoutePayload.empty(from.id(), to.id(), Status.NONE);
-        }
-        Optional<Route> detail = CaravanRoutes.cachedDetail(server, from, to);
-        if (detail == null) {
-            CaravanRoutes.requestDetail(server, from, to, coarse.get());
-            return RoutePayload.of(from.id(), to.id(), Status.PENDING, false, coarse.get());
-        }
-        return detail.map(found -> RoutePayload.of(from.id(), to.id(), Status.READY, true, found))
-                .orElseGet(() -> RoutePayload.of(from.id(), to.id(), Status.READY, false, coarse.get()));
+        CaravanRoutes.requestDetail(server, from, to, coarse.get());
+        return RoutePayload.of(from.id(), to.id(), Status.PENDING, false, coarse.get());
     }
 
     /** The progress of the calculation of a pending route, or null. */

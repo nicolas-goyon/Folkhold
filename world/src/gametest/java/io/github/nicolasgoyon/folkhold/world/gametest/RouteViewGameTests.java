@@ -11,12 +11,14 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
+import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.journal.JournalData;
 import io.github.nicolasgoyon.folkhold.world.journal.RouteViews;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload.Status;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -130,6 +132,44 @@ public final class RouteViewGameTests {
                 .thenExecute(() -> {
                     server.getPlayerList().remove(player);
                     helper.assertFalse(second[0], "A second request right after the first must do nothing");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the data forgets a route (for example after a change of the roads), the journal shows the last route with
+     * no new search.
+     */
+    @GameTest(template = "empty", timeoutTicks = 4000, batch = "route_view_last")
+    public static void journalKeepsTheLastRoute(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<Settlement> ends = settlements(server, 42_000);
+        Settlement from = ends.get(0);
+        Settlement to = ends.get(1);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        JournalData journal = JournalData.get(server);
+        journal.discover(player.getUUID(), from.id(), 0);
+        journal.discover(player.getUUID(), to.id(), 0);
+        List<RoutePayload> ready = new ArrayList<>();
+
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    RoutePayload answer = RouteViews.answer(player, from.id(), to.id());
+                    helper.assertTrue(answer.status() == Status.READY && !answer.more(), "The route must be ready");
+                    ready.add(answer);
+                })
+                .thenExecute(() -> {
+                    MobileGroupData.get(server).forgetRoute(from.id(), to.id());
+                    RoutePayload again = RouteViews.answer(player, to.id(), from.id());
+                    server.getPlayerList().remove(player);
+                    RoutePayload first = ready.get(ready.size() - 1);
+                    helper.assertTrue(again.status() == Status.READY && !again.more()
+                            && again.points().equals(first.route().orElseThrow().reversed().points()),
+                            "The journal must show the last route, in the other direction: " + again.status());
+                    helper.assertTrue(CaravanRoutes.cached(server, from, to) == null
+                            && CaravanRoutes.state(CaravanRoutes.coarseKey(from.id(), to.id())).isEmpty(),
+                            "The journal must not start a new search");
+                    helper.assertTrue(again.relief() != null, "The journal must keep the relief");
                 })
                 .thenSucceed();
     }

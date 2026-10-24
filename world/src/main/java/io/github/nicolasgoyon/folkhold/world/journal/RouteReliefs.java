@@ -4,7 +4,6 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.core.sim.group.RouteFinder;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload.Relief;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,8 +20,8 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
  *       thread of the routes calculates them, after the routes on the way.</li>
  *   <li>The grid has {@link #CELLS} cells or less on its long side. Its area is the area of the route, with a
  *       margin.</li>
- *   <li>The server keeps the relief of each pair of villages while it runs. A relief that covers the area of a new
- *       route stays valid.</li>
+ *   <li>The server keeps the relief of each pair of villages in {@link RouteViewData}. A relief that covers the area
+ *       of a new route stays valid.</li>
  * </ul>
  */
 public final class RouteReliefs {
@@ -33,7 +32,6 @@ public final class RouteReliefs {
     /** The smallest margin around the area of the route, in blocks. */
     private static final int MIN_MARGIN = 32;
 
-    private static final Map<String, Relief> RELIEFS = new ConcurrentHashMap<>();
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
 
     private RouteReliefs() {
@@ -49,7 +47,7 @@ public final class RouteReliefs {
      */
     public static Optional<Relief> relief(MinecraftServer server, String key, Route route) {
         int[] area = area(route);
-        Relief known = RELIEFS.get(key);
+        Relief known = RouteViewData.get(server).relief(key);
         if (known != null && covers(known, area)) {
             return Optional.of(known);
         }
@@ -58,7 +56,7 @@ public final class RouteReliefs {
             RouteFinder.HeightSource terrain = CaravanRoutes.terrain(level);
             boolean started = CaravanRoutes.runOnWorker(server, () -> calculate(terrain, area), relief -> {
                 PENDING.remove(key);
-                RELIEFS.put(key, relief);
+                RouteViewData.get(server).putRelief(key, relief);
             });
             if (!started) {
                 PENDING.remove(key);
@@ -67,19 +65,13 @@ public final class RouteReliefs {
         return Optional.empty();
     }
 
-    /** Forgets the relief of a pair of villages: the next request calculates it again. */
-    public static void forget(String key) {
-        RELIEFS.remove(key);
-    }
-
     /** True if the server calculates the relief of a pair of villages. */
     public static boolean isPending(String key) {
         return PENDING.contains(key);
     }
 
-    /** Forgets the reliefs. */
+    /** Forgets the reliefs on the way. */
     public static void onServerStopping(ServerStoppingEvent event) {
-        RELIEFS.clear();
         PENDING.clear();
     }
 
