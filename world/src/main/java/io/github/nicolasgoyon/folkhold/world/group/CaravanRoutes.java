@@ -62,6 +62,10 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
  *           route.</li>
  *     </ul>
  *   </li>
+ *   <li>The journal of the players shows the route between two villages
+ *       ({@link io.github.nicolasgoyon.folkhold.world.journal.RouteViews}). It requests the detailed route of the pair
+ *       with no group ({@link #requestDetail(MinecraftServer, Settlement, Settlement, Route)}). When a detailed route
+ *       comes, all the groups between the two settlements that wait for it get it.</li>
  * </ul>
  */
 public final class CaravanRoutes {
@@ -92,6 +96,8 @@ public final class CaravanRoutes {
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
     /** The ids of the groups with a detailed route on the way. */
     private static final Set<String> PENDING_DETAILS = ConcurrentHashMap.newKeySet();
+    /** The pairs of settlements with a detailed route on the way for the journal, as "first|second". */
+    private static final Set<String> PENDING_PAIR_DETAILS = ConcurrentHashMap.newKeySet();
     private static ExecutorService worker;
 
     /**
@@ -176,8 +182,8 @@ public final class CaravanRoutes {
 
     /**
      * Requests the detailed route of a waiting group on the worker thread. The search uses a corridor around the
-     * route of the group. On the server thread, the result goes into the data, and the group gets it if it still
-     * waits for it. With no detailed route, the group keeps its route.
+     * route of the group. On the server thread, the result goes into the data, and the waiting groups between the two
+     * settlements get it. With no detailed route, the group keeps its route.
      *
      * @param server the server
      * @param group  the group
@@ -199,14 +205,78 @@ public final class CaravanRoutes {
     public static boolean requestDetail(MinecraftServer server, MobileGroup group,
             RouteFinder.HeightSource heights) {
         String groupId = group.id();
-        if (!PENDING_DETAILS.add(groupId)) {
-            return true;
-        }
         String originId = group.originId();
         String destinationId = group.destinationId();
         Route coarse = group.route();
         Route.Point start = endpoint(server, originId, coarse.points().get(0));
         Route.Point end = endpoint(server, destinationId, coarse.points().get(coarse.points().size() - 1));
+        return submitDetail(server, PENDING_DETAILS, groupId, originId, destinationId, start, end, coarse, heights,
+                () -> releaseAfterError(server, groupId, originId, destinationId));
+    }
+
+    /**
+     * The detailed route from one settlement to another, if the mod calculated it with the current positions of the
+     * two settlements.
+     *
+     * @param server the server
+     * @param from   the settlement at the start
+     * @param to     the settlement at the end
+     * @return the route (an empty value means "no detailed route"), or null if the route is not calculated
+     */
+    public static Optional<Route> cachedDetail(MinecraftServer server, Settlement from, Settlement to) {
+        return cachedDetail(server, from.id(), to.id(), new Route.Point(from.x(), from.z()),
+                new Route.Point(to.x(), to.z()));
+    }
+
+    /**
+     * Requests the detailed route between two settlements on the worker thread, with no group. The journal of the
+     * players uses it. The result goes into the data, as for a group: the next group between the two settlements
+     * uses the same route.
+     *
+     * @param server the server
+     * @param from   the settlement at the start
+     * @param to     the settlement at the end
+     * @param coarse the coarse route from the start to the end
+     * @return true if the route is on the way (new or earlier request)
+     */
+    public static boolean requestDetail(MinecraftServer server, Settlement from, Settlement to, Route coarse) {
+        return requestDetail(server, from, to, coarse,
+                heights(server.overworld(), WorldConfig.ROUTE_DETAIL_STEP.get()));
+    }
+
+    /**
+     * Requests the detailed route between two settlements on the worker thread, with the given heights (see
+     * {@link #requestDetail(MinecraftServer, Settlement, Settlement, Route)}).
+     *
+     * @param server  the server
+     * @param from    the settlement at the start
+     * @param to      the settlement at the end
+     * @param coarse  the coarse route from the start to the end
+     * @param heights the heights of the terrain
+     * @return true if the route is on the way (new or earlier request)
+     */
+    public static boolean requestDetail(MinecraftServer server, Settlement from, Settlement to, Route coarse,
+            RouteFinder.HeightSource heights) {
+        return submitDetail(server, PENDING_PAIR_DETAILS, Route.pairKey(from.id(), to.id()), from.id(), to.id(),
+                new Route.Point(from.x(), from.z()), new Route.Point(to.x(), to.z()), coarse, heights, () -> {
+                });
+    }
+
+    /**
+     * Calculates a detailed route on the worker thread. On the server thread, the result goes into the data, and the
+     * waiting groups between the two settlements get it.
+     *
+     * @param pending the keys of the calculations on the way
+     * @param key     the key of this calculation
+     * @param failed  what to do on the server thread after an error: the data gets no result
+     * @return true if the route is on the way (new or earlier request)
+     */
+    private static boolean submitDetail(MinecraftServer server, Set<String> pending, String key, String originId,
+            String destinationId, Route.Point start, Route.Point end, Route coarse, RouteFinder.HeightSource heights,
+            Runnable failed) {
+        if (!pending.add(key)) {
+            return true;
+        }
         RouteFinder.Settings settings = detailSettings();
         double width = WorldConfig.ROUTE_CORRIDOR.get();
         try {
@@ -226,27 +296,30 @@ public final class CaravanRoutes {
                     long nanos = System.nanoTime() - startTime;
                     Optional<Route> detail = result.route();
                     server.execute(() -> {
-                        if (!server.isSameThread() || !PENDING_DETAILS.remove(groupId)) {
+                        if (!server.isSameThread() || !pending.remove(key)) {
                             return;
                         }
                         SimulationProfiler.record(DETAIL_PROFILER_NAME, nanos);
                         MobileGroupData data = MobileGroupData.get(server);
                         data.putDetailedRoute(new RouteEntry(originId, destinationId, start.x(), start.z(),
                                 end.x(), end.z(), detail));
-                        data.groups().byId(groupId).ifPresent(waiting ->
-                                applyDetail(waiting, originId, destinationId, detail));
+                        for (MobileGroup waiting : data.groups().all()) {
+                            applyDetail(waiting, originId, destinationId, detail);
+                            applyDetail(waiting, destinationId, originId, detail.map(Route::reversed));
+                        }
                         data.setDirty();
                     });
                     delivered = true;
                 } finally {
                     if (!delivered) {
-                        releaseAfterError(server, groupId, originId, destinationId);
+                        pending.remove(key);
+                        failed.run();
                     }
                 }
             });
             return true;
         } catch (RejectedExecutionException e) {
-            PENDING_DETAILS.remove(groupId);
+            pending.remove(key);
             return false;
         }
     }
@@ -257,7 +330,6 @@ public final class CaravanRoutes {
      */
     private static void releaseAfterError(MinecraftServer server, String groupId, String originId,
             String destinationId) {
-        PENDING_DETAILS.remove(groupId);
         server.execute(() -> {
             if (!server.isSameThread()) {
                 return;
@@ -270,9 +342,9 @@ public final class CaravanRoutes {
         });
     }
 
-    /** The number of detailed routes on the way. */
+    /** The number of detailed routes on the way, for the groups and for the journal. */
     public static int pendingDetails() {
-        return PENDING_DETAILS.size();
+        return PENDING_DETAILS.size() + PENDING_PAIR_DETAILS.size();
     }
 
     /**
@@ -284,6 +356,7 @@ public final class CaravanRoutes {
      */
     public static void forgetPending(MinecraftServer server, String oldId) {
         PENDING.removeIf(key -> key.startsWith(oldId + "|") || key.endsWith("|" + oldId));
+        PENDING_PAIR_DETAILS.removeIf(key -> key.startsWith(oldId + "|") || key.endsWith("|" + oldId));
         for (MobileGroup group : MobileGroupData.get(server).groups().all()) {
             if (group.originId().equals(oldId) || group.destinationId().equals(oldId)) {
                 PENDING_DETAILS.remove(group.id());
@@ -460,6 +533,7 @@ public final class CaravanRoutes {
         }
         PENDING.clear();
         PENDING_DETAILS.clear();
+        PENDING_PAIR_DETAILS.clear();
     }
 
     /**
