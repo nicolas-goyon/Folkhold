@@ -21,7 +21,7 @@ public final class ConstructionKeys {
     /** Turns the ghost by 90 degrees, clockwise. */
     public static final KeyMapping ROTATE = key("rotate", GLFW.GLFW_KEY_R);
     /** Mirrors the ghost: no mirror, left to right, front to back. */
-    public static final KeyMapping MIRROR = key("mirror", GLFW.GLFW_KEY_M);
+    public static final KeyMapping MIRROR = key("mirror", GLFW.GLFW_KEY_N);
     /** Locks the position of the ghost, or makes it follow the view again. */
     public static final KeyMapping LOCK = key("lock", GLFW.GLFW_KEY_G);
     /** Starts the construction at the position of the ghost. */

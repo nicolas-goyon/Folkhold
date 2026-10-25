@@ -1,6 +1,15 @@
 hash-format = "sha256"
 
 [[files]]
+file = "config/defaultoptions/keybindings.txt"
+hash = "e23909caa8a87b64161fb810ba5c40b03ffbf7f73b81c1c02c5b0595700dd6a6"
+
+[[files]]
+file = "mods/balm.pw.toml"
+hash = "4322901ed0553e0c2ead4d365a33bbc9e2d740c4b721f90c8023ed49c42e9387"
+metafile = true
+
+[[files]]
 file = "mods/c2me-neoforge.pw.toml"
 hash = "49cd0f00fe14d655a029724b564284169bcd10375d4048bb5e9a495552d19e38"
 metafile = true
@@ -8,6 +17,11 @@ metafile = true
 [[files]]
 file = "mods/chunky.pw.toml"
 hash = "1d5cc2b6dcfd1fc3adba4566b1c29b57ff1175316678c1f22e63cbc3e28a5ba0"
+metafile = true
+
+[[files]]
+file = "mods/default-options.pw.toml"
+hash = "a6967d761dde867ccc1af53dc9f4e530eb9917a9cb21d0fc15708e8cd2c0f2ba"
 metafile = true
 
 [[files]]
@@ -51,8 +65,8 @@ hash = "e0205a6534ad3ba8f6ffd4a1e946461ab5b544fb2f44a96db778cbcc7addfabe"
 metafile = true
 
 [[files]]
-file = "mods/inventory-profiles-next.pw.toml"
-hash = "ab503e89461dff879ee793253e173625b6ab868f570a371323ef725e567cf5ea"
+file = "mods/inventory-tweaks-refoxed.pw.toml"
+hash = "23a6d125c91c8f4257c4e73fe320ce81f0b2a0c1d6316664296edca6b41acb70"
 metafile = true
 
 [[files]]
@@ -66,23 +80,8 @@ hash = "8bc018284b753276f8e3510101852809bcccdad31a7ae17847df210c71a2c512"
 metafile = true
 
 [[files]]
-file = "mods/journeymap.pw.toml"
-hash = "783ed30ab6f6f60c604b9bdc2f26ec5b23c7a523179aa17119dbc541f7149022"
-metafile = true
-
-[[files]]
-file = "mods/kotlin-for-forge.pw.toml"
-hash = "34580d9d26462eb2381a526dbbcb60d9526dcc0ba9c0e442cc348abac709ce49"
-metafile = true
-
-[[files]]
 file = "mods/lambdynamiclights.pw.toml"
 hash = "ebf0dae777cc19c354a662dc8144009dff7269b2d05624b4591fcb7de56fc14e"
-metafile = true
-
-[[files]]
-file = "mods/libipn.pw.toml"
-hash = "0d2a00252d64ed7d2d9b19994f7accb780304be61f3903d36e810714b414c6cb"
 metafile = true
 
 [[files]]
@@ -153,4 +152,14 @@ metafile = true
 [[files]]
 file = "mods/the-roads-more-travelled.pw.toml"
 hash = "df1aca50a423d91c384e8b1ec15b0f56bc14c320cfc08ab194b590fccdb32742"
+metafile = true
+
+[[files]]
+file = "mods/xaeros-minimap.pw.toml"
+hash = "e97cb865d7a8c8310905d9140899fa55ea23c3fff2e23a17255ce2c162322ad7"
+metafile = true
+
+[[files]]
+file = "mods/xaeros-world-map.pw.toml"
+hash = "3a8e91aecdb602039ba1f7445bbf6b64cc5a46344339a3ffaf3b2e3eb2f5bcbc"
 metafile = true
