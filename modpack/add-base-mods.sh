@@ -36,6 +36,7 @@ add moonlight                   # required by Immersive Weathering: Renewed, not
 
 # Navigation
 add small-ships                 # beta
+add journeymap                  # minimap and full-screen map (key J)
 
 # Terrain shape: continents, oceans, mountain ranges
 add tectonic
@@ -50,6 +51,10 @@ add geckolib                    # unit models and animations of folkhold_world
 add jei
 add jade
 add spark
+add inventory-profiles-next     # client only: sort (key R) and auto refill. Adds libIPN and Kotlin for Forge
+
+# Only the client mods of Inventory Profiles Next use Kotlin for Forge.
+sed -i 's/^side = "both"$/side = "client"/' mods/kotlin-for-forge.pw.toml
 
 # Pin the beta and unofficial mods. 'packwiz update --all' does not change pinned mods.
 pin_project() {
