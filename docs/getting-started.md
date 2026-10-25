@@ -287,7 +287,21 @@ To make a `.mrpack` file with the Folkhold mods inside:
 scripts/export-modpack.sh build/folkhold-dev.mrpack
 ```
 
-The CI makes the same file for each pull request (artifact `folkhold-modpack`).
+The CI makes the same file for each build (artifact `folkhold-modpack`), with the version of the build (see [Continuous integration and releases](#continuous-integration-and-releases)).
+
+### Dev instance that updates itself
+
+After each green build of a push on `develop`, the site of the project contains the dev pack: <https://nicolas-goyon.github.io/Folkhold/dev/pack.toml>. A Prism Launcher instance updates itself from this pack before each launch:
+
+1. In Prism Launcher, select **Add Instance**, then **Import**.
+2. Paste this URL: <https://nicolas-goyon.github.io/Folkhold/dev/folkhold-dev-instance.zip>. Select **OK**.
+3. Launch the instance. packwiz-installer installs the mods of the latest green build of `develop`, then the game opens.
+
+At each launch, packwiz-installer gets the latest build. It removes the jars of the earlier build. You do not import the instance again.
+
+- packwiz-installer does not change the version of NeoForge of the instance. When `modpack/pack.toml` changes the version of NeoForge, change it in the instance: **Edit**, **Version**, select NeoForge, then **Change version**.
+- Use the dev instance for test worlds. A build of `develop` can change the data of a world.
+- `scripts/dev-instance.sh` makes the instance: `scripts/dev-instance.sh build/folkhold-dev-instance.zip <URL of pack.toml>`. `scripts/export-modpack.sh` writes the pack with a third argument: `scripts/export-modpack.sh build/folkhold-dev.mrpack <version> build/dev-pack`.
 
 ## Site of the project
 
@@ -315,9 +329,14 @@ To add a language, add `site/lang/<language>.json` with all the keys of `en_us.j
 ## Continuous integration and releases
 
 - Each push on `main` and on `develop` and each pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars, the `.mrpack` file and the coverage report of `core` are available as artifacts of the run. The workflow **Generated files** runs the tests of the scripts of `scripts/` and checks the output of the scripts of `tools/`.
+- Each build has a version from `scripts/version.py`:
+  - A push on `develop`: the version of the commit, then `-dev.` and the short commit. Example: `0.32.0-dev.13bcc38`.
+  - A pull request: the version after the merge, then `-pr.`, the number of the pull request and the short commit. Example: `0.32.1-pr.472.abc1234`. For a pull request from `develop` to `main`, the first part is the version of the release.
+  - A push on `main`: the version of the release.
+- A build of a push on `develop` also makes the dev pack (artifact `folkhold-dev-pack`, see [Dev instance that updates itself](#dev-instance-that-updates-itself)).
 - The workflow **Pull request** checks the title of a pull request to `develop` or in a stack on `develop` (bump marker, see [CONTRIBUTING.md](../CONTRIBUTING.md#versions-and-releases)) and gives the version after the merge. For a pull request to `main`, it checks that the source branch is `develop` and gives the version and the notes of the release.
 - A change to `.devcontainer/` runs the workflow **Dev container**: it builds the image and checks the tools.
-- The workflow **Pages** publishes the site of the project to GitHub Pages from `develop` (see [Site of the project](#site-of-the-project)). The site also has `version.json` with the version of the latest release. The version badge of the README reads this file, with no call to the GitHub API by shields.io. The workflow runs when the site changes, and after each release. On a pull request that changes the site, the workflow builds the site and does not deploy it. The artifact `github-pages` of the run contains the site.
+- The workflow **Pages** publishes the site of the project to GitHub Pages from `develop` (see [Site of the project](#site-of-the-project)). The site also has `version.json` with the version of the latest release. The version badge of the README reads this file, with no call to the GitHub API by shields.io. The site also has the dev pack of the latest green build of a push on `develop`, in `dev/`. The workflow runs after each green build of a push on `develop`, and after each release. On a pull request that changes the site, the workflow builds the site and does not deploy it. The artifact `github-pages` of the run contains the site.
 - To make a release, merge `develop` into `main`: a pull request from `develop` to `main`, with "Create a merge commit". The workflow **Release** calculates the version from the bump markers of the commits, tags the commit of `develop`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). When the tag of the version exists, the workflow makes no release. The release uses the same packwiz commit as the CI, so two runs on the same commit give the same `.mrpack` content. After the release, the workflow starts the workflow **Pages**.
 
 ## Clean up
