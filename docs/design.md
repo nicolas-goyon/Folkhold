@@ -46,12 +46,13 @@ The pinned versions are in `modpack/mods/*.pw.toml`.
 | Terrain | The Roads More Travelled | `the-roads-more-travelled` | 0.5.1 | Beta |
 | Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | 1.0.4 | Beta, unofficial port; requires Moonlight Lib |
 | Navigation | Small Ships | `small-ships` | 2.0.0-b2.1 | Beta |
-| Navigation | JourneyMap | `journeymap` | 6.0.9 | Minimap and full-screen map (key J) |
+| Navigation | Xaero's Minimap, Xaero's World Map | `xaeros-minimap`, `xaeros-world-map` | 26.6.0, 1.47.0 | Minimap, and map of the explored world (key M) |
 | Terrain | Tectonic | `tectonic` | 3.0.28 | Large continents, deep oceans, mountain ranges; requires Lithostitched |
 | Light | LambDynamicLights | `lambdynamiclights` | 4.8.11 | Client only |
 | Library | GeckoLib | `geckolib` | 4.9.3 | Required by `folkhold_world` |
 | Comfort | JEI, Jade | `jei`, `jade` | 19.57.0.451, 15.10.6 | For development |
-| Comfort | Inventory Profiles Next | `inventory-profiles-next` | 2.2.5 | Client only. The key R sorts an inventory. Auto refill of the hotbar, and new tools before the old tools break. Requires libIPN and Kotlin for Forge |
+| Comfort | Inventory Tweaks: ReFoxed | `inventory-tweaks-refoxed` | 1.2.0 | Client only. The key R sorts the inventory under the cursor (default key of the pack). Refills a stack that runs out, and replaces a tool that breaks |
+| Comfort | Default Options | `default-options` | 21.1.8 | Client only. Sets the default keys of the pack (`config/defaultoptions/keybindings.txt`), and keeps the keys that the player set. Requires Balm |
 
 packwiz resolves most dependencies automatically (for example GlitchCore for Serene Seasons). Some mods do not declare a required library in their Modrinth metadata. Add these libraries explicitly:
 
@@ -281,7 +282,7 @@ The construction system changes the blocks of the level into the blocks of a **t
 - **Loaded chunks**: a construction starts only when its chunks are ready (loaded and complete). These chunks contain the box of the construction and a margin of the horizontal reach plus 1 block. The plan reads the blocks in this margin for the positions to stand and the scaffolding.
 - **Construction tool** (operators): `/folkhold construction place` opens a menu with the structure templates of the server, a text filter and the speed of the construction. The speeds are slow, normal, fast and "builders": the builders of the nearest village build the structure. A key can also open the menu. After the selection, a ghost of the structure follows the block that the player looks at, 64 blocks away or nearer. The ghost stands on this block, with its center above it.
   - The ghost shows the blocks of the structure, translucent, and the box of the structure. A red outline shows each block of the level that the construction removes. Grass and flowers have no outline.
-  - Keys: turn by 90 degrees (R), mirror (M), lock the position (G), build (Enter), remove the ghost (Backspace). The arrow keys, Page Up and Page Down move the ghost by one block, and lock it. The panel above the hotbar shows the keys.
+  - Keys: turn by 90 degrees (R), mirror (N), lock the position (G), build (Enter), remove the ghost (Backspace). The arrow keys, Page Up and Page Down move the ghost by one block, and lock it. The panel above the hotbar shows the keys.
   - The key "build" sends the template, the origin, the turn and the mirror to the server. The server checks the permission and the size of the structure: 32,768 blocks at most, air included. It also checks the distance (96 blocks at most) and the loaded chunks. Then it starts the construction as the command `build`. With the speed "builders", it starts a site of the builders of the nearest village.
   - During the construction, the ghost shows only the blocks that are not in place. It goes away when all its blocks are in place. It also goes away at the end of the construction, and when the command `stop` stops the construction.
 
@@ -686,12 +687,12 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
 
 ## Maps and journal
 
-- The modpack contains JourneyMap: a minimap and a full-screen map of the explored world. The key J opens the full-screen map.
-- **Planned (J6 · Village architecture)**: the minimap and the full-screen map of JourneyMap show the territories and the known villages. The world mod uses the overlay API of JourneyMap. JourneyMap is an optional dependency of the world mod.
+- The modpack contains Xaero's Minimap and Xaero's World Map. The key M opens the map of the explored world.
+- **Planned (J6 · Village architecture)**: the minimap and the world map of Xaero's show the territories and the known villages. The journal (key J) gets a tab with a map: the territories, the villages, and the routes on request. Xaero's mods are an optional dependency of the world mod.
 - The vanilla maps also show the territory borders and the known villages.
 - The player can update a map at a distance: a cartographer block, or a surveyor map that updates itself (for example each 10 minutes).
 - A **faction journal** shows the discovered factions and villages: reputation, relations, position, distance.
-  - **Implemented** (`Journals`, `JournalScreen`, key K): a player discovers a village when the player enters its territory. The player visits the village when the player comes near its heart (the village message). The server keeps the journal of each player.
+  - **Implemented** (`Journals`, `JournalScreen`, key J): a player discovers a village when the player enters its territory. The player visits the village when the player comes near its heart (the village message). The server keeps the journal of each player.
   - Tab "Villages": a text filter, a filter on the visits, a sort by distance, name or reputation. The details show the faction, the reputation in the village, the position and the direction, the day of the discovery and of the last visit.
   - Tab "Factions": the factions of the discovered villages, with the culture, the attitude, the reputation of the player and the discovered villages.
   - Tab "Routes" (`RouteViews`, `ClientRouteView`): the player selects two discovered villages. The map shows the route of the caravans between them, with a color for each surface: road, land, ford, boats. The server shows only the routes between two villages of the journal of the player.
@@ -809,7 +810,7 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J3 · Abstract simulation | `SavedData`, abstract tick, village level, territory claims, economy, bank, merchant | Villages grow, territories change owner |
 | J4 · Caravans, quests | Trade between villages, caravans, traveling merchants, materialization, delivery and escort quests | The player meets convoys and can escort them |
 | J5 · Living villages | Vanilla villages with a garrison, construction system, repair by the villagers, equipment and garrison size from the village level, healer, rider, faction golem, raids against the villages | Villages repair themselves, their garrison grows with the level, a large village resists a raid |
-| J6 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages, growth with new buildings, walls and paths, territories on the minimap and the full-screen map of JourneyMap | Each faction has its own look, villages fit the terrain and grow with their level |
+| J6 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages, growth with new buildings, walls and paths, territories on the maps of Xaero's and in the journal | Each faction has its own look, villages fit the terrain and grow with their level |
 | J7 · Maps and journal | Territories on the vanilla maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
 | J8 · Additional mods | Balance mod: farms, trades, anvil. Events mod: earthquakes, collapses and storms | Farms have limits, the anvil has no cap, first earthquakes and storms |
 

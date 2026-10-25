@@ -36,7 +36,8 @@ add moonlight                   # required by Immersive Weathering: Renewed, not
 
 # Navigation
 add small-ships                 # beta
-add journeymap                  # minimap and full-screen map (key J)
+add xaeros-minimap              # minimap
+add xaeros-world-map            # map of the explored world (key M)
 
 # Terrain shape: continents, oceans, mountain ranges
 add tectonic
@@ -51,10 +52,11 @@ add geckolib                    # unit models and animations of folkhold_world
 add jei
 add jade
 add spark
-add inventory-profiles-next     # client only: sort (key R) and auto refill. Adds libIPN and Kotlin for Forge
+add inventory-tweaks-refoxed    # client only: sort, refill of the stacks, new tools
+add default-options             # client only: default keys of the pack (config/defaultoptions). Adds Balm
 
-# Only the client mods of Inventory Profiles Next use Kotlin for Forge.
-sed -i 's/^side = "both"$/side = "client"/' mods/kotlin-for-forge.pw.toml
+# Only Default Options uses Balm, on the client.
+sed -i 's/^side = "both"$/side = "client"/' mods/balm.pw.toml
 
 # Pin the beta and unofficial mods. 'packwiz update --all' does not change pinned mods.
 pin_project() {
