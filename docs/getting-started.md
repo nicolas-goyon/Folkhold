@@ -83,10 +83,10 @@ The scripts check that Docker runs. On Windows, if Docker Desktop is installed b
 | `events/` | Mod `folkhold_events`: earthquakes, collapses. Depends on `core`. |
 | `dev/` | No code. Loads all mods in one game instance (client, server, GameTest server). |
 | `modpack/` | packwiz modpack. |
-| `scripts/` | Container shortcuts, client deployment, modpack export. |
+| `scripts/` | Container shortcuts, client deployment, modpack export, versions, build of the site. |
 | `tools/` | Generators (for example structure files). |
 | `docs/` | Design document and guides. |
-| `site/` | Site of the project on GitHub Pages (see the workflow **Pages**). |
+| `site/` | Template, texts and static files of the site of the project (see [Site of the project](#site-of-the-project)). |
 
 Each mod has:
 
@@ -207,6 +207,8 @@ To see the handyman of a faction village at work, stand near the plaza of the vi
 
 The mods support English and French. Each text that the player sees needs one key in `en_us.json` and in `fr_fr.json`. `./gradlew build` fails when a key is missing in one file. See [CONTRIBUTING.md](../CONTRIBUTING.md#translations).
 
+The site of the project also has one file for each language (see [Site of the project](#site-of-the-project)).
+
 ## Structures
 
 The structure files of the village (`world/src/main/resources/data/folkhold_world/structure/village/*.nbt`) come from a script. Do not edit the `.nbt` files by hand. Change the script, then run it in the container:
@@ -287,12 +289,35 @@ scripts/export-modpack.sh build/folkhold-dev.mrpack
 
 The CI makes the same file for each pull request (artifact `folkhold-modpack`).
 
+## Site of the project
+
+The site of the project is on GitHub Pages: <https://nicolas-goyon.github.io/Folkhold/>. It shows the downloads of the latest release and the notes of all the releases, in English and in French. `scripts/pages.py` builds the site from these files and from the releases of the GitHub API:
+
+| File | Content |
+| --- | --- |
+| `site/page.html` | Template of the page of each language. The script replaces `$page_title` with the text of the key `page.title`. |
+| `site/lang/en_us.json`, `site/lang/fr_fr.json` | Texts of the pages. A text can contain HTML. The script gives the value of a field in braces, for example `{version}`. |
+| `site/static/` | Files that go to the root of the site with no change, for example `style.css`. |
+
+The English page is `index.html`. The French page is `fr/index.html`. The notes come from the GitHub Releases, in English. The versions of Minecraft, NeoForge and GeckoLib come from `gradle.properties` at the tag of the latest release.
+
+To build the site on your computer, run these commands. Then open `build/site/index.html` in a browser.
+
+```bash
+git fetch --tags
+python3 scripts/pages.py --repo nicolas-goyon/Folkhold
+```
+
+With no token in `GH_TOKEN`, the GitHub API accepts 60 requests per hour. The script uses 2 requests when the repository has 100 releases or fewer.
+
+To add a language, add `site/lang/<language>.json` with all the keys of `en_us.json`. The value of `language.code` gives the folder of the page. The tests of `scripts/pages.py` fail when a key is missing in one language file.
+
 ## Continuous integration and releases
 
-- Each push on `main` and on `develop` and each pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars, the `.mrpack` file and the coverage report of `core` are available as artifacts of the run. The workflow **Generated files** runs the tests of `scripts/version.py` and checks the output of the scripts of `tools/`.
+- Each push on `main` and on `develop` and each pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars, the `.mrpack` file and the coverage report of `core` are available as artifacts of the run. The workflow **Generated files** runs the tests of the scripts of `scripts/` and checks the output of the scripts of `tools/`.
 - The workflow **Pull request** checks the title of a pull request to `develop` or in a stack on `develop` (bump marker, see [CONTRIBUTING.md](../CONTRIBUTING.md#versions-and-releases)) and gives the version after the merge. For a pull request to `main`, it checks that the source branch is `develop` and gives the version and the notes of the release.
 - A change to `.devcontainer/` runs the workflow **Dev container**: it builds the image and checks the tools.
-- The workflow **Pages** publishes the site of the project to GitHub Pages from `develop`: the files of `site/`, and `version.json` with the version of the latest release. The version badge of the README reads this file, with no call to the GitHub API by shields.io. The workflow runs when the files of the site change, and after each release.
+- The workflow **Pages** publishes the site of the project to GitHub Pages from `develop` (see [Site of the project](#site-of-the-project)). The site also has `version.json` with the version of the latest release. The version badge of the README reads this file, with no call to the GitHub API by shields.io. The workflow runs when the site changes, and after each release. On a pull request that changes the site, the workflow builds the site and does not deploy it. The artifact `github-pages` of the run contains the site.
 - To make a release, merge `develop` into `main`: a pull request from `develop` to `main`, with "Create a merge commit". The workflow **Release** calculates the version from the bump markers of the commits, tags the commit of `develop`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). When the tag of the version exists, the workflow makes no release. The release uses the same packwiz commit as the CI, so two runs on the same commit give the same `.mrpack` content. After the release, the workflow starts the workflow **Pages**.
 
 ## Clean up

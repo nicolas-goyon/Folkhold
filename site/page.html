@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="$language_code">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>$page_title</title>
+<meta name="description" content="$site_tagline">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M7 3h2.5v26H7z' fill='%237a5a3a'/%3E%3Cpath d='M9.5 5H27l-5 6 5 6H9.5z' fill='%232f6b3f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="$url_stylesheet">
+$part_alternates
+</head>
+<body>
+<a class="skip" href="#content">$page_skip</a>
+<header class="hero">
+  <div class="wrap">
+    <div class="topbar">
+      <a class="topbar-link" href="$url_repository">$nav_repository</a>
+      <nav class="languages" aria-label="$language_label">$part_languages</nav>
+    </div>
+    <h1>
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path class="mark-pole" d="M7 3h2.5v26H7z"/>
+        <path class="mark-flag" d="M9.5 5H27l-5 6 5 6H9.5z"/>
+      </svg>
+      $site_name
+    </h1>
+    <p class="tagline">$site_tagline</p>
+    <p class="intro">$site_description</p>
+    <p class="actions">
+      $part_download_button
+      <a class="button button-secondary" href="#release-notes">$nav_releases</a>
+    </p>
+  </div>
+</header>
+<main id="content" class="wrap">
+  <section id="download" aria-labelledby="download-title">
+    <h2 id="download-title">$download_title</h2>
+    $part_downloads
+  </section>
+  <section id="release-notes" aria-labelledby="release-notes-title">
+    <h2 id="release-notes-title">$releases_title</h2>
+    $part_releases
+  </section>
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <ul class="footer-links">
+      <li><a href="$url_repository">$footer_repository</a></li>
+      <li><a href="$url_issues">$footer_issues</a></li>
+      <li><a href="$url_contributing">$footer_contributing</a></li>
+    </ul>
+    <p>$part_license</p>
+  </div>
+</footer>
+</body>
+</html>
