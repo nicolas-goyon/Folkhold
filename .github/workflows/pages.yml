@@ -2,20 +2,21 @@ name: Pages
 
 # Publishes the site of the project to GitHub Pages. scripts/pages.py builds the site from site/ and from the releases
 # of the GitHub API: the downloads of the latest release and the notes of all the releases, in each language of
-# site/lang/. The site also has version.json, with the version of the latest release in the format of the endpoint
-# badges of shields.io. The version badge of the README reads this file, so the badge does not need the GitHub API.
+# site/lang/. The site also has these files:
+# - version.json: the version of the latest release, in the format of the endpoint badges of shields.io. The version
+#   badge of the README reads this file, so the badge does not need the GitHub API.
+# - dev/: the dev pack of the latest green build of a push on develop (artifact folkhold-dev-pack of the workflow
+#   Build). The dev instance of Prism Launcher updates itself from dev/pack.toml.
 # The workflow deploys from develop, because the environment github-pages accepts only the deployments from the default
-# branch. It runs when the site changes, and after each release: the workflow Release starts it. On a pull request
-# that changes the site, the workflow builds the site and does not deploy it. The artifact github-pages of the run
-# contains the site.
+# branch. It runs after each green build of a push on develop, and after each release: the workflow Release starts it.
+# On a pull request that changes the site, the workflow builds the site and does not deploy it. The artifact
+# github-pages of the run contains the site.
 
 on:
-  push:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
     branches: [develop]
-    paths:
-      - 'site/**'
-      - 'scripts/pages.py'
-      - '.github/workflows/pages.yml'
   pull_request:
     paths:
       - 'site/**'
@@ -29,8 +30,16 @@ permissions:
 jobs:
   build:
     name: Build the site
+    # After the workflow Build: only a green build of a push on develop.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # The artifacts of the workflow Build.
+      actions: read
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,6 +51,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/pages.py --repo "$GITHUB_REPOSITORY" --out build/site --summary "$GITHUB_STEP_SUMMARY"
+
+      # With no green build of a push on develop, or with no dev pack in it, the site has no dev/ folder.
+      - name: Add the dev pack
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build.yml --branch develop --event push \
+            --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run" ] || ! gh run download "$run" --repo "$GITHUB_REPOSITORY" --name folkhold-dev-pack \
+              --dir build/site/dev; then
+            echo "::warning::No dev pack: the site has no dev/ folder."
+            rm -rf build/site/dev
+            exit 0
+          fi
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' build/site/dev/pack.toml)
+          echo "The dev pack has the version \`${version}\` (run ${run} of the workflow Build)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

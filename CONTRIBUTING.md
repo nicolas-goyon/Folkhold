@@ -91,3 +91,5 @@ change needs the code of a pull request that is not merged. For an independent c
   `develop`, creates a GitHub Release with the jars and the modpack (`.mrpack`), then publishes the jars to GitHub
   Packages.
 - All mods share one version. `mod_version` in `gradle.properties` is the version of a local build.
+- The workflow **Build** gives each build a version: the version of the commit with `-dev.<commit>` for `develop`,
+  and the version after the merge with `-pr.<number>.<commit>` for a pull request.

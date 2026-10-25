@@ -13,4 +13,4 @@ Use packwiz in the dev container. See [Getting started](../docs/getting-started.
 
 - Each update goes through a branch, a test launch and a test world before the merge.
 - Pin the beta and unofficial mods (`packwiz pin <mod>`).
-- The Folkhold mods are not in `mods/`. The export script (`scripts/export-modpack.sh`) adds the built jars to the `.mrpack` file.
+- The Folkhold mods are not in `mods/`. The export script (`scripts/export-modpack.sh`) adds the built jars to the `.mrpack` file, and to the dev pack of the site (see [Getting started](../docs/getting-started.md#dev-instance-that-updates-itself)).
