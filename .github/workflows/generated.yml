@@ -1,4 +1,4 @@
-# Checks the scripts. The tests of scripts/version.py run, and the generated files are up to date: the structures,
+# Checks the scripts. The tests of scripts/ run, and the generated files are up to date: the structures,
 # the block models and the textures come from the scripts of tools/. A change to a script or to a generated file must
 # come with the output of the scripts.
 name: Generated files
@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Tests of the version script
+      - name: Tests of the scripts
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: Install Pillow and PixVox

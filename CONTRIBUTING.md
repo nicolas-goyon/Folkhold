@@ -5,7 +5,7 @@
 - Write all code, comments, documentation, commit messages, issues and pull requests in English.
 - Use the style of ASD-STE100 (Simplified Technical English): short sentences, active voice, one instruction for each sentence, no semicolons.
 - Documentation and comments describe the current state of the code and of the project. Do not refer to earlier versions, to the origin of a document or to the reason for a change. Put this information in commit messages and pull requests.
-- The mods support English (`en_us`) and French (`fr_fr`). See [Translations](#translations).
+- The mods and the site of the project support English (`en_us`) and French (`fr_fr`). See [Translations](#translations).
 
 ## Workflow
 
@@ -63,6 +63,8 @@ change needs the code of a pull request that is not merged. For an independent c
 - Each mod has `assets/<mod_id>/lang/en_us.json` and `assets/<mod_id>/lang/fr_fr.json`.
 - When you add a key, add it to the two files in the same commit.
 - `./gradlew checkTranslations` fails when a key is missing in one language. The CI runs this check.
+- The site of the project has its texts in `site/lang/en_us.json` and `site/lang/fr_fr.json`. The tests of
+  `scripts/pages.py` fail when a key is missing in one language. The CI runs these tests.
 
 ## Code checks
 

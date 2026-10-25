@@ -7,7 +7,7 @@ name: Release
 # When the tag of the version exists, the workflow makes no release. To run it again after a failure, use
 # "Run workflow" on main.
 # After the release, the workflow starts the workflow Pages on develop. Pages publishes the site of the project with
-# the version of the latest release (version.json), and the version badge of the README reads this file.
+# the downloads and the notes of the releases, and version.json for the version badge of the README.
 
 on:
   push:
