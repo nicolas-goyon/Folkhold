@@ -12,7 +12,7 @@ public final class JournalKeys {
 
     /** Opens the journal. */
     public static final KeyMapping OPEN = new KeyMapping("key.folkhold_world.journal", KeyConflictContext.IN_GAME,
-            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_J, CATEGORY);
+            InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_K, CATEGORY);
 
     private JournalKeys() {
     }

@@ -16,7 +16,7 @@
   "download.requirements": "For Minecraft {minecraft} with NeoForge.",
   "download.none": "There is no release yet.",
   "download.modpack.title": "Modpack",
-  "download.modpack.text": "The modpack is the simple way to play. It contains the Folkhold mods and a selection of mods for performance, nature and terrain.",
+  "download.modpack.text": "The modpack is the simple way to play. It contains the Folkhold mods and a selection of mods for performance, nature, terrain, maps and inventory comfort.",
   "download.modpack.step1": "Download the file of the modpack.",
   "download.modpack.step2": "Import the file in a launcher that reads Modrinth packs, for example <a href=\"https://prismlauncher.org\">Prism Launcher</a> or the <a href=\"https://modrinth.com/app\">Modrinth App</a>.",
   "download.modpack.step3": "Start the game and create a new world.",

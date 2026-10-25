@@ -42,7 +42,7 @@ The reputation of the player decides how each village receives them.
 
 ## Installation
 
-The modpack is the simple way to play. It contains the Folkhold mods and a selection of mods for performance, nature and terrain.
+The modpack is the simple way to play. It contains the Folkhold mods and a selection of mods for performance, nature, terrain, maps and inventory comfort.
 
 1. Download `folkhold-<version>.mrpack` from the [latest release](https://github.com/nicolas-goyon/Folkhold/releases).
 2. Import the file in a launcher that reads Modrinth packs, for example [Prism Launcher](https://prismlauncher.org) or the [Modrinth App](https://modrinth.com/app).
