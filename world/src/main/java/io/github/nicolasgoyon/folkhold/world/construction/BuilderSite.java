@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.construction.SiteSchedule;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Step;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.StepType;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.WalkSearch;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.WorkZone;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemCatalog;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
@@ -137,6 +138,11 @@ public final class BuilderSite {
     private static final double FLOOR_MARGIN = 0.25;
     /** A scaffolding column has this number of blocks at most. */
     private static final int MAX_COLUMN = 64;
+    /**
+     * The search of a way from the ground on the blocks of the level stays for this number of ticks at most. The site
+     * tells it about the blocks of its steps, but not about the other changes of the level.
+     */
+    private static final int WAYS_TICKS = 200;
     /** The time of the head shake of a builder that says no, in ticks. */
     private static final int UNHAPPY_TICKS = 40;
     /** The site checks the quests for its materials every this number of ticks. */
@@ -245,6 +251,10 @@ public final class BuilderSite {
     private Settlement settlement;
     private Status status = Status.STARTING;
     private boolean dirty;
+    /** The search of a way from the ground on the blocks of the level, or null before the next search. */
+    @Nullable
+    private WalkSearch ways;
+    private long waysTime;
 
     BuilderSite(int id, ResourceLocation template, BlockPos origin, Rotation rotation, Mirror mirror, BlockPos heart,
             @Nullable UUID operator) {
@@ -867,6 +877,7 @@ public final class BuilderSite {
         steps = null;
         run = null;
         schedule = null;
+        ways = null;
         dirty = true;
         return true;
     }
@@ -958,35 +969,88 @@ public final class BuilderSite {
         return true;
     }
 
+    /** The position to stand of the plan for a step, or empty: a step of the scaffolding has no such position. */
+    Optional<BlockPos> plannedStand(int index) {
+        return stepAt(index).stand().map(BlockKinds::toBlockPos);
+    }
+
     /**
      * The position where a builder stands for a step: the position of the plan if it is free. Else, the free position
-     * nearest to the builder, with the block of the step in its reach zone.
+     * nearest to the builder with the block of the step in its reach zone, and with a way from the ground (see
+     * {@link WalkSearch}). On a scaffolding column, the way goes to the bottom of the column. When the step can apply
+     * and no free position has a way, it is the nearest free position: the builder goes there directly (see
+     * {@link BuilderWorker}).
      *
-     * @return the position, or null with no free position
+     * @return the position, or null with no such position
      */
     @Nullable
     BlockPos standFor(ServerLevel level, int index, Villager villager) {
-        Optional<BlockPos> planned = stepAt(index).stand().map(BlockKinds::toBlockPos);
+        Optional<BlockPos> planned = plannedStand(index);
         if (planned.isPresent() && isStandFor(level, planned.get(), index)) {
             return planned.get();
         }
         BlockPos target = reachTarget(level, index);
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
+        List<BlockPos> free = new ArrayList<>();
         int horizontal = reach.horizontal();
         for (int dy = -reach.above(); dy <= reach.below(); dy++) {
             for (int dx = -horizontal; dx <= horizontal; dx++) {
                 for (int dz = -horizontal; dz <= horizontal; dz++) {
                     BlockPos feet = target.offset(dx, dy, dz);
-                    double distance = feet.distToCenterSqr(villager.position());
-                    if (distance < bestDistance && isStandFor(level, feet, index)) {
-                        best = feet;
-                        bestDistance = distance;
+                    if (isStandFor(level, feet, index)) {
+                        free.add(feet);
                     }
                 }
             }
         }
-        return best;
+        if (free.isEmpty()) {
+            return null;
+        }
+        free.sort(Comparator.comparingDouble(feet -> feet.distToCenterSqr(villager.position())));
+        for (BlockPos feet : free) {
+            if (hasWay(level, feet)) {
+                return feet;
+            }
+        }
+        return schedule().canApply(index) ? free.get(0) : null;
+    }
+
+    /**
+     * True if a builder can go from the ground to a position to stand, on the blocks of the level now (see
+     * {@link WalkSearch}). On a scaffolding column, the way goes to the bottom of the column.
+     */
+    boolean hasWay(ServerLevel level, BlockPos feet) {
+        return ways(level).canReach(BlockKinds.toBuildPos(feet));
+    }
+
+    /**
+     * The search of a way from the ground on the blocks of the level now, in the box of the site and the reach around
+     * it. The search stays for some ticks: each applied step tells it about its blocks (see {@link #apply}).
+     */
+    private WalkSearch ways(ServerLevel level) {
+        WalkSearch current = ways;
+        BoundingBox bounds = box;
+        long now = level.getGameTime();
+        if (current == null || now - waysTime > WAYS_TICKS) {
+            List<BuildPos> corners = bounds == null ? List.of()
+                    : List.of(new BuildPos(bounds.minX(), bounds.minY(), bounds.minZ()),
+                            new BuildPos(bounds.maxX(), bounds.maxY(), bounds.maxZ()));
+            current = WalkSearch.around(corners, reach,
+                    pos -> BlockKinds.walk(level.getBlockState(BlockKinds.toBlockPos(pos))),
+                    pos -> isScaffolding(level, BlockKinds.toBlockPos(pos)));
+            ways = current;
+            waysTime = now;
+        }
+        return current;
+    }
+
+    /**
+     * The position near which a builder waits for a step when no position to stand is free (see {@link #standFor}).
+     * For a position of the plan, it is the ground below the position: the bottom of its scaffolding column. Else, it
+     * is the block of the step, or the bottom of its column for a step of the scaffolding.
+     */
+    BlockPos waitPos(ServerLevel level, int index) {
+        return plannedStand(index).map(planned -> groundBelow(level, planned))
+                .orElseGet(() -> reachTarget(level, index));
     }
 
     /**
@@ -1028,12 +1092,15 @@ public final class BuilderSite {
         return !shape.isEmpty() && Math.abs(shape.max(Direction.Axis.Y) - 1.0) < 1.0E-6;
     }
 
-    /** True if another builder of the site is up in the column of a scaffolding block. */
+    /**
+     * True if another builder of the site climbs or goes down the column of a scaffolding block, or is 1 block or more
+     * above its bottom. Two builders at the bottom do not wait for each other: the first one climbs.
+     */
     boolean isColumnTaken(ServerLevel level, BlockPos base, BuilderWorker self) {
         for (BuilderWorker other : workers.values()) {
             Villager villager = other == self ? null : villager(level, other);
             if (villager != null && villager.getBlockX() == base.getX() && villager.getBlockZ() == base.getZ()
-                    && villager.getY() > base.getY() + 0.5) {
+                    && (other.isOnTheWay() || villager.getY() >= base.getY() + 1.0)) {
                 return true;
             }
         }
@@ -1178,6 +1245,12 @@ public final class BuilderSite {
             effects(level, pos, before);
         }
         current.markApplied(index);
+        WalkSearch search = ways;
+        if (search != null) {
+            for (BlockPos cell : cells(index)) {
+                search.blockChanged(BlockKinds.toBuildPos(cell));
+            }
+        }
         return Applied.APPLIED;
     }
 

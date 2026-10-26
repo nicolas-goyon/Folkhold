@@ -24,11 +24,12 @@ import java.util.function.Predicate;
  *
  * <p>The search goes back from the position to the ground. A search with no way marks the positions that it visited:
  * a closed area. No way goes from the ground to the positions of a closed area until a block near the area changes
- * (see {@link #blockChanged}). Thus the plan uses one search for all its steps, and tells it about each change.
+ * (see {@link #blockChanged}). Thus the plan uses one search for all its steps, and tells it about each change. A
+ * construction site uses a search on the blocks of the level, for a position to stand that is not in the plan.
  *
  * <p>The search keeps the walk of the blocks in a grid: the zone and the positions next to it, between two heights.
  */
-final class WalkSearch {
+public final class WalkSearch {
     /** A builder goes down this number of blocks at most, as a villager. */
     static final int MAX_DROP = 3;
     /**
@@ -41,12 +42,12 @@ final class WalkSearch {
     private static final byte THROUGH = 1;
     private static final byte ON = 2;
     private static final byte BLOCKED = 3;
-    /** A scaffolding block of the plan: a builder climbs the column, and does not walk from its top. */
+    /** A scaffolding block: a builder climbs the column, and does not walk from its top. */
     private static final byte SCAFFOLDING = 4;
     private static final int[] SIDE_X = {0, 0, -1, 1};
     private static final int[] SIDE_Z = {-1, 1, 0, 0};
 
-    private final Function<BuildPos, BuildBlock> blocks;
+    private final Function<BuildPos, Walk> blocks;
     private final Predicate<BuildPos> scaffolding;
     private final Zone zone;
     private final int gridX;
@@ -69,15 +70,15 @@ final class WalkSearch {
     private long visits;
 
     /**
-     * Makes a search for the blocks of a plan.
+     * Makes a search.
      *
-     * @param blocks      the block of each position now
-     * @param scaffolding true for a scaffolding block of the plan now
+     * @param blocks      the walk of the block of each position now
+     * @param scaffolding true for a scaffolding block now
      * @param zone        the zone of the search: the ground is out of it
      * @param lowestY     the lowest Y of the grid, for example the lowest bottom of a scaffolding column
      * @param highestY    the highest Y of the grid
      */
-    WalkSearch(Function<BuildPos, BuildBlock> blocks, Predicate<BuildPos> scaffolding, Zone zone, int lowestY,
+    WalkSearch(Function<BuildPos, Walk> blocks, Predicate<BuildPos> scaffolding, Zone zone, int lowestY,
             int highestY) {
         this.blocks = blocks;
         this.scaffolding = scaffolding;
@@ -96,13 +97,34 @@ final class WalkSearch {
     }
 
     /**
-     * True if a builder can go from the ground to a position to stand. On a scaffolding column of the plan, the
-     * builder climbs the column from its bottom.
+     * Makes a search around some positions, for example the positions of a target. The zone of the search is the box
+     * of the positions and a band of the horizontal reach around it. The ground is out of the zone, at most 1 block
+     * above the bottom of the box. The grid goes down below the bottom of the longest scaffolding column, and up above
+     * the reach.
+     *
+     * @param positions   the positions
+     * @param reach       the reach zone of the builders
+     * @param blocks      the walk of the block of each position now
+     * @param scaffolding true for a scaffolding block now
+     * @return the search
+     */
+    public static WalkSearch around(Collection<BuildPos> positions, Reach reach, Function<BuildPos, Walk> blocks,
+            Predicate<BuildPos> scaffolding) {
+        Zone zone = Zone.around(positions, reach.horizontal());
+        int minY = positions.stream().mapToInt(BuildPos::y).min().orElse(0);
+        int maxY = positions.stream().mapToInt(BuildPos::y).max().orElse(0);
+        return new WalkSearch(blocks, scaffolding, zone, minY - ConstructionPlanner.MAX_SCAFFOLDING - MAX_DROP - 2,
+                maxY + reach.above() + MAX_DROP + 2);
+    }
+
+    /**
+     * True if a builder can go from the ground to a position to stand. On a scaffolding column, the builder climbs the
+     * column from its bottom.
      *
      * @param feet the position of the feet
      * @return true if a way goes from the ground to the position
      */
-    boolean canReach(BuildPos feet) {
+    public boolean canReach(BuildPos feet) {
         int y = feet.y();
         if (walk(feet.x(), y - 1, feet.z()) != SCAFFOLDING) {
             return search(feet.x(), y, feet.z(), false);
@@ -131,7 +153,7 @@ final class WalkSearch {
      *
      * @param pos the position of the block
      */
-    void blockChanged(BuildPos pos) {
+    public void blockChanged(BuildPos pos) {
         int index = index(pos.x(), pos.y(), pos.z());
         if (index >= 0) {
             walks[index] = UNKNOWN;
@@ -282,7 +304,7 @@ final class WalkSearch {
         if (scaffolding.test(pos)) {
             return SCAFFOLDING;
         }
-        return switch (blocks.apply(pos).walk()) {
+        return switch (blocks.apply(pos)) {
             case THROUGH -> THROUGH;
             case ON -> ON;
             case BLOCKED -> BLOCKED;

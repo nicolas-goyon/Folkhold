@@ -78,12 +78,8 @@ public final class ConstructionPlanner {
         this.target = target;
         this.level = level;
         this.reach = reach;
-        WalkSearch.Zone zone = WalkSearch.Zone.around(target.blocks().keySet(), reach.horizontal());
-        int minY = target.blocks().keySet().stream().mapToInt(BuildPos::y).min().orElse(0);
-        int maxY = target.blocks().keySet().stream().mapToInt(BuildPos::y).max().orElse(0);
-        // The grid of the search goes down below the bottom of the longest scaffolding column, and up above the reach.
-        this.walks = new WalkSearch(this::current, this::isScaffolding, zone,
-                minY - MAX_SCAFFOLDING - WalkSearch.MAX_DROP - 2, maxY + reach.above() + WalkSearch.MAX_DROP + 2);
+        this.walks = WalkSearch.around(target.blocks().keySet(), reach, pos -> current(pos).walk(),
+                this::isScaffolding);
     }
 
     /**
