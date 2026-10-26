@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -24,8 +26,8 @@ class WalkSearchTest {
 
     /** Stone at y = 0 and below, air above, and the given blocks. */
     private static WalkSearch search(Map<BuildPos, BuildBlock> blocks, Predicate<BuildPos> scaffolding) {
-        return new WalkSearch(pos -> blocks.getOrDefault(pos, pos.y() <= 0 ? STONE : BuildBlock.AIR), scaffolding,
-                ZONE, -10, 10);
+        return new WalkSearch(pos -> blocks.getOrDefault(pos, pos.y() <= 0 ? STONE : BuildBlock.AIR).walk(),
+                scaffolding, ZONE, -10, 10);
     }
 
     private static WalkSearch search(Map<BuildPos, BuildBlock> blocks) {
@@ -180,5 +182,25 @@ class WalkSearchTest {
         assertTrue(search(Map.of()).canClimb(FEET));
         Map<BuildPos, BuildBlock> blocks = ring(1, 2, STONE);
         assertFalse(search(blocks).canClimb(FEET), "The bottom of the column is in a closed room");
+    }
+
+    /**
+     * A search around the positions of a target: the ground is around the box of the positions and the reach. A
+     * builder climbs a high column of scaffolding next to the box. It does not get on the top of a wall of the box.
+     */
+    @Test
+    void searchAroundATarget() {
+        Map<BuildPos, BuildBlock> blocks = ring(1, 4, STONE);
+        Set<BuildPos> column = new HashSet<>();
+        for (int y = 1; y <= 4; y++) {
+            column.add(pos(2, y, 0));
+        }
+        WalkSearch search = WalkSearch.around(List.of(pos(-1, 1, -1), pos(1, 4, 1)), Reach.DEFAULT,
+                pos -> blocks.getOrDefault(pos, pos.y() <= 0 ? STONE : BuildBlock.AIR).walk(), column::contains);
+
+        assertTrue(search.canReach(pos(2, 5, 0)), "On the top of the column");
+        assertFalse(search.canReach(pos(1, 5, 0)), "On the top of the wall");
+        assertFalse(search.canReach(FEET), "In the closed room");
+        assertTrue(search.canReach(pos(-3, 1, 0)), "On the ground near the wall");
     }
 }

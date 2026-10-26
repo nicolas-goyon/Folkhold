@@ -16,6 +16,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderMaterials;
+import io.github.nicolasgoyon.folkhold.world.construction.BuilderNavigation;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionPlacement;
@@ -40,6 +41,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
@@ -52,6 +55,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -397,6 +401,46 @@ public final class BuilderSiteGameTests {
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
                     helper.assertTrue(!climbed.isEmpty(), "A builder must climb the scaffolding");
                     helper.assertTrue(alive && grounded, "The builders must be alive and on the ground");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The navigation of a builder goes around the scaffolding: the path to a position behind a row of columns does not
+     * go through the columns. The path goes into the bottom of the column that the builder climbs. At the end, the
+     * villager gets its own navigation back.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "builder_navigation")
+    public static void builderNavigationGoesAroundTheScaffolding(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        // A row of scaffolding columns of 2 blocks, from x = 0 to x = 11: the way goes around it, at x = 12 or more.
+        for (int x = 0; x <= 11; x++) {
+            helper.setBlock(new BlockPos(x, 1, 7), Blocks.SCAFFOLDING);
+            helper.setBlock(new BlockPos(x, 2, 7), Blocks.SCAFFOLDING);
+        }
+        Villager villager = helper.spawn(EntityType.VILLAGER, new BlockPos(4, 1, 4));
+        PathNavigation own = villager.getNavigation();
+        BlockPos behind = helper.absolutePos(new BlockPos(4, 1, 10));
+        BlockPos base = helper.absolutePos(new BlockPos(4, 1, 7));
+        helper.startSequence()
+                // The villager lands on the floor: a villager in the air has no path.
+                .thenIdle(5)
+                .thenExecute(() -> {
+                    BuilderNavigation.equip(villager);
+                    Path around = villager.getNavigation().createPath(behind, 0);
+                    helper.assertTrue(around != null && around.canReach(), "The builder must have a path to " + behind);
+                    for (int i = 0; i < around.getNodeCount(); i++) {
+                        BlockPos node = around.getNodePos(i);
+                        helper.assertFalse(helper.getLevel().getBlockState(node).is(Blocks.SCAFFOLDING),
+                                "The path of the builder goes through the scaffolding at " + node);
+                    }
+                    BuilderNavigation.climb(villager, base);
+                    Path climb = villager.getNavigation().createPath(base, 0);
+                    helper.assertTrue(climb != null && climb.canReach() && base.equals(climb.getTarget()),
+                            "The builder must walk into the bottom of the column that it climbs");
+                    BuilderNavigation.restore(villager);
+                    helper.assertTrue(villager.getNavigation() == own, "The villager must get its own navigation back");
+                    villager.discard();
                 })
                 .thenSucceed();
     }
