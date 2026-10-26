@@ -1,8 +1,14 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBraziers.Period;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import org.junit.jupiter.api.Test;
 
 class VillageBraziersTest {
@@ -47,5 +53,18 @@ class VillageBraziersTest {
             assertEquals(VillageBraziers.period(time, false), VillageBraziers.period(7 * DAY + time, false),
                     "Day time " + time);
         }
+    }
+
+    /** The village does not light a brazier in water. A campfire always becomes a brazier. */
+    @Test
+    void villageDoesNotLightABrazierInWater() {
+        BlockState brazier = ModBlocks.BRAZIER.get().defaultBlockState();
+        BlockState inWater = brazier.setValue(BrazierBlock.WATERLOGGED, true);
+
+        assertTrue(VillageBraziers.needsChange(brazier, true));
+        assertFalse(VillageBraziers.needsChange(inWater, true));
+        assertFalse(VillageBraziers.needsChange(inWater, false));
+        assertTrue(VillageBraziers.needsChange(inWater.setValue(BrazierBlock.LIT, true), true));
+        assertTrue(VillageBraziers.needsChange(Blocks.CAMPFIRE.defaultBlockState(), false));
     }
 }

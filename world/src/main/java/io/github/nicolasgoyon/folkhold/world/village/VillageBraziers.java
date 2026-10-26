@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *       ({@link #MORNING_END}).</li>
  *   <li>A campfire of the village layout becomes a brazier of the block library, which does not burn the
  *       entities.</li>
+ *   <li>A brazier in water does not burn: the village does not light it.</li>
  * </ul>
  */
 public final class VillageBraziers {
@@ -66,19 +67,23 @@ public final class VillageBraziers {
     }
 
     /**
-     * True if a block must change to get a state: a campfire, or a brazier with the other state.
+     * True if a block must change to get a state: a campfire, or a brazier with the other state. A brazier in water
+     * does not burn, thus it does not change to burn.
      *
      * @param state the block state
      * @param lit   true for a brazier that burns
      * @return true if the block must change
      */
     public static boolean needsChange(BlockState state, boolean lit) {
-        return state.getBlock() instanceof CampfireBlock
-                || (state.getBlock() instanceof BrazierBlock && state.getValue(BrazierBlock.LIT) != lit);
+        if (state.getBlock() instanceof CampfireBlock) {
+            return true;
+        }
+        return state.getBlock() instanceof BrazierBlock && state.getValue(BrazierBlock.LIT) != burns(state, lit);
     }
 
     /**
-     * Lights a brazier or puts it out. A campfire becomes a brazier of the block library.
+     * Lights a brazier or puts it out. A campfire becomes a brazier of the block library. A brazier in water does not
+     * burn.
      *
      * @param level the level
      * @param pos   the position of the brazier
@@ -90,10 +95,16 @@ public final class VillageBraziers {
         if (!needsChange(state, lit)) {
             return false;
         }
-        // A campfire burns the entities: the brazier of the block library takes its place.
+        // A campfire burns the entities: the brazier of the block library takes its place, in the same water.
         BlockState brazier = state.getBlock() instanceof BrazierBlock ? state
-                : ModBlocks.BRAZIER.get().defaultBlockState();
-        level.setBlock(pos, brazier.setValue(BrazierBlock.LIT, lit), Block.UPDATE_ALL);
+                : ModBlocks.BRAZIER.get().defaultBlockState()
+                        .setValue(BrazierBlock.WATERLOGGED, state.getValue(CampfireBlock.WATERLOGGED));
+        level.setBlock(pos, brazier.setValue(BrazierBlock.LIT, burns(brazier, lit)), Block.UPDATE_ALL);
         return true;
+    }
+
+    /** The state of the embers of a brazier: lit only if the village lights it and it is not in water. */
+    private static boolean burns(BlockState brazier, boolean lit) {
+        return lit && !brazier.getValue(BrazierBlock.WATERLOGGED);
     }
 }
