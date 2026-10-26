@@ -234,7 +234,9 @@ public final class WorldConfig {
         INHABITANT_LIMIT = builder
                 .comment("Maximum number of inhabitants (villagers with no trades) in the world for each village.",
                         "0: no maximum. The number comes from the population of the settlement, minus the merchants.",
-                        "The server and the other mods can limit the number of entities.")
+                        "The places of the village (the beds of its homes, and a place in the hall for each builder",
+                        "and handyman) are also a maximum. The server and the other mods can limit the number of",
+                        "entities.")
                 .translation(KEY_PREFIX + "inhabitantLimit")
                 .defineInRange("inhabitantLimit", 0, 0, 10000);
         ARCHER_ROTATION_SECONDS = builder

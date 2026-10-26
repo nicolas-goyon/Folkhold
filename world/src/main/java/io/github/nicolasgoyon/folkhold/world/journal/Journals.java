@@ -12,6 +12,8 @@ import io.github.nicolasgoyon.folkhold.world.network.JournalPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
+import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -94,7 +96,7 @@ public final class Journals {
             villages.add(new JournalPayload.Village(settlement.id(), settlement.name(), settlement.factionId(),
                     factionName, settlement.level(), SettlementLevels.tierName(settlement.level()),
                     settlement.isActive(), settlement.x(), settlement.z(), distance, tier, visit.discovered(),
-                    visit.lastVisit()));
+                    visit.lastVisit(), VillageFolk.inhabitantCount(settlement), VillageBeds.places(settlement)));
             villageCounts.merge(settlement.factionId(), 1, Integer::sum);
         }
         villages.sort(Comparator.comparingInt(JournalPayload.Village::distance));

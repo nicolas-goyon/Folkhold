@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.core.sim.settlement;
 
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import java.util.List;
 import java.util.Objects;
 
@@ -29,6 +30,7 @@ public final class Settlement {
     private String biome = "";
     private final EconomyState economy = new EconomyState();
     private List<Gate> gates = List.of();
+    private int beds = VillagePlaces.UNKNOWN;
 
     /**
      * A gate of the palisade of the village: the caravans go in and out of the village there.
@@ -196,6 +198,29 @@ public final class Settlement {
             return false;
         }
         this.gates = copy;
+        return true;
+    }
+
+    /**
+     * The beds of the homes of the village, as the heart counted them the last time (see {@link VillagePlaces}).
+     * {@link VillagePlaces#UNKNOWN} if the heart did not count them.
+     */
+    public int beds() {
+        return beds;
+    }
+
+    /**
+     * Sets the beds of the homes of the village.
+     *
+     * @param beds the number of beds, or {@link VillagePlaces#UNKNOWN}
+     * @return true if the number changed
+     */
+    public boolean setBeds(int beds) {
+        int value = Math.max(VillagePlaces.UNKNOWN, beds);
+        if (value == this.beds) {
+            return false;
+        }
+        this.beds = value;
         return true;
     }
 

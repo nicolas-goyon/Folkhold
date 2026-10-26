@@ -670,7 +670,9 @@ def bed(t, x, z_foot, color="blue"):
 def cottage():
     rng = random.Random(2)
     t = house_shell(rng, cobble, calcite, "house")
-    bed(t, 2, 6, "red")
+    # 3 beds: each bed gives a place to an inhabitant of the village.
+    for x in (1, 2, 3):
+        bed(t, x, 6, "red")
     t.set(6, 1, 7, "minecraft:crafting_table")
     t.set(5, 1, 7, "minecraft:chest", {"facing": "north", "type": "single", "waterlogged": "false"})
     t.set(4, 0, 4, "minecraft:spruce_planks")

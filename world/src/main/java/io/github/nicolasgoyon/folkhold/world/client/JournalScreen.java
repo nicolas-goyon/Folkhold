@@ -399,6 +399,10 @@ public class JournalScreen extends UiScreen {
         rows.add(UiRow.of(Component.translatable(KEY + "row.reputation"), tierText(village.reputation())));
         rows.add(UiRow.of(Component.translatable(KEY + "row.level"),
                 Component.translatable(KEY + "level", village.level(), village.tier())));
+        if (village.places() >= 0) {
+            rows.add(UiRow.of(Component.translatable(KEY + "row.housing"),
+                    Component.translatable(KEY + "housing", village.inhabitants(), village.places())));
+        }
         rows.add(UiRow.of(Component.translatable(KEY + "row.position"),
                 Component.translatable(KEY + "position", village.x(), village.z())));
         LocalPlayer player = Minecraft.getInstance().player;

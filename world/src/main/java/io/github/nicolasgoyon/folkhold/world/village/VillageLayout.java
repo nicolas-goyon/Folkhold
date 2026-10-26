@@ -16,15 +16,18 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AbstractBannerBlock;
+import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.BellBlock;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Important positions of a village, found once with a scan of the blocks around the heart:
+ * Important positions of a village, found with a scan of the blocks around the heart. The heart scans the village
+ * again on request (see {@link #invalidate()}), for example after a new building:
  * <ul>
  *   <li><b>posts</b>: the position above each watch post block (the archer stands there), with its view score
  *       (see {@link #viewScore});</li>
@@ -34,7 +37,9 @@ import net.minecraft.world.phys.Vec3;
  *   <li><b>banners</b>: the banners (standing and on walls). The heart gives them the banner of the faction;</li>
  *   <li><b>bank chests</b>: the chests of the village bank, in the scan order;</li>
  *   <li><b>bells</b>: the alarm bells. The heart rings them in an alert;</li>
- *   <li><b>quest boards</b>: the middle part of each quest board. The heart starts the updates of their papers.</li>
+ *   <li><b>quest boards</b>: the middle part of each quest board. The heart starts the updates of their papers;</li>
+ *   <li><b>beds</b>: the head part of each bed. The beds of the homes give the places of the inhabitants (see
+ *       {@link VillageBeds}).</li>
  * </ul>
  *
  * <p>The scan area is the area of the village structure (see {@link VillageReference#area()}), larger by
@@ -54,7 +59,7 @@ public final class VillageLayout {
     /** The scan area is larger than the area of the village structure by this number of blocks on each side. */
     static final int AREA_MARGIN = 1;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 7;
+    static final int VERSION = 8;
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -74,9 +79,15 @@ public final class VillageLayout {
     private final List<BlockPos> bankChests = new ArrayList<>();
     private final List<BlockPos> bells = new ArrayList<>();
     private final List<BlockPos> questBoards = new ArrayList<>();
+    private final List<BlockPos> beds = new ArrayList<>();
 
     public boolean isScanned() {
         return scanned;
+    }
+
+    /** Asks for a new scan: the layout keeps its positions until the next scan. */
+    public void invalidate() {
+        scanned = false;
     }
 
     public List<BlockPos> posts() {
@@ -162,6 +173,11 @@ public final class VillageLayout {
         return Collections.unmodifiableList(questBoards);
     }
 
+    /** The head part of each bed. */
+    public List<BlockPos> beds() {
+        return Collections.unmodifiableList(beds);
+    }
+
     /**
      * The scan area of a heart with no village structure: a box of {@link #SCAN_RADIUS} blocks around the heart.
      *
@@ -241,6 +257,7 @@ public final class VillageLayout {
         bankChests.clear();
         bells.clear();
         questBoards.clear();
+        beds.clear();
         BlockPos min = new BlockPos(area.minX(), area.minY(), area.minZ());
         BlockPos max = new BlockPos(area.maxX(), area.maxY(), area.maxZ());
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
@@ -259,6 +276,8 @@ public final class VillageLayout {
                 bells.add(pos.immutable());
             } else if (state.getBlock() instanceof QuestBoardBlock && QuestBoardBlock.isRenderPart(state)) {
                 questBoards.add(pos.immutable());
+            } else if (state.getBlock() instanceof BedBlock && state.getValue(BedBlock.PART) == BedPart.HEAD) {
+                beds.add(pos.immutable());
             }
         }
         for (BlockPos post : posts) {
@@ -280,6 +299,7 @@ public final class VillageLayout {
         tag.put("BankChests", savePositions(bankChests));
         tag.put("Bells", savePositions(bells));
         tag.put("QuestBoards", savePositions(questBoards));
+        tag.put("Beds", savePositions(beds));
         return tag;
     }
 
@@ -296,6 +316,7 @@ public final class VillageLayout {
         loadPositions(tag, "BankChests", bankChests);
         loadPositions(tag, "Bells", bells);
         loadPositions(tag, "QuestBoards", questBoards);
+        loadPositions(tag, "Beds", beds);
     }
 
     private static ListTag savePositions(List<BlockPos> positions) {

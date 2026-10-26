@@ -28,6 +28,7 @@ import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.Handymen;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBraziers;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
@@ -518,9 +519,34 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Creates the missing units of the garrison now (see {@link Garrison#ensure}). Before the first garrison, the
-     * heart scans the village. The method does nothing while a chunk of the scan area is not ready
-     * ({@link #scanArea}).
+     * Records the beds of the homes of the village in the settlement (see {@link VillageBeds}), from the last scan of
+     * the village.
+     */
+    public void recordBeds() {
+        if (!(level instanceof ServerLevel serverLevel) || !layout.isScanned()) {
+            return;
+        }
+        int beds = VillageBeds.homeBeds(serverLevel, layout.beds(), repairReference(serverLevel).orElse(null));
+        Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
+            if (settlement.setBeds(beds)) {
+                SettlementData.get(serverLevel.getServer()).setDirty();
+            }
+        });
+    }
+
+    /**
+     * Asks for a new scan of the village (see {@link VillageLayout}): the next check of the garrison scans the
+     * blocks again. Examples: the end of a construction site, a bed that a player places or breaks.
+     */
+    public void requestScan() {
+        layout.invalidate();
+        setChanged();
+    }
+
+    /**
+     * Creates the missing units of the garrison now (see {@link Garrison#ensure}). Before the first garrison and after
+     * a request (see {@link #requestScan()}), the heart scans the village. The method does nothing while a chunk of
+     * the scan area is not ready ({@link #scanArea}).
      *
      * @param now the game time to use
      */
@@ -541,6 +567,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
             setChanged();
         }
         recordGates();
+        recordBeds();
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }

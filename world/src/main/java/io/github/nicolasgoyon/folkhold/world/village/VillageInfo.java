@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationSettings;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.trade.TradeMatcher;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
@@ -288,6 +289,12 @@ public final class VillageInfo {
         rows.add(Row.bar(Component.translatable(KEY + "population"),
                 Component.translatable(KEY + "value", economy.population(), maxPopulation), economy.population(),
                 maxPopulation));
+        int places = VillageBeds.places(settlement);
+        if (places != VillagePlaces.UNKNOWN) {
+            int inhabitants = VillageFolk.inhabitantCount(settlement);
+            rows.add(Row.bar(Component.translatable(KEY + "housing"),
+                    Component.translatable(KEY + "value", inhabitants, places), inhabitants, places));
+        }
         rows.add(row("jobs", Component.literal(String.valueOf(economy.jobs().size()))));
         rows.add(row("food", Component.translatable(KEY + "percent", Math.round(economy.foodCovered() * 100))));
         rows.add(row("treasury", Component.translatable(KEY + "emeralds",

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -40,8 +41,12 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -107,6 +112,54 @@ final class TestSupport {
 
     /** The entities of an earlier test this far from the test area are removed, in blocks. */
     private static final double SWEEP_DISTANCE = 64.0;
+
+    /** The largest number of beds that {@link #placeBeds} puts in an arena. */
+    static final int MAX_ARENA_BEDS = 2 * ARENA_SIZE + 2 * (ARENA_SIZE - 6);
+
+    /**
+     * Places beds on the floor of the arena (y = 1): along the north edge, along the south edge, then along the west
+     * edge and the east edge. The 2 parts of a bed go with no updates of the neighbors.
+     *
+     * @param helper the helper of the test
+     * @param count  the number of beds, at most {@link #MAX_ARENA_BEDS}
+     */
+    static void placeBeds(GameTestHelper helper, int count) {
+        List<BlockPos> feet = new ArrayList<>();
+        List<Direction> directions = new ArrayList<>();
+        for (int x = 0; x < ARENA_SIZE; x++) {
+            feet.add(new BlockPos(x, 1, 0));
+            directions.add(Direction.SOUTH);
+            feet.add(new BlockPos(x, 1, ARENA_SIZE - 1));
+            directions.add(Direction.NORTH);
+        }
+        for (int z = 3; z < ARENA_SIZE - 3; z++) {
+            feet.add(new BlockPos(0, 1, z));
+            directions.add(Direction.EAST);
+            feet.add(new BlockPos(ARENA_SIZE - 1, 1, z));
+            directions.add(Direction.WEST);
+        }
+        if (count > feet.size()) {
+            throw new IllegalArgumentException("An arena has room for " + feet.size() + " beds, not " + count);
+        }
+        for (int i = 0; i < count; i++) {
+            placeBed(helper, feet.get(i), directions.get(i));
+        }
+    }
+
+    /**
+     * Places a red bed with no updates of the neighbors.
+     *
+     * @param helper    the helper of the test
+     * @param foot      the position of the foot, relative to the test
+     * @param direction the direction from the foot to the head
+     */
+    static void placeBed(GameTestHelper helper, BlockPos foot, Direction direction) {
+        BlockState bed = Blocks.RED_BED.defaultBlockState().setValue(BedBlock.FACING, direction);
+        ServerLevel level = helper.getLevel();
+        BlockPos absolute = helper.absolutePos(foot);
+        level.setBlock(absolute, bed.setValue(BedBlock.PART, BedPart.FOOT), Block.UPDATE_CLIENTS);
+        level.setBlock(absolute.relative(direction), bed.setValue(BedBlock.PART, BedPart.HEAD), Block.UPDATE_CLIENTS);
+    }
 
     /**
      * Removes what an earlier test can leave behind when it fails: its units, monsters and villagers within

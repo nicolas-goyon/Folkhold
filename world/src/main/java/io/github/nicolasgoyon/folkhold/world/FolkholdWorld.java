@@ -47,6 +47,7 @@ import io.github.nicolasgoyon.folkhold.world.testworld.TestWorldPack;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.VanillaGolems;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillageDetachments;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -145,6 +146,8 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(BuilderSites::onLevelTick);
         NeoForge.EVENT_BUS.addListener(BuilderMaterials::onServerStopped);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillageRepairs::onBlockPlaced);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillageBeds::onBlockPlaced);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillageBeds::onBlockBroken);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillageRepairs::onBlockBroken);
         NeoForge.EVENT_BUS.addListener(VillageRepairs::onServerStopped);
         NeoForge.EVENT_BUS.addListener(ConstructionRuns::onServerStopped);
