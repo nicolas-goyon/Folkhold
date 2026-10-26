@@ -236,7 +236,9 @@ public final class FortifiedVillageStructure extends Structure {
                 context.heightAccessor(), context.randomState());
         return VillageSite.check(middle.getY(), floor, generator.getSeaLevel(),
                 (dx, dz) -> generator.getBaseHeight(middle.getX() + dx, middle.getZ() + dz,
-                        Heightmap.Types.WORLD_SURFACE_WG, context.heightAccessor(), context.randomState()));
+                        Heightmap.Types.WORLD_SURFACE_WG, context.heightAccessor(), context.randomState()),
+                (dx, dz) -> generator.getBaseHeight(middle.getX() + dx, middle.getZ() + dz,
+                        Heightmap.Types.OCEAN_FLOOR_WG, context.heightAccessor(), context.randomState()));
     }
 
     /**
