@@ -93,6 +93,25 @@ class VillageReferenceTest {
         assertEquals(new BlockPos(-1, 64, 8), loaded.plots().get(0).front(), "The front of a plot to the west");
     }
 
+    /** A reference keeps the boxes of its piers after a save and a load. Data with no piers gives no piers. */
+    @Test
+    void referenceKeepsItsPiersAfterALoad() {
+        VillageReference base = reference();
+        List<BoundingBox> piers = List.of(new BoundingBox(12, 58, -2, 22, 66, 0), new BoundingBox(-4, 58, 21, -2, 66,
+                31));
+        VillageReference reference = new VillageReference(base.pieces(), base.palisades(), base.area(), List.of(),
+                Optional.empty(), piers);
+        CompoundTag tag = reference.save();
+
+        VillageReference loaded = VillageReference.load(BuiltInRegistries.BLOCK.asLookup(), tag).orElseThrow();
+        tag.remove("Piers");
+        VillageReference old = VillageReference.load(BuiltInRegistries.BLOCK.asLookup(), tag).orElseThrow();
+
+        assertEquals(reference, loaded);
+        assertEquals(piers, loaded.withHomes(HOMES).piers(), "The pool of the homes keeps the piers");
+        assertTrue(old.piers().isEmpty(), "Data with no piers gives no piers");
+    }
+
     /** The data of a reference with no template piece gives no reference. */
     @Test
     void referenceWithNoPieceIsNotValid() {

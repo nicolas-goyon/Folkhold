@@ -1,7 +1,10 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.world.construction.GhostPlacement;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -11,6 +14,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
@@ -26,6 +30,8 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  *   <li>the blocks of the structure pieces (see {@link VillageRepairs#expectedBlocks}). In a piece, the clearing removes
  *       a block of a tree only where the piece has air;</li>
  *   <li>the columns of the palisade, also their logs above the reference of the repairs;</li>
+ *   <li>the blocks under the template pieces: their foundations and their stilts over water;</li>
+ *   <li>the logs in the boxes of the piers: their posts;</li>
  *   <li>the blocks of the players and of the construction sites (see {@link VillageRepairData#keeps}).</li>
  * </ul>
  */
@@ -70,6 +76,7 @@ public final class VillageClearing {
             return Optional.empty();
         }
         Map<BlockPos, BlockState> expected = VillageRepairs.expectedBlocks(level, reference);
+        List<BoundingBox> pieceBoxes = pieceBoxes(level, reference);
         Set<Long> palisade = new HashSet<>();
         for (BlockPos column : reference.palisadeBlocks().keySet()) {
             palisade.add(ChunkPos.asLong(column.getX(), column.getZ()));
@@ -84,7 +91,8 @@ public final class VillageClearing {
                 continue;
             }
             BlockState wanted = expected.get(pos);
-            if ((wanted != null && !wanted.isAir()) || data.keeps(heart, pos)) {
+            if ((wanted != null && !wanted.isAir()) || data.keeps(heart, pos) || isUnder(pieceBoxes, pos)
+                    || (state.is(BlockTags.LOGS) && reference.piers().stream().anyMatch(pier -> pier.isInside(pos)))) {
                 continue;
             }
             level.setBlock(pos, state.getFluidState().createLegacyBlock(),
@@ -92,6 +100,27 @@ public final class VillageClearing {
             removed++;
         }
         return Optional.of(removed);
+    }
+
+    /** The boxes of the template pieces of a village. */
+    private static List<BoundingBox> pieceBoxes(ServerLevel level, VillageReference reference) {
+        List<BoundingBox> boxes = new ArrayList<>();
+        for (VillageReference.Piece piece : reference.pieces()) {
+            level.getStructureManager().get(piece.template()).ifPresent(template -> boxes.add(template.getBoundingBox(
+                    GhostPlacement.settings(piece.rotation(), Mirror.NONE), piece.origin())));
+        }
+        return boxes;
+    }
+
+    /** True if a position is under a box: in the box on the horizontal plane, and lower than the box. */
+    private static boolean isUnder(List<BoundingBox> boxes, BlockPos pos) {
+        for (BoundingBox box : boxes) {
+            if (pos.getY() < box.minY() && pos.getX() >= box.minX() && pos.getX() <= box.maxX()
+                    && pos.getZ() >= box.minZ() && pos.getZ() <= box.maxZ()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

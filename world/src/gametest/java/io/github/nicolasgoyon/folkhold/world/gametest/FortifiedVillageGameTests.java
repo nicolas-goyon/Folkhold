@@ -313,13 +313,20 @@ public final class FortifiedVillageGameTests {
      * The heart removes the trees of its village: the logs and the leaves between the buildings and in the band around
      * the area, the roots of the mangroves and the cacti. Waterlogged leaves leave their water. The heart keeps the
      * blocks of the structure pieces, the columns of the palisade, the blocks of the players and the trees out of the
-     * band.
+     * band. It also keeps a stilt under a template piece and a post of a pier, and it removes a log next to the pier.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_clearing")
     public static void heartClearsTheTreesOfTheVillage(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Village village = generate(helper, level);
-        VillageReference reference = VillageReference.of(level, village.start().getPieces()).orElseThrow();
+        VillageReference generated = VillageReference.of(level, village.start().getPieces()).orElseThrow();
+        BoundingBox generatedArea = generated.area().orElseThrow();
+        BlockPos heartPos = village.heart();
+        // The GameTest world has no water: the reference gets the box of a pier in the band around the area.
+        BoundingBox pier = new BoundingBox(generatedArea.maxX() + 1, heartPos.getY() - 4, heartPos.getZ() + 8,
+                generatedArea.maxX() + 5, heartPos.getY() + 1, heartPos.getZ() + 10);
+        VillageReference reference = new VillageReference(generated.pieces(), generated.palisades(),
+                generated.area(), generated.plots(), generated.homes(), List.of(pier));
         VillageHeartBlockEntity heart = (VillageHeartBlockEntity) level.getBlockEntity(village.heart());
         heart.setRepairReference(reference);
         BoundingBox clearing = VillageClearing.box(reference).orElseThrow();
@@ -351,6 +358,13 @@ public final class FortifiedVillageGameTests {
         level.setBlock(cactus, Blocks.CACTUS.defaultBlockState(), Block.UPDATE_CLIENTS);
         level.setBlock(outOfBand, log, Block.UPDATE_CLIENTS);
         level.setBlock(column, log, Block.UPDATE_CLIENTS);
+        BoundingBox plaza = village.start().getPieces().get(0).getBoundingBox();
+        BlockPos stilt = new BlockPos(plaza.minX() + 1, plaza.minY() - 2, plaza.minZ() + 1);
+        BlockPos post = new BlockPos(area.maxX() + 3, heartPos.getY() - 2, heartPos.getZ() + 9);
+        BlockPos besidePier = post.south(3);
+        level.setBlock(stilt, log, Block.UPDATE_CLIENTS);
+        level.setBlock(post, log, Block.UPDATE_CLIENTS);
+        level.setBlock(besidePier, log, Block.UPDATE_CLIENTS);
 
         heart.clearTrees(level);
 
@@ -365,6 +379,9 @@ public final class FortifiedVillageGameTests {
                 "A log on a column of the palisade must stay");
         helper.assertTrue(level.getBlockState(templateLog.getKey()).equals(templateLog.getValue()),
                 "A log of a template must stay: " + templateLog.getKey());
+        helper.assertTrue(level.getBlockState(stilt).is(Blocks.OAK_LOG), "A stilt under a template piece must stay");
+        helper.assertTrue(level.getBlockState(post).is(Blocks.OAK_LOG), "A post of a pier must stay");
+        helper.assertTrue(level.getBlockState(besidePier).isAir(), "A log next to a pier must go");
         helper.succeed();
     }
 
