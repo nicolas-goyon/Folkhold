@@ -949,10 +949,10 @@ public final class BuilderSite {
     /**
      * True if a builder can work on a step from where it is. The builder stands on a floor, and the block of the step
      * is in its reach zone. The builder is not in the blocks of the step or on them, and not in the blocks of the
-     * steps before it that wait.
+     * steps before it that wait. It is not in a scaffolding block: another builder can climb the column.
      */
     boolean canWorkFrom(ServerLevel level, Villager villager, int index) {
-        if (schedule == null || !villager.onGround()) {
+        if (schedule == null || !villager.onGround() || isScaffolding(level, villager.blockPosition())) {
             return false;
         }
         BlockPos target = reachTarget(level, index);

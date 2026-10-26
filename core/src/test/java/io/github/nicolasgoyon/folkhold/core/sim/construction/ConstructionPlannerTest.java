@@ -184,7 +184,7 @@ class ConstructionPlannerTest {
 
     /**
      * A block high above the floor needs scaffolding. The column comes before the block, and the builder stands on it
-     * in reach of the block. The column goes at the end, from the top.
+     * in reach of the block. The column goes after the block, from the top.
      */
     @Test
     void scaffoldingForABlockOutOfReach() {
@@ -464,6 +464,32 @@ class ConstructionPlannerTest {
         }
         BuildPos stand = plan.steps().get(index(plan, StepType.PLACE, top)).stand().orElseThrow();
         assertTrue(stand.x() > 2 && REACH.contains(stand, top), "The builder stands at " + stand);
+    }
+
+    /**
+     * A column goes after the last step that uses it: the column of a high block goes before the column of the next
+     * high block. The column of a pillar stays until the top of the pillar.
+     */
+    @Test
+    void columnGoesAfterItsLastStep() {
+        BuildPos first = pos(-6, 9, 0);
+        BuildPos second = pos(6, 9, 0);
+        Map<BuildPos, BuildBlock> blocks = Map.of(first, BuildBlock.solid(STONE), second, BuildBlock.solid(STONE));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        List<Step> steps = plan.steps();
+        int placeFirst = index(plan, StepType.PLACE, first);
+        int placeSecond = index(plan, StepType.PLACE, second);
+        assertTrue(placeFirst < placeSecond, "The blocks go from the west to the east");
+        BuildPos column = steps.get(placeFirst).stand().orElseThrow().below();
+        int removal = index(plan, StepType.REMOVE_SCAFFOLDING, column);
+        assertTrue(removal > placeFirst && removal < placeSecond,
+                "The column of the first block must go between the two blocks: " + removal);
+        for (int i = placeFirst + 1; i < removal; i++) {
+            assertEquals(StepType.REMOVE_SCAFFOLDING, steps.get(i).type(), "The column goes after its last step");
+        }
+        assertEquals(plan.count(StepType.PLACE_SCAFFOLDING), plan.count(StepType.REMOVE_SCAFFOLDING));
     }
 
     /** For a high pillar, the plan makes one scaffolding column higher, and makes no other column. */
