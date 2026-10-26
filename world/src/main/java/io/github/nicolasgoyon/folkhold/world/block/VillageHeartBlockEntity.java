@@ -30,6 +30,7 @@ import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.Handymen;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBraziers;
+import io.github.nicolasgoyon.folkhold.world.village.VillageClearing;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
@@ -110,6 +111,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String EXITS_TAG = "ExitStairs";
     private static final String NIGHT_TAG = "NightMode";
     private static final String CATS_TAG = "CatsSpawned";
+    private static final String CLEARED_TAG = "Cleared";
     private static final String CAT_SPAWN_TAG = "LastCatSpawn";
     private static final String VILLAGERS_TAG = "VillagersSpawned";
     private static final String VILLAGER_SPAWN_TAG = "LastVillagerSpawn";
@@ -146,6 +148,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean exitStairs;
     /** True after the first cats of the village appeared. */
     private boolean catsSpawned;
+    /** True after the heart removed the trees of the village (see {@link VillageClearing}). */
+    private boolean cleared;
     /** Game time of the last creation of cats. */
     private long lastCatSpawn;
     /** True after the first villagers (merchants and inhabitants) of the village appeared. */
@@ -533,6 +537,25 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 SettlementData.get(serverLevel.getServer()).setDirty();
             }
         });
+    }
+
+    /**
+     * Removes the trees of the village once, before its first activation (see {@link VillageClearing}). A heart with no
+     * village structure has nothing to clear. The heart waits while a chunk of the clearing is not ready.
+     *
+     * @param serverLevel the level of the heart
+     */
+    public void clearTrees(ServerLevel serverLevel) {
+        Optional<VillageReference> reference = repairReference(serverLevel);
+        if (reference.isPresent()) {
+            Optional<Integer> removed = VillageClearing.clear(serverLevel, worldPosition, reference.get());
+            if (removed.isEmpty()) {
+                return;
+            }
+            FolkholdWorld.LOGGER.debug("Village {}: {} blocks of trees removed", worldPosition, removed.get());
+        }
+        cleared = true;
+        setChanged();
     }
 
     /**
@@ -1008,6 +1031,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (!(level instanceof ServerLevel areaLevel) || !VillageLayout.isAreaReady(level, heart.scanArea(areaLevel))) {
             return;
         }
+        if (!heart.cleared) {
+            heart.clearTrees(areaLevel);
+        }
         if (time % GARRISON_INTERVAL == 0) {
             double activation = WorldConfig.GARRISON_ACTIVATION_RADIUS.get();
             if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {
@@ -1080,6 +1106,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putBoolean(NIGHT_TAG, nightMode);
         tag.putBoolean(EXITS_TAG, exitStairs);
         tag.putBoolean(CATS_TAG, catsSpawned);
+        tag.putBoolean(CLEARED_TAG, cleared);
         tag.putLong(CAT_SPAWN_TAG, lastCatSpawn);
         tag.putBoolean(VILLAGERS_TAG, villagersSpawned);
         tag.putLong(VILLAGER_SPAWN_TAG, lastVillagerSpawn);
@@ -1111,6 +1138,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         nightMode = tag.getBoolean(NIGHT_TAG);
         exitStairs = tag.getBoolean(EXITS_TAG);
         catsSpawned = tag.getBoolean(CATS_TAG);
+        cleared = tag.getBoolean(CLEARED_TAG);
         lastCatSpawn = tag.getLong(CAT_SPAWN_TAG);
         villagersSpawned = tag.getBoolean(VILLAGERS_TAG);
         lastVillagerSpawn = tag.getLong(VILLAGER_SPAWN_TAG);

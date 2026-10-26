@@ -5,9 +5,11 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.VillageClearing;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
@@ -16,6 +18,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -26,6 +29,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -191,6 +195,54 @@ public final class FortifiedVillageGameTests {
             }
         }
         helper.assertTrue(free > 0, "The villages of the test must have a free plot");
+        helper.succeed();
+    }
+
+    /**
+     * The heart removes the trees of its village: the logs and the leaves between the buildings and in the band around
+     * the area. It keeps the blocks of the structure pieces, the columns of the palisade, the blocks of the players
+     * and the trees out of the band.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_clearing")
+    public static void heartClearsTheTreesOfTheVillage(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Village village = generate(helper, level);
+        VillageReference reference = VillageReference.of(level, village.start().getPieces()).orElseThrow();
+        VillageHeartBlockEntity heart = (VillageHeartBlockEntity) level.getBlockEntity(village.heart());
+        heart.setRepairReference(reference);
+        BoundingBox clearing = VillageClearing.box(reference).orElseThrow();
+        for (int x = clearing.minX() >> 4; x <= (clearing.maxX() + 2) >> 4; x++) {
+            for (int z = clearing.minZ() >> 4; z <= clearing.maxZ() >> 4; z++) {
+                level.getChunk(x, z);
+            }
+        }
+        BlockState log = Blocks.OAK_LOG.defaultBlockState();
+        BlockState leaves = Blocks.OAK_LEAVES.defaultBlockState();
+        BlockPos aboveHeart = village.heart().above(5);
+        BlockPos playerLog = village.heart().offset(2, 5, 2);
+        BoundingBox area = reference.area().orElseThrow();
+        BlockPos inBand = new BlockPos(area.maxX() + 3, village.heart().getY() + 3, village.heart().getZ());
+        BlockPos outOfBand = new BlockPos(clearing.maxX() + 2, village.heart().getY() + 3, village.heart().getZ());
+        BlockPos column = reference.palisades().get(0).start().above(12);
+        Map.Entry<BlockPos, BlockState> templateLog = VillageRepairs.expectedBlocks(level, reference).entrySet()
+                .stream().filter(entry -> entry.getValue().is(BlockTags.LOGS)).findFirst().orElseThrow();
+        level.setBlock(aboveHeart, leaves, Block.UPDATE_CLIENTS);
+        level.setBlock(playerLog, log, Block.UPDATE_CLIENTS);
+        VillageRepairData.get(level).addPlayerBlock(village.heart(), playerLog);
+        level.setBlock(inBand, log, Block.UPDATE_CLIENTS);
+        level.setBlock(outOfBand, log, Block.UPDATE_CLIENTS);
+        level.setBlock(column, log, Block.UPDATE_CLIENTS);
+
+        heart.clearTrees(level);
+
+        helper.assertTrue(level.getBlockState(aboveHeart).isAir(), "The leaves above the plaza must go");
+        helper.assertTrue(level.getBlockState(inBand).isAir(), "A log in the band around the area must go");
+        helper.assertTrue(level.getBlockState(playerLog).is(Blocks.OAK_LOG), "The log of a player must stay");
+        helper.assertTrue(level.getBlockState(outOfBand).is(Blocks.OAK_LOG), "A log out of the band must stay");
+        helper.assertTrue(level.getBlockState(column).is(Blocks.OAK_LOG),
+                "A log on a column of the palisade must stay");
+        helper.assertTrue(level.getBlockState(templateLog.getKey()).equals(templateLog.getValue()),
+                "A log of a template must stay: " + templateLog.getKey());
         helper.succeed();
     }
 
