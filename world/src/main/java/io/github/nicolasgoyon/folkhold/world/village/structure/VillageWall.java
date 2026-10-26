@@ -11,9 +11,12 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Side;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Tower;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.IntBinaryOperator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Rotation;
@@ -42,6 +45,9 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       first piece of the pools on the axis.</li>
  *   <li>{@link TerrainPiece}s make the terrain flat near the wall: along the palisade, in sections of
  *       {@link #SECTION} columns at their highest base, and in front of the gates, at the level of the gate.</li>
+ *   <li>The water side: the top block of the terrain is water at the sea level or lower (see {@link #isWater}). On
+ *       water, the palisade stands on its foundation, with no flat terrain along it. A gate that opens on water gets a
+ *       {@link PierPiece} in front of it, and no flat terrain there.</li>
  * </ul>
  */
 public final class VillageWall {
@@ -59,6 +65,12 @@ public final class VillageWall {
     static final int APPROACH = 6;
     /** The flat terrain behind a gate goes this number of blocks inside the line. */
     static final int ENTRANCE = 3;
+    /** The points in front of a gate are at these distances outside the line. */
+    private static final int[] FRONT = {2, 4, 6};
+    /** A gate opens on water when this number of the points in front of it are on water, or more. */
+    static final int WATER_FRONT = 2;
+    /** A pier starts at this distance outside the line: after the outer row of the gate. */
+    static final int PIER_START = 2;
 
     private VillageWall() {
     }
@@ -83,7 +95,19 @@ public final class VillageWall {
                 new Gate(Side.SOUTH, center.getX()), new Gate(Side.WEST, center.getZ()));
         WallLayout layout = WallLayout.plan(inside, settings.margin(), settings.towerSpacing(), gates);
         Terrain terrain = new Terrain(context);
+        int seaLevel = context.chunkGenerator().getSeaLevel();
         int[] bases = bases(layout, terrain);
+        boolean[] water = new boolean[layout.ringSize()];
+        for (int i = 0; i < water.length; i++) {
+            Cell cell = layout.ringCell(i);
+            water[i] = isWater(terrain.height(cell.x(), cell.z()), seaLevel);
+        }
+        Set<Gate> waterGates = new HashSet<>();
+        for (Gate gate : layout.gates()) {
+            if (isWaterGate(layout, gate, terrain::height, seaLevel)) {
+                waterGates.add(gate);
+            }
+        }
         StructureTemplateManager templates = context.structureTemplateManager();
         List<StructurePiece> pieces = new ArrayList<>();
         Map<Tower, Integer> towerLevels = new HashMap<>();
@@ -108,40 +132,119 @@ public final class VillageWall {
         }
         for (Gate gate : layout.gates()) {
             path(layout, gate, boxes, terrain).ifPresent(pieces::add);
+            if (waterGates.contains(gate)) {
+                pieces.add(pier(layout, gate, gateLevels.get(gate), terrain::height, seaLevel, settings.pier()));
+            }
         }
-        pieces.addAll(terrain(layout, smooth, gateLevels));
+        pieces.addAll(terrain(layout, smooth, gateLevels, water, waterGates));
         return pieces;
+    }
+
+    /**
+     * True if the top block of the terrain is water: at the sea level or lower. The heights of the terrain before the
+     * generation of the chunks have water at the sea level and below it.
+     *
+     * @param top      the Y of the top block, water included
+     * @param seaLevel the sea level of the chunk generator
+     * @return true for water
+     */
+    static boolean isWater(int top, int seaLevel) {
+        return top < seaLevel;
+    }
+
+    /**
+     * True if a gate opens on water: {@link #WATER_FRONT} of the points in front of it are on water, or more.
+     *
+     * @param layout   the wall
+     * @param gate     the gate
+     * @param top      the Y of the top block of the terrain at a position (X, Z), water included
+     * @param seaLevel the sea level of the chunk generator
+     * @return true for a water gate
+     */
+    static boolean isWaterGate(WallLayout layout, Gate gate, IntBinaryOperator top, int seaLevel) {
+        Side side = gate.side();
+        Cell middle = layout.cell(side, layout.along(gate));
+        int count = 0;
+        for (int distance : FRONT) {
+            if (isWater(top.applyAsInt(middle.x() - side.insideX() * distance, middle.z() - side.insideZ() * distance),
+                    seaLevel)) {
+                count++;
+            }
+        }
+        return count >= WATER_FRONT;
+    }
+
+    /**
+     * The pier of a water gate. It starts after the outer row of the gate and goes out over the water, to the first
+     * position on land. It has {@link PierPiece#MIN_LENGTH} rows at least and {@link PierPiece#MAX_LENGTH} rows at most.
+     * The deck is at the level of the gate.
+     *
+     * @param layout   the wall
+     * @param gate     the gate
+     * @param level    the level of the gate
+     * @param top      the Y of the top block of the terrain at a position (X, Z), water included
+     * @param seaLevel the sea level of the chunk generator
+     * @param blocks   the blocks of the pier
+     * @return the pier
+     */
+    static PierPiece pier(WallLayout layout, Gate gate, int level, IntBinaryOperator top, int seaLevel,
+            PierBlocks blocks) {
+        Side side = gate.side();
+        Cell middle = layout.cell(side, layout.along(gate));
+        int outX = -side.insideX();
+        int outZ = -side.insideZ();
+        int length = 0;
+        while (length < PierPiece.MAX_LENGTH) {
+            int distance = PIER_START + length;
+            boolean onWater = isWater(top.applyAsInt(middle.x() + outX * distance, middle.z() + outZ * distance),
+                    seaLevel);
+            if (!onWater && length >= PierPiece.MIN_LENGTH) {
+                break;
+            }
+            length++;
+        }
+        return new PierPiece(middle.x() + outX * PIER_START, middle.z() + outZ * PIER_START, outX, outZ, length,
+                level, blocks);
     }
 
     /**
      * The pieces that make the terrain flat near the wall: along each segment of palisade, in sections of
      * {@link #SECTION} columns at their highest base, and in front of each gate and behind it, at the level of the
-     * gate.
+     * gate. On water, the palisade stands on its foundation: a section with all its columns on water gets no terrain
+     * piece. A water gate gets the flat terrain behind it only: its pier goes in front of it.
      *
      * @param layout     the wall
      * @param bases      the bases of the ring
      * @param gateLevels the level of each gate
+     * @param water      for each position of the ring, true if the line is on water
+     * @param waterGates the gates that open on water
      * @return the pieces
      */
-    static List<TerrainPiece> terrain(WallLayout layout, int[] bases, Map<Gate, Integer> gateLevels) {
+    static List<TerrainPiece> terrain(WallLayout layout, int[] bases, Map<Gate, Integer> gateLevels,
+            boolean[] water, Set<Gate> waterGates) {
         List<TerrainPiece> pieces = new ArrayList<>();
         for (Segment segment : layout.segments()) {
             Side side = segment.side();
             for (int from = segment.from(); from <= segment.to(); from += SECTION) {
                 int to = Math.min(from + SECTION - 1, segment.to());
                 int ground = Integer.MIN_VALUE;
+                boolean onWater = true;
                 for (int along = from; along <= to; along++) {
-                    ground = Math.max(ground, bases[layout.ringIndex(side, along)]);
+                    int index = layout.ringIndex(side, along);
+                    ground = Math.max(ground, bases[index]);
+                    onWater &= water[index];
                 }
-                pieces.add(across(layout.cell(side, from), layout.cell(side, to), side, FLAT_WIDTH, FLAT_WIDTH,
-                        ground));
+                if (!onWater) {
+                    pieces.add(across(layout.cell(side, from), layout.cell(side, to), side, FLAT_WIDTH, FLAT_WIDTH,
+                            ground));
+                }
             }
         }
         for (Gate gate : layout.gates()) {
             int middle = layout.along(gate);
             pieces.add(across(layout.cell(gate.side(), middle - WallLayout.GATE / 2),
-                    layout.cell(gate.side(), middle + WallLayout.GATE / 2), gate.side(), APPROACH, ENTRANCE,
-                    gateLevels.get(gate)));
+                    layout.cell(gate.side(), middle + WallLayout.GATE / 2), gate.side(),
+                    waterGates.contains(gate) ? 0 : APPROACH, ENTRANCE, gateLevels.get(gate)));
         }
         return pieces;
     }

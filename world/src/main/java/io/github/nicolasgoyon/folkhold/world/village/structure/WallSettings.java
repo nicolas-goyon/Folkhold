@@ -19,9 +19,10 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProc
  *                     palisade is the second row.
  * @param processors   the processors of the templates of the towers and of the gates, for example a foundation
  * @param palisade     the blocks of the palisade
+ * @param pier         the blocks of the pier of a gate that opens on water
  */
 public record WallSettings(int margin, int towerSpacing, ResourceLocation tower, ResourceLocation gate,
-        Holder<StructureProcessorList> processors, PalisadeBlocks palisade) {
+        Holder<StructureProcessorList> processors, PalisadeBlocks palisade, PierBlocks pier) {
     /** The largest margin. */
     public static final int MAX_MARGIN = 16;
     /** The largest tower spacing. */
@@ -34,6 +35,7 @@ public record WallSettings(int margin, int towerSpacing, ResourceLocation tower,
             ResourceLocation.CODEC.fieldOf("tower").forGetter(WallSettings::tower),
             ResourceLocation.CODEC.fieldOf("gate").forGetter(WallSettings::gate),
             StructureProcessorType.LIST_CODEC.fieldOf("processors").forGetter(WallSettings::processors),
-            PalisadeBlocks.CODEC.fieldOf("palisade").forGetter(WallSettings::palisade))
+            PalisadeBlocks.CODEC.fieldOf("palisade").forGetter(WallSettings::palisade),
+            PierBlocks.CODEC.fieldOf("pier").forGetter(WallSettings::pier))
             .apply(instance, WallSettings::new));
 }

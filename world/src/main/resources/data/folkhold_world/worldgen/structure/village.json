@@ -29,6 +29,20 @@
       "foundation": {
         "Name": "minecraft:cobblestone"
       }
+    },
+    "pier": {
+      "deck": {
+        "Name": "minecraft:spruce_planks"
+      },
+      "post": {
+        "Name": "minecraft:spruce_log",
+        "Properties": {
+          "axis": "y"
+        }
+      },
+      "rail": {
+        "Name": "minecraft:spruce_fence"
+      }
     }
   },
   "homes": "folkhold_world:village/homes"
