@@ -124,8 +124,15 @@ public final class VillageWall {
         for (Tower tower : layout.towers()) {
             towerLevels.put(tower, flatten(bases, layout.ringIndices(layout.towerBox(tower))));
         }
+        List<Stop> stops = stops(village);
+        Map<Gate, Arm> arms = new HashMap<>();
         for (Gate gate : layout.gates()) {
-            gateLevels.put(gate, flatten(bases, layout.ringIndices(gate)));
+            Optional<Arm> arm = arm(layout, gate, stops);
+            arm.ifPresent(value -> arms.put(gate, value));
+            List<Integer> indices = layout.ringIndices(gate);
+            int level = reachable(flatten(bases, indices), arm);
+            indices.forEach(index -> bases[index] = level);
+            gateLevels.put(gate, level);
         }
         int[] smooth = PalisadeHeights.smooth(bases);
         for (Tower tower : layout.towers()) {
@@ -139,14 +146,12 @@ public final class VillageWall {
         for (Segment segment : layout.segments()) {
             pieces.add(palisade(layout, segment, smooth, settings.palisade()));
         }
-        List<Stop> stops = stops(village);
         for (Gate gate : layout.gates()) {
-            Optional<Arm> arm = arm(layout, gate, stops);
-            if (arm.isPresent()) {
-                int[] levels = levels(arm.get(), gateLevels.get(gate), terrain);
-                pieces.add(new VillagePathPiece(arm.get().startX(), arm.get().startZ(), arm.get().stepX(),
-                        arm.get().stepZ(), levels, true));
-                moveHouses(templates, village, arm.get(), levels);
+            Arm arm = arms.get(gate);
+            if (arm != null) {
+                int[] levels = levels(arm, gateLevels.get(gate), terrain);
+                pieces.add(new VillagePathPiece(arm.startX(), arm.startZ(), arm.stepX(), arm.stepZ(), levels, true));
+                moveHouses(templates, village, arm, levels);
             }
             if (waterGates.contains(gate)) {
                 pieces.add(pier(layout, gate, gateLevels.get(gate), terrain::height, seaLevel, settings.pier()));
@@ -462,6 +467,24 @@ public final class VillageWall {
             return Optional.empty();
         }
         return Optional.of(new Arm(startX, startZ, side.insideX(), side.insideZ(), length, end));
+    }
+
+    /**
+     * The level of a gate that its arm can reach: the arm goes up or down by 1 block at most from a row to the next
+     * one, from the level of the gate to the level of the piece at its end. A gate higher or lower than this range goes
+     * to the nearest level of the range: the flat terrain of the gate clears the terrain above it.
+     *
+     * @param level the level of the gate from the terrain
+     * @param arm   the arm of the gate, or empty
+     * @return the level of the gate
+     */
+    static int reachable(int level, Optional<Arm> arm) {
+        if (arm.isEmpty() || arm.get().end().isEmpty()) {
+            return level;
+        }
+        int end = arm.get().end().getAsInt();
+        int reach = (arm.get().length() - 1) * PathRamp.MAX_STEP;
+        return Math.max(end - reach, Math.min(end + reach, level));
     }
 
     /**

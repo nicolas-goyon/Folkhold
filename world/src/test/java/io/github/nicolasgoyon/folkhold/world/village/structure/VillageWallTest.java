@@ -186,4 +186,20 @@ class VillageWallTest {
         assertTrue(arm.row(10, 19, VillageWall.STREET_HALF_WIDTH).isEmpty(), "Before the first row");
         assertTrue(arm.row(10, 35, VillageWall.STREET_HALF_WIDTH).isEmpty(), "After the last row");
     }
+
+    /**
+     * A gate goes to a level that its arm reaches: an arm of 11 rows goes up or down by 10 blocks at most. A gate in
+     * this range, or with an arm with no end, keeps its level.
+     */
+    @Test
+    void gateGoesToALevelThatItsArmReaches() {
+        VillageWall.Arm arm = new VillageWall.Arm(0, 0, 0, 1, 11, java.util.OptionalInt.of(BASE));
+        VillageWall.Arm open = new VillageWall.Arm(0, 0, 0, 1, 11, java.util.OptionalInt.empty());
+
+        assertEquals(BASE + 10, VillageWall.reachable(BASE + 21, java.util.Optional.of(arm)), "Too high: down");
+        assertEquals(BASE - 10, VillageWall.reachable(BASE - 15, java.util.Optional.of(arm)), "Too low: up");
+        assertEquals(BASE + 4, VillageWall.reachable(BASE + 4, java.util.Optional.of(arm)), "In the range");
+        assertEquals(BASE + 21, VillageWall.reachable(BASE + 21, java.util.Optional.of(open)), "No end");
+        assertEquals(BASE + 21, VillageWall.reachable(BASE + 21, java.util.Optional.empty()), "No arm");
+    }
 }
