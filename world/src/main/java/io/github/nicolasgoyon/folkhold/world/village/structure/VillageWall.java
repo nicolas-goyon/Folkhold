@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village.structure;
 
+import io.github.nicolasgoyon.folkhold.core.sim.village.HeightGrid;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Box;
@@ -38,6 +39,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       that the palisade has no high step next to it.</li>
  *   <li>Each segment of palisade is a {@link PalisadePiece}. A {@link VillagePathPiece} goes from each gate to the
  *       first piece of the pools on the axis.</li>
+ *   <li>{@link TerrainPiece}s make the terrain flat near the wall: along the palisade, in sections of
+ *       {@link #SECTION} columns at their highest base, and in front of the gates, at the level of the gate.</li>
  * </ul>
  */
 public final class VillageWall {
@@ -47,6 +50,14 @@ public final class VillageWall {
     private static final int NEAR_RADIUS = 1;
     /** The ground level of a template is 1 block above its origin: the first layer above the ground. */
     private static final int GROUND_LEVEL_DELTA = 1;
+    /** The terrain is flat along the palisade in sections of this number of columns. */
+    static final int SECTION = 2;
+    /** The flat terrain of the palisade goes this number of blocks inside and outside the line. */
+    static final int FLAT_WIDTH = 2;
+    /** The flat terrain in front of a gate goes this number of blocks outside the line. */
+    static final int APPROACH = 6;
+    /** The flat terrain behind a gate goes this number of blocks inside the line. */
+    static final int ENTRANCE = 3;
 
     private VillageWall() {
     }
@@ -80,11 +91,11 @@ public final class VillageWall {
         }
         int[] smooth = PalisadeHeights.smooth(bases);
         for (Tower tower : layout.towers()) {
-            pieces.add(template(templates, settings.tower(), towerOrigin(layout, tower, towerLevels.get(tower)),
-                    rotation(tower.side())));
+            pieces.add(template(templates, settings, settings.tower(),
+                    towerOrigin(layout, tower, towerLevels.get(tower)), rotation(tower.side())));
         }
         for (Gate gate : layout.gates()) {
-            pieces.add(template(templates, settings.gate(), gateOrigin(layout, gate, gateLevels.get(gate)),
+            pieces.add(template(templates, settings, settings.gate(), gateOrigin(layout, gate, gateLevels.get(gate)),
                     rotation(gate.side())));
         }
         for (Segment segment : layout.segments()) {
@@ -93,7 +104,58 @@ public final class VillageWall {
         for (Gate gate : layout.gates()) {
             path(layout, gate, boxes, terrain).ifPresent(pieces::add);
         }
+        pieces.addAll(terrain(layout, smooth, gateLevels));
         return pieces;
+    }
+
+    /**
+     * The pieces that make the terrain flat near the wall: along each segment of palisade, in sections of
+     * {@link #SECTION} columns at their highest base, and in front of each gate and behind it, at the level of the
+     * gate.
+     *
+     * @param layout     the wall
+     * @param bases      the bases of the ring
+     * @param gateLevels the level of each gate
+     * @return the pieces
+     */
+    static List<TerrainPiece> terrain(WallLayout layout, int[] bases, Map<Gate, Integer> gateLevels) {
+        List<TerrainPiece> pieces = new ArrayList<>();
+        for (Segment segment : layout.segments()) {
+            Side side = segment.side();
+            for (int from = segment.from(); from <= segment.to(); from += SECTION) {
+                int to = Math.min(from + SECTION - 1, segment.to());
+                int ground = Integer.MIN_VALUE;
+                for (int along = from; along <= to; along++) {
+                    ground = Math.max(ground, bases[layout.ringIndex(side, along)]);
+                }
+                pieces.add(across(layout.cell(side, from), layout.cell(side, to), side, FLAT_WIDTH, FLAT_WIDTH,
+                        ground));
+            }
+        }
+        for (Gate gate : layout.gates()) {
+            int middle = layout.along(gate);
+            pieces.add(across(layout.cell(gate.side(), middle - WallLayout.GATE / 2),
+                    layout.cell(gate.side(), middle + WallLayout.GATE / 2), gate.side(), APPROACH, ENTRANCE,
+                    gateLevels.get(gate)));
+        }
+        return pieces;
+    }
+
+    /**
+     * A terrain piece across the line of a side, between 2 blocks of the line: it goes a number of blocks outside and
+     * a number of blocks inside.
+     */
+    private static TerrainPiece across(Cell first, Cell last, Side side, int outside, int inside, int ground) {
+        int minX = Math.min(first.x(), last.x());
+        int maxX = Math.max(first.x(), last.x());
+        int minZ = Math.min(first.z(), last.z());
+        int maxZ = Math.max(first.z(), last.z());
+        int outX = -side.insideX() * outside;
+        int outZ = -side.insideZ() * outside;
+        int inX = side.insideX() * inside;
+        int inZ = side.insideZ() * inside;
+        return new TerrainPiece(minX + Math.min(outX, inX), minZ + Math.min(outZ, inZ), maxX + Math.max(outX, inX),
+                maxZ + Math.max(outZ, inZ), ground);
     }
 
     /** The box of a structure piece on the horizontal plane. */
@@ -160,10 +222,10 @@ public final class VillageWall {
         return new BlockPos(start.x() - side.insideX(), level, start.z() - side.insideZ());
     }
 
-    /** A structure piece of a template, on the terrain (projection {@code rigid}). */
-    private static PoolElementStructurePiece template(StructureTemplateManager templates, ResourceLocation id,
-            BlockPos origin, Rotation rotation) {
-        StructurePoolElement element = StructurePoolElement.single(id.toString())
+    /** A structure piece of a template, on the terrain (projection {@code rigid}), with the processors of the wall. */
+    private static PoolElementStructurePiece template(StructureTemplateManager templates, WallSettings settings,
+            ResourceLocation id, BlockPos origin, Rotation rotation) {
+        StructurePoolElement element = StructurePoolElement.single(id.toString(), settings.processors())
                 .apply(StructureTemplatePool.Projection.RIGID);
         return new PoolElementStructurePiece(templates, element, origin, GROUND_LEVEL_DELTA, rotation,
                 element.getBoundingBox(templates, origin, rotation), LiquidSettings.APPLY_WATERLOGGING);
@@ -212,17 +274,30 @@ public final class VillageWall {
                 low - VillagePathPiece.SEARCH, high + VillagePathPiece.SEARCH));
     }
 
-    /** The height of the terrain before the generation of the chunks: the Y of the top block. */
+    /**
+     * The height of the terrain before the generation of the chunks: the Y of the top block. The chunk generator
+     * calculates the height of each column from the noise of the terrain, and this calculation takes time. Thus the
+     * structure reads the heights at the corners of a grid of {@link #CELL} blocks only, and interpolates between the
+     * corners (see {@link HeightGrid}). The noise of the vanilla terrain also has cells of 4 blocks: the interpolation
+     * stays near the height of the column.
+     */
     private static final class Terrain {
+        /** The distance between 2 corners of the grid, in blocks. */
+        private static final int CELL = 4;
+
         private final Structure.GenerationContext context;
-        private final Map<Long, Integer> heights = new HashMap<>();
+        private final Map<Long, Integer> corners = new HashMap<>();
 
         Terrain(Structure.GenerationContext context) {
             this.context = context;
         }
 
         int height(int x, int z) {
-            return heights.computeIfAbsent(BlockPos.asLong(x, 0, z),
+            return HeightGrid.interpolate(x, z, CELL, this::corner);
+        }
+
+        private int corner(int x, int z) {
+            return corners.computeIfAbsent(BlockPos.asLong(x, 0, z),
                     key -> context.chunkGenerator().getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG,
                             context.heightAccessor(), context.randomState()) - 1);
         }

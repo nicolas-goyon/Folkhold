@@ -3,7 +3,7 @@
   "biomes": "#folkhold_world:has_village",
   "step": "surface_structures",
   "spawn_overrides": {},
-  "terrain_adaptation": "beard_box",
+  "terrain_adaptation": "beard_thin",
   "start_pool": "folkhold_world:village/plaza",
   "size": 2,
   "max_distance_from_center": 64,
@@ -12,6 +12,7 @@
     "tower_spacing": 40,
     "tower": "folkhold_world:village/tower",
     "gate": "folkhold_world:village/gate",
+    "processors": "folkhold_world:village/foundation",
     "palisade": {
       "log": {
         "Name": "minecraft:spruce_log",

@@ -7,7 +7,7 @@
         "element_type": "minecraft:single_pool_element",
         "location": "folkhold_world:village/house_cottage",
         "projection": "rigid",
-        "processors": "minecraft:empty"
+        "processors": "folkhold_world:village/foundation"
       }
     },
     {
@@ -16,7 +16,7 @@
         "element_type": "minecraft:single_pool_element",
         "location": "folkhold_world:village/house_barracks",
         "projection": "rigid",
-        "processors": "minecraft:empty"
+        "processors": "folkhold_world:village/foundation"
       }
     },
     {
@@ -25,7 +25,7 @@
         "element_type": "minecraft:single_pool_element",
         "location": "folkhold_world:village/house_forge",
         "projection": "rigid",
-        "processors": "minecraft:empty"
+        "processors": "folkhold_world:village/foundation"
       }
     },
     {
@@ -34,7 +34,7 @@
         "element_type": "minecraft:single_pool_element",
         "location": "folkhold_world:village/house_storehouse",
         "projection": "rigid",
-        "processors": "minecraft:empty"
+        "processors": "folkhold_world:village/foundation"
       }
     },
     {

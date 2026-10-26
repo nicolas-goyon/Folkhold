@@ -7,7 +7,7 @@
         "element_type": "minecraft:single_pool_element",
         "location": "folkhold_world:village/plaza",
         "projection": "rigid",
-        "processors": "minecraft:empty"
+        "processors": "folkhold_world:village/foundation"
       }
     }
   ]
