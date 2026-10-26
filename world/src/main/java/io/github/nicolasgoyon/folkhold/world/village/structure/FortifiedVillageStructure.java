@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSite;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +28,9 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSetting
  * The faction village: the pieces of the jigsaw pools, in a closed wall.
  *
  * <ul>
+ *   <li>The terrain around the start must accept a village (see {@link VillageSite}): no water at the place of the
+ *       plaza, little water, and no steep relief. The check reads a grid of {@link #SITE_GRID} x {@link #SITE_GRID}
+ *       points, {@link #SITE_STEP} blocks apart.</li>
  *   <li>The start piece is on the terrain, in the middle of the start chunk. The other pieces of the pools go on its
  *       connectors, as in a vanilla jigsaw structure.</li>
  *   <li>Then the structure adds the wall around all the pieces (see {@link VillageWall}). The wall has towers, a gate
@@ -50,6 +54,10 @@ public final class FortifiedVillageStructure extends Structure {
     private static final int MAX_RANGE = JigsawStructure.MAX_TOTAL_STRUCTURE_RANGE;
     /** The terrain adaptation changes the terrain at this distance from a piece, in blocks. */
     private static final int ADAPTATION_RANGE = 12;
+    /** The number of points on each side of the grid of the check of the terrain. */
+    static final int SITE_GRID = 9;
+    /** The distance between 2 points of the grid of the check of the terrain, in blocks. */
+    static final int SITE_STEP = 10;
 
     public static final MapCodec<FortifiedVillageStructure> CODEC = RecordCodecBuilder
             .<FortifiedVillageStructure>mapCodec(instance -> instance.group(
@@ -94,11 +102,40 @@ public final class FortifiedVillageStructure extends Structure {
     public Optional<GenerationStub> findGenerationPoint(GenerationContext context) {
         ChunkPos chunk = context.chunkPos();
         BlockPos start = new BlockPos(chunk.getMinBlockX(), 0, chunk.getMinBlockZ());
+        if (checkSite(context, start) != VillageSite.Result.ACCEPTED) {
+            return Optional.empty();
+        }
         return JigsawPlacement.addPieces(context, startPool, Optional.empty(), size, start, false,
                 Optional.of(Heightmap.Types.WORLD_SURFACE_WG), maxDistanceFromCenter, PoolAliasLookup.EMPTY,
                 DimensionPadding.ZERO, LiquidSettings.APPLY_WATERLOGGING)
                 .map(village -> new GenerationStub(village.position(),
                         builder -> generate(context, village, builder)));
+    }
+
+    /**
+     * Checks the terrain around the start of a village, before the generation of the chunks (see
+     * {@link VillageSite}). The start piece turns around the start: the grid has the start in its middle.
+     *
+     * @param context the context of the generation
+     * @param start   the start of the village
+     * @return the result of the check
+     */
+    static VillageSite.Result checkSite(GenerationContext context, BlockPos start) {
+        int half = SITE_GRID / 2;
+        int[] surface = new int[SITE_GRID * SITE_GRID];
+        int[] floor = new int[SITE_GRID * SITE_GRID];
+        for (int row = 0; row < SITE_GRID; row++) {
+            for (int column = 0; column < SITE_GRID; column++) {
+                int x = start.getX() + (column - half) * SITE_STEP;
+                int z = start.getZ() + (row - half) * SITE_STEP;
+                int i = row * SITE_GRID + column;
+                surface[i] = context.chunkGenerator().getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG,
+                        context.heightAccessor(), context.randomState());
+                floor[i] = context.chunkGenerator().getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG,
+                        context.heightAccessor(), context.randomState());
+            }
+        }
+        return VillageSite.check(SITE_GRID, surface, floor);
     }
 
     /** Adds the pieces of the pools, then the pieces of the wall around them. */

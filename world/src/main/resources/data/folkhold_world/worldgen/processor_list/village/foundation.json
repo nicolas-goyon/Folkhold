@@ -1,0 +1,11 @@
+{
+  "processors": [
+    {
+      "processor_type": "folkhold_world:foundation",
+      "block": {
+        "Name": "minecraft:cobblestone"
+      },
+      "max_depth": 32
+    }
+  ]
+}

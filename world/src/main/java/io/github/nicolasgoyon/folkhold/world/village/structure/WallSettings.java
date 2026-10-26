@@ -3,7 +3,10 @@ package io.github.nicolasgoyon.folkhold.world.village.structure;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout;
+import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorList;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorType;
 
 /**
  * The settings of the wall of a fortified village (see {@link FortifiedVillageStructure}).
@@ -14,10 +17,11 @@ import net.minecraft.resources.ResourceLocation;
  *                     to the north. The stair goes along the north side to the east.
  * @param gate         the structure template of a gate. The outside of the template is to the north: the line of the
  *                     palisade is the second row.
+ * @param processors   the processors of the templates of the towers and of the gates, for example a foundation
  * @param palisade     the blocks of the palisade
  */
 public record WallSettings(int margin, int towerSpacing, ResourceLocation tower, ResourceLocation gate,
-        PalisadeBlocks palisade) {
+        Holder<StructureProcessorList> processors, PalisadeBlocks palisade) {
     /** The largest margin. */
     public static final int MAX_MARGIN = 16;
     /** The largest tower spacing. */
@@ -29,6 +33,7 @@ public record WallSettings(int margin, int towerSpacing, ResourceLocation tower,
                     .forGetter(WallSettings::towerSpacing),
             ResourceLocation.CODEC.fieldOf("tower").forGetter(WallSettings::tower),
             ResourceLocation.CODEC.fieldOf("gate").forGetter(WallSettings::gate),
+            StructureProcessorType.LIST_CODEC.fieldOf("processors").forGetter(WallSettings::processors),
             PalisadeBlocks.CODEC.fieldOf("palisade").forGetter(WallSettings::palisade))
             .apply(instance, WallSettings::new));
 }
