@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village.structure;
 
+import io.github.nicolasgoyon.folkhold.core.sim.village.HeightGrid;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Box;
@@ -273,17 +274,30 @@ public final class VillageWall {
                 low - VillagePathPiece.SEARCH, high + VillagePathPiece.SEARCH));
     }
 
-    /** The height of the terrain before the generation of the chunks: the Y of the top block. */
+    /**
+     * The height of the terrain before the generation of the chunks: the Y of the top block. The chunk generator
+     * calculates the height of each column from the noise of the terrain, and this calculation takes time. Thus the
+     * structure reads the heights at the corners of a grid of {@link #CELL} blocks only, and interpolates between the
+     * corners (see {@link HeightGrid}). The noise of the vanilla terrain also has cells of 4 blocks: the interpolation
+     * stays near the height of the column.
+     */
     private static final class Terrain {
+        /** The distance between 2 corners of the grid, in blocks. */
+        private static final int CELL = 4;
+
         private final Structure.GenerationContext context;
-        private final Map<Long, Integer> heights = new HashMap<>();
+        private final Map<Long, Integer> corners = new HashMap<>();
 
         Terrain(Structure.GenerationContext context) {
             this.context = context;
         }
 
         int height(int x, int z) {
-            return heights.computeIfAbsent(BlockPos.asLong(x, 0, z),
+            return HeightGrid.interpolate(x, z, CELL, this::corner);
+        }
+
+        private int corner(int x, int z) {
+            return corners.computeIfAbsent(BlockPos.asLong(x, 0, z),
                     key -> context.chunkGenerator().getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG,
                             context.heightAccessor(), context.randomState()) - 1);
         }
