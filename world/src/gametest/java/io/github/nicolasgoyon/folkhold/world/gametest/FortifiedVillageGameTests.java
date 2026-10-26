@@ -22,12 +22,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -40,6 +45,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
@@ -47,6 +53,7 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -121,7 +128,8 @@ public final class FortifiedVillageGameTests {
 
     /**
      * The biome selects the variant of the village: oak in the plains and the forest, birch in the birch forest,
-     * acacia in the savanna, and the base variant (spruce) in the taiga. A generated village in the plains of the test
+     * acacia in the savanna, sandstone in the desert, mangrove in the swamps, and the base variant (spruce) in the
+     * taiga and the snowy biomes. The structure has all these biomes. A generated village in the plains of the test
      * world has the pieces, the palisade and the homes of the plains, and the layout of the base variant at the same
      * place.
      */
@@ -131,12 +139,19 @@ public final class FortifiedVillageGameTests {
         FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
                 .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
         Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
-        Map<ResourceKey<Biome>, String> expected = Map.of(Biomes.PLAINS, "village/plains/plaza",
-                Biomes.SUNFLOWER_PLAINS, "village/plains/plaza", Biomes.MEADOW, "village/plains/plaza",
-                Biomes.FOREST, "village/plains/plaza", Biomes.BIRCH_FOREST, "village/birch/plaza",
-                Biomes.SAVANNA, "village/savanna/plaza", Biomes.TAIGA, "village/plaza");
+        Map<ResourceKey<Biome>, String> expected = Map.ofEntries(Map.entry(Biomes.PLAINS, "village/plains/plaza"),
+                Map.entry(Biomes.SUNFLOWER_PLAINS, "village/plains/plaza"),
+                Map.entry(Biomes.MEADOW, "village/plains/plaza"), Map.entry(Biomes.FOREST, "village/plains/plaza"),
+                Map.entry(Biomes.BIRCH_FOREST, "village/birch/plaza"),
+                Map.entry(Biomes.SAVANNA, "village/savanna/plaza"), Map.entry(Biomes.DESERT, "village/desert/plaza"),
+                Map.entry(Biomes.SWAMP, "village/swamp/plaza"), Map.entry(Biomes.MANGROVE_SWAMP, "village/swamp/plaza"),
+                Map.entry(Biomes.TAIGA, "village/plaza"), Map.entry(Biomes.SNOWY_TAIGA, "village/plaza"),
+                Map.entry(Biomes.SNOWY_PLAINS, "village/plaza"));
         expected.forEach((biome, plaza) -> {
-            String found = structure.variantAt(biomes.getHolderOrThrow(biome)).startPool().unwrapKey()
+            Holder<Biome> holder = biomes.getHolderOrThrow(biome);
+            helper.assertTrue(structure.biomes().contains(holder), "The village must have the biome "
+                    + biome.location());
+            String found = structure.variantAt(holder).startPool().unwrapKey()
                     .map(key -> key.location().getPath()).orElse("");
             helper.assertTrue(found.equals(plaza), "The variant of " + biome.location() + " must start with "
                     + plaza + ", not " + found);
@@ -167,6 +182,50 @@ public final class FortifiedVillageGameTests {
         helper.assertTrue(layout.equals(baseLayout), "The village must have the layout of the base variant: "
                 + layout.size() + " pieces, " + baseLayout.size() + " pieces in the base variant");
         helper.succeed();
+    }
+
+    /**
+     * Each variant has all the pieces of the base variant, with its materials: no piece of a variant has a block of
+     * the spruce wood of the base variant.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_variants")
+    public static void variantPiecesHaveTheirMaterials(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        StructureTemplateManager templates = level.getStructureManager();
+        // The compound of the GameTests is in the folder of the base variant. It is not a piece of the variants.
+        Set<String> basePieces = new HashSet<>(pieceNames(templates, "village/"));
+        basePieces.remove("center");
+        helper.assertTrue(basePieces.contains("plaza") && basePieces.contains(TOWER),
+                "The base variant must have its pieces: " + basePieces);
+        helper.assertFalse(structure.variants().isEmpty(), "The village must have variants");
+        for (FortifiedVillageStructure.Variant variant : structure.variants()) {
+            String start = variant.startPool().unwrapKey().orElseThrow().location().getPath();
+            String folder = start.substring(0, start.lastIndexOf('/') + 1);
+            Set<String> pieces = pieceNames(templates, folder);
+            helper.assertTrue(pieces.equals(basePieces), "The variant " + folder + " must have the pieces of the base"
+                    + " variant: " + pieces);
+            for (String piece : pieces) {
+                ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, folder + piece);
+                ListTag palette = templates.getOrCreate(id).save(new CompoundTag()).getList("palette",
+                        Tag.TAG_COMPOUND);
+                for (int i = 0; i < palette.size(); i++) {
+                    String block = palette.getCompound(i).getString("Name");
+                    helper.assertFalse(block.contains("spruce"), "The piece " + id + " must not have " + block);
+                }
+            }
+        }
+        helper.succeed();
+    }
+
+    /** The names of the pieces of the village in a folder, with no subfolder. */
+    private static Set<String> pieceNames(StructureTemplateManager templates, String folder) {
+        return templates.listTemplates()
+                .filter(id -> id.getNamespace().equals(FolkholdWorld.MOD_ID) && id.getPath().startsWith(folder)
+                        && id.getPath().indexOf('/', folder.length()) < 0)
+                .map(id -> id.getPath().substring(folder.length()))
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -252,8 +311,9 @@ public final class FortifiedVillageGameTests {
 
     /**
      * The heart removes the trees of its village: the logs and the leaves between the buildings and in the band around
-     * the area. It keeps the blocks of the structure pieces, the columns of the palisade, the blocks of the players
-     * and the trees out of the band.
+     * the area, the roots of the mangroves and the cacti. Waterlogged leaves leave their water. The heart keeps the
+     * blocks of the structure pieces, the columns of the palisade, the blocks of the players and the trees out of the
+     * band.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_clearing")
     public static void heartClearsTheTreesOfTheVillage(GameTestHelper helper) {
@@ -282,6 +342,13 @@ public final class FortifiedVillageGameTests {
         level.setBlock(playerLog, log, Block.UPDATE_CLIENTS);
         VillageRepairData.get(level).addPlayerBlock(village.heart(), playerLog);
         level.setBlock(inBand, log, Block.UPDATE_CLIENTS);
+        BlockPos roots = inBand.above();
+        BlockPos wetLeaves = inBand.above(2);
+        BlockPos cactus = inBand.above(3);
+        level.setBlock(roots, Blocks.MANGROVE_ROOTS.defaultBlockState(), Block.UPDATE_CLIENTS);
+        level.setBlock(wetLeaves, Blocks.MANGROVE_LEAVES.defaultBlockState()
+                .setValue(BlockStateProperties.WATERLOGGED, true), Block.UPDATE_CLIENTS);
+        level.setBlock(cactus, Blocks.CACTUS.defaultBlockState(), Block.UPDATE_CLIENTS);
         level.setBlock(outOfBand, log, Block.UPDATE_CLIENTS);
         level.setBlock(column, log, Block.UPDATE_CLIENTS);
 
@@ -289,6 +356,9 @@ public final class FortifiedVillageGameTests {
 
         helper.assertTrue(level.getBlockState(aboveHeart).isAir(), "The leaves above the plaza must go");
         helper.assertTrue(level.getBlockState(inBand).isAir(), "A log in the band around the area must go");
+        helper.assertTrue(level.getBlockState(roots).isAir(), "The roots of a mangrove must go");
+        helper.assertTrue(level.getBlockState(wetLeaves).is(Blocks.WATER), "Waterlogged leaves must leave water");
+        helper.assertTrue(level.getBlockState(cactus).isAir(), "A cactus must go");
         helper.assertTrue(level.getBlockState(playerLog).is(Blocks.OAK_LOG), "The log of a player must stay");
         helper.assertTrue(level.getBlockState(outOfBand).is(Blocks.OAK_LOG), "A log out of the band must stay");
         helper.assertTrue(level.getBlockState(column).is(Blocks.OAK_LOG),

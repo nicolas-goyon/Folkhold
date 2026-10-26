@@ -19,8 +19,8 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  *
  * <p>The game places the trees of the biome after the structures. In a forest, the trees grow between the buildings,
  * on the flat terrain in front of the gates and against the palisade. Before the first activation of a village, its
- * heart removes the logs, the leaves, the vines, the cocoa pods and the bee nests in the area of the village, and in a
- * band of {@link #BAND} blocks around it. The clearing keeps:
+ * heart removes the blocks of the trees and the cacti in the area of the village, and in a band of {@link #BAND} blocks
+ * around it (see {@link #isCleared}). A waterlogged block leaves its water. The clearing keeps:
  *
  * <ul>
  *   <li>the blocks of the structure pieces (see {@link VillageRepairs#expectedBlocks}). In a piece, the clearing removes
@@ -80,22 +80,27 @@ public final class VillageClearing {
         int removed = 0;
         for (BlockPos pos : BlockPos.betweenClosed(box.minX(), minY, box.minZ(), box.maxX(), maxY, box.maxZ())) {
             BlockState state = level.getBlockState(pos);
-            if (!isTree(state) || palisade.contains(ChunkPos.asLong(pos.getX(), pos.getZ()))) {
+            if (!isCleared(state) || palisade.contains(ChunkPos.asLong(pos.getX(), pos.getZ()))) {
                 continue;
             }
             BlockState wanted = expected.get(pos);
             if ((wanted != null && !wanted.isAir()) || data.keeps(heart, pos)) {
                 continue;
             }
-            level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+            level.setBlock(pos, state.getFluidState().createLegacyBlock(),
+                    Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
             removed++;
         }
         return Optional.of(removed);
     }
 
-    /** True for a block of a tree: a log, leaves, a vine, a cocoa pod or a bee nest. */
-    static boolean isTree(BlockState state) {
+    /**
+     * True for a block that the clearing removes: a block of a tree (a log, leaves, a vine, a cocoa pod, a bee nest, the
+     * roots or a propagule of a mangrove) or a cactus.
+     */
+    static boolean isCleared(BlockState state) {
         return state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(Blocks.VINE)
-                || state.is(Blocks.COCOA) || state.is(Blocks.BEE_NEST);
+                || state.is(Blocks.COCOA) || state.is(Blocks.BEE_NEST) || state.is(Blocks.MANGROVE_ROOTS)
+                || state.is(Blocks.MANGROVE_PROPAGULE) || state.is(Blocks.CACTUS);
     }
 }

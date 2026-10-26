@@ -7,6 +7,8 @@ Output:
   variants (see VARIANTS).
 - world/src/main/resources/data/folkhold_world/worldgen/: the structure (structure/village.json), the template pools
   (template_pool/village/) and the processor lists (processor_list/village/) of each variant.
+- world/src/main/resources/data/folkhold_world/tags/worldgen/biome/has_village.json: the biomes of the village, from
+  the biomes of the variants.
 - world/src/gametest/resources/data/folkhold_world/structure/village/center.nbt: the compound of the GameTests.
 
     python3 tools/structures/village.py
@@ -838,12 +840,45 @@ def wood(old, new):
     return blocks
 
 
+def plain(name):
+    """The replacement by a block with no properties, for example a log (axis) by a stone."""
+    return name, ()
+
+
+# The desert: sandstone for the wood and the stones of the base variant, and jungle wood for the doors and the fence
+# gates. A sandstone wall replaces a fence.
+DESERT = {
+    "minecraft:spruce_planks": "minecraft:smooth_sandstone",
+    "minecraft:spruce_log": plain("minecraft:cut_sandstone"),
+    "minecraft:stripped_spruce_log": plain("minecraft:cut_sandstone"),
+    "minecraft:spruce_slab": "minecraft:smooth_sandstone_slab",
+    "minecraft:spruce_stairs": "minecraft:smooth_sandstone_stairs",
+    "minecraft:spruce_fence": plain("minecraft:sandstone_wall"),
+    "minecraft:spruce_fence_gate": "minecraft:jungle_fence_gate",
+    "minecraft:spruce_door": "minecraft:jungle_door",
+    "minecraft:cobblestone": "minecraft:sandstone",
+    "minecraft:mossy_cobblestone": "minecraft:sandstone",
+    "minecraft:stone_bricks": "minecraft:cut_sandstone",
+    "minecraft:chiseled_stone_bricks": "minecraft:chiseled_sandstone",
+}
+# The swamp: mangrove wood, and mud bricks for the stones of the base variant.
+SWAMP = {
+    **wood("spruce", "mangrove"),
+    "minecraft:cobblestone": "minecraft:mud_bricks",
+    "minecraft:mossy_cobblestone": "minecraft:packed_mud",
+    "minecraft:stone_bricks": "minecraft:mud_bricks",
+}
+
+
 class Variant:
     """A biome variant of the village: the same pieces, with other materials.
 
     The base variant has no replacements: its pieces, pools and processor lists are in the folders of the village. The
     files of another variant are in a subfolder with the name of the variant. The jigsaw connectors of its pieces use
     its pools.
+
+    A replacement is the name of a block with the same properties, or a pair (name, properties) with other properties
+    (see plain).
     """
 
     def __init__(self, name, biomes, blocks):
@@ -863,12 +898,18 @@ class Variant:
         """The id of a file of the village for this variant: a piece, a pool or a processor list."""
         return f"{NS}:{self.path(name)}"
 
+    def replace(self, name, props):
+        """The name and the properties of a block in this variant."""
+        new = self.blocks.get(name, name)
+        return new if isinstance(new, tuple) else (new, props)
+
     def block(self, name):
-        return self.blocks.get(name, name)
+        return self.replace(name, None)[0]
 
     def state(self, name, props=None):
         """A block state as in the JSON files of the game."""
-        state = {"Name": self.block(name)}
+        name, props = self.replace(name, props)
+        state = {"Name": name}
         if props:
             state["Properties"] = props
         return state
@@ -880,18 +921,21 @@ class Variant:
         for pos, ((name, props), nbt) in t.blocks.items():
             if nbt is not None and nbt.get("id") == "minecraft:jigsaw" and nbt["pool"].startswith(prefix):
                 nbt = dict(nbt, pool=self.id(nbt["pool"][len(prefix):]))
-            out.blocks[pos] = ((self.block(name), props), nbt)
+            out.blocks[pos] = (self.replace(name, props), nbt)
         return out
 
 
-# The variants of the village. The base variant goes in the biomes that no other variant has.
-BASE = Variant("taiga", [], {})
+# The variants of the village, with their biomes. The tag of the biomes of the village has the biomes of all the
+# variants. In a biome of the tag that no other variant has, the village uses the base variant.
+BASE = Variant("taiga", ["minecraft:taiga", "minecraft:snowy_taiga", "minecraft:snowy_plains"], {})
 VARIANTS = (
     BASE,
     Variant("plains", ["minecraft:plains", "minecraft:sunflower_plains", "minecraft:meadow", "minecraft:forest"],
             wood("spruce", "oak")),
     Variant("birch", ["minecraft:birch_forest"], wood("spruce", "birch")),
     Variant("savanna", ["minecraft:savanna"], wood("spruce", "acacia")),
+    Variant("desert", ["minecraft:desert"], DESERT),
+    Variant("swamp", ["minecraft:swamp", "minecraft:mangrove_swamp"], SWAMP),
 )
 
 LOG_UP = {"axis": "y"}
@@ -1024,6 +1068,8 @@ def main():
         for name, data in processor_lists(v).items():
             write_json(os.path.join(WORLDGEN, "processor_list", *v.path(name).split("/")) + ".json", data)
     write_json(os.path.join(WORLDGEN, "structure", "village.json"), structure())
+    write_json(os.path.join(DATA, "tags", "worldgen", "biome", "has_village.json"),
+               {"values": [biome for v in VARIANTS for biome in v.biomes]})
     os.makedirs(TEST_OUT, exist_ok=True)
     for name, build in TEST_PIECES.items():
         path = os.path.join(TEST_OUT, name + ".nbt")
