@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Makes the plan of a construction: the steps that change the blocks of the level into the blocks of a target.
@@ -34,10 +35,15 @@ import java.util.Set;
  *       block of the level or of the scaffolding. It can also be a block of the plan on a block of the level, for
  *       example the floor of a house. A block of the plan in a square of 2 × 2 floor blocks is a floor too, for
  *       example an upper floor. A builder does not stand on the top of a new wall, which is 1 block wide.</li>
+ *   <li>The plan selects a position where a villager can walk from the ground, or a position on a scaffolding
+ *       column (see {@link WalkSearch}). Of two positions, the plan selects the position with the block nearer to the
+ *       eyes of the builder.</li>
  *   <li>When there is no such position, the plan adds a column of scaffolding next to the block, on positions that
  *       the target does not fill. A column on the ground comes before a column on a block of the plan, then the
  *       column with the fewest new blocks: a column on top of an existing column makes it higher. The plan removes
  *       all the scaffolding at the end, from the top.</li>
+ *   <li>With no way from the ground to a column, the builder goes directly to the nearest position to stand. With
+ *       no position to stand, the plan adds a column with no way to it.</li>
  *   <li>The plan reports the problems of the target (see {@link PlanWarning}). Examples: a falling block above air,
  *       an attached block with no support.</li>
  * </ul>
@@ -54,6 +60,8 @@ public final class ConstructionPlanner {
     private final Target target;
     private final LevelView level;
     private final Reach reach;
+    /** The search of a way from the ground to a position to stand, in the box of the target and the reach around it. */
+    private final WalkSearch walks;
     /** The blocks of the level that the steps change, during the plan. */
     private final Map<BuildPos, BuildBlock> changes = new HashMap<>();
     /** The positions where a step of the plan put a block of the target. The scaffolding is not in this set. */
@@ -70,6 +78,12 @@ public final class ConstructionPlanner {
         this.target = target;
         this.level = level;
         this.reach = reach;
+        WalkSearch.Zone zone = WalkSearch.Zone.around(target.blocks().keySet(), reach.horizontal());
+        int minY = target.blocks().keySet().stream().mapToInt(BuildPos::y).min().orElse(0);
+        int maxY = target.blocks().keySet().stream().mapToInt(BuildPos::y).max().orElse(0);
+        // The grid of the search goes down below the bottom of the longest scaffolding column, and up above the reach.
+        this.walks = new WalkSearch(this::current, this::isScaffolding, zone,
+                minY - MAX_SCAFFOLDING - WalkSearch.MAX_DROP - 2, maxY + reach.above() + WalkSearch.MAX_DROP + 2);
     }
 
     /**
@@ -116,8 +130,8 @@ public final class ConstructionPlanner {
             block.partner().ifPresent(pendingRemovals::remove);
             steps.add(new Step(StepType.REMOVE, pos, BuildBlock.AIR_STATE, block.partner(),
                     block.partner().map(partner -> BuildBlock.AIR_STATE), Optional.empty(), stand));
-            changes.put(pos, BuildBlock.AIR);
-            block.partner().ifPresent(partner -> changes.put(partner, BuildBlock.AIR));
+            change(pos, BuildBlock.AIR);
+            block.partner().ifPresent(partner -> change(partner, BuildBlock.AIR));
         }
         for (BuildPos pos : placementOrder(place)) {
             BuildBlock block = target.at(pos);
@@ -127,10 +141,10 @@ public final class ConstructionPlanner {
             Optional<BuildPos> stand = standFor(pos, partner);
             steps.add(new Step(StepType.PLACE, pos, block.dryState().orElse(block.state()), partner,
                     partner.map(other -> target.at(other).state()), block.data(), stand));
-            changes.put(pos, block);
+            change(pos, block);
             placed.add(pos);
             partner.ifPresent(other -> {
-                changes.put(other, target.at(other));
+                change(other, target.at(other));
                 placed.add(other);
             });
         }
@@ -142,7 +156,7 @@ public final class ConstructionPlanner {
             Optional<BuildPos> stand = standFor(pos, Optional.empty());
             steps.add(new Step(StepType.ADD_FLUID, pos, block.state(), Optional.empty(), Optional.empty(), block.data(),
                     stand));
-            changes.put(pos, block);
+            change(pos, block);
             placed.add(pos);
         }
         for (int i = columns.size() - 1; i >= 0; i--) {
@@ -151,10 +165,16 @@ public final class ConstructionPlanner {
                 BuildPos cell = column.get(j);
                 steps.add(new Step(StepType.REMOVE_SCAFFOLDING, cell, BuildBlock.AIR_STATE, Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.empty()));
-                changes.put(cell, BuildBlock.AIR);
+                change(cell, BuildBlock.AIR);
             }
         }
         return new Plan(steps, warnings);
+    }
+
+    /** Changes the block of a position for the next steps of the plan. */
+    private void change(BuildPos pos, BuildBlock block) {
+        changes.put(pos, block);
+        walks.blockChanged(pos);
     }
 
     /** The current block of a position: after the steps of the plan so far. */
@@ -345,17 +365,36 @@ public final class ConstructionPlanner {
     }
 
     /**
-     * The position where the builder stands for a step. With no such position, the plan adds a scaffolding column.
+     * The position where the builder stands for a step. The plan selects the first possible position in this order:
+     * <ol>
+     *   <li>The nearest position to stand with a way from the ground (see {@link WalkSearch}).</li>
+     *   <li>A new scaffolding column with a way from the ground to its bottom.</li>
+     *   <li>The nearest position to stand with no way from the ground. The builder goes there directly.</li>
+     *   <li>A new scaffolding column with no way from the ground to its bottom.</li>
+     * </ol>
+     * With no position, the plan reports the problem.
      */
     private Optional<BuildPos> standFor(BuildPos pos, Optional<BuildPos> partner) {
-        Optional<BuildPos> stand = findStand(pos, partner);
+        List<BuildPos> stands = findStands(pos, partner);
+        Optional<BuildPos> stand = stands.stream().filter(walks::canReach).findFirst();
         if (stand.isEmpty()) {
-            stand = buildScaffolding(pos, partner);
+            stand = buildScaffolding(pos, partner, walks::canClimb);
+        }
+        if (stand.isEmpty() && !stands.isEmpty()) {
+            stand = Optional.of(stands.get(0));
+        }
+        if (stand.isEmpty()) {
+            stand = buildScaffolding(pos, partner, bottom -> true);
         }
         if (stand.isEmpty()) {
             warnings.add(new PlanWarning(Problem.NO_STAND, pos));
         }
         return stand;
+    }
+
+    /** True if a position has a scaffolding block of the plan now. */
+    private boolean isScaffolding(BuildPos pos) {
+        return BuildBlock.SCAFFOLDING.equals(changes.get(pos));
     }
 
     /** The squared distance from the eyes of a builder that stands at a position to the center of a block. */
@@ -367,27 +406,27 @@ public final class ConstructionPlanner {
     }
 
     /**
-     * The position in the reach zone of a block where a builder can stand now, if there is one. Of two positions, the
-     * plan selects the position with the block nearer to the eyes of the builder.
+     * The positions in the reach zone of a block where a builder can stand now. The position with the block nearest to
+     * the eyes of the builder comes first. Of two positions at the same distance, the first position of the search
+     * comes first.
      */
-    private Optional<BuildPos> findStand(BuildPos pos, Optional<BuildPos> partner) {
-        BuildPos best = null;
-        double bestDistance = Double.MAX_VALUE;
+    private List<BuildPos> findStands(BuildPos pos, Optional<BuildPos> partner) {
+        List<BuildPos> stands = new ArrayList<>();
         int horizontal = reach.horizontal();
         // The feet are at most reach.above() layers below the block, and at most reach.below() layers above it.
         for (int dy = -reach.above(); dy <= reach.below(); dy++) {
             for (int dx = -horizontal; dx <= horizontal; dx++) {
                 for (int dz = -horizontal; dz <= horizontal; dz++) {
                     BuildPos stand = pos.offset(dx, dy, dz);
-                    double distance = eyeDistanceSquared(stand, pos);
-                    if (distance < bestDistance && canStand(stand, pos, partner)) {
-                        best = stand;
-                        bestDistance = distance;
+                    if (canStand(stand, pos, partner)) {
+                        stands.add(stand);
                     }
                 }
             }
         }
-        return Optional.ofNullable(best);
+        // The sort keeps the order of the search for two equal distances.
+        stands.sort(Comparator.comparingDouble(stand -> eyeDistanceSquared(stand, pos)));
+        return stands;
     }
 
     /**
@@ -452,9 +491,12 @@ public final class ConstructionPlanner {
      *       higher.</li>
      * </ol>
      *
+     * @param climbable true if a builder can go to the bottom of a column, to climb it. The bottom of a column on top
+     *                  of an existing column is the bottom of the existing column.
      * @return the position where the builder stands, on the column, or empty if no column is possible
      */
-    private Optional<BuildPos> buildScaffolding(BuildPos pos, Optional<BuildPos> partner) {
+    private Optional<BuildPos> buildScaffolding(BuildPos pos, Optional<BuildPos> partner,
+            Predicate<BuildPos> climbable) {
         BuildPos bestStand = null;
         List<BuildPos> bestCells = List.of();
         boolean bestOnPlan = false;
@@ -479,10 +521,11 @@ public final class ConstructionPlanner {
                             continue;
                         }
                         // The cells go from the top down: the floor of the column is below the last cell.
-                        boolean onPlan = placed.contains(cells.get(cells.size() - 1).below());
+                        BuildPos lowest = cells.get(cells.size() - 1);
+                        boolean onPlan = placed.contains(lowest.below());
                         boolean better = bestStand == null || (!onPlan && bestOnPlan)
                                 || (onPlan == bestOnPlan && cells.size() < bestCells.size());
-                        if (better) {
+                        if (better && climbable.test(columnBottom(lowest))) {
                             bestStand = stand;
                             bestCells = cells;
                             bestOnPlan = onPlan;
@@ -499,7 +542,7 @@ public final class ConstructionPlanner {
         for (BuildPos cell : column) {
             steps.add(new Step(StepType.PLACE_SCAFFOLDING, cell, BuildBlock.SCAFFOLDING_STATE, Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty()));
-            changes.put(cell, BuildBlock.SCAFFOLDING);
+            change(cell, BuildBlock.SCAFFOLDING);
         }
         columns.add(column);
         return Optional.of(bestStand);
@@ -521,6 +564,15 @@ public final class ConstructionPlanner {
             cell = cell.below();
         }
         return pendingRemovals.contains(cell) || !standsOn(cell) ? List.of() : cells;
+    }
+
+    /** The bottom of a column: the lowest new cell, or the bottom of the scaffolding of the plan below it. */
+    private BuildPos columnBottom(BuildPos lowest) {
+        BuildPos bottom = lowest;
+        while (isScaffolding(bottom.below())) {
+            bottom = bottom.below();
+        }
+        return bottom;
     }
 
     /** True if a position is empty now and no later step fills it. */
