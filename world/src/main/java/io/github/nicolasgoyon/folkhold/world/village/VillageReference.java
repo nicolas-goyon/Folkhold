@@ -177,7 +177,8 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
             return Optional.empty();
         }
         Optional<ResourceLocation> homes = start.getStructure() instanceof FortifiedVillageStructure village
-                ? village.homes().unwrapKey().map(ResourceKey::location) : Optional.empty();
+                ? village.variantOf(level, start.getPieces()).homes().unwrapKey().map(ResourceKey::location)
+                : Optional.empty();
         return of(level, start.getPieces()).map(reference -> homes.map(reference::withHomes).orElse(reference));
     }
 

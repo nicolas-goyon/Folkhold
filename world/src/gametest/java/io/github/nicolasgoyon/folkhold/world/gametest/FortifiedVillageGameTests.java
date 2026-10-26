@@ -24,13 +24,17 @@ import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -38,7 +42,9 @@ import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -58,17 +64,11 @@ public final class FortifiedVillageGameTests {
     /** The distance between 2 candidate chunks, in chunks. */
     private static final int CANDIDATE_STEP = 12;
     private static final int CANDIDATES = 8;
-    private static final ResourceLocation TOWER = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
-            "village/tower");
-    private static final ResourceLocation GATE = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
-            "village/gate");
+    private static final String TOWER = "tower";
+    private static final String GATE = "gate";
     /** The templates of the plots: the houses and the bank. */
-    private static final Set<ResourceLocation> HOUSES = Set.of(
-            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_cottage"),
-            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_barracks"),
-            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_forge"),
-            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_storehouse"),
-            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/bank"));
+    private static final Set<String> HOUSES = Set.of("house_cottage", "house_barracks", "house_forge",
+            "house_storehouse", "bank");
     /** The walk on the ground falls this number of blocks at most. */
     private static final int MAX_FALL = 8;
     /** A walk of fewer positions did not start correctly. */
@@ -120,6 +120,56 @@ public final class FortifiedVillageGameTests {
     }
 
     /**
+     * The biome selects the variant of the village: oak in the plains and the forest, birch in the birch forest,
+     * acacia in the savanna, and the base variant (spruce) in the taiga. A generated village in the plains of the test
+     * world has the pieces, the palisade and the homes of the plains, and the layout of the base variant at the same
+     * place.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_variants")
+    public static void biomeSelectsTheVariant(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
+        Map<ResourceKey<Biome>, String> expected = Map.of(Biomes.PLAINS, "village/plains/plaza",
+                Biomes.SUNFLOWER_PLAINS, "village/plains/plaza", Biomes.MEADOW, "village/plains/plaza",
+                Biomes.FOREST, "village/plains/plaza", Biomes.BIRCH_FOREST, "village/birch/plaza",
+                Biomes.SAVANNA, "village/savanna/plaza", Biomes.TAIGA, "village/plaza");
+        expected.forEach((biome, plaza) -> {
+            String found = structure.variantAt(biomes.getHolderOrThrow(biome)).startPool().unwrapKey()
+                    .map(key -> key.location().getPath()).orElse("");
+            helper.assertTrue(found.equals(plaza), "The variant of " + biome.location() + " must start with "
+                    + plaza + ", not " + found);
+        });
+
+        Village village = generate(helper, level);
+        VillageReference reference = VillageReference.of(level, village.start().getPieces()).orElseThrow();
+        helper.assertTrue(reference.pieces().stream().allMatch(piece -> piece.template().getPath()
+                .startsWith("village/plains/")), "The pieces must be the pieces of the plains: "
+                + reference.pieces().stream().map(VillageReference.Piece::template).distinct().toList());
+        helper.assertTrue(reference.palisades().stream().allMatch(palisade -> palisade.log().is(Blocks.OAK_LOG)),
+                "The palisade of the plains must be of oak logs");
+        Optional<ResourceLocation> homes = structure.variantOf(level, village.start().getPieces()).homes().unwrapKey()
+                .map(ResourceKey::location);
+        helper.assertTrue(homes.map(pool -> pool.getPath().equals("village/plains/homes")).orElse(false),
+                "The homes of the village must be the homes of the plains: " + homes);
+
+        FortifiedVillageStructure baseOnly = new FortifiedVillageStructure(new Structure.StructureSettings(
+                structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
+                structure.startPool(), structure.size(), structure.maxDistanceFromCenter(), structure.wall(),
+                structure.homes(), List.of());
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        StructureStart base = baseOnly.generate(level.registryAccess(), generator, generator.getBiomeSource(),
+                level.getChunkSource().randomState(), level.getServer().getStructureManager(), level.getSeed(),
+                village.start().getChunkPos(), 0, level, biome -> true);
+        List<String> layout = layout(level, village.start().getPieces());
+        List<String> baseLayout = layout(level, base.getPieces());
+        helper.assertTrue(layout.equals(baseLayout), "The village must have the layout of the base variant: "
+                + layout.size() + " pieces, " + baseLayout.size() + " pieces in the base variant");
+        helper.succeed();
+    }
+
+    /**
      * The heart of a generated village scans the area of the structure. It finds a post in each tower and the fence
      * gates of the 4 gates. The reference of the repairs has the palisade, and it matches the blocks after the
      * generation: no block is damaged. A missing log of the palisade is damaged.
@@ -164,7 +214,6 @@ public final class FortifiedVillageGameTests {
         ServerLevel level = helper.getLevel();
         Structure structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
                 .getOrThrow(Settlements.VILLAGE_STRUCTURE);
-        StructureTemplatePool homes = ((FortifiedVillageStructure) structure).homes().value();
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         int free = 0;
         for (int i = 0; i < CANDIDATES; i++) {
@@ -175,7 +224,10 @@ public final class FortifiedVillageGameTests {
             helper.assertTrue(start.isValid(), "The village must start in " + chunk);
             VillageReference reference = VillageReference.of(level, start.getPieces()).orElseThrow();
             BoundingBox area = reference.area().orElseThrow();
-            long houses = reference.pieces().stream().filter(piece -> HOUSES.contains(piece.template())).count();
+            StructureTemplatePool homes = ((FortifiedVillageStructure) structure)
+                    .variantOf(level, start.getPieces()).homes().value();
+            long houses = reference.pieces().stream().filter(piece -> HOUSES.contains(name(piece.template())))
+                    .count();
             long built = reference.plots().stream().filter(VillagePlots.Plot::built).count();
             helper.assertTrue(built == houses, "Each house must have its plot: " + houses + " houses, " + built
                     + " built plots in " + chunk);
@@ -300,9 +352,27 @@ public final class FortifiedVillageGameTests {
         return false;
     }
 
-    /** The number of template pieces of a reference with a template. */
-    private static long count(VillageReference reference, ResourceLocation template) {
-        return reference.pieces().stream().filter(piece -> piece.template().equals(template)).count();
+    /**
+     * The layout of a village: for each piece, the name of its template (or the type of the piece for the wall), its
+     * rotation and its box.
+     */
+    private static List<String> layout(ServerLevel level, List<StructurePiece> pieces) {
+        return pieces.stream().map(piece -> (piece instanceof PoolElementStructurePiece element
+                ? VillageReference.templateOf(level, element.getElement()).map(FortifiedVillageGameTests::name)
+                        .orElse("")
+                : piece.getClass().getSimpleName()) + " " + piece.getRotation() + " " + piece.getBoundingBox())
+                .toList();
+    }
+
+    /** The number of pieces of a template, in the folder of any variant. */
+    private static long count(VillageReference reference, String template) {
+        return reference.pieces().stream().filter(piece -> name(piece.template()).equals(template)).count();
+    }
+
+    /** The name of a template with no folder, for example {@code tower} for {@code village/plains/tower}. */
+    private static String name(ResourceLocation template) {
+        String path = template.getPath();
+        return path.substring(path.lastIndexOf('/') + 1);
     }
 
     /** The positions of the blocks of an area that pass a test. */

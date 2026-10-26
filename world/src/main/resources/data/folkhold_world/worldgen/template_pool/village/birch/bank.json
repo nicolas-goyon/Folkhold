@@ -1,0 +1,14 @@
+{
+  "fallback": "minecraft:empty",
+  "elements": [
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/bank",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    }
+  ]
+}

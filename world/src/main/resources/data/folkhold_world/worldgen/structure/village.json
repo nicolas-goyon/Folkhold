@@ -45,5 +45,145 @@
       }
     }
   },
-  "homes": "folkhold_world:village/homes"
+  "homes": "folkhold_world:village/homes",
+  "variants": [
+    {
+      "biomes": [
+        "minecraft:plains",
+        "minecraft:sunflower_plains",
+        "minecraft:meadow",
+        "minecraft:forest"
+      ],
+      "start_pool": "folkhold_world:village/plains/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/plains/tower",
+        "gate": "folkhold_world:village/plains/gate",
+        "processors": "folkhold_world:village/plains/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:oak_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:cobblestone"
+          },
+          "point": {
+            "Name": "minecraft:oak_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:cobblestone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:oak_planks"
+          },
+          "post": {
+            "Name": "minecraft:oak_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:oak_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/plains/homes"
+    },
+    {
+      "biomes": [
+        "minecraft:birch_forest"
+      ],
+      "start_pool": "folkhold_world:village/birch/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/birch/tower",
+        "gate": "folkhold_world:village/birch/gate",
+        "processors": "folkhold_world:village/birch/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:birch_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:cobblestone"
+          },
+          "point": {
+            "Name": "minecraft:birch_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:cobblestone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:birch_planks"
+          },
+          "post": {
+            "Name": "minecraft:birch_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:birch_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/birch/homes"
+    },
+    {
+      "biomes": [
+        "minecraft:savanna"
+      ],
+      "start_pool": "folkhold_world:village/savanna/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/savanna/tower",
+        "gate": "folkhold_world:village/savanna/gate",
+        "processors": "folkhold_world:village/savanna/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:acacia_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:cobblestone"
+          },
+          "point": {
+            "Name": "minecraft:acacia_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:cobblestone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:acacia_planks"
+          },
+          "post": {
+            "Name": "minecraft:acacia_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:acacia_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/savanna/homes"
+    }
+  ]
 }
