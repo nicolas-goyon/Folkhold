@@ -5,7 +5,13 @@
       "block": {
         "Name": "minecraft:cobblestone"
       },
-      "max_depth": 32
+      "max_depth": 32,
+      "stilt": {
+        "Name": "minecraft:spruce_log",
+        "Properties": {
+          "axis": "y"
+        }
+      }
     }
   ]
 }

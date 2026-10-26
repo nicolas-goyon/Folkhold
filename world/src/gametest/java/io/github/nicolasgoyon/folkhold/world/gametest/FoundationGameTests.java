@@ -2,7 +2,11 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FoundationProcessor;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -69,6 +73,50 @@ public final class FoundationGameTests {
 
         helper.assertTrue(result.size() == 2 && result.get(1).pos().equals(origin.below()),
                 "The foundation must have 1 block: " + result);
+        helper.succeed();
+    }
+
+    /**
+     * Over water, a foundation with a stilt block puts stilts at the corners of the lowest layer and every 3 blocks
+     * along its edges, down to the ground. The other columns over water get no foundation.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_foundation_stilts")
+    public static void buildingOverWaterStandsOnStilts(GameTestHelper helper) {
+        int size = 7;
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.DIRT);
+                helper.setBlock(new BlockPos(x, 1, z), Blocks.WATER);
+            }
+        }
+        BlockPos origin = helper.absolutePos(new BlockPos(0, TEMPLATE_Y, 0));
+        List<StructureBlockInfo> template = new ArrayList<>();
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                template.add(new StructureBlockInfo(new BlockPos(x, 0, z), PLANKS, null));
+            }
+        }
+        List<StructureBlockInfo> placed = template.stream()
+                .map(block -> new StructureBlockInfo(block.pos().offset(origin), block.state(), null)).toList();
+        BlockState log = Blocks.SPRUCE_LOG.defaultBlockState();
+
+        List<StructureBlockInfo> result = new FoundationProcessor(COBBLESTONE, 8, Optional.of(log))
+                .finalizeProcessing(helper.getLevel(), origin, origin, template, placed, new StructurePlaceSettings());
+
+        Set<BlockPos> stilts = new HashSet<>();
+        for (StructureBlockInfo block : result.subList(placed.size(), result.size())) {
+            helper.assertTrue(block.state() == log, "Over water, the foundation is of stilts: " + block);
+            stilts.add(block.pos());
+        }
+        Set<BlockPos> expected = new HashSet<>();
+        for (int x : new int[] {0, 3, 6}) {
+            for (int z : new int[] {0, 3, 6}) {
+                if (x != 3 || z != 3) {
+                    expected.add(helper.absolutePos(new BlockPos(x, 1, z)));
+                }
+            }
+        }
+        helper.assertTrue(stilts.equals(expected), "Expected the stilts " + expected + ", found " + stilts);
         helper.succeed();
     }
 

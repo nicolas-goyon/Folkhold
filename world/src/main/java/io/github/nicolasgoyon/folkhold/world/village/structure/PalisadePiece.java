@@ -138,7 +138,7 @@ public final class PalisadePiece extends StructurePiece implements PieceBeardifi
      * Places a block that connects to its neighbors, as a fence. During the generation of a chunk, the game updates
      * its shape when the chunk is complete. In a complete chunk, the shape comes from the neighbors now.
      */
-    private static void placeShaped(WorldGenLevel level, BlockPos pos, BlockState state) {
+    static void placeShaped(WorldGenLevel level, BlockPos pos, BlockState state) {
         ChunkAccess chunk = level.getChunk(pos);
         if (chunk instanceof ProtoChunk) {
             level.setBlock(pos, state, Block.UPDATE_CLIENTS);
