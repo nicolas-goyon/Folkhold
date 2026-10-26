@@ -216,6 +216,9 @@ The Folkhold villages are the main settlements of a territory. A vanilla village
 - Each faction has an **architecture style**. There are 3 or 4 styles, and two factions can have the same style. Examples: Norse (long houses, steep roofs, axes), Medieval (cobblestone and timber frame, stone walls, swords and crossbows).
 - A style sets the architecture of the buildings and some traits of the units and the village.
 - Each style has **biome variants**: the buildings use the local materials (spruce in the taiga, sandstone in the desert).
+  - **Implemented**: the variants of the village pieces for the biomes of the villages. The plains, the sunflower plains, the meadow and the forest have oak, the birch forest has birch, the savanna has acacia. The taiga and the other biomes have spruce: the base variant. A variant replaces the wood of the walls, the floors, the frames, the doors and the fences. The roofs stay of dark oak, and the stones stay.
+  - The structure script (`tools/structures/village.py`) writes the pieces, the template pools and the processor lists of each variant, in a folder with the name of the variant. The jigsaw connectors of a piece use the pools of its variant.
+  - The biome at the middle of the start piece selects the variant of a village (`variants` in the structure). At a given place, a village has the same layout in all the variants. The village gets the palisade, the piers and the stilts of its variant. The repairs use the pieces of the village, and the growth uses the homes of its variant.
 - The village adapts to the terrain:
   - coast and river: docks, boats, fishing huts, bridges;
   - mountain and cliff: large houses against the cliff, terraces, walls that follow the terrain, or a village dug into the rock;
@@ -759,7 +762,7 @@ The strategy:
 
 - **Generation with code**: walls, towers, gates and palisades are parametric shapes (length, height, culture material). A script makes the `.nbt` structure files. This is the most efficient method for this project. The script of the first culture is `tools/structures/village.py`.
 - **Construction in the game**: for unique buildings, build in creative mode, save with a structure block, then assemble with *jigsaw*.
-- **Palettes for each culture**: one building in several materials (oak/stone, birch/sandstone, spruce/slate) by block substitution. This multiplies the content with no drawing.
+- **Palettes**: one building in several materials (oak/stone, birch/sandstone, spruce/slate) by block substitution. This multiplies the content with no drawing. The biome variants of the village use this method (see "Village styles and terrain").
 
 ### Work found on the internet
 

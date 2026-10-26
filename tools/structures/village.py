@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Generate the structure files of the faction village (one culture: spruce, cobblestone, calcite).
+"""Generate the structure files of the faction village and the data files of its structure.
 
 Output:
 - world/src/main/resources/data/folkhold_world/structure/village/*.nbt: the pieces of the village structure.
+- world/src/main/resources/data/folkhold_world/structure/village/<variant>/*.nbt: the pieces of the other biome
+  variants (see VARIANTS).
+- world/src/main/resources/data/folkhold_world/worldgen/: the structure (structure/village.json), the template pools
+  (template_pool/village/) and the processor lists (processor_list/village/) of each variant.
 - world/src/gametest/resources/data/folkhold_world/structure/village/center.nbt: the compound of the GameTests.
 
     python3 tools/structures/village.py
@@ -26,6 +30,7 @@ plaza with the village heart and 4 house plots.
 Conventions: y = 0 is the ground layer (foundations, floors, paths). y = 1 is the first layer above ground.
 The compound gets a foundation of FOUNDATION layers under its ground layer (see with_foundation).
 """
+import json
 import os
 import random
 import sys
@@ -34,7 +39,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 from nbt import Template  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "world", "src")
-OUT = os.path.join(ROOT, "main", "resources", "data", "folkhold_world", "structure", "village")
+DATA = os.path.join(ROOT, "main", "resources", "data", "folkhold_world")
+OUT = os.path.join(DATA, "structure", "village")
+WORLDGEN = os.path.join(DATA, "worldgen")
 TEST_OUT = os.path.join(ROOT, "gametest", "resources", "data", "folkhold_world", "structure", "village")
 
 # The namespace of the structure, the pools and the jigsaw names, and the namespace of the Folkhold blocks.
@@ -817,15 +824,213 @@ TEST_PIECES = {
 }
 
 
+# ---------------------------------------------------------------- biome variants
+
+# The blocks of a wood that the pieces use.
+WOOD_BLOCKS = ("planks", "log", "fence", "fence_gate", "door", "slab", "stairs")
+
+
+def wood(old, new):
+    """The replacements of the blocks of a wood by the blocks of another wood: planks, logs, stripped logs, fences,
+    fence gates, doors, slabs and stairs."""
+    blocks = {f"minecraft:{old}_{kind}": f"minecraft:{new}_{kind}" for kind in WOOD_BLOCKS}
+    blocks[f"minecraft:stripped_{old}_log"] = f"minecraft:stripped_{new}_log"
+    return blocks
+
+
+class Variant:
+    """A biome variant of the village: the same pieces, with other materials.
+
+    The base variant has no replacements: its pieces, pools and processor lists are in the folders of the village. The
+    files of another variant are in a subfolder with the name of the variant. The jigsaw connectors of its pieces use
+    its pools.
+    """
+
+    def __init__(self, name, biomes, blocks):
+        self.name = name
+        self.biomes = biomes
+        self.blocks = blocks
+
+    @property
+    def base(self):
+        return not self.blocks
+
+    def path(self, name):
+        """The path of a file of the village for this variant, with no namespace and no extension."""
+        return f"village/{name}" if self.base else f"village/{self.name}/{name}"
+
+    def id(self, name):
+        """The id of a file of the village for this variant: a piece, a pool or a processor list."""
+        return f"{NS}:{self.path(name)}"
+
+    def block(self, name):
+        return self.blocks.get(name, name)
+
+    def state(self, name, props=None):
+        """A block state as in the JSON files of the game."""
+        state = {"Name": self.block(name)}
+        if props:
+            state["Properties"] = props
+        return state
+
+    def apply(self, t):
+        """The template with the materials of this variant. The jigsaw connectors use the pools of the variant."""
+        out = Template(*t.size)
+        prefix = f"{NS}:village/"
+        for pos, ((name, props), nbt) in t.blocks.items():
+            if nbt is not None and nbt.get("id") == "minecraft:jigsaw" and nbt["pool"].startswith(prefix):
+                nbt = dict(nbt, pool=self.id(nbt["pool"][len(prefix):]))
+            out.blocks[pos] = ((self.block(name), props), nbt)
+        return out
+
+
+# The variants of the village. The base variant goes in the biomes that no other variant has.
+BASE = Variant("taiga", [], {})
+VARIANTS = (
+    BASE,
+    Variant("plains", ["minecraft:plains", "minecraft:sunflower_plains", "minecraft:meadow", "minecraft:forest"],
+            wood("spruce", "oak")),
+    Variant("birch", ["minecraft:birch_forest"], wood("spruce", "birch")),
+    Variant("savanna", ["minecraft:savanna"], wood("spruce", "acacia")),
+)
+
+LOG_UP = {"axis": "y"}
+
+
+def element(variant, piece, projection, processors):
+    return {
+        "element_type": "minecraft:single_pool_element",
+        "location": variant.id(piece),
+        "projection": projection,
+        "processors": variant.id(processors),
+    }
+
+
+def pool(elements, fallback="minecraft:empty"):
+    return {"fallback": fallback, "elements": [{"weight": weight, "element": e} for weight, e in elements]}
+
+
+def pools(v):
+    """The template pools of a variant, by name."""
+    def house(piece):
+        return element(v, piece, "rigid", "foundation")
+
+    def street(piece):
+        return element(v, piece, "terrain_matching", "street")
+
+    return {
+        "plaza": pool([(1, house("plaza"))]),
+        "houses": pool([(3, house("house_cottage")), (2, house("house_barracks")), (1, house("house_forge")),
+                        (2, house("house_storehouse")), (1, {"element_type": "minecraft:empty_pool_element"})]),
+        "homes": pool([(1, house("house_cottage"))]),
+        "bank": pool([(1, house("bank"))]),
+        "streets_first": pool([(1, street("street"))], v.id("street_ends")),
+        "streets_bank": pool([(1, street("street_bank"))], v.id("street_ends")),
+        "street_ends": pool([(1, street("street_end"))]),
+    }
+
+
+def processor_lists(v):
+    """The processor lists of a variant, by name: the foundation of the buildings, and the streets."""
+    planks = v.state("minecraft:spruce_planks")
+    street_rules = [{
+        "input_predicate": {"predicate_type": "minecraft:block_match", "block": path},
+        "location_predicate": {"predicate_type": "minecraft:block_match", "block": "minecraft:water"},
+        "output_state": planks,
+    } for path in ("minecraft:dirt_path", "minecraft:gravel", "minecraft:coarse_dirt")]
+    return {
+        "foundation": {"processors": [{
+            "processor_type": f"{NS}:foundation",
+            "block": v.state("minecraft:cobblestone"),
+            "max_depth": 32,
+            "stilt": v.state("minecraft:spruce_log", LOG_UP),
+        }]},
+        "street": {"processors": [
+            {"processor_type": "minecraft:gravity", "heightmap": "WORLD_SURFACE_WG", "offset": -1},
+            {"processor_type": "minecraft:rule", "rules": street_rules},
+        ]},
+    }
+
+
+def village_settings(v):
+    """The settings of the village that change with the variant: the start pool, the wall and the homes."""
+    return {
+        "start_pool": v.id("plaza"),
+        "wall": {
+            "margin": 4,
+            "tower_spacing": 40,
+            "tower": v.id("tower"),
+            "gate": v.id("gate"),
+            "processors": v.id("foundation"),
+            "palisade": {
+                "log": v.state("minecraft:spruce_log", LOG_UP),
+                "base": v.state("minecraft:cobblestone"),
+                "point": v.state("minecraft:spruce_fence"),
+                "foundation": v.state("minecraft:cobblestone"),
+            },
+            "pier": {
+                "deck": v.state("minecraft:spruce_planks"),
+                "post": v.state("minecraft:spruce_log", LOG_UP),
+                "rail": v.state("minecraft:spruce_fence"),
+            },
+        },
+        "homes": v.id("homes"),
+    }
+
+
+def structure():
+    """The village structure: the base variant, then the list of the other variants with their biomes."""
+    base = village_settings(BASE)
+    variants = []
+    for v in VARIANTS:
+        if not v.base:
+            settings = village_settings(v)
+            variants.append({"biomes": v.biomes, "start_pool": settings["start_pool"], "wall": settings["wall"],
+                             "homes": settings["homes"]})
+    return {
+        "type": f"{NS}:fortified_village",
+        "biomes": f"#{NS}:has_village",
+        "step": "surface_structures",
+        "spawn_overrides": {},
+        "terrain_adaptation": "beard_thin",
+        "start_pool": base["start_pool"],
+        "size": 2,
+        "max_distance_from_center": 64,
+        "wall": base["wall"],
+        "homes": base["homes"],
+        "variants": variants,
+    }
+
+
+def write_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as out:
+        out.write(json.dumps(data, indent=2) + "\n")
+    print("wrote", os.path.normpath(path))
+
+
 def main():
-    for folder, pieces in ((OUT, PIECES), (TEST_OUT, TEST_PIECES)):
+    for v in VARIANTS:
+        folder = os.path.join(DATA, "structure", *v.path("").split("/"))
         os.makedirs(folder, exist_ok=True)
-        for name, build in pieces.items():
+        for name, build in PIECES.items():
             path = os.path.join(folder, name + ".nbt")
             template = build()
             connect_panes(template)
-            template.write(path)
+            v.apply(template).write(path)
             print("wrote", os.path.normpath(path))
+        for name, data in pools(v).items():
+            write_json(os.path.join(WORLDGEN, "template_pool", *v.path(name).split("/")) + ".json", data)
+        for name, data in processor_lists(v).items():
+            write_json(os.path.join(WORLDGEN, "processor_list", *v.path(name).split("/")) + ".json", data)
+    write_json(os.path.join(WORLDGEN, "structure", "village.json"), structure())
+    os.makedirs(TEST_OUT, exist_ok=True)
+    for name, build in TEST_PIECES.items():
+        path = os.path.join(TEST_OUT, name + ".nbt")
+        template = build()
+        connect_panes(template)
+        template.write(path)
+        print("wrote", os.path.normpath(path))
 
 
 if __name__ == "__main__":
