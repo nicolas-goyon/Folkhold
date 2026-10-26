@@ -20,6 +20,8 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.schedule.Activity;
+import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * A builder of a construction site: a villager of the village with the builder profession (see {@link BuilderSite}).
@@ -48,10 +50,13 @@ final class BuilderWorker {
     /** The speed of a builder that climbs a scaffolding column, in blocks for each tick. */
     static final double CLIMB_SPEED = 0.2;
     /**
-     * A builder whose step can apply, and that does not get to its position in this number of ticks, goes there
-     * directly.
+     * A builder whose step can apply, and that does not get nearer to its walk target in this number of ticks, goes to
+     * its position directly. A builder that gets nearer to its walk target gets more time, up to
+     * {@link #STEP_TIMEOUT}.
      */
     static final int MOVE_TIMEOUT = 300;
+    /** A builder gets nearer to its walk target when its distance to the target goes down by this distance. */
+    private static final double PROGRESS_DISTANCE = 0.5;
     /** A builder whose step can apply, with no path to its position for this number of ticks, goes there directly. */
     static final int NO_PATH_TIMEOUT = 100;
     /** A builder that does not get to the bottom of a column in this number of ticks goes there directly. */
@@ -101,6 +106,13 @@ final class BuilderWorker {
      * time, the other steps wait for this builder.
      */
     private int blockingTicks;
+    /**
+     * The time during which the step of the builder can apply and the builder does not get nearer to its walk
+     * target, in ticks.
+     */
+    private int stuckTicks;
+    /** The smallest distance of the builder to its walk target since the start of the walk, or NaN before. */
+    private double nearest = Double.NaN;
     private int workTicks;
     private int blockedTicks;
     /** The position where the builder stands for its step, or null before the choice. */
@@ -227,6 +239,7 @@ final class BuilderWorker {
     private void startStep(Villager villager, int index) {
         step = index;
         blockingTicks = 0;
+        stuckTicks = 0;
         workTicks = 0;
         blockedTicks = 0;
         stand = null;
@@ -361,9 +374,52 @@ final class BuilderWorker {
         } else {
             walk(level, villager, site.waitPos(level, index), WAIT_DISTANCE);
         }
-        if (blocking && (blockingTicks > MOVE_TIMEOUT || noPathFor(level, villager) > NO_PATH_TIMEOUT)) {
+        trackProgress(villager, blocking);
+        if (blocking && (stuckTicks > MOVE_TIMEOUT || noPathFor(level, villager) > NO_PATH_TIMEOUT)) {
             goDirectly(level, site, villager, index);
         }
+    }
+
+    /**
+     * Counts the time with no progress: the step of the builder can apply, and the builder does not get nearer to its
+     * walk target on its path (see {@link #remaining}). A long walk around a building does not make the builder go
+     * directly to its position. A new walk target keeps the time.
+     */
+    private void trackProgress(Villager villager, boolean blocking) {
+        BlockPos target = walkTarget;
+        if (target != null) {
+            double distance = remaining(villager, target);
+            if (Double.isNaN(nearest)) {
+                nearest = distance;
+            } else if (distance < nearest - PROGRESS_DISTANCE) {
+                nearest = distance;
+                stuckTicks = 0;
+                return;
+            }
+        }
+        if (blocking) {
+            stuckTicks++;
+        }
+    }
+
+    /**
+     * The distance from a villager to its walk target along its path: to the next node of the path, then from node to
+     * node, then from the last node to the target. With no path, the straight distance to the target.
+     */
+    private static double remaining(Villager villager, BlockPos target) {
+        Vec3 end = Vec3.atBottomCenterOf(target);
+        Path path = villager.getNavigation().getPath();
+        if (path == null || path.isDone()) {
+            return villager.position().distanceTo(end);
+        }
+        double length = 0.0;
+        Vec3 previous = villager.position();
+        for (int i = path.getNextNodeIndex(); i < path.getNodeCount(); i++) {
+            Vec3 node = Vec3.atBottomCenterOf(path.getNode(i).asBlockPos());
+            length += previous.distanceTo(node);
+            previous = node;
+        }
+        return length + previous.distanceTo(end);
     }
 
     /** Selects the position of the builder for its step (see {@link BuilderSite#standFor}). */
@@ -390,6 +446,7 @@ final class BuilderWorker {
      */
     private void forgetWalk(Villager villager) {
         walkTarget = null;
+        nearest = Double.NaN;
         villager.getBrain().eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
     }
 
@@ -412,8 +469,10 @@ final class BuilderWorker {
             }
             teleported = true;
             BuilderSite.teleport(villager, stand);
-            // The builder gets some ticks to land at its position before it works from where it is.
-            blockingTicks = MOVE_TIMEOUT - LANDING_TICKS;
+            // The builder gets some ticks to land at its position before it works from where it is. The walk makes no
+            // progress after the move.
+            stuckTicks = MOVE_TIMEOUT - LANDING_TICKS;
+            nearest = 0.0;
             setState(State.MOVE);
             return;
         }
