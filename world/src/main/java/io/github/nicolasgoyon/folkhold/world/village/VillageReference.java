@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
+import io.github.nicolasgoyon.folkhold.world.village.structure.PierPiece;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,6 +16,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.IntArrayTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.NbtUtils;
@@ -50,6 +52,8 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
  *   <li>The plots are the places for a house along the streets, with and without a house (see
  *       {@link VillagePlots}).</li>
  *   <li>The homes are the pool of the homes that the builders build on the free plots (see {@link VillageGrowth}).</li>
+ *   <li>The piers are the boxes of the piers at the water gates (see {@link PierPiece}): the deck, the rails and the
+ *       posts down to the floor of the water.</li>
  * </ul>
  *
  * @param pieces    the template pieces of the village
@@ -57,9 +61,10 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
  * @param area      the box of the village inside its palisade, or empty
  * @param plots     the plots of the streets
  * @param homes     the id of the pool of the homes, or empty
+ * @param piers     the boxes of the piers
  */
 public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area,
-        List<VillagePlots.Plot> plots, Optional<ResourceLocation> homes) {
+        List<VillagePlots.Plot> plots, Optional<ResourceLocation> homes, List<BoundingBox> piers) {
     /**
      * A structure piece of a village.
      *
@@ -121,9 +126,16 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         pieces = List.copyOf(pieces);
         palisades = List.copyOf(palisades);
         plots = List.copyOf(plots);
+        piers = List.copyOf(piers);
     }
 
-    /** A reference with no plots and no pool of homes. */
+    /** A reference with no piers. */
+    public VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area,
+            List<VillagePlots.Plot> plots, Optional<ResourceLocation> homes) {
+        this(pieces, palisades, area, plots, homes, List.of());
+    }
+
+    /** A reference with no plots, no pool of homes and no piers. */
     public VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area) {
         this(pieces, palisades, area, List.of(), Optional.empty());
     }
@@ -135,7 +147,7 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
 
     /** This reference with a pool of homes. */
     public VillageReference withHomes(ResourceLocation pool) {
-        return new VillageReference(pieces, palisades, area, plots, Optional.of(pool));
+        return new VillageReference(pieces, palisades, area, plots, Optional.of(pool), piers);
     }
 
     /** The blocks of all the palisades, in the order of the palisades. */
@@ -195,6 +207,7 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         List<Palisade> palisades = new ArrayList<>();
         List<BoundingBox> templateBoxes = new ArrayList<>();
         List<BoundingBox> palisadeBoxes = new ArrayList<>();
+        List<BoundingBox> piers = new ArrayList<>();
         for (StructurePiece piece : pieces) {
             if (piece instanceof PoolElementStructurePiece pool
                     && pool.getElement().getProjection() == StructureTemplatePool.Projection.RIGID) {
@@ -206,6 +219,8 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
             } else if (piece instanceof PalisadePiece palisade) {
                 palisades.add(Palisade.of(palisade));
                 palisadeBoxes.add(palisade.getBoundingBox());
+            } else if (piece instanceof PierPiece pier) {
+                piers.add(pier.getBoundingBox());
             }
         }
         if (templates.isEmpty()) {
@@ -216,7 +231,7 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
                 .map(box -> new BoundingBox(box.minX(), templateBox.minY(), box.minZ(), box.maxX(),
                         templateBox.maxY(), box.maxZ()));
         return Optional.of(new VillageReference(templates, palisades, area,
-                VillagePlots.of(level.getStructureManager(), pieces), Optional.empty()));
+                VillagePlots.of(level.getStructureManager(), pieces), Optional.empty(), piers));
     }
 
     /**
@@ -264,8 +279,7 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
             palisadeList.add(palisadeTag);
         }
         tag.put("Palisades", palisadeList);
-        area.ifPresent(box -> tag.putIntArray("Area",
-                new int[] {box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ()}));
+        area.ifPresent(box -> tag.putIntArray("Area", boxArray(box)));
         ListTag plotList = new ListTag();
         for (VillagePlots.Plot plot : plots) {
             CompoundTag plotTag = new CompoundTag();
@@ -277,7 +291,22 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         }
         tag.put("Plots", plotList);
         homes.ifPresent(pool -> tag.putString("Homes", pool.toString()));
+        ListTag pierList = new ListTag();
+        for (BoundingBox pier : piers) {
+            pierList.add(new IntArrayTag(boxArray(pier)));
+        }
+        tag.put("Piers", pierList);
         return tag;
+    }
+
+    private static int[] boxArray(BoundingBox box) {
+        return new int[] {box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ()};
+    }
+
+    private static Optional<BoundingBox> box(int[] values) {
+        return values.length == 6
+                ? Optional.of(new BoundingBox(values[0], values[1], values[2], values[3], values[4], values[5]))
+                : Optional.empty();
     }
 
     /**
@@ -314,10 +343,7 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
                         NbtUtils.readBlockState(blocks, palisadeTag.getCompound("Log"))));
             }
         }
-        int[] box = tag.getIntArray("Area");
-        Optional<BoundingBox> area = box.length == 6
-                ? Optional.of(new BoundingBox(box[0], box[1], box[2], box[3], box[4], box[5]))
-                : Optional.empty();
+        Optional<BoundingBox> area = box(tag.getIntArray("Area"));
         List<VillagePlots.Plot> plots = new ArrayList<>();
         ListTag plotList = tag.getList("Plots", Tag.TAG_COMPOUND);
         for (int i = 0; i < plotList.size(); i++) {
@@ -331,8 +357,13 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         }
         Optional<ResourceLocation> homes = tag.contains("Homes", Tag.TAG_STRING)
                 ? Optional.ofNullable(ResourceLocation.tryParse(tag.getString("Homes"))) : Optional.empty();
+        List<BoundingBox> piers = new ArrayList<>();
+        ListTag pierList = tag.getList("Piers", Tag.TAG_INT_ARRAY);
+        for (int i = 0; i < pierList.size(); i++) {
+            box(pierList.getIntArray(i)).ifPresent(piers::add);
+        }
         return pieces.isEmpty() ? Optional.empty()
-                : Optional.of(new VillageReference(pieces, palisades, area, plots, homes));
+                : Optional.of(new VillageReference(pieces, palisades, area, plots, homes, piers));
     }
 
     private static Optional<Rotation> rotation(String name) {
