@@ -6,8 +6,10 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
+import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
+import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
 import io.github.nicolasgoyon.folkhold.world.village.structure.VillagePathPiece;
 import java.util.ArrayDeque;
@@ -34,6 +36,7 @@ import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -55,6 +58,13 @@ public final class FortifiedVillageGameTests {
             "village/tower");
     private static final ResourceLocation GATE = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
             "village/gate");
+    /** The templates of the plots: the houses and the bank. */
+    private static final Set<ResourceLocation> HOUSES = Set.of(
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_cottage"),
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_barracks"),
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_forge"),
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_storehouse"),
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/bank"));
     /** The walk on the ground falls this number of blocks at most. */
     private static final int MAX_FALL = 8;
     /** A walk of fewer positions did not start correctly. */
@@ -138,6 +148,49 @@ public final class FortifiedVillageGameTests {
         level.setBlock(log, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
         helper.assertTrue(VillageRepairs.damaged(level, heart, reference).contains(log),
                 "A missing log of the palisade must be damaged: " + log);
+        helper.succeed();
+    }
+
+    /**
+     * The plots of the generated villages: a plot with a house has a junction, a free plot has none. The wall keeps
+     * the space of a home on each free plot: the space is inside the area of the village, and has no palisade.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_plots")
+    public static void wallKeepsTheSpaceOfTheFreePlots(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Structure structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
+                .getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        StructureTemplatePool homes = ((FortifiedVillageStructure) structure).homes().value();
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        int free = 0;
+        for (int i = 0; i < CANDIDATES; i++) {
+            ChunkPos chunk = new ChunkPos(FIRST_CHUNK + i * CANDIDATE_STEP, FIRST_CHUNK + CANDIDATE_STEP);
+            StructureStart start = structure.generate(level.registryAccess(), generator, generator.getBiomeSource(),
+                    level.getChunkSource().randomState(), level.getServer().getStructureManager(), level.getSeed(),
+                    chunk, 0, level, biome -> true);
+            helper.assertTrue(start.isValid(), "The village must start in " + chunk);
+            VillageReference reference = VillageReference.of(level, start.getPieces()).orElseThrow();
+            BoundingBox area = reference.area().orElseThrow();
+            long houses = reference.pieces().stream().filter(piece -> HOUSES.contains(piece.template())).count();
+            long built = reference.plots().stream().filter(VillagePlots.Plot::built).count();
+            helper.assertTrue(built == houses, "Each house must have its plot: " + houses + " houses, " + built
+                    + " built plots in " + chunk);
+            for (VillagePlots.Plot plot : reference.plots()) {
+                if (plot.built()) {
+                    continue;
+                }
+                free++;
+                BoundingBox space = VillagePlots.space(level.getStructureManager(), homes, plot).orElseThrow();
+                helper.assertTrue(space.minX() > area.minX() && space.maxX() < area.maxX()
+                        && space.minZ() > area.minZ() && space.maxZ() < area.maxZ(),
+                        "The space of a free plot must be inside the palisade: " + space + " in " + area);
+                boolean palisade = reference.palisadeBlocks().keySet().stream()
+                        .anyMatch(pos -> pos.getX() >= space.minX() && pos.getX() <= space.maxX()
+                                && pos.getZ() >= space.minZ() && pos.getZ() <= space.maxZ());
+                helper.assertFalse(palisade, "The space of a free plot must have no palisade: " + space);
+            }
+        }
+        helper.assertTrue(free > 0, "The villages of the test must have a free plot");
         helper.succeed();
     }
 

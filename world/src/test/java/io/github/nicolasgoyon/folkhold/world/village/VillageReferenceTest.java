@@ -21,10 +21,14 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.junit.jupiter.api.Test;
 
-/** The reference of the repairs of a village: its palisade and its saved data. */
+/** The reference of the repairs and of the growth of a village: its palisade, its plots and its saved data. */
 class VillageReferenceTest {
     private static final ResourceLocation TOWER = ResourceLocation.fromNamespaceAndPath("folkhold_world",
             "village/tower");
+    private static final ResourceLocation HOUSE_FRONT = ResourceLocation.fromNamespaceAndPath("folkhold_world",
+            "house_front");
+    private static final ResourceLocation HOMES = ResourceLocation.fromNamespaceAndPath("folkhold_world",
+            "village/homes");
     private static final BlockState LOG = Blocks.SPRUCE_LOG.defaultBlockState()
             .setValue(RotatedPillarBlock.AXIS, Direction.Axis.Y);
     private static final PalisadeBlocks BLOCKS = new PalisadeBlocks(LOG, Blocks.COBBLESTONE.defaultBlockState(),
@@ -71,6 +75,22 @@ class VillageReferenceTest {
 
         assertEquals(reference, loaded);
         assertEquals(tag, loaded.save());
+    }
+
+    /** A reference keeps its plots and the pool of its homes after a save and a load. */
+    @Test
+    void referenceKeepsItsPlotsAfterALoad() {
+        VillageReference base = reference();
+        VillagePlots.Plot free = new VillagePlots.Plot(new BlockPos(0, 64, 8), Direction.WEST, HOUSE_FRONT, false);
+        VillagePlots.Plot built = new VillagePlots.Plot(new BlockPos(4, 64, 8), Direction.EAST, HOUSE_FRONT, true);
+        VillageReference reference = new VillageReference(base.pieces(), base.palisades(), base.area(),
+                List.of(free, built), Optional.empty()).withHomes(HOMES);
+
+        VillageReference loaded = VillageReference.load(BuiltInRegistries.BLOCK.asLookup(), reference.save())
+                .orElseThrow();
+
+        assertEquals(reference, loaded);
+        assertEquals(new BlockPos(-1, 64, 8), loaded.plots().get(0).front(), "The front of a plot to the west");
     }
 
     /** The data of a reference with no template piece gives no reference. */

@@ -6,6 +6,7 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSite;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
+import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -13,6 +14,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureType;
@@ -24,6 +26,7 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.pools.alias.PoolAliasLookup;
 import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
 /**
  * The faction village: the pieces of the jigsaw pools, in a closed wall.
@@ -36,8 +39,9 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSetting
  *       discovery of the settlements uses the same check: a settlement has a village.</li>
  *   <li>The other pieces of the pools go on the connectors of the start piece, as in a vanilla jigsaw
  *       structure.</li>
- *   <li>Then the structure adds the wall around all the pieces (see {@link VillageWall}). The wall has towers, a gate
- *       on each axis of the start piece and the palisade. Paths go from the gates to the streets.</li>
+ *   <li>Then the structure adds the wall around all the pieces and around the space of a home on each free plot (see
+ *       {@link VillageWall}, {@link VillagePlots}). The wall has towers, a gate on each axis of the start piece and
+ *       the palisade. Paths go from the gates to the streets.</li>
  * </ul>
  *
  * <p>Type {@code folkhold_world:fortified_village}. The JSON object has the fields of all the structures, and these
@@ -50,6 +54,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSetting
  *   <li>{@code max_distance_from_center}: the pieces of the pools stay in this distance from the middle of the start
  *       piece, in blocks.</li>
  *   <li>{@code wall}: the settings of the wall (see {@link WallSettings}).</li>
+ *   <li>{@code homes}: the pool of the homes that the builders of the village build on the free plots (see
+ *       {@link VillagePlots}).</li>
  * </ul>
  */
 public final class FortifiedVillageStructure extends Structure {
@@ -66,7 +72,8 @@ public final class FortifiedVillageStructure extends Structure {
                             .forGetter(FortifiedVillageStructure::size),
                     Codec.intRange(1, MAX_RANGE).fieldOf("max_distance_from_center")
                             .forGetter(FortifiedVillageStructure::maxDistanceFromCenter),
-                    WallSettings.CODEC.fieldOf("wall").forGetter(FortifiedVillageStructure::wall))
+                    WallSettings.CODEC.fieldOf("wall").forGetter(FortifiedVillageStructure::wall),
+                    StructureTemplatePool.CODEC.fieldOf("homes").forGetter(FortifiedVillageStructure::homes))
                     .apply(instance, FortifiedVillageStructure::new))
             .validate(FortifiedVillageStructure::verifyRange);
 
@@ -74,14 +81,16 @@ public final class FortifiedVillageStructure extends Structure {
     private final int size;
     private final int maxDistanceFromCenter;
     private final WallSettings wall;
+    private final Holder<StructureTemplatePool> homes;
 
     public FortifiedVillageStructure(StructureSettings settings, Holder<StructureTemplatePool> startPool, int size,
-            int maxDistanceFromCenter, WallSettings wall) {
+            int maxDistanceFromCenter, WallSettings wall, Holder<StructureTemplatePool> homes) {
         super(settings);
         this.startPool = startPool;
         this.size = size;
         this.maxDistanceFromCenter = maxDistanceFromCenter;
         this.wall = wall;
+        this.homes = homes;
     }
 
     /**
@@ -128,11 +137,19 @@ public final class FortifiedVillageStructure extends Structure {
                         Heightmap.Types.WORLD_SURFACE_WG, context.heightAccessor(), context.randomState()));
     }
 
-    /** Adds the pieces of the pools, then the pieces of the wall around them. */
+    /**
+     * Adds the pieces of the pools, then the pieces of the wall around them. The wall also keeps the space of a home on
+     * each free plot (see {@link VillagePlots}).
+     */
     private void generate(GenerationContext context, GenerationStub village, StructurePiecesBuilder builder) {
         List<StructurePiece> pieces = village.getPiecesBuilder().build().pieces();
         pieces.forEach(builder::addPiece);
-        VillageWall.add(context, pieces, village.position(), wall).forEach(builder::addPiece);
+        StructureTemplateManager templates = context.structureTemplateManager();
+        List<BoundingBox> freePlots = VillagePlots.of(templates, pieces).stream()
+                .filter(plot -> !plot.built())
+                .flatMap(plot -> VillagePlots.space(templates, homes.value(), plot).stream())
+                .toList();
+        VillageWall.add(context, pieces, freePlots, village.position(), wall).forEach(builder::addPiece);
     }
 
     @Override
@@ -158,5 +175,10 @@ public final class FortifiedVillageStructure extends Structure {
     /** The settings of the wall. */
     public WallSettings wall() {
         return wall;
+    }
+
+    /** The pool of the homes that the builders build on the free plots (see {@link VillagePlots}). */
+    public Holder<StructureTemplatePool> homes() {
+        return homes;
     }
 }

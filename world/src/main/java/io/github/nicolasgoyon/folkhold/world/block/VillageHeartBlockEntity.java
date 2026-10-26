@@ -32,6 +32,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBraziers;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
+import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
@@ -1024,8 +1025,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (heart.layout.isScanned() && level instanceof ServerLevel serverLevel) {
             heart.updateBraziers(serverLevel);
             long repairTicks = WorldConfig.CONSTRUCTION_REPAIR_CHECK_SECONDS.get() * 20L;
-            if (heart.alertState == AlertState.CALM && time % repairTicks < CHECK_INTERVAL) {
-                VillageRepairs.check(serverLevel, heart);
+            if (heart.alertState == AlertState.CALM && time % repairTicks < CHECK_INTERVAL
+                    && VillageRepairs.check(serverLevel, heart).isEmpty()) {
+                VillageGrowth.check(serverLevel, heart);
             }
         }
         long calmDelayTicks = WorldConfig.CALM_DELAY_SECONDS.get() * 20L;

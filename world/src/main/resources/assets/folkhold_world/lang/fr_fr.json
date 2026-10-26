@@ -246,6 +246,7 @@
   "folkhold_world.configuration.constructionFreeRepairs": "Réparations gratuites",
   "folkhold_world.configuration.constructionRepairCheckSeconds": "Recherche des blocs endommagés (secondes)",
   "folkhold_world.configuration.constructionCatchUpSteps": "Étapes par tick après le chargement des chunks",
+  "folkhold_world.configuration.constructionGrowth": "Croissance des villages",
   "screen.folkhold_world.village_heart.economy": "Économie",
   "screen.folkhold_world.village_heart.population": "Population",
   "screen.folkhold_world.village_heart.housing": "Logement",

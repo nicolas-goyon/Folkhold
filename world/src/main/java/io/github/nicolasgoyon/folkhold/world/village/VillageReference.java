@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.village;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -18,6 +20,7 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.RegistryOps;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
@@ -32,8 +35,8 @@ import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 
 /**
- * The reference state of a village for the repairs (see {@link VillageRepairs}): the structure pieces of the village
- * at the generation.
+ * The reference state of a village for the repairs (see {@link VillageRepairs}) and for its growth (see
+ * {@link VillageGrowth}): the structure pieces of the village at the generation.
  *
  * <ul>
  *   <li>A template piece is a structure template at a position, with a turn. The template pieces come in the order of
@@ -44,13 +47,19 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
  *       reference. The logs above the first {@link PalisadeHeights#LOGS} logs are not a part of it too.</li>
  *   <li>The area is the box of the village inside its palisade, the palisade included, from the lowest to the highest
  *       template piece. A village with no palisade pieces has no area.</li>
+ *   <li>The plots are the places for a house along the streets, with and without a house (see
+ *       {@link VillagePlots}).</li>
+ *   <li>The homes are the pool of the homes that the builders build on the free plots (see {@link VillageGrowth}).</li>
  * </ul>
  *
  * @param pieces    the template pieces of the village
  * @param palisades the segments of the palisade
  * @param area      the box of the village inside its palisade, or empty
+ * @param plots     the plots of the streets
+ * @param homes     the id of the pool of the homes, or empty
  */
-public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area) {
+public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area,
+        List<VillagePlots.Plot> plots, Optional<ResourceLocation> homes) {
     /**
      * A structure piece of a village.
      *
@@ -111,11 +120,22 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
     public VillageReference {
         pieces = List.copyOf(pieces);
         palisades = List.copyOf(palisades);
+        plots = List.copyOf(plots);
     }
 
-    /** A reference with template pieces only: no palisade and no area. */
+    /** A reference with no plots and no pool of homes. */
+    public VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area) {
+        this(pieces, palisades, area, List.of(), Optional.empty());
+    }
+
+    /** A reference with template pieces only: no palisade, no area, no plots and no pool of homes. */
     public VillageReference(List<Piece> pieces) {
         this(pieces, List.of(), Optional.empty());
+    }
+
+    /** This reference with a pool of homes. */
+    public VillageReference withHomes(ResourceLocation pool) {
+        return new VillageReference(pieces, palisades, area, plots, Optional.of(pool));
     }
 
     /** The blocks of all the palisades, in the order of the palisades. */
@@ -156,7 +176,9 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         if (!start.isValid()) {
             return Optional.empty();
         }
-        return of(level, start.getPieces());
+        Optional<ResourceLocation> homes = start.getStructure() instanceof FortifiedVillageStructure village
+                ? village.homes().unwrapKey().map(ResourceKey::location) : Optional.empty();
+        return of(level, start.getPieces()).map(reference -> homes.map(reference::withHomes).orElse(reference));
     }
 
     /**
@@ -192,7 +214,19 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         Optional<BoundingBox> area = BoundingBox.encapsulatingBoxes(palisadeBoxes)
                 .map(box -> new BoundingBox(box.minX(), templateBox.minY(), box.minZ(), box.maxX(),
                         templateBox.maxY(), box.maxZ()));
-        return Optional.of(new VillageReference(templates, palisades, area));
+        return Optional.of(new VillageReference(templates, palisades, area,
+                VillagePlots.of(level.getStructureManager(), pieces), Optional.empty()));
+    }
+
+    /**
+     * The id of the template of a pool element.
+     *
+     * @param level   the level
+     * @param element the pool element
+     * @return the id, or empty for an element with no single template
+     */
+    public static Optional<ResourceLocation> templateOf(ServerLevel level, StructurePoolElement element) {
+        return templateOf(RegistryOps.create(NbtOps.INSTANCE, level.registryAccess()), element);
     }
 
     /** The id of the template of a pool element, from the saved form of the element. */
@@ -231,6 +265,17 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         tag.put("Palisades", palisadeList);
         area.ifPresent(box -> tag.putIntArray("Area",
                 new int[] {box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ()}));
+        ListTag plotList = new ListTag();
+        for (VillagePlots.Plot plot : plots) {
+            CompoundTag plotTag = new CompoundTag();
+            plotTag.putLong("Connector", plot.connector().asLong());
+            plotTag.putString("Facing", plot.facing().getSerializedName());
+            plotTag.putString("Target", plot.target().toString());
+            plotTag.putBoolean("Built", plot.built());
+            plotList.add(plotTag);
+        }
+        tag.put("Plots", plotList);
+        homes.ifPresent(pool -> tag.putString("Homes", pool.toString()));
         return tag;
     }
 
@@ -272,7 +317,21 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         Optional<BoundingBox> area = box.length == 6
                 ? Optional.of(new BoundingBox(box[0], box[1], box[2], box[3], box[4], box[5]))
                 : Optional.empty();
-        return pieces.isEmpty() ? Optional.empty() : Optional.of(new VillageReference(pieces, palisades, area));
+        List<VillagePlots.Plot> plots = new ArrayList<>();
+        ListTag plotList = tag.getList("Plots", Tag.TAG_COMPOUND);
+        for (int i = 0; i < plotList.size(); i++) {
+            CompoundTag plotTag = plotList.getCompound(i);
+            Direction facing = Direction.byName(plotTag.getString("Facing"));
+            ResourceLocation target = ResourceLocation.tryParse(plotTag.getString("Target"));
+            if (facing != null && target != null) {
+                plots.add(new VillagePlots.Plot(BlockPos.of(plotTag.getLong("Connector")), facing, target,
+                        plotTag.getBoolean("Built")));
+            }
+        }
+        Optional<ResourceLocation> homes = tag.contains("Homes", Tag.TAG_STRING)
+                ? Optional.ofNullable(ResourceLocation.tryParse(tag.getString("Homes"))) : Optional.empty();
+        return pieces.isEmpty() ? Optional.empty()
+                : Optional.of(new VillageReference(pieces, palisades, area, plots, homes));
     }
 
     private static Optional<Rotation> rotation(String name) {
