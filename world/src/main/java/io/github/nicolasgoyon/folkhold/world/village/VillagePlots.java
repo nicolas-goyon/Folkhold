@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -156,6 +157,27 @@ public final class VillagePlots {
             place(templates, element, plot, plot.connector().getY()).ifPresent(placement -> boxes.add(placement.box()));
         }
         return BoundingBox.encapsulatingBoxes(boxes);
+    }
+
+    /**
+     * The Y of a connector of a piece: the connector with a name at a position on the horizontal plane.
+     *
+     * @param templates the structure templates of the server
+     * @param piece     the piece
+     * @param name      the name of the connector
+     * @param x         the X of the connector
+     * @param z         the Z of the connector
+     * @return the Y of the connector, or empty if the piece has no such connector
+     */
+    public static OptionalInt connectorY(StructureTemplateManager templates, PoolElementStructurePiece piece,
+            ResourceLocation name, int x, int z) {
+        for (StructureTemplate.StructureBlockInfo info : connectors(templates, piece.getElement(),
+                piece.getPosition(), piece.getRotation())) {
+            if (info.pos().getX() == x && info.pos().getZ() == z && name.equals(name(info, "name"))) {
+                return OptionalInt.of(info.pos().getY());
+            }
+        }
+        return OptionalInt.empty();
     }
 
     private static List<StructureTemplate.StructureBlockInfo> connectors(StructureTemplateManager templates,

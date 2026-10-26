@@ -10,12 +10,15 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Gate;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Segment;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Side;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Tower;
+import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
+import io.github.nicolasgoyon.folkhold.world.village.VillagePlots.Plot;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.IntBinaryOperator;
 import net.minecraft.core.BlockPos;
@@ -42,9 +45,10 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       the line. The bases of the columns come from these heights (see {@link PalisadeHeights}).</li>
  *   <li>A tower or a gate is a structure template on the highest base under it. The bases near it go up again, so
  *       that the palisade has no high step next to it.</li>
- *   <li>Each segment of palisade is a {@link PalisadePiece}. A {@link VillagePathPiece} goes from each gate to the
- *       first piece of the pools on the axis: a ramp from the level of the gate to the terrain at the streets (see
- *       {@link PathRamp}).</li>
+ *   <li>Each segment of palisade is a {@link PalisadePiece}. A {@link VillagePathPiece} with the width of a street goes
+ *       from each gate to the plaza, through the streets on the axis: an arm (see {@link Arm}). The arm is a ramp from
+ *       the level of the gate to the level of the plaza (see {@link PathRamp}). The houses on the plots of an arm move
+ *       up or down to the level of the arm at their plot.</li>
  *   <li>{@link TerrainPiece}s make the terrain flat near the wall: along the palisade, in sections of
  *       {@link #SECTION} columns at their highest base, and in front of the gates, at the level of the gate. The flat
  *       terrain of a gate also clears its space: no terrain above the level of the gate.</li>
@@ -72,6 +76,8 @@ public final class VillageWall {
     private static final int[] FRONT = {2, 4, 6};
     /** A gate opens on water when this number of the points in front of it are on water, or more. */
     static final int WATER_FRONT = 2;
+    /** The number of blocks on each side of the middle of a street: the plots are at this distance. */
+    static final int STREET_HALF_WIDTH = 2;
     /** A pier starts at this distance outside the line: after the outer row of the gate. */
     static final int PIER_START = 2;
 
@@ -133,8 +139,15 @@ public final class VillageWall {
         for (Segment segment : layout.segments()) {
             pieces.add(palisade(layout, segment, smooth, settings.palisade()));
         }
+        List<Stop> stops = stops(village);
         for (Gate gate : layout.gates()) {
-            path(layout, gate, gateLevels.get(gate), boxes, terrain).ifPresent(pieces::add);
+            Optional<Arm> arm = arm(layout, gate, stops);
+            if (arm.isPresent()) {
+                int[] levels = levels(arm.get(), gateLevels.get(gate), terrain);
+                pieces.add(new VillagePathPiece(arm.get().startX(), arm.get().startZ(), arm.get().stepX(),
+                        arm.get().stepZ(), levels, true));
+                moveHouses(templates, village, arm.get(), levels);
+            }
             if (waterGates.contains(gate)) {
                 pieces.add(pier(layout, gate, gateLevels.get(gate), terrain::height, seaLevel, settings.pier()));
             }
@@ -356,21 +369,91 @@ public final class VillageWall {
     }
 
     /**
-     * The path from a gate to the first piece of the pools on its axis. The path starts after the inner row of the
-     * gate. Empty if the gate is next to a piece.
+     * A piece of the pools that stops an arm: a piece that is not a street.
+     *
+     * @param box   the box of the piece on the horizontal plane
+     * @param level the Y of the top block of the floor of the piece: the lowest layer of its box
      */
-    private static Optional<VillagePathPiece> path(WallLayout layout, Gate gate, int gateLevel, List<Box> boxes,
-            Terrain terrain) {
+    record Stop(Box box, int level) {
+    }
+
+    /**
+     * An arm of a village: the rows of a straight path from a gate to the plaza, through the streets on the axis of the
+     * gate. The arm starts after the inner row of the gate, and stops at the first piece on its axis that is not a
+     * street, or at the outline of the wall.
+     *
+     * @param startX the X of the middle of the first row
+     * @param startZ the Z of the middle of the first row
+     * @param stepX  the X step from a row to the next one, to the inside of the village
+     * @param stepZ  the Z step from a row to the next one, to the inside of the village
+     * @param length the number of rows, 1 at least
+     * @param end    the level of the piece at the end of the arm, or empty if the arm stops at the outline
+     */
+    record Arm(int startX, int startZ, int stepX, int stepZ, int length, OptionalInt end) {
+        int x(int row) {
+            return startX + row * stepX;
+        }
+
+        int z(int row) {
+            return startZ + row * stepZ;
+        }
+
+        /**
+         * The row of the arm across a position: the row with the same distance from the gate. Empty if the position is
+         * not in the width of a street ({@code halfWidth} blocks on each side of the middle) or not along the arm.
+         */
+        OptionalInt row(int x, int z, int halfWidth) {
+            int along = (x - startX) * stepX + (z - startZ) * stepZ;
+            int across = (x - startX) * stepZ + (z - startZ) * stepX;
+            if (along < 0 || along >= length || Math.abs(across) > halfWidth) {
+                return OptionalInt.empty();
+            }
+            return OptionalInt.of(along);
+        }
+    }
+
+    /** The pieces of the pools that stop an arm: all the pieces that are not streets. */
+    private static List<Stop> stops(List<StructurePiece> village) {
+        List<Stop> stops = new ArrayList<>();
+        for (StructurePiece piece : village) {
+            if (!isStreet(piece)) {
+                BoundingBox box = piece.getBoundingBox();
+                stops.add(new Stop(box(box), box.minY()));
+            }
+        }
+        return stops;
+    }
+
+    /** True for a street: a piece of the pools that follows the terrain. */
+    static boolean isStreet(StructurePiece piece) {
+        return piece instanceof PoolElementStructurePiece pool
+                && pool.getElement().getProjection() == StructureTemplatePool.Projection.TERRAIN_MATCHING;
+    }
+
+    /**
+     * The arm of a gate. Empty if the gate is next to a piece that is not a street.
+     *
+     * @param layout the layout of the wall
+     * @param gate   the gate
+     * @param stops  the pieces of the pools that are not streets
+     */
+    static Optional<Arm> arm(WallLayout layout, Gate gate, List<Stop> stops) {
         Side side = gate.side();
         Cell middle = layout.cell(side, layout.along(gate));
         int startX = middle.x() + 2 * side.insideX();
         int startZ = middle.z() + 2 * side.insideZ();
         Box outline = layout.outline();
         int length = 0;
+        OptionalInt end = OptionalInt.empty();
         while (true) {
             int x = startX + length * side.insideX();
             int z = startZ + length * side.insideZ();
-            if (!outline.contains(x, z) || boxes.stream().anyMatch(box -> box.contains(x, z))) {
+            if (!outline.contains(x, z)) {
+                break;
+            }
+            Optional<Stop> stop = stops.stream().filter(candidate -> candidate.box().contains(x, z)).findFirst();
+            if (stop.isPresent()) {
+                end = OptionalInt.of(stop.get().level());
                 break;
             }
             length++;
@@ -378,12 +461,49 @@ public final class VillageWall {
         if (length == 0) {
             return Optional.empty();
         }
-        int[] heights = new int[length];
-        for (int row = 0; row < length; row++) {
-            heights[row] = terrain.height(startX + row * side.insideX(), startZ + row * side.insideZ());
+        return Optional.of(new Arm(startX, startZ, side.insideX(), side.insideZ(), length, end));
+    }
+
+    /**
+     * The levels of the rows of an arm: a ramp from the level of the gate to the level of the piece at the end of the
+     * arm (see {@link PathRamp}). Between them, the ramp stays near the terrain.
+     */
+    private static int[] levels(Arm arm, int gateLevel, Terrain terrain) {
+        int[] heights = new int[arm.length()];
+        for (int row = 0; row < heights.length; row++) {
+            heights[row] = terrain.height(arm.x(row), arm.z(row));
         }
-        return Optional.of(new VillagePathPiece(startX, startZ, side.insideX(), side.insideZ(),
-                PathRamp.levels(gateLevel, heights)));
+        arm.end().ifPresent(end -> heights[heights.length - 1] = end);
+        return PathRamp.levels(gateLevel, heights);
+    }
+
+    /**
+     * Moves the houses on the plots of an arm up or down: the connector of a house goes 1 block above the level of the
+     * arm at its plot. Thus the door of the house stays at the level of the street.
+     */
+    private static void moveHouses(StructureTemplateManager templates, List<StructurePiece> village, Arm arm,
+            int[] levels) {
+        for (Plot plot : VillagePlots.of(templates, village)) {
+            if (!plot.built()) {
+                continue;
+            }
+            BlockPos connector = plot.connector();
+            OptionalInt row = arm.row(connector.getX(), connector.getZ(), STREET_HALF_WIDTH);
+            if (row.isEmpty()) {
+                continue;
+            }
+            BlockPos front = plot.front();
+            for (StructurePiece piece : village) {
+                if (piece instanceof PoolElementStructurePiece house && !isStreet(house)
+                        && house.getBoundingBox().isInside(front.getX(), house.getBoundingBox().minY(), front.getZ())) {
+                    OptionalInt y = VillagePlots.connectorY(templates, house, plot.target(), front.getX(),
+                            front.getZ());
+                    if (y.isPresent()) {
+                        house.move(0, levels[row.getAsInt()] + 1 - y.getAsInt(), 0);
+                    }
+                }
+            }
+        }
     }
 
     /**
