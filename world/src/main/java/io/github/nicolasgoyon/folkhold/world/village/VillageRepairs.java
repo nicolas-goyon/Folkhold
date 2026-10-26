@@ -109,26 +109,8 @@ public final class VillageRepairs {
             VillageReference reference) {
         BlockPos heartPos = heart.getBlockPos();
         Predicate<BlockPos> inArea = area(heart, reference);
-        Map<BlockPos, BlockState> expected = new HashMap<>();
-        for (VillageReference.Piece piece : reference.pieces()) {
-            Optional<StructureTemplate> template = level.getStructureManager().get(piece.template());
-            if (template.isEmpty()) {
-                continue;
-            }
-            StructurePlaceSettings settings = GhostPlacement.settings(piece.rotation(), Mirror.NONE);
-            for (ConstructionTargets.TemplateBlock block : blocks(level, template.get())) {
-                BlockPos pos = StructureTemplate.calculateRelativePosition(settings, block.pos())
-                        .offset(piece.origin());
-                if (inArea.test(pos)) {
-                    expected.put(pos, block.state().rotate(level, pos, settings.getRotation()));
-                }
-            }
-        }
-        reference.palisadeBlocks().forEach((pos, state) -> {
-            if (inArea.test(pos)) {
-                expected.put(pos, state);
-            }
-        });
+        Map<BlockPos, BlockState> expected = expectedBlocks(level, reference);
+        expected.keySet().removeIf(inArea.negate());
         VillageRepairData data = VillageRepairData.get(level);
         List<WorkZone> zones = BuilderSites.all(level).stream().flatMap(site -> site.zone().stream()).toList();
         long now = level.getGameTime();
@@ -142,6 +124,32 @@ public final class VillageRepairs {
             }
         }
         return damaged;
+    }
+
+    /**
+     * The blocks of the structure pieces of a village: the blocks of the templates, then the blocks of the palisade. A
+     * template piece replaces the blocks of the pieces before it, as at the generation.
+     *
+     * @param level     the level
+     * @param reference the structure pieces of the village
+     * @return the block state at each position
+     */
+    public static Map<BlockPos, BlockState> expectedBlocks(ServerLevel level, VillageReference reference) {
+        Map<BlockPos, BlockState> expected = new HashMap<>();
+        for (VillageReference.Piece piece : reference.pieces()) {
+            Optional<StructureTemplate> template = level.getStructureManager().get(piece.template());
+            if (template.isEmpty()) {
+                continue;
+            }
+            StructurePlaceSettings settings = GhostPlacement.settings(piece.rotation(), Mirror.NONE);
+            for (ConstructionTargets.TemplateBlock block : blocks(level, template.get())) {
+                BlockPos pos = StructureTemplate.calculateRelativePosition(settings, block.pos())
+                        .offset(piece.origin());
+                expected.put(pos, block.state().rotate(level, pos, settings.getRotation()));
+            }
+        }
+        expected.putAll(reference.palisadeBlocks());
+        return expected;
     }
 
     /**
