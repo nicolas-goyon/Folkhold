@@ -522,6 +522,25 @@ final class BuilderWorker {
         setState(State.IDLE);
     }
 
+    /**
+     * The builder leaves the column under it, because a step removes a block of this column: it goes down the column,
+     * then it selects a position again.
+     */
+    void leaveColumn(ServerLevel level, Villager villager) {
+        if (state == State.DESCEND) {
+            return;
+        }
+        stand = null;
+        climbBase = null;
+        if (BuilderSite.isOnScaffolding(level, villager) || BuilderSite.isScaffolding(level, villager.blockPosition())) {
+            FolkholdWorld.LOGGER.debug("Builder {}: a step removes the column at {}, the builder goes down", id,
+                    villager.blockPosition());
+            startDescent(villager);
+        } else {
+            setState(State.MOVE);
+        }
+    }
+
     /** Forgets the position of the step: the builder selects a position again. */
     void forgetPosition() {
         if (!isOnTheWay()) {

@@ -138,6 +138,8 @@ public final class BuilderSite {
     private static final double FLOOR_MARGIN = 0.25;
     /** A scaffolding column has this number of blocks at most. */
     private static final int MAX_COLUMN = 64;
+    /** The height of the space of an entity on the top of a column, in blocks. */
+    private static final int ENTITY_SPACE = 3;
     /**
      * The search of a way from the ground on the blocks of the level stays for this number of ticks at most. The site
      * tells it about the blocks of its steps, but not about the other changes of the level.
@@ -1119,17 +1121,35 @@ public final class BuilderSite {
         };
     }
 
-    /** The living entities in the blocks of a step that puts a block with a collision box. */
+    /**
+     * The living entities that block a step: the entities in the blocks of a step that puts a block with a collision
+     * box, and the entities on the column of a step that removes a scaffolding block. An entity on the column is in the
+     * removed block or in a block of the column above it, or on the top of the column: it falls when the block goes. An
+     * entity on the floor of the removed block does not fall.
+     */
     private List<LivingEntity> blockers(ServerLevel level, int index) {
+        if (stepAt(index).type() == StepType.REMOVE_SCAFFOLDING) {
+            BlockPos cell = BlockKinds.toBlockPos(stepAt(index).pos());
+            BlockPos top = cell;
+            for (int i = 0; i < MAX_COLUMN && isScaffolding(level, top.above()); i++) {
+                top = top.above();
+            }
+            return level.getEntitiesOfClass(LivingEntity.class, new AABB(cell.getX(), cell.getY(), cell.getZ(),
+                    cell.getX() + 1, top.getY() + ENTITY_SPACE, cell.getZ() + 1),
+                    entity -> canBlock(entity) && entity.getY() > cell.getY() + FLOOR_MARGIN);
+        }
         if (!placesSolidBlock(level, index)) {
             return List.of();
         }
         List<LivingEntity> found = new ArrayList<>();
         for (BlockPos cell : cells(index)) {
-            found.addAll(level.getEntitiesOfClass(LivingEntity.class, new AABB(cell),
-                    entity -> entity.isAlive() && !entity.isSpectator() && !(entity instanceof ArmorStand)));
+            found.addAll(level.getEntitiesOfClass(LivingEntity.class, new AABB(cell), BuilderSite::canBlock));
         }
         return found;
+    }
+
+    private static boolean canBlock(LivingEntity entity) {
+        return entity.isAlive() && !entity.isSpectator() && !(entity instanceof ArmorStand);
     }
 
     /** True if an entity is in the blocks of a step: the step waits. */
@@ -1139,12 +1159,19 @@ public final class BuilderSite {
 
     /**
      * Moves the entities in the blocks of a step to a free position near them. A player does not move: the builders do
-     * not work while a player is in the work zone.
+     * not work while a player is in the work zone. A builder on the column of a removed scaffolding block goes down the
+     * column.
      */
     void moveBlockersAside(ServerLevel level, int index) {
         Set<BlockPos> busy = new HashSet<>(cells(index));
+        boolean removal = stepAt(index).type() == StepType.REMOVE_SCAFFOLDING;
         for (LivingEntity entity : blockers(level, index)) {
             if (entity instanceof Player) {
+                continue;
+            }
+            BuilderWorker builder = workers.get(entity.getUUID());
+            if (removal && builder != null && entity instanceof Villager villager) {
+                builder.leaveColumn(level, villager);
                 continue;
             }
             BlockPos aside = asidePos(level, entity.blockPosition(), busy);
@@ -1152,9 +1179,8 @@ public final class BuilderSite {
                 FolkholdWorld.LOGGER.debug("Builder site {}: {} moves out of step {} to {}", id, entity, index, aside);
                 teleport(entity, aside);
             }
-            BuilderWorker worker = workers.get(entity.getUUID());
-            if (worker != null) {
-                worker.forgetPosition();
+            if (builder != null) {
+                builder.forgetPosition();
             }
         }
     }
