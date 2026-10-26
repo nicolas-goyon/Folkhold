@@ -65,6 +65,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.event.EventHooks;
 
 /**
@@ -73,8 +74,8 @@ import net.neoforged.neoforge.event.EventHooks;
  * <p>When a player is in the activation radius, the heart creates the missing units of its garrison.
  *
  * <p>The work of the heart reads and changes the blocks of the village. The heart does this work only when all the
- * chunks of the scan area are ready ({@link VillageLayout#isScanAreaReady}): the server thread never waits for the
- * generation of a chunk.
+ * chunks of the scan area are ready ({@link #scanArea}): the server thread never waits for the generation of a
+ * chunk.
  */
 public class VillageHeartBlockEntity extends BlockEntity {
     private static final String ID_TAG = "VillageId";
@@ -519,17 +520,18 @@ public class VillageHeartBlockEntity extends BlockEntity {
     /**
      * Creates the missing units of the garrison now (see {@link Garrison#ensure}). Before the first garrison, the
      * heart scans the village. The method does nothing while a chunk of the scan area is not ready
-     * ({@link VillageLayout#isScanAreaReady}).
+     * ({@link #scanArea}).
      *
      * @param now the game time to use
      */
     public void ensureGarrison(long now) {
-        if (!(level instanceof ServerLevel serverLevel) || !VillageLayout.isScanAreaReady(serverLevel, worldPosition)) {
+        if (!(level instanceof ServerLevel serverLevel)
+                || !VillageLayout.isAreaReady(serverLevel, scanArea(serverLevel))) {
             return;
         }
         ensureSettlement();
         if (!layout.isScanned()) {
-            layout.scan(serverLevel, worldPosition);
+            layout.scan(serverLevel, scanArea(serverLevel));
             paintBanners();
             setChanged();
         }
@@ -715,6 +717,17 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level != null && garrison.onUnitDied(unitId, level.getGameTime())) {
             setChanged();
         }
+    }
+
+    /**
+     * The scan area of the village (see {@link VillageLayout#area}): the area of the village structure, or a box around
+     * the heart.
+     *
+     * @param serverLevel the level of the heart
+     * @return the box
+     */
+    public BoundingBox scanArea(ServerLevel serverLevel) {
+        return VillageLayout.area(worldPosition, repairReference(serverLevel).orElse(null));
     }
 
     /**
@@ -964,7 +977,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         // The registration in onLoad can happen before the level is ready. Register again: it costs nothing.
         VillageHearts.register(level, pos);
-        if (!VillageLayout.isScanAreaReady(level, pos)) {
+        if (!(level instanceof ServerLevel areaLevel) || !VillageLayout.isAreaReady(level, heart.scanArea(areaLevel))) {
             return;
         }
         if (time % GARRISON_INTERVAL == 0) {

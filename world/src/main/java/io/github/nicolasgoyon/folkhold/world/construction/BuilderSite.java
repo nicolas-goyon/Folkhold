@@ -47,8 +47,8 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -797,7 +797,7 @@ public final class BuilderSite {
 
     /**
      * The target of a repair site: the blocks of the structure pieces of the village at the damaged positions. A piece
-     * replaces the blocks of the pieces before it.
+     * replaces the blocks of the pieces before it. The palisades come after the template pieces.
      */
     private Target repairTarget(ServerLevel level, VillageReference reference) {
         Map<BuildPos, BuildBlock> blocks = new HashMap<>();
@@ -807,6 +807,11 @@ public final class BuilderSite {
                             GhostPlacement.settings(piece.rotation(), Mirror.NONE), repairPositions::contains)
                             .blocks()));
         }
+        reference.palisadeBlocks().forEach((pos, state) -> {
+            if (repairPositions.contains(pos)) {
+                blocks.put(BlockKinds.toBuildPos(pos), BlockKinds.describe(pos, state, Optional.empty()));
+            }
+        });
         return new Target(blocks);
     }
 
@@ -1358,16 +1363,7 @@ public final class BuilderSite {
         tag.putLongArray("Scaffolding", scaffolding.stream().mapToLong(BlockPos::asLong).toArray());
         tag.put("Materials", materials.save());
         if (repairReference != null) {
-            CompoundTag repair = new CompoundTag();
-            ListTag pieces = new ListTag();
-            for (VillageReference.Piece piece : repairReference.pieces()) {
-                CompoundTag pieceTag = new CompoundTag();
-                pieceTag.putString("Template", piece.template().toString());
-                pieceTag.putLong("Origin", piece.origin().asLong());
-                pieceTag.putString("Rotation", piece.rotation().name());
-                pieces.add(pieceTag);
-            }
-            repair.put("Pieces", pieces);
+            CompoundTag repair = repairReference.save();
             repair.putLongArray("Positions", repairPositions.stream().mapToLong(BlockPos::asLong).toArray());
             tag.put("Repair", repair);
         }
@@ -1394,24 +1390,13 @@ public final class BuilderSite {
         Set<BlockPos> positions = new LinkedHashSet<>();
         if (tag.contains("Repair", Tag.TAG_COMPOUND)) {
             CompoundTag repair = tag.getCompound("Repair");
-            List<VillageReference.Piece> pieces = new ArrayList<>();
-            ListTag pieceList = repair.getList("Pieces", Tag.TAG_COMPOUND);
-            for (int i = 0; i < pieceList.size(); i++) {
-                CompoundTag pieceTag = pieceList.getCompound(i);
-                ResourceLocation pieceTemplate = ResourceLocation.tryParse(pieceTag.getString("Template"));
-                Optional<Rotation> pieceRotation = enumValue(Rotation.class, pieceTag.getString("Rotation"));
-                if (pieceTemplate != null && pieceRotation.isPresent()) {
-                    pieces.add(new VillageReference.Piece(pieceTemplate, BlockPos.of(pieceTag.getLong("Origin")),
-                            pieceRotation.get()));
-                }
-            }
             for (long pos : repair.getLongArray("Positions")) {
                 positions.add(BlockPos.of(pos));
             }
-            if (pieces.isEmpty() || positions.isEmpty()) {
+            reference = VillageReference.load(BuiltInRegistries.BLOCK.asLookup(), repair).orElse(null);
+            if (reference == null || positions.isEmpty()) {
                 return Optional.empty();
             }
-            reference = new VillageReference(pieces);
         }
         BuilderSite site = new BuilderSite(tag.getInt("Id"), template, BlockPos.of(tag.getLong("Origin")),
                 rotation.get(), mirror.get(), BlockPos.of(tag.getLong("Heart")), operator, reference, positions);

@@ -196,7 +196,7 @@ public final class WorldConfig {
                 .defineInRange("radius", 48, 8, 256);
         VILLAGE_MESSAGE_RADIUS = builder
                 .comment("Distance in blocks from a village heart where a player gets the village message",
-                        "(village name, faction, reputation). The village wall is at approximately 20 blocks.")
+                        "(village name, faction, reputation). The village wall is at approximately 30 blocks.")
                 .translation(KEY_PREFIX + "villageMessageRadius")
                 .defineInRange("messageRadius", 50, 8, 256);
         SPAWN_PROTECTION_RADIUS = builder

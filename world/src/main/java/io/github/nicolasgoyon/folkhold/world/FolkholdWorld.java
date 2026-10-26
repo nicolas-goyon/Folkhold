@@ -37,6 +37,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModItems;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.registry.ModSounds;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructurePlacements;
+import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
@@ -79,6 +80,7 @@ public final class FolkholdWorld {
         ModItems.register(modEventBus);
         ModSounds.register(modEventBus);
         ModStructurePlacements.register(modEventBus);
+        ModStructures.register(modEventBus);
         modEventBus.addListener(ModNetwork::register);
         modEventBus.addListener(TestWorldPack::onAddPackFinders);
         NeoForge.EVENT_BUS.addListener(MonsterTargeting::onEntityJoin);

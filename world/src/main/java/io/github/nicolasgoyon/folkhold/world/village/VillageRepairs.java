@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -39,8 +40,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *
  * <ul>
  *   <li>Reference: the structure pieces of the village at the generation (see {@link VillageReference}).</li>
- *   <li>Area: the positions of the pieces inside the palisade. The gates give the size of the palisade. The stairs
- *       of the gates are outside the area.</li>
+ *   <li>Area: the positions of the pieces inside the palisade, the palisade included (see
+ *       {@link VillageReference#area()}). The stairs of the gates are outside the area.</li>
  *   <li>A loaded village heart looks for the damaged blocks of its area at an interval (see
  *       {@link WorldConfig#CONSTRUCTION_REPAIR_CHECK_SECONDS}), when the village is calm, has builders and has no
  *       construction site. The comparison ignores the changes that come with the life of a village (see
@@ -74,7 +75,7 @@ public final class VillageRepairs {
      */
     public static Optional<BuilderSite> check(ServerLevel level, VillageHeartBlockEntity heart) {
         BlockPos heartPos = heart.getBlockPos();
-        if (!WorldConfig.CONSTRUCTION_REPAIRS.get() || !VillageLayout.isScanAreaReady(level, heartPos)
+        if (!WorldConfig.CONSTRUCTION_REPAIRS.get() || !VillageLayout.isAreaReady(level, heart.scanArea(level))
                 || !BuilderSites.of(level, heartPos).isEmpty()
                 || VillageFolk.of(level, heartPos, ModProfessions.BUILDER.get()).isEmpty()) {
             return Optional.empty();
@@ -107,7 +108,7 @@ public final class VillageRepairs {
     public static Set<BlockPos> damaged(ServerLevel level, VillageHeartBlockEntity heart,
             VillageReference reference) {
         BlockPos heartPos = heart.getBlockPos();
-        int radius = areaRadius(heart);
+        Predicate<BlockPos> inArea = area(heart, reference);
         Map<BlockPos, BlockState> expected = new HashMap<>();
         for (VillageReference.Piece piece : reference.pieces()) {
             Optional<StructureTemplate> template = level.getStructureManager().get(piece.template());
@@ -118,11 +119,16 @@ public final class VillageRepairs {
             for (ConstructionTargets.TemplateBlock block : blocks(level, template.get())) {
                 BlockPos pos = StructureTemplate.calculateRelativePosition(settings, block.pos())
                         .offset(piece.origin());
-                if (squareDistance(heartPos, pos) <= radius) {
+                if (inArea.test(pos)) {
                     expected.put(pos, block.state().rotate(level, pos, settings.getRotation()));
                 }
             }
         }
+        reference.palisadeBlocks().forEach((pos, state) -> {
+            if (inArea.test(pos)) {
+                expected.put(pos, state);
+            }
+        });
         VillageRepairData data = VillageRepairData.get(level);
         List<WorkZone> zones = BuilderSites.all(level).stream().flatMap(site -> site.zone().stream()).toList();
         long now = level.getGameTime();
@@ -139,14 +145,19 @@ public final class VillageRepairs {
     }
 
     /**
-     * The size of the area of the repairs, around the heart: the distance of the farthest gate, on the square around
-     * the heart. The scan area of the heart is the limit (see {@link VillageLayout#SCAN_RADIUS}).
+     * The area of the repairs. A reference with an area gives it: the village inside its palisade, the palisade
+     * included. Else the area is a square around the heart, to the farthest gate: the scan area of the heart is the
+     * limit (see {@link VillageLayout#SCAN_RADIUS}).
      */
-    private static int areaRadius(VillageHeartBlockEntity heart) {
+    private static Predicate<BlockPos> area(VillageHeartBlockEntity heart, VillageReference reference) {
+        if (reference.area().isPresent()) {
+            return reference::isInArea;
+        }
         BlockPos heartPos = heart.getBlockPos();
         int gates = heart.getLayout().gates().stream().mapToInt(gate -> squareDistance(heartPos, gate)).max()
                 .orElse(VillageLayout.SCAN_RADIUS);
-        return Math.min(gates, VillageLayout.SCAN_RADIUS);
+        int radius = Math.min(gates, VillageLayout.SCAN_RADIUS);
+        return pos -> squareDistance(heartPos, pos) <= radius;
     }
 
     private static int squareDistance(BlockPos center, BlockPos pos) {

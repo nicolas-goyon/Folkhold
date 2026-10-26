@@ -1,33 +1,56 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderGetter;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
+import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 
 /**
  * The reference state of a village for the repairs (see {@link VillageRepairs}): the structure pieces of the village
- * at the generation. Each piece is a structure template at a position, with a turn. The pieces come in the order of
- * the generation: a piece replaces the blocks of the pieces before it.
+ * at the generation.
  *
- * @param pieces the pieces of the village
+ * <ul>
+ *   <li>A template piece is a structure template at a position, with a turn. The template pieces come in the order of
+ *       the generation: a piece replaces the blocks of the pieces before it. A piece that follows the terrain (the
+ *       streets) is not a part of the reference: its blocks go to the height of the terrain.</li>
+ *   <li>A palisade is a segment of the palisade: the base block and the logs of each column (see
+ *       {@link PalisadePiece}). The point on top of a column and the foundation under it are not a part of the
+ *       reference. The logs above the first {@link PalisadeHeights#LOGS} logs are not a part of it too.</li>
+ *   <li>The area is the box of the village inside its palisade, the palisade included, from the lowest to the highest
+ *       template piece. A village with no palisade pieces has no area.</li>
+ * </ul>
+ *
+ * @param pieces    the template pieces of the village
+ * @param palisades the segments of the palisade
+ * @param area      the box of the village inside its palisade, or empty
  */
-public record VillageReference(List<Piece> pieces) {
+public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area) {
     /**
      * A structure piece of a village.
      *
@@ -41,13 +64,83 @@ public record VillageReference(List<Piece> pieces) {
         }
     }
 
+    /**
+     * A segment of the palisade of a village: a straight line of columns.
+     *
+     * @param start the base of the first column
+     * @param stepX the X step from a column to the next one
+     * @param stepZ the Z step from a column to the next one
+     * @param bases the Y of the base of each column
+     * @param base  the base block
+     * @param log   the log block
+     */
+    public record Palisade(BlockPos start, int stepX, int stepZ, List<Integer> bases, BlockState base,
+            BlockState log) {
+        public Palisade {
+            start = start.immutable();
+            bases = List.copyOf(bases);
+        }
+
+        /** The palisade of a structure piece. */
+        public static Palisade of(PalisadePiece piece) {
+            int[] bases = piece.bases();
+            List<Integer> list = new ArrayList<>(bases.length);
+            for (int base : bases) {
+                list.add(base);
+            }
+            return new Palisade(new BlockPos(piece.startX(), bases[0], piece.startZ()), piece.stepX(), piece.stepZ(),
+                    list, piece.blocks().base(), piece.blocks().log());
+        }
+
+        /** The blocks of the palisade: the base block and the logs of each column. */
+        public Map<BlockPos, BlockState> blocks() {
+            Map<BlockPos, BlockState> blocks = new LinkedHashMap<>();
+            for (int i = 0; i < bases.size(); i++) {
+                int x = start.getX() + stepX * i;
+                int z = start.getZ() + stepZ * i;
+                int y = bases.get(i);
+                blocks.put(new BlockPos(x, y, z), base);
+                for (int log = 1; log <= PalisadeHeights.LOGS; log++) {
+                    blocks.put(new BlockPos(x, y + log, z), this.log);
+                }
+            }
+            return blocks;
+        }
+    }
+
     public VillageReference {
         pieces = List.copyOf(pieces);
+        palisades = List.copyOf(palisades);
+    }
+
+    /** A reference with template pieces only: no palisade and no area. */
+    public VillageReference(List<Piece> pieces) {
+        this(pieces, List.of(), Optional.empty());
+    }
+
+    /** The blocks of all the palisades, in the order of the palisades. */
+    public Map<BlockPos, BlockState> palisadeBlocks() {
+        Map<BlockPos, BlockState> blocks = new LinkedHashMap<>();
+        for (Palisade palisade : palisades) {
+            blocks.putAll(palisade.blocks());
+        }
+        return blocks;
+    }
+
+    /**
+     * True if a position is in the area of the village, on the horizontal plane.
+     *
+     * @param pos the position
+     * @return true for a position in the area, or false for a village with no area
+     */
+    public boolean isInArea(BlockPos pos) {
+        return area.map(box -> pos.getX() >= box.minX() && pos.getX() <= box.maxX() && pos.getZ() >= box.minZ()
+                && pos.getZ() <= box.maxZ()).orElse(false);
     }
 
     /**
      * The reference of the village at a position: the pieces of the Folkhold village structure that contains the
-     * position. A piece that is not a structure template does not count.
+     * position. A piece that is not a structure template on the terrain or a palisade does not count.
      *
      * @param level the level
      * @param heart the position of the village heart
@@ -63,15 +156,43 @@ public record VillageReference(List<Piece> pieces) {
         if (!start.isValid()) {
             return Optional.empty();
         }
+        return of(level, start.getPieces());
+    }
+
+    /**
+     * The reference of the pieces of a village structure.
+     *
+     * @param level  the level
+     * @param pieces the pieces of the structure
+     * @return the reference, or empty if no piece counts
+     */
+    public static Optional<VillageReference> of(ServerLevel level, List<StructurePiece> pieces) {
         RegistryOps<Tag> ops = RegistryOps.create(NbtOps.INSTANCE, level.registryAccess());
-        List<Piece> pieces = new ArrayList<>();
-        for (StructurePiece piece : start.getPieces()) {
-            if (piece instanceof PoolElementStructurePiece pool) {
-                templateOf(ops, pool.getElement())
-                        .ifPresent(template -> pieces.add(new Piece(template, pool.getPosition(), pool.getRotation())));
+        List<Piece> templates = new ArrayList<>();
+        List<Palisade> palisades = new ArrayList<>();
+        List<BoundingBox> templateBoxes = new ArrayList<>();
+        List<BoundingBox> palisadeBoxes = new ArrayList<>();
+        for (StructurePiece piece : pieces) {
+            if (piece instanceof PoolElementStructurePiece pool
+                    && pool.getElement().getProjection() == StructureTemplatePool.Projection.RIGID) {
+                Optional<ResourceLocation> template = templateOf(ops, pool.getElement());
+                if (template.isPresent()) {
+                    templates.add(new Piece(template.get(), pool.getPosition(), pool.getRotation()));
+                    templateBoxes.add(pool.getBoundingBox());
+                }
+            } else if (piece instanceof PalisadePiece palisade) {
+                palisades.add(Palisade.of(palisade));
+                palisadeBoxes.add(palisade.getBoundingBox());
             }
         }
-        return pieces.isEmpty() ? Optional.empty() : Optional.of(new VillageReference(pieces));
+        if (templates.isEmpty()) {
+            return Optional.empty();
+        }
+        BoundingBox templateBox = BoundingBox.encapsulatingBoxes(templateBoxes).orElseThrow();
+        Optional<BoundingBox> area = BoundingBox.encapsulatingBoxes(palisadeBoxes)
+                .map(box -> new BoundingBox(box.minX(), templateBox.minY(), box.minZ(), box.maxX(),
+                        templateBox.maxY(), box.maxZ()));
+        return Optional.of(new VillageReference(templates, palisades, area));
     }
 
     /** The id of the template of a pool element, from the saved form of the element. */
@@ -82,5 +203,84 @@ public record VillageReference(List<Piece> pieces) {
                 .map(CompoundTag.class::cast)
                 .filter(tag -> tag.contains("location", Tag.TAG_STRING))
                 .map(tag -> ResourceLocation.tryParse(tag.getString("location")));
+    }
+
+    /** The reference as NBT data. */
+    public CompoundTag save() {
+        CompoundTag tag = new CompoundTag();
+        ListTag pieceList = new ListTag();
+        for (Piece piece : pieces) {
+            CompoundTag pieceTag = new CompoundTag();
+            pieceTag.putString("Template", piece.template().toString());
+            pieceTag.putLong("Origin", piece.origin().asLong());
+            pieceTag.putString("Rotation", piece.rotation().name());
+            pieceList.add(pieceTag);
+        }
+        tag.put("Pieces", pieceList);
+        ListTag palisadeList = new ListTag();
+        for (Palisade palisade : palisades) {
+            CompoundTag palisadeTag = new CompoundTag();
+            palisadeTag.putLong("Start", palisade.start().asLong());
+            palisadeTag.putInt("StepX", palisade.stepX());
+            palisadeTag.putInt("StepZ", palisade.stepZ());
+            palisadeTag.putIntArray("Bases", palisade.bases());
+            palisadeTag.put("Base", NbtUtils.writeBlockState(palisade.base()));
+            palisadeTag.put("Log", NbtUtils.writeBlockState(palisade.log()));
+            palisadeList.add(palisadeTag);
+        }
+        tag.put("Palisades", palisadeList);
+        area.ifPresent(box -> tag.putIntArray("Area",
+                new int[] {box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ()}));
+        return tag;
+    }
+
+    /**
+     * The reference from NBT data (see {@link #save()}).
+     *
+     * @param blocks the blocks of the game
+     * @param tag    the data
+     * @return the reference, or empty for data with no template piece
+     */
+    public static Optional<VillageReference> load(HolderGetter<Block> blocks, CompoundTag tag) {
+        List<Piece> pieces = new ArrayList<>();
+        ListTag pieceList = tag.getList("Pieces", Tag.TAG_COMPOUND);
+        for (int i = 0; i < pieceList.size(); i++) {
+            CompoundTag pieceTag = pieceList.getCompound(i);
+            ResourceLocation template = ResourceLocation.tryParse(pieceTag.getString("Template"));
+            Optional<Rotation> rotation = rotation(pieceTag.getString("Rotation"));
+            if (template != null && rotation.isPresent()) {
+                pieces.add(new Piece(template, BlockPos.of(pieceTag.getLong("Origin")), rotation.get()));
+            }
+        }
+        List<Palisade> palisades = new ArrayList<>();
+        ListTag palisadeList = tag.getList("Palisades", Tag.TAG_COMPOUND);
+        for (int i = 0; i < palisadeList.size(); i++) {
+            CompoundTag palisadeTag = palisadeList.getCompound(i);
+            int[] bases = palisadeTag.getIntArray("Bases");
+            if (bases.length > 0) {
+                List<Integer> list = new ArrayList<>(bases.length);
+                for (int base : bases) {
+                    list.add(base);
+                }
+                palisades.add(new Palisade(BlockPos.of(palisadeTag.getLong("Start")), palisadeTag.getInt("StepX"),
+                        palisadeTag.getInt("StepZ"), list,
+                        NbtUtils.readBlockState(blocks, palisadeTag.getCompound("Base")),
+                        NbtUtils.readBlockState(blocks, palisadeTag.getCompound("Log"))));
+            }
+        }
+        int[] box = tag.getIntArray("Area");
+        Optional<BoundingBox> area = box.length == 6
+                ? Optional.of(new BoundingBox(box[0], box[1], box[2], box[3], box[4], box[5]))
+                : Optional.empty();
+        return pieces.isEmpty() ? Optional.empty() : Optional.of(new VillageReference(pieces, palisades, area));
+    }
+
+    private static Optional<Rotation> rotation(String name) {
+        for (Rotation rotation : Rotation.values()) {
+            if (rotation.name().equals(name)) {
+                return Optional.of(rotation);
+            }
+        }
+        return Optional.empty();
     }
 }
