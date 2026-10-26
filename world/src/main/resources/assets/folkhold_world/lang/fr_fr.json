@@ -381,6 +381,8 @@
   "message.folkhold_world.inhabitant_no_trade": "%s ne fait pas de commerce. Le marchand du village fait du commerce.",
   "message.folkhold_world.builders.leave": "%s : Merci de sortir de la zone de travaux. Nous ne pouvons pas construire tant que vous y êtes.",
   "folkhold_world.configuration.showQuestHud": "HUD des quêtes",
+  "folkhold_world.configuration.showMapTerritories": "Territoires sur les cartes",
+  "folkhold_world.configuration.showMapVillages": "Villages sur les cartes",
   "message.folkhold_world.quest_board_no_village": "Ce tableau de quêtes n'est pas dans un village actif.",
   "message.folkhold_world.captain_refuses": "%s : Je n'ai pas de travail pour toi.",
   "message.folkhold_world.quest_accepted": "Quête acceptée : %s",
@@ -787,5 +789,6 @@
   "screen.folkhold_world.journal.route.mode_hint": "Approximatif : une ligne lissée au sol. Précis : une ligne sur le dessus de chaque bloc de la route, avec une marche à chaque changement de hauteur.",
   "screen.folkhold_world.journal.route.recalculate": "Recalculer",
   "screen.folkhold_world.journal.route.recalculate_hint": "Demande au serveur de recalculer la route, par exemple après la construction d'une route, d'un pont ou d'un tunnel. Les caravanes prennent aussi la nouvelle route.",
-  "screen.folkhold_world.journal.route.recalculate_busy": "Le serveur calcule la route."
+  "screen.folkhold_world.journal.route.recalculate_busy": "Le serveur calcule la route.",
+  "folkhold_world.map.territory": "%s (%s)"
 }

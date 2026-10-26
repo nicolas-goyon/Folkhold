@@ -47,5 +47,20 @@ versionRange = "[${geckolib_version},)"
 ordering = "AFTER"
 side = "BOTH"
 
+# Optional: the territories and the villages on the maps of Xaero's mods.
+[[dependencies.${mod_id}]]
+modId = "xaerominimap"
+type = "optional"
+versionRange = "[${xaero_minimap_min_version},)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.${mod_id}]]
+modId = "xaeroworldmap"
+type = "optional"
+versionRange = "[${xaero_world_map_min_version},)"
+ordering = "NONE"
+side = "CLIENT"
+
 [[accessTransformers]]
 file = "META-INF/accesstransformer.cfg"

@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.world.client.BankPillageScreen;
 import io.github.nicolasgoyon.folkhold.world.client.ClientQuestLog;
 import io.github.nicolasgoyon.folkhold.world.client.ClientRouteView;
 import io.github.nicolasgoyon.folkhold.world.client.ClientTerritory;
+import io.github.nicolasgoyon.folkhold.world.client.ClientTerritoryMap;
 import io.github.nicolasgoyon.folkhold.world.client.ConstructionGhost;
 import io.github.nicolasgoyon.folkhold.world.client.ConstructionScreen;
 import io.github.nicolasgoyon.folkhold.world.client.InfoScreen;
@@ -60,6 +61,8 @@ public final class ModNetwork {
                 (payload, context) -> ClientTerritory.set(payload));
         registrar.playToClient(TerritoryTitlePayload.TYPE, TerritoryTitlePayload.STREAM_CODEC,
                 (payload, context) -> TerritoryTitleHud.show(payload));
+        registrar.playToClient(TerritoryMapPayload.TYPE, TerritoryMapPayload.STREAM_CODEC,
+                (payload, context) -> ClientTerritoryMap.set(payload));
         registrar.playToClient(VillageInfoPayload.TYPE, VillageInfoPayload.STREAM_CODEC,
                 (payload, context) -> InfoScreen.open(payload));
         registrar.playToClient(VillageHeartPayload.TYPE, VillageHeartPayload.STREAM_CODEC,

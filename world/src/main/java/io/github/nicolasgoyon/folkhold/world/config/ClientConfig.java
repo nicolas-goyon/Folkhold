@@ -3,14 +3,16 @@ package io.github.nicolasgoyon.folkhold.world.config;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
- * Client configuration of the world mod: display options of each player. The territory HUD and the quest HUD show by
- * default.
+ * Client configuration of the world mod: display options of each player. The territory HUD, the quest HUD and the
+ * discovered territories and villages on the maps of Xaero's mods show by default.
  */
 public final class ClientConfig {
     public static final ModConfigSpec SPEC;
 
     public static final ModConfigSpec.BooleanValue SHOW_TERRITORY_HUD;
     public static final ModConfigSpec.BooleanValue SHOW_QUEST_HUD;
+    public static final ModConfigSpec.BooleanValue SHOW_MAP_TERRITORIES;
+    public static final ModConfigSpec.BooleanValue SHOW_MAP_VILLAGES;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -24,6 +26,16 @@ public final class ClientConfig {
                         "before their deadline.")
                 .translation(WorldConfig.KEY_PREFIX + "showQuestHud")
                 .define("showQuestHud", true);
+        SHOW_MAP_TERRITORIES = builder
+                .comment("Show the territories of the villages that you discovered on the maps of Xaero's Minimap",
+                        "and Xaero's World Map, in the color of their faction.")
+                .translation(WorldConfig.KEY_PREFIX + "showMapTerritories")
+                .define("showMapTerritories", true);
+        SHOW_MAP_VILLAGES = builder
+                .comment("Show the villages that you discovered as waypoints of Xaero's Minimap. Xaero's World Map",
+                        "also shows them.")
+                .translation(WorldConfig.KEY_PREFIX + "showMapVillages")
+                .define("showMapVillages", true);
         SPEC = builder.build();
     }
 

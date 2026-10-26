@@ -2,6 +2,18 @@
 // The mod projects and the dev project apply this file, because the dev project resolves
 // the dependencies of all mods.
 repositories {
+    // Mods from Modrinth, for example Xaero's maps (optional integration).
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Modrinth'
+                url = 'https://api.modrinth.com/maven'
+            }
+        }
+        filter {
+            includeGroup 'maven.modrinth'
+        }
+    }
     maven {
         name = 'GeckoLib'
         url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
