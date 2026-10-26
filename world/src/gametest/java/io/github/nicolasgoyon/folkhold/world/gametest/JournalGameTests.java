@@ -8,7 +8,9 @@ import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.journal.JournalData;
 import io.github.nicolasgoyon.folkhold.world.journal.Journals;
 import io.github.nicolasgoyon.folkhold.world.journal.TerritoryMaps;
+import io.github.nicolasgoyon.folkhold.world.journal.TerritoryReliefs;
 import io.github.nicolasgoyon.folkhold.world.network.JournalPayload;
+import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryMapPayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.Optional;
@@ -94,6 +96,41 @@ public final class JournalGameTests {
         helper.assertTrue(after.others().stream().noneMatch(other -> other.id().equals(settlement.id())),
                 "The discovered village is not in the other settlements");
         helper.succeed();
+    }
+
+    /**
+     * The server calculates the relief of the map of the journal on the worker thread, then keeps it. The relief
+     * covers the territory of the discovered village.
+     */
+    @GameTest(template = "arena", batch = "journal_relief", timeoutTicks = 600)
+    public static void reliefOfTheJournalMap(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
+        VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+        heart.ensureSettlement();
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement settlement = Settlements.of(server, heart).orElseThrow();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        Journals.update(player, Optional.of(settlement), Optional.empty());
+        TerritoryMapPayload.Village village = TerritoryMaps.payload(player).villages().stream()
+                .filter(found -> found.id().equals(settlement.id())).findFirst().orElseThrow();
+
+        TerritoryReliefs.request(player);
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(TerritoryReliefs.known(player).isPresent(),
+                        "The worker thread must calculate the relief"))
+                .thenExecute(() -> {
+                    RoutePayload.Relief relief = TerritoryReliefs.known(player).orElseThrow();
+                    int reach = 16 * village.claimant().radius();
+                    int maxX = relief.minX() + (relief.width() - 1) * relief.cell();
+                    int maxZ = relief.minZ() + (relief.height() - 1) * relief.cell();
+                    server.getPlayerList().remove(player);
+                    helper.assertTrue(relief.minX() <= village.claimant().x() - reach
+                            && maxX >= village.claimant().x() + reach && relief.minZ() <= village.claimant().z() - reach
+                            && maxZ >= village.claimant().z() + reach, "The relief must cover the territory");
+                })
+                .thenSucceed();
     }
 
     /** A new id of a settlement keeps its place in the journals. */

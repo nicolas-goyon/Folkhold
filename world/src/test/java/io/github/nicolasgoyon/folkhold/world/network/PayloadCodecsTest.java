@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
@@ -73,6 +74,28 @@ class PayloadCodecsTest {
                 List.of(new Claimant("id-3", 180, -150, 2, 3)));
         assertEquals(payload, roundTrip(TerritoryMapPayload.STREAM_CODEC, payload));
         assertEquals(TerritoryMapPayload.EMPTY, roundTrip(TerritoryMapPayload.STREAM_CODEC, TerritoryMapPayload.EMPTY));
+    }
+
+    @Test
+    void mapRelief() {
+        RoutePayload.Relief relief = new RoutePayload.Relief(-120, 40, 8, 3, 2, new short[] {60, 61, 62, 70, 71, 72},
+                new byte[] {0, 0, 3, 0, 1, 0});
+        MapReliefPayload read = roundTrip(MapReliefPayload.STREAM_CODEC, MapReliefPayload.ready(relief));
+        RoutePayload.Relief copy = read.relief();
+        assertEquals(MapReliefPayload.Status.READY, read.status());
+        assertNotNull(copy);
+        assertEquals(List.of(-120, 40, 8, 3, 2),
+                List.of(copy.minX(), copy.minZ(), copy.cell(), copy.width(), copy.height()));
+        for (int j = 0; j < relief.height(); j++) {
+            for (int i = 0; i < relief.width(); i++) {
+                assertEquals(relief.floor(i, j), copy.floor(i, j));
+                assertEquals(relief.water(i, j), copy.water(i, j));
+            }
+        }
+        assertEquals(MapReliefPayload.PENDING, roundTrip(MapReliefPayload.STREAM_CODEC, MapReliefPayload.PENDING));
+        assertEquals(MapReliefPayload.EMPTY, roundTrip(MapReliefPayload.STREAM_CODEC, MapReliefPayload.EMPTY));
+        assertEquals(MapReliefRequestPayload.INSTANCE,
+                roundTrip(MapReliefRequestPayload.STREAM_CODEC, MapReliefRequestPayload.INSTANCE));
     }
 
     @Test

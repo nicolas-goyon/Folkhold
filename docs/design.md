@@ -719,7 +719,14 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
   - The minimap shows the discovered villages as waypoints. Xaero's World Map also shows them.
   - The client config hides the territories (`showMapTerritories`) or the waypoints of the villages (`showMapVillages`).
   - Xaero's mods are an optional dependency of the world mod. Their sessions close the list of the highlighters, thus the world mod adds its highlighters with reflection. An error in this hook stops the hook for the rest of the game, and the log gives the error.
-- **Planned (J6 · Village architecture)**: the journal (key J) gets a tab with a map: the territories, the villages, and the routes on request.
+- **Implemented** (`TerritoryMapWidget`, `TerritoryReliefs`): the tab "Map" of the journal (key J) shows the discovered territories and villages.
+  - The map has the relief of the area of the discovered territories, in the style of the map of a route. The floor has a light grey gradient, and the water is light blue. The worker thread of the routes calculates the relief from the chunk generator. The grid has 96 cells or less on the long side. The sides of the area are on multiples of 256 blocks, so a small change of the territories keeps the same relief. The server keeps the last 8 reliefs in memory.
+  - A territory has a light fill and a strong border in the color of its faction. A village has a mark in the color of its faction. The mark is a full square for a visited village and a ring for a village that the player only discovered. Ruins have a cross. The names of the villages show when they do not cover other names. A dot and a line show the player and the direction of the view.
+  - The player moves the map with the mouse or the arrow keys. The mouse wheel and the keys + and - zoom. The buttons show all the territories, put the player at the center, or zoom. The map keeps its position and its scale between two openings of the journal.
+  - A click on a village selects it. The tooltip of a village gives its faction, its state and its direction. The tooltip of a territory gives its village and its faction. A legend below the map gives the color of each faction.
+  - The button "Details" opens the selected village in the tab "Villages". In the tab "Villages", the button "Show on the map" opens the tab "Map" at the village.
+  - With Xaero's World Map, the button "World map" opens the world map of Xaero's at the selected village. With no selection, it opens at the center of the map. Escape goes back to the journal. Xaero's World Map has no public method for this: the world mod sets the camera of its screen with reflection.
+- **Planned**: the player shows or hides the layers of the map of the journal, for example the routes of the caravans.
 - The vanilla maps also show the territory borders and the known villages.
 - The player can update a map at a distance: a cartographer block, or a surveyor map that updates itself (for example each 10 minutes).
 - A **faction journal** shows the discovered factions and villages: reputation, relations, position, distance.

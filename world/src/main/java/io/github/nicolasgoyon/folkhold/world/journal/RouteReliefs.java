@@ -107,6 +107,22 @@ public final class RouteReliefs {
         int cell = Math.max(MIN_CELL, (span + CELLS - 2) / (CELLS - 1));
         int width = (spanX + 2 * margin) / cell + 2;
         int height = (spanZ + 2 * margin) / cell + 2;
+        return sample(terrain, minX, minZ, cell, width, height);
+    }
+
+    /**
+     * Samples the relief of a grid of cells: one column of the terrain at the center of each cell. On the worker
+     * thread.
+     *
+     * @param terrain the heights of the terrain
+     * @param minX    block X of the center of the first column of cells
+     * @param minZ    block Z of the center of the first row of cells
+     * @param cell    the size of a cell, in blocks
+     * @param width   the number of columns
+     * @param height  the number of rows
+     * @return the relief
+     */
+    static Relief sample(RouteFinder.HeightSource terrain, int minX, int minZ, int cell, int width, int height) {
         short[] floor = new short[width * height];
         byte[] water = new byte[width * height];
         for (int j = 0; j < height; j++) {
