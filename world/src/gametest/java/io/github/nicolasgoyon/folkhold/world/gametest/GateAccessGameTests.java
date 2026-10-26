@@ -144,9 +144,9 @@ public final class GateAccessGameTests {
     }
 
     /**
-     * An arm with the width of a street, in a terrain 6 blocks above its level: the arm removes the terrain and the
-     * blocks of the old street up to the surface. The middle gets a dirt path, and the edges get the surface block of
-     * the terrain (grass).
+     * An arm with the width of a street, in a terrain 6 blocks above its level: the arm removes the terrain, an ore and
+     * the blocks of the old street (a lantern) up to the surface. The middle gets a dirt path, and the edges get the
+     * surface block of the terrain (grass).
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "village_gate_access")
     public static void streetArmCutsToTheSurface(GameTestHelper helper) {
@@ -162,6 +162,8 @@ public final class GateAccessGameTests {
                 helper.setBlock(new BlockPos(x, surface, 1 + row), middle ? Blocks.DIRT_PATH : Blocks.GRASS_BLOCK);
             }
         }
+        helper.setBlock(new BlockPos(PATH_X, GROUND + 4, 3), Blocks.EMERALD_ORE);
+        helper.setBlock(new BlockPos(PATH_X + 2, surface + 1, 5), Blocks.LANTERN);
         BlockPos start = helper.absolutePos(new BlockPos(PATH_X, GROUND, 1));
         int[] levels = PathRamp.levels(start.getY(), absolute(helper, heights));
 
@@ -172,7 +174,7 @@ public final class GateAccessGameTests {
                 BlockPos top = new BlockPos(x, GROUND, 1 + row);
                 boolean middle = Math.abs(x - PATH_X) <= 1;
                 helper.assertBlockPresent(middle ? Blocks.DIRT_PATH : Blocks.GRASS_BLOCK, top);
-                for (int y = GROUND + 1; y <= surface; y++) {
+                for (int y = GROUND + 1; y <= surface + 1; y++) {
                     helper.assertBlockPresent(Blocks.AIR, new BlockPos(x, y, 1 + row));
                 }
             }
