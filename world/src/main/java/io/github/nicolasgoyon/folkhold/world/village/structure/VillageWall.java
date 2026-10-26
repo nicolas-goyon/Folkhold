@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.village.structure;
 
 import io.github.nicolasgoyon.folkhold.core.sim.village.HeightGrid;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
+import io.github.nicolasgoyon.folkhold.core.sim.village.PathRamp;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Box;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Cell;
@@ -42,9 +43,11 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>A tower or a gate is a structure template on the highest base under it. The bases near it go up again, so
  *       that the palisade has no high step next to it.</li>
  *   <li>Each segment of palisade is a {@link PalisadePiece}. A {@link VillagePathPiece} goes from each gate to the
- *       first piece of the pools on the axis.</li>
+ *       first piece of the pools on the axis: a ramp from the level of the gate to the terrain at the streets (see
+ *       {@link PathRamp}).</li>
  *   <li>{@link TerrainPiece}s make the terrain flat near the wall: along the palisade, in sections of
- *       {@link #SECTION} columns at their highest base, and in front of the gates, at the level of the gate.</li>
+ *       {@link #SECTION} columns at their highest base, and in front of the gates, at the level of the gate. The flat
+ *       terrain of a gate also clears its space: no terrain above the level of the gate.</li>
  *   <li>The water side: the top block of the terrain is water at the sea level or lower (see {@link #isWater}). On
  *       water, the palisade stands on its foundation, with no flat terrain along it. A gate that opens on water gets a
  *       {@link PierPiece} in front of it, and no flat terrain there.</li>
@@ -131,7 +134,7 @@ public final class VillageWall {
             pieces.add(palisade(layout, segment, smooth, settings.palisade()));
         }
         for (Gate gate : layout.gates()) {
-            path(layout, gate, boxes, terrain).ifPresent(pieces::add);
+            path(layout, gate, gateLevels.get(gate), boxes, terrain).ifPresent(pieces::add);
             if (waterGates.contains(gate)) {
                 pieces.add(pier(layout, gate, gateLevels.get(gate), terrain::height, seaLevel, settings.pier()));
             }
@@ -236,7 +239,7 @@ public final class VillageWall {
                 }
                 if (!onWater) {
                     pieces.add(across(layout.cell(side, from), layout.cell(side, to), side, FLAT_WIDTH, FLAT_WIDTH,
-                            ground));
+                            ground, false));
                 }
             }
         }
@@ -244,7 +247,7 @@ public final class VillageWall {
             int middle = layout.along(gate);
             pieces.add(across(layout.cell(gate.side(), middle - WallLayout.GATE / 2),
                     layout.cell(gate.side(), middle + WallLayout.GATE / 2), gate.side(),
-                    waterGates.contains(gate) ? 0 : APPROACH, ENTRANCE, gateLevels.get(gate)));
+                    waterGates.contains(gate) ? 0 : APPROACH, ENTRANCE, gateLevels.get(gate), true));
         }
         return pieces;
     }
@@ -253,7 +256,8 @@ public final class VillageWall {
      * A terrain piece across the line of a side, between 2 blocks of the line: it goes a number of blocks outside and
      * a number of blocks inside.
      */
-    private static TerrainPiece across(Cell first, Cell last, Side side, int outside, int inside, int ground) {
+    private static TerrainPiece across(Cell first, Cell last, Side side, int outside, int inside, int ground,
+            boolean clear) {
         int minX = Math.min(first.x(), last.x());
         int maxX = Math.max(first.x(), last.x());
         int minZ = Math.min(first.z(), last.z());
@@ -263,7 +267,7 @@ public final class VillageWall {
         int inX = side.insideX() * inside;
         int inZ = side.insideZ() * inside;
         return new TerrainPiece(minX + Math.min(outX, inX), minZ + Math.min(outZ, inZ), maxX + Math.max(outX, inX),
-                maxZ + Math.max(outZ, inZ), ground);
+                maxZ + Math.max(outZ, inZ), ground, clear);
     }
 
     /** The box of a structure piece on the horizontal plane. */
@@ -355,7 +359,7 @@ public final class VillageWall {
      * The path from a gate to the first piece of the pools on its axis. The path starts after the inner row of the
      * gate. Empty if the gate is next to a piece.
      */
-    private static Optional<VillagePathPiece> path(WallLayout layout, Gate gate, List<Box> boxes,
+    private static Optional<VillagePathPiece> path(WallLayout layout, Gate gate, int gateLevel, List<Box> boxes,
             Terrain terrain) {
         Side side = gate.side();
         Cell middle = layout.cell(side, layout.along(gate));
@@ -374,12 +378,12 @@ public final class VillageWall {
         if (length == 0) {
             return Optional.empty();
         }
-        int endX = startX + (length - 1) * side.insideX();
-        int endZ = startZ + (length - 1) * side.insideZ();
-        int low = Math.min(terrain.height(startX, startZ), terrain.height(endX, endZ));
-        int high = Math.max(terrain.height(startX, startZ), terrain.height(endX, endZ));
-        return Optional.of(new VillagePathPiece(startX, startZ, side.insideX(), side.insideZ(), length,
-                low - VillagePathPiece.SEARCH, high + VillagePathPiece.SEARCH));
+        int[] heights = new int[length];
+        for (int row = 0; row < length; row++) {
+            heights[row] = terrain.height(startX + row * side.insideX(), startZ + row * side.insideZ());
+        }
+        return Optional.of(new VillagePathPiece(startX, startZ, side.insideX(), side.insideZ(),
+                PathRamp.levels(gateLevel, heights)));
     }
 
     /**
