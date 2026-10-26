@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Section;
 import io.netty.buffer.Unpooled;
@@ -61,6 +62,17 @@ class PayloadCodecsTest {
                 List.of(section()), List.of(new AdminDetailsPayload.Stock("minecraft:bread", 40),
                         new AdminDetailsPayload.Stock("minecraft:iron_ingot", 3)), 2);
         assertEquals(payload, roundTrip(AdminDetailsPayload.STREAM_CODEC, payload));
+    }
+
+    @Test
+    void territoryMap() {
+        TerritoryMapPayload payload = new TerritoryMapPayload(List.of(
+                new TerritoryMapPayload.Village(new Claimant("id-1", 100, -200, 3, 4), 70, "Northam", "Ash", 0xAA5500),
+                new TerritoryMapPayload.Village(new Claimant("id-2", -900, 40, 1, 2), 64, "Ruinton", "Oak",
+                        0x00FF00)),
+                List.of(new Claimant("id-3", 180, -150, 2, 3)));
+        assertEquals(payload, roundTrip(TerritoryMapPayload.STREAM_CODEC, payload));
+        assertEquals(TerritoryMapPayload.EMPTY, roundTrip(TerritoryMapPayload.STREAM_CODEC, TerritoryMapPayload.EMPTY));
     }
 
     @Test

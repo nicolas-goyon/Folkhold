@@ -33,6 +33,7 @@ import net.minecraft.server.level.ServerPlayer;
  *   <li>The player discovers a faction with its first discovered village.</li>
  *   <li>The server keeps the journals in {@link JournalData}. The key of the journal (default J) asks for the journal
  *       of the player ({@link #request}).</li>
+ *   <li>After a discovery, the maps of the player show the new territory (see {@link TerritoryMaps}).</li>
  * </ul>
  */
 public final class Journals {
@@ -57,8 +58,12 @@ public final class Journals {
         MinecraftServer server = player.server;
         JournalData data = JournalData.get(server);
         long day = day(server);
-        territory.ifPresent(settlement -> data.discover(player.getUUID(), settlement.id(), day));
-        village.ifPresent(id -> data.visit(player.getUUID(), id, day));
+        boolean discovered = territory.map(settlement -> data.discover(player.getUUID(), settlement.id(), day))
+                .orElse(false);
+        boolean visited = village.map(id -> data.visit(player.getUUID(), id, day)).orElse(false);
+        if (discovered || visited) {
+            TerritoryMaps.update(player);
+        }
     }
 
     /** Sends the journal to a player. */

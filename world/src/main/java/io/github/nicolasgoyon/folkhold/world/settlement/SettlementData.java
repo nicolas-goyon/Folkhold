@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claima
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -108,6 +109,12 @@ public final class SettlementData extends SavedData {
             claimants = current;
         }
         return claims;
+    }
+
+    /** The settlements that claim chunks now: the claimants of {@link #claims()}. */
+    public List<Claimant> claimants() {
+        claims();
+        return Collections.unmodifiableList(claimants);
     }
 
     /** True if the discovery checked this placement region. */

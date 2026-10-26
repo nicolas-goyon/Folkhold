@@ -688,7 +688,13 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
 ## Maps and journal
 
 - The modpack contains Xaero's Minimap and Xaero's World Map. The key M opens the map of the explored world.
-- **Planned (J6 · Village architecture)**: the minimap and the world map of Xaero's show the territories and the known villages. The journal (key J) gets a tab with a map: the territories, the villages, and the routes on request. Xaero's mods are an optional dependency of the world mod.
+- **Implemented** (`TerritoryMaps`, `XaeroMaps`): the minimap and the world map of Xaero's show the territories of the discovered villages.
+  - The server sends to each player the discovered villages with a territory: the claim, the name, the faction and its color. It also sends the claims of the other settlements near them, with no name: the client calculates the borders as the server does. The server checks the map of a player every 5 seconds and after each discovery, and sends it only when it changes.
+  - A chunk of a discovered territory has the color of its faction: a light fill, and a strong line on the border. The tooltip of the chunk gives the village and its faction. The territories are only in the Overworld.
+  - The minimap shows the discovered villages as waypoints. Xaero's World Map also shows them.
+  - The client config hides the territories (`showMapTerritories`) or the waypoints of the villages (`showMapVillages`).
+  - Xaero's mods are an optional dependency of the world mod. Their sessions close the list of the highlighters, thus the world mod adds its highlighters with reflection. An error in this hook stops the hook for the rest of the game, and the log gives the error.
+- **Planned (J6 · Village architecture)**: the journal (key J) gets a tab with a map: the territories, the villages, and the routes on request.
 - The vanilla maps also show the territory borders and the known villages.
 - The player can update a map at a distance: a cartographer block, or a surveyor map that updates itself (for example each 10 minutes).
 - A **faction journal** shows the discovered factions and villages: reputation, relations, position, distance.
