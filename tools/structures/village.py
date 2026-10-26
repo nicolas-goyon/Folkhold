@@ -6,9 +6,10 @@ Output: world/src/main/resources/data/folkhold_world/structure/village/*.nbt
     python3 tools/structures/village.py
 
 Pieces:
-- center.nbt: the walled compound. Palisade, 4 corner towers with an archer post and a low parapet, 2 gates, paths,
-  a plaza with the village heart, 4 braziers, the alarm bell and the hall sign. The quest board (3 x 3 blocks) is at
-  the west end of the east-west path.
+- center.nbt: the walled compound. Palisade, 4 corner towers, 2 gates, paths, a plaza with the village heart,
+  4 braziers, the alarm bell and the hall sign. The quest board (3 x 3 blocks) is at the west end of the east-west
+  path. Each tower has an archer post on a platform with a low parapet and a roof. A straight stair of 2 rows along
+  the palisade goes up to the platform.
   4 jigsaw connectors for the house plots. A margin of 1 block around the compound holds the banners on the outer face of the palisade.
   The other margin positions are empty: the terrain stays.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
@@ -88,86 +89,156 @@ def cobble(rng):
 # ---------------------------------------------------------------- center (walled compound)
 
 SIZE = 39
-HEIGHT = 13
+HEIGHT = 14
 MID = SIZE // 2  # 19
 GATE = range(MID - 1, MID + 2)  # 18..20
 TOWER = 5
+# The platform of a tower: the archer post is in this layer, and the archer stands on it.
+PLATFORM_Y = 7
+# The corner posts of a tower go up to this layer. The roof starts above it.
+POST_TOP_Y = 10
 
 
 def tower(t, rng, tx, tz):
-    """Corner tower of 5 x 5 blocks with its lower corner at (tx, tz)."""
+    """Corner tower of 5 x 5 blocks with its lower corner at (tx, tz).
+
+    - The base: a cobblestone course, then spruce planks, with a spruce log at each corner. The corner logs go up to
+      the roof. A beam of stripped spruce logs is around the platform.
+    - The platform: the archer post in the middle, a low parapet of slabs (the archer shoots over it), and a roof of
+      dark oak on the corner posts.
+    - The stair: 2 rows of stairs along the palisade, from the ground of the compound to an opening in the parapet
+      (see tower_stair). Mobs walk up the stairs with no jump.
+    - A small room in the base, with a door to the compound.
+    """
     west_side = tx == 0
     north_side = tz == 0
+    inner_x = tx + TOWER - 1 if west_side else tx
+    # The 2 rows of the stair, next to the palisade, and the row of the door, away from the stair.
+    stair_rows = (tz + 1, tz + 2) if north_side else (tz + 3, tz + 2)
+    door_z = tz + 3 if north_side else tz + 1
     for dx in range(TOWER):
         for dz in range(TOWER):
             x, z = tx + dx, tz + dz
             t.set(x, 0, z, cobble(rng))
             ring = dx in (0, TOWER - 1) or dz in (0, TOWER - 1)
             corner = dx in (0, TOWER - 1) and dz in (0, TOWER - 1)
-            for y in range(1, 7):
+            for y in range(1, PLATFORM_Y):
                 if corner:
                     t.set(x, y, z, "minecraft:spruce_log", LOG_Y)
                 elif ring:
                     t.set(x, y, z, cobble(rng) if y <= 2 else "minecraft:spruce_planks")
                 else:
                     t.set(x, y, z, "minecraft:air")
-            t.set(x, 7, z, "minecraft:spruce_planks")
-            # Low parapet: the archer shoots over it. Logs at the corners, slabs between them.
+            if corner:
+                for y in range(PLATFORM_Y, POST_TOP_Y + 1):
+                    t.set(x, y, z, "minecraft:spruce_log", LOG_Y)
+                continue
             if ring:
-                if corner:
-                    t.set(x, 8, z, "minecraft:spruce_log", LOG_Y)
-                else:
-                    t.set(x, 8, z, "minecraft:spruce_slab", {"type": "bottom", "waterlogged": "false"})
+                axis = "x" if dz in (0, TOWER - 1) else "z"
+                t.set(x, PLATFORM_Y, z, "minecraft:stripped_spruce_log", {"axis": axis})
+                # Low parapet: the archer shoots over it.
+                t.set(x, PLATFORM_Y + 1, z, "minecraft:spruce_slab", {"type": "bottom", "waterlogged": "false"})
             else:
-                t.set(x, 8, z, "minecraft:air")
-            t.set(x, 9, z, "minecraft:air")
+                t.set(x, PLATFORM_Y, z, "minecraft:spruce_planks")
+                t.set(x, PLATFORM_Y + 1, z, "minecraft:air")
+            for y in range(PLATFORM_Y + 2, POST_TOP_Y + 1):
+                t.set(x, y, z, "minecraft:air")
+    tower_roof(t, tx, tz)
     # Arrow slits in the two outer faces.
     outer_x = tx if west_side else tx + TOWER - 1
     outer_z = tz if north_side else tz + TOWER - 1
     t.set(outer_x, 4, tz + 1, "minecraft:air")
     t.set(outer_x, 4, tz + 3, "minecraft:air")
     t.set(tx + 2, 4, outer_z, "minecraft:air")
-    # Door to the compound (2 blocks high) in the inner face along x.
-    inner_x = tx + TOWER - 1 if west_side else tx
-    t.set(inner_x, 1, tz + 2, "minecraft:air")
-    t.set(inner_x, 2, tz + 2, "minecraft:air")
-    spiral_stair(t, tx, tz, west_side)
-    # Archer post on the center pillar: the archer stands on the block above.
-    t.set(tx + 2, 7, tz + 2, WATCH_POST)
-    # Light inside the tower, under the platform, above the first steps.
+    # Door to the compound (2 blocks high) in the inner face along x, and a barrel in the room.
+    t.set(inner_x, 1, door_z, "minecraft:air")
+    t.set(inner_x, 2, door_z, "minecraft:air")
+    t.set(tx + 2, 1, stair_rows[0], "minecraft:barrel", {"facing": "up", "open": "false"})
+    tower_stair(t, rng, inner_x, west_side, stair_rows)
+    # Archer post in the middle of the platform: the archer stands on it.
+    t.set(tx + 2, PLATFORM_Y, tz + 2, WATCH_POST)
+    # Light of the room, under the archer post.
+    t.set(tx + 2, PLATFORM_Y - 1, tz + 2, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    # Light of the platform: a lantern under the roof, in the inner corner (the archer shoots to the outside).
     lamp_x = tx + 3 if west_side else tx + 1
-    t.set(lamp_x, 6, tz + 3, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
-    # Light on the platform: a lantern on the inner corner log (the archer shoots to the outside).
-    inner_z = tz + TOWER - 1 if north_side else tz
-    t.set(inner_x, 9, inner_z, "minecraft:lantern", {"hanging": "false", "waterlogged": "false"})
+    lamp_z = tz + 3 if north_side else tz + 1
+    t.set(lamp_x, POST_TOP_Y + 1, lamp_z, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
     # Light above the door, on the side of the compound.
     door_side = "east" if west_side else "west"
-    t.set(inner_x + (1 if west_side else -1), 3, tz + 2, *wall_torch(door_side))
+    t.set(inner_x + (1 if west_side else -1), 3, door_z, *wall_torch(door_side))
 
 
-# The cells of the spiral stair in a west tower, as (dx, dz) inside the tower, from the door to the platform.
-# The first cell is the ground next to the door. Cell i is a column of i blocks. The last cell is at the level of
-# the platform.
-SPIRAL = [(3, 2), (3, 3), (2, 3), (1, 3), (1, 2), (1, 1), (2, 1), (3, 1)]
-PLATFORM_Y = 7
+def roof_stairs(dx, dz, low, high):
+    """The dark oak stairs of a ring of a pyramid roof, at (dx, dz) of the ring from low to high.
 
-
-def spiral_stair(t, tx, tz, west_side):
-    """Spiral stair of full blocks around the center pillar, from the door to the platform.
-
-    Mobs and players walk up and down it: each step is 1 block high, and each step has 3 blocks of free space
-    above it, so a mob can jump to the next step and walk down from it. The platform has an opening above the
-    high steps. The path finder does not use ladders.
+    Each stair faces the middle of the roof. A corner of the ring is an outer corner: its high quarter is toward the
+    middle.
     """
-    for y in range(1, PLATFORM_Y):
-        t.set(tx + 2, y, tz + 2, "minecraft:spruce_log", LOG_Y)
-    for i, (dx, dz) in enumerate(SPIRAL):
-        x = tx + (dx if west_side else TOWER - 1 - dx)
-        z = tz + dz
-        for y in range(1, i + 1):
-            t.set(x, y, z, "minecraft:spruce_planks")
-        for y in range(i + 1, min(i + 4, PLATFORM_Y + 1)):
-            t.set(x, y, z, "minecraft:air")
+    west, east, north, south = dx == low, dx == high, dz == low, dz == high
+    if north and west:
+        facing, shape = "south", "outer_left"
+    elif north and east:
+        facing, shape = "south", "outer_right"
+    elif south and west:
+        facing, shape = "north", "outer_right"
+    elif south and east:
+        facing, shape = "north", "outer_left"
+    elif west:
+        facing, shape = "east", "straight"
+    elif east:
+        facing, shape = "west", "straight"
+    elif north:
+        facing, shape = "south", "straight"
+    else:
+        facing, shape = "north", "straight"
+    return "minecraft:dark_oak_stairs", {"facing": facing, "half": "bottom", "shape": shape, "waterlogged": "false"}
+
+
+def tower_roof(t, tx, tz):
+    """Pyramid roof of dark oak on the corner posts of a tower: a ring of 5 x 5, a ring of 3 x 3 and a slab."""
+    for ring in range(2):
+        y = POST_TOP_Y + 1 + ring
+        low, high = ring, TOWER - 1 - ring
+        for dx in range(low, high + 1):
+            for dz in range(low, high + 1):
+                if dx in (low, high) or dz in (low, high):
+                    t.set(tx + dx, y, tz + dz, *roof_stairs(dx, dz, low, high))
+                else:
+                    t.set(tx + dx, y, tz + dz, "minecraft:air")
+    t.set(tx + 2, POST_TOP_Y + 3, tz + 2, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+
+
+# The number of stairs from the ground of the compound to the platform of a tower.
+STAIR_STEPS = PLATFORM_Y
+
+
+def tower_stair(t, rng, inner_x, west_side, rows):
+    """Straight stair of 2 rows along the palisade, from the ground of the compound to the platform of a tower.
+
+    The stair k (1 to STAIR_STEPS) is in layer k, on a base of cobblestone and spruce planks. The highest stair is
+    next to the tower, and an opening in the parapet leads to the platform. Mobs walk up the stairs with no jump,
+    and nothing is above the stairs. A path is at the foot of the stair.
+    """
+    toward = -1 if west_side else 1
+    facing = "west" if west_side else "east"
+    for z in rows:
+        for k in range(1, STAIR_STEPS + 1):
+            x = inner_x - toward * (STAIR_STEPS + 1 - k)
+            for y in range(1, k):
+                t.set(x, y, z, cobble(rng) if y == 1 else "minecraft:spruce_planks")
+            t.set(x, k, z, "minecraft:spruce_stairs", stairs(facing))
+            for y in range(k + 1, k + 4):
+                t.set(x, y, z, "minecraft:air")
+        t.set(inner_x - toward * (STAIR_STEPS + 1), 0, z, "minecraft:dirt_path")
+        # The opening in the parapet, above the beam of the platform.
+        t.set(inner_x, PLATFORM_Y + 1, z, "minecraft:air")
+
+
+def in_tower_stair(x, z):
+    """True if (x, z) is under a stair of a tower: no torch on the palisade there."""
+    rows = (1, 2, SIZE - 3, SIZE - 2)
+    span = range(TOWER, TOWER + STAIR_STEPS)
+    return z in rows and (x in span or SIZE - 1 - x in span)
 
 
 def palisade_column(t, rng, x, z, pointed):
@@ -202,12 +273,13 @@ def lamp_post(t, x, z):
 
 
 def palisade_torches(t):
-    """Wall torches on the inner face of the palisade, between the towers and the gates."""
+    """Wall torches on the inner face of the palisade, between the towers and the gates, not under the stairs."""
     for i in range(TOWER + 2, SIZE - TOWER - 1, 6):
         if i in GATE or i in (GATE[0] - 1, GATE[-1] + 1):
             continue
-        t.set(i, 3, 1, *wall_torch("south"))
-        t.set(i, 3, SIZE - 2, *wall_torch("north"))
+        if not in_tower_stair(i, 1):
+            t.set(i, 3, 1, *wall_torch("south"))
+            t.set(i, 3, SIZE - 2, *wall_torch("north"))
         t.set(1, 3, i, *wall_torch("east"))
         t.set(SIZE - 2, 3, i, *wall_torch("west"))
 
