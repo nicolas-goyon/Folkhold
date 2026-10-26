@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementRegistry;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.ArrayList;
@@ -177,6 +178,7 @@ public final class SettlementData extends SavedData {
                 }
                 entry.putIntArray("Gates", gates);
             }
+            entry.putInt("Beds", settlement.beds());
             entry.put("Economy", saveEconomy(settlement.economy()));
             list.add(entry);
         }
@@ -223,6 +225,7 @@ public final class SettlementData extends SavedData {
                 loadedGates.add(new Settlement.Gate(gates[g], gates[g + 1], gates[g + 2], gates[g + 3]));
             }
             settlement.setGates(loadedGates);
+            settlement.setBeds(entry.contains("Beds") ? entry.getInt("Beds") : VillagePlaces.UNKNOWN);
             loadEconomy(settlement.economy(), entry.getCompound("Economy"));
             if (data.registry.byId(settlement.id()).isEmpty()) {
                 data.registry.add(settlement);

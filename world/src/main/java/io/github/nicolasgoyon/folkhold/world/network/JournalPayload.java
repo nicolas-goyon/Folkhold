@@ -42,9 +42,12 @@ public record JournalPayload(List<Village> villages, List<Faction> factions, lon
      * @param reputation the tier of the player in the village
      * @param discovered the day of the discovery
      * @param lastVisit  the day of the last visit, or -1 if the player did not enter the village
+     * @param inhabitants the number of inhabitants that the village keeps
+     * @param places     the places of the inhabitants, or -1 before the first count of the beds of the village
      */
     public record Village(String id, String name, String factionId, Component faction, int level, Component tier,
-            boolean active, int x, int z, int distance, ReputationTier reputation, long discovered, long lastVisit) {
+            boolean active, int x, int z, int distance, ReputationTier reputation, long discovered, long lastVisit,
+            int inhabitants, int places) {
 
         /** True if the player entered the village. */
         public boolean visited() {
@@ -65,6 +68,8 @@ public record JournalPayload(List<Village> villages, List<Faction> factions, lon
             buf.writeEnum(village.reputation);
             buf.writeVarLong(village.discovered);
             buf.writeLong(village.lastVisit);
+            buf.writeVarInt(village.inhabitants);
+            buf.writeInt(village.places);
         }
 
         static Village read(RegistryFriendlyByteBuf buf) {
@@ -72,7 +77,7 @@ public record JournalPayload(List<Village> villages, List<Faction> factions, lon
                     ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf), buf.readVarInt(),
                     ComponentSerialization.TRUSTED_STREAM_CODEC.decode(buf), buf.readBoolean(), buf.readVarInt(),
                     buf.readVarInt(), buf.readVarInt(), buf.readEnum(ReputationTier.class), buf.readVarLong(),
-                    buf.readLong());
+                    buf.readLong(), buf.readVarInt(), buf.readInt());
         }
     }
 

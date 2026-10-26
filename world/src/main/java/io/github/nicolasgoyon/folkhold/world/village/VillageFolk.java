@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
@@ -40,8 +41,9 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
  *
  * <ul>
  *   <li>Each villager records the position of the heart of its village ({@link Merchants#VILLAGE_TAG}).</li>
- *   <li>The number of inhabitants is the population of the settlement, minus the merchants. The mod sets no
- *       maximum, except with the setting {@link WorldConfig#INHABITANT_LIMIT}.</li>
+ *   <li>The number of inhabitants is the population of the settlement, minus the merchants. The places of the
+ *       village are the maximum: the beds of its homes and the places of the hall (see {@link VillageBeds}). The
+ *       setting {@link WorldConfig#INHABITANT_LIMIT} can set a lower maximum.</li>
  *   <li>The first inhabitants are the builders and the handymen of the village ({@link WorldConfig#BUILDERS},
  *       {@link WorldConfig#HANDYMEN}): they work for the village, also in a small village. The builders build the
  *       construction sites of the village (see {@link BuilderSites}).</li>
@@ -196,14 +198,17 @@ public final class VillageFolk {
     }
 
     /**
-     * The target number of inhabitants: the population minus the merchants. The setting
-     * {@link WorldConfig#INHABITANT_LIMIT} can set a maximum (0: no maximum).
+     * The target number of inhabitants: the population minus the merchants, with the places of the village as the
+     * maximum (see {@link VillagePlaces}). The setting {@link WorldConfig#INHABITANT_LIMIT} can set a lower maximum
+     * (0: no maximum).
      *
      * @param settlement the settlement
      * @return the number of inhabitants
      */
     public static int inhabitantCount(Settlement settlement) {
-        int count = Math.max(0, settlement.economy().population() - Merchants.merchantCount(settlement));
+        int count = VillagePlaces.inhabitants(
+                settlement.economy().population() - Merchants.merchantCount(settlement), settlement.beds(),
+                VillageBeds.staff());
         int limit = WorldConfig.INHABITANT_LIMIT.get();
         return limit > 0 ? Math.min(limit, count) : count;
     }

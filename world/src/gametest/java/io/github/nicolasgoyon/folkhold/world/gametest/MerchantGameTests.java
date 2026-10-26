@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import java.util.Collections;
 import java.util.Comparator;
@@ -109,8 +110,8 @@ public final class MerchantGameTests {
     }
 
     /**
-     * A village with a large population has all its inhabitants: the mod sets no maximum. The workers show the job of
-     * the settlement. Of the other inhabitants, some are builders and handymen, and the rest have the inhabitant
+     * A village with a large population and a bed for each inhabitant has all its inhabitants. The workers show the job
+     * of the settlement. Of the other inhabitants, some are builders and handymen, and the rest have the inhabitant
      * profession.
      */
     @GameTest(template = "arena", timeoutTicks = 40, batch = "village_folk_large")
@@ -120,6 +121,8 @@ public final class MerchantGameTests {
         int jobSlots = 3;
         village.settlement().economy().setPopulation(population);
         village.settlement().economy().setJobs(Collections.nCopies(jobSlots, "folkhold_world:farmer"));
+        // The hall gives places to the builders and the handymen. The beds give the other places.
+        TestSupport.placeBeds(helper, population - Merchants.merchantCount(village.settlement()) - VillageBeds.staff());
         fill(helper, village);
 
         BlockPos heartPos = village.heart().getBlockPos();

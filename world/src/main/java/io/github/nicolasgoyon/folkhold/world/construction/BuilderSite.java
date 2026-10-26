@@ -1249,7 +1249,9 @@ public final class BuilderSite {
 
     /**
      * The end of the site. The builders leave. A site that did not finish removes its fences and its scaffolding now.
-     * The operator that placed the site gets the end of the construction: its client removes the ghost.
+     * After a finished site, the heart scans the village again: a new building can give places (see
+     * {@link VillageHeartBlockEntity#requestScan()}). The operator that placed the site gets the end of the
+     * construction: its client removes the ghost.
      */
     private void end(ServerLevel level, boolean finished) {
         for (BuilderWorker worker : workers.values()) {
@@ -1262,11 +1264,14 @@ public final class BuilderSite {
         if (!finished) {
             removeBlocks(level);
         }
-        Settlement village = ReadyChunks.isReady(level, heart)
-                && level.getBlockEntity(heart) instanceof VillageHeartBlockEntity found
-                ? economyOf(level, found) : null;
+        VillageHeartBlockEntity heartEntity = ReadyChunks.isReady(level, heart)
+                && level.getBlockEntity(heart) instanceof VillageHeartBlockEntity found ? found : null;
+        Settlement village = heartEntity != null ? economyOf(level, heartEntity) : null;
         if (village != null) {
             materials.giveBack(village, level.getServer());
+        }
+        if (finished && heartEntity != null) {
+            heartEntity.requestScan();
         }
         materials.withdrawOffers(level.getServer());
         if (repairReference != null) {
