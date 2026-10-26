@@ -135,6 +135,7 @@ public final class WorldConfig {
     public static final ModConfigSpec.BooleanValue CONSTRUCTION_FREE_REPAIRS;
     public static final ModConfigSpec.IntValue CONSTRUCTION_REPAIR_CHECK_SECONDS;
     public static final ModConfigSpec.IntValue CONSTRUCTION_CATCH_UP_STEPS;
+    public static final ModConfigSpec.BooleanValue CONSTRUCTION_GROWTH;
 
     public static final UnitStats GUARD;
     public static final UnitStats ARCHER;
@@ -726,6 +727,12 @@ public final class WorldConfig {
                         "were not loaded: this number of steps at most for each tick.")
                 .translation(KEY_PREFIX + "constructionCatchUpSteps")
                 .defineInRange("catchUpStepsPerTick", 32, 1, 4096);
+        CONSTRUCTION_GROWTH = builder
+                .comment("True: the builders of a village build a new home on a free plot of its streets when the",
+                        "village needs places: its population is more than the places of its beds and of its hall.",
+                        "The village looks for a free plot after the check of the repairs.")
+                .translation(KEY_PREFIX + "constructionGrowth")
+                .define("growth", true);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

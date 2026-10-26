@@ -30,5 +30,6 @@
         "Name": "minecraft:cobblestone"
       }
     }
-  }
+  },
+  "homes": "folkhold_world:village/homes"
 }

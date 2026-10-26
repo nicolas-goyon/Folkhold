@@ -28,7 +28,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSetting
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
 /**
- * The wall of a fortified village: the pieces of the wall around the pieces of the pools (see {@link WallLayout}).
+ * The wall of a fortified village: the pieces of the wall around the pieces of the pools, and around the space of a
+ * home on each free plot (see {@link WallLayout}).
  *
  * <ul>
  *   <li>A gate goes on each side, on the axis of the start piece: the streets go out of the start piece on these
@@ -63,20 +64,24 @@ public final class VillageWall {
     }
 
     /**
-     * The pieces of the wall around the pieces of a village.
+     * The pieces of the wall around the pieces of a village, and around the spaces that the village keeps for its
+     * growth.
      *
      * @param context  the context of the generation
      * @param village  the pieces of the pools
+     * @param reserved the spaces for later buildings, for example the homes of the free plots
      * @param center   the middle of the start piece
      * @param settings the settings of the wall
      * @return the pieces of the wall
      */
     public static List<StructurePiece> add(Structure.GenerationContext context, List<StructurePiece> village,
-            BlockPos center, WallSettings settings) {
+            List<BoundingBox> reserved, BlockPos center, WallSettings settings) {
         List<Box> boxes = village.stream().map(piece -> box(piece.getBoundingBox())).toList();
+        List<Box> inside = new ArrayList<>(boxes);
+        reserved.forEach(space -> inside.add(box(space)));
         List<Gate> gates = List.of(new Gate(Side.NORTH, center.getX()), new Gate(Side.EAST, center.getZ()),
                 new Gate(Side.SOUTH, center.getX()), new Gate(Side.WEST, center.getZ()));
-        WallLayout layout = WallLayout.plan(boxes, settings.margin(), settings.towerSpacing(), gates);
+        WallLayout layout = WallLayout.plan(inside, settings.margin(), settings.towerSpacing(), gates);
         Terrain terrain = new Terrain(context);
         int[] bases = bases(layout, terrain);
         StructureTemplateManager templates = context.structureTemplateManager();
