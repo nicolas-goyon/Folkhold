@@ -7,6 +7,8 @@ import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -18,6 +20,7 @@ import net.minecraft.world.level.block.BellBlock;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -34,18 +37,24 @@ import net.minecraft.world.phys.Vec3;
  *   <li><b>quest boards</b>: the middle part of each quest board. The heart starts the updates of their papers.</li>
  * </ul>
  *
+ * <p>The scan area is the area of the village structure (see {@link VillageReference#area()}), larger by
+ * {@link #AREA_MARGIN} block on each side. A heart with no village structure, or a village structure with no area,
+ * scans a box of {@link #SCAN_RADIUS} blocks around the heart.
+ *
  * <p>A saved layout with an other {@link #VERSION} is not valid: the heart scans the village again.
  *
  * <p>The scan reads only chunks that are ready (see {@link ReadyChunks}): it never waits for the generation of a
  * chunk.
  */
 public final class VillageLayout {
-    /** Horizontal scan radius around the heart, in blocks. The village structure is 39 × 39 blocks. */
+    /** Horizontal scan radius around a heart with no village structure, in blocks. */
     static final int SCAN_RADIUS = 24;
     private static final int SCAN_BELOW = 6;
     private static final int SCAN_ABOVE = 14;
+    /** The scan area is larger than the area of the village structure by this number of blocks on each side. */
+    static final int AREA_MARGIN = 1;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 6;
+    static final int VERSION = 7;
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -154,27 +163,74 @@ public final class VillageLayout {
     }
 
     /**
-     * True if all the chunks of the scan area around the heart are ready (see {@link ReadyChunks}).
+     * The scan area of a heart with no village structure: a box of {@link #SCAN_RADIUS} blocks around the heart.
+     *
+     * @param heartPos the position of the heart
+     * @return the box
+     */
+    public static BoundingBox defaultArea(BlockPos heartPos) {
+        return new BoundingBox(heartPos.getX() - SCAN_RADIUS, heartPos.getY() - SCAN_BELOW,
+                heartPos.getZ() - SCAN_RADIUS, heartPos.getX() + SCAN_RADIUS, heartPos.getY() + SCAN_ABOVE,
+                heartPos.getZ() + SCAN_RADIUS);
+    }
+
+    /**
+     * The scan area of a village: the area of the village structure with a margin, or the default area.
+     *
+     * @param heartPos  the position of the heart
+     * @param reference the reference of the village structure, or null
+     * @return the box
+     */
+    public static BoundingBox area(BlockPos heartPos, @Nullable VillageReference reference) {
+        return Optional.ofNullable(reference).flatMap(VillageReference::area)
+                .map(area -> area.inflatedBy(AREA_MARGIN))
+                .orElseGet(() -> defaultArea(heartPos));
+    }
+
+    /**
+     * True if all the chunks of the default scan area around a heart are ready (see {@link ReadyChunks}).
      *
      * @param level    the level
      * @param heartPos the position of the heart
      * @return true if a scan does not wait for a chunk
      */
     public static boolean isScanAreaReady(Level level, BlockPos heartPos) {
-        return ReadyChunks.isAreaReady(level, heartPos.getX() - SCAN_RADIUS, heartPos.getZ() - SCAN_RADIUS,
-                heartPos.getX() + SCAN_RADIUS, heartPos.getZ() + SCAN_RADIUS);
+        return isAreaReady(level, defaultArea(heartPos));
     }
 
     /**
-     * Scans the blocks around the heart and fills the lists again. If a chunk of the scan area is not ready, the
-     * method does nothing (see {@link #isScanAreaReady}).
+     * True if all the chunks of a scan area are ready (see {@link ReadyChunks}).
+     *
+     * @param level the level
+     * @param area  the scan area
+     * @return true if a scan does not wait for a chunk
+     */
+    public static boolean isAreaReady(Level level, BoundingBox area) {
+        return ReadyChunks.isAreaReady(level, area.minX(), area.minZ(), area.maxX(), area.maxZ());
+    }
+
+    /**
+     * Scans the blocks of the default area around the heart and fills the lists again (see
+     * {@link #scan(Level, BoundingBox)}).
      *
      * @param level    the level
      * @param heartPos the position of the heart
      * @return true if the scan occurred
      */
     public boolean scan(Level level, BlockPos heartPos) {
-        if (!isScanAreaReady(level, heartPos)) {
+        return scan(level, defaultArea(heartPos));
+    }
+
+    /**
+     * Scans the blocks of an area and fills the lists again. If a chunk of the area is not ready, the method does
+     * nothing (see {@link #isAreaReady}).
+     *
+     * @param level the level
+     * @param area  the scan area
+     * @return true if the scan occurred
+     */
+    public boolean scan(Level level, BoundingBox area) {
+        if (!isAreaReady(level, area)) {
             return false;
         }
         posts.clear();
@@ -185,8 +241,8 @@ public final class VillageLayout {
         bankChests.clear();
         bells.clear();
         questBoards.clear();
-        BlockPos min = heartPos.offset(-SCAN_RADIUS, -SCAN_BELOW, -SCAN_RADIUS);
-        BlockPos max = heartPos.offset(SCAN_RADIUS, SCAN_ABOVE, SCAN_RADIUS);
+        BlockPos min = new BlockPos(area.minX(), area.minY(), area.minZ());
+        BlockPos max = new BlockPos(area.maxX(), area.maxY(), area.maxZ());
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
             BlockState state = level.getBlockState(pos);
             if (state.is(ModBlocks.WATCH_POST.get())) {

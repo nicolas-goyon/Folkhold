@@ -1,24 +1,30 @@
 #!/usr/bin/env python3
 """Generate the structure files of the faction village (one culture: spruce, cobblestone, calcite).
 
-Output: world/src/main/resources/data/folkhold_world/structure/village/*.nbt
+Output:
+- world/src/main/resources/data/folkhold_world/structure/village/*.nbt: the pieces of the village structure.
+- world/src/gametest/resources/data/folkhold_world/structure/village/center.nbt: the compound of the GameTests.
 
     python3 tools/structures/village.py
 
-Pieces:
-- center.nbt: the walled compound. Palisade, 4 corner towers, 2 gates, paths, a plaza with the village heart,
-  4 braziers, the alarm bell and the hall sign. The quest board (3 x 3 blocks) is at the west end of the east-west
-  path. Each tower has an archer post on a platform with a low parapet and a roof. A straight stair of 2 rows along
-  the palisade goes up to the platform.
-  4 jigsaw connectors for the house plots. A margin of 1 block around the compound holds the banners on the outer face of the palisade.
-  The other margin positions are empty: the terrain stays.
+The village structure (type folkhold_world:fortified_village) puts the pieces of the jigsaw pools together, then it
+adds the palisade, the towers and the gates around them. Pieces:
+- plaza.nbt: the start piece. The village heart, 4 braziers, the alarm bell, the hall sign, the quest board and lamp
+  posts. 4 jigsaw connectors for the streets: the street to the north has the plot of the bank.
+- street.nbt, street_bank.nbt, street_end.nbt: the parts of a street. The paths follow the terrain. A segment has a
+  plot on each side, and a connector for the end of the street. The end has a lamp post on each edge.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
-- bank.nbt: the village bank. Its walls and its chests resist explosions. The first plot of the center piece
-  always gets the bank (pool village/bank). The other plots get houses.
+- bank.nbt: the village bank. Its walls and its chests resist explosions.
+- tower.nbt: a tower of the palisade, with the stair along the palisade. The outside of the template is to the west
+  and to the north: the shape of a corner tower. The towers between the corners use the same template.
+- gate.nbt: a gate of 3 blocks in the palisade. The outside of the template is to the north.
+The palisade comes from code: it follows the terrain.
+
+The compound of the GameTests (center.nbt) is a village in one piece: palisade, 4 corner towers, 2 gates, paths, a
+plaza with the village heart and 4 house plots.
 
 Conventions: y = 0 is the ground layer (foundations, floors, paths). y = 1 is the first layer above ground.
-The center piece gets a foundation of FOUNDATION layers under its ground layer (see with_foundation). The
-structure start height is -FOUNDATION (worldgen/structure/village.json).
+The compound gets a foundation of FOUNDATION layers under its ground layer (see with_foundation).
 """
 import os
 import random
@@ -27,8 +33,9 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from nbt import Template  # noqa: E402
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "..",
-                   "world", "src", "main", "resources", "data", "folkhold_world", "structure", "village")
+ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "world", "src")
+OUT = os.path.join(ROOT, "main", "resources", "data", "folkhold_world", "structure", "village")
+TEST_OUT = os.path.join(ROOT, "gametest", "resources", "data", "folkhold_world", "structure", "village")
 
 # The namespace of the structure, the pools and the jigsaw names, and the namespace of the Folkhold blocks.
 NS = "folkhold_world"
@@ -41,6 +48,13 @@ BANK_CHEST = f"{BLOCKS}:bank_chest"
 BANK_WALL = f"{BLOCKS}:bank_wall"
 PLOT = f"{NS}:plot"
 HOUSE_FRONT = f"{NS}:house_front"
+# The jigsaw names and the pools of the streets.
+STREET = f"{NS}:street"
+STREET_NEXT = f"{NS}:street_next"
+PLAZA_EXIT = f"{NS}:plaza_exit"
+STREET_ENDS_POOL = f"{NS}:village/street_ends"
+FIRST_STREETS_POOL = f"{NS}:village/streets_first"
+BANK_STREETS_POOL = f"{NS}:village/streets_bank"
 # The village heart gives the banner of the faction to each banner of the village.
 BANNER = "minecraft:white_banner"
 WALL_BANNER = "minecraft:white_wall_banner"
@@ -410,6 +424,151 @@ def center():
     return with_foundation(t, 1)
 
 
+# ---------------------------------------------------------------- pieces of the village structure
+
+PLAZA = 15
+PLAZA_MID = PLAZA // 2  # 7
+PLAZA_HEIGHT = 6
+# The streets are 5 blocks wide: a path of 3 blocks between two edges of terrain.
+STREET_WIDTH = 5
+STREET_LENGTH = 13
+STREET_END_LENGTH = 5
+# A house is 9 blocks wide: 4 blocks on each side of its connector.
+HOUSE_HALF_WIDTH = 4
+
+
+def plaza():
+    """The start piece: the plaza of the village heart, with a connector for a street on each side."""
+    rng = random.Random(11)
+    t = Template(PLAZA, PLAZA_HEIGHT, PLAZA)
+    t.fill(0, 1, 0, PLAZA - 1, PLAZA_HEIGHT - 1, PLAZA - 1, "minecraft:air")
+    lo, hi = 2, PLAZA - 3
+    for x in range(PLAZA):
+        for z in range(PLAZA):
+            if lo <= x <= hi and lo <= z <= hi:
+                border = x in (lo, hi) or z in (lo, hi)
+                t.set(x, 0, z, "minecraft:stone_bricks" if border else cobble(rng))
+            elif abs(x - PLAZA_MID) <= 1 or abs(z - PLAZA_MID) <= 1:
+                t.set(x, 0, z, path_block(rng))
+            else:
+                t.set(x, 0, z, "minecraft:grass_block", {"snowy": "false"})
+    t.set(PLAZA_MID, 0, PLAZA_MID, "minecraft:chiseled_stone_bricks")
+    t.set(PLAZA_MID, 1, PLAZA_MID, HEART)
+    # Alarm bell, next to the street to the west. The heart rings it in an alert.
+    t.set(PLAZA_MID - 4, 0, PLAZA_MID - 2, "minecraft:stone_bricks")
+    t.set(PLAZA_MID - 4, 1, PLAZA_MID - 2, "minecraft:bell",
+          {"attachment": "floor", "facing": "north", "powered": "false"})
+    for dx in (-3, 3):
+        for dz in (-3, 3):
+            t.set(PLAZA_MID + dx, 0, PLAZA_MID + dz, "minecraft:stone_bricks")
+            t.set(PLAZA_MID + dx, 1, PLAZA_MID + dz, f"{BLOCKS}:brazier", {"lit": "false"})
+    building_sign(t, PLAZA_MID + 2, 1, PLAZA_MID - 4, "hall")
+    # Quest board in the south-east part of the plaza, facing west to the heart: 3 columns x 3 rows. The columns go
+    # in the clockwise direction of the facing (north for west).
+    for column in range(3):
+        for row in range(3):
+            t.set(hi, 1 + row, hi - column, f"{BLOCKS}:quest_board",
+                  {"facing": "west", "column": str(column), "row": str(row), "papers": "0"})
+    for (x, z) in ((1, 1), (PLAZA - 2, 1), (1, PLAZA - 2)):
+        lamp_post(t, x, z)
+    # The connectors of the streets, in the middle of each side. The street to the north has the plot of the bank.
+    last = PLAZA - 1
+    t.jigsaw(PLAZA_MID, 0, 0, "north_up", PLAZA_EXIT, STREET, BANK_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(PLAZA_MID, 0, last, "south_up", PLAZA_EXIT, STREET, FIRST_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(0, 0, PLAZA_MID, "west_up", PLAZA_EXIT, STREET, FIRST_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(last, 0, PLAZA_MID, "east_up", PLAZA_EXIT, STREET, FIRST_STREETS_POOL, "minecraft:dirt_path")
+    return t
+
+
+def street_path(t, rng, length):
+    """The path of a street: 3 blocks wide, between two edges where the terrain stays."""
+    for z in range(length):
+        for x in range(1, STREET_WIDTH - 1):
+            t.set(x, 0, z, path_block(rng))
+
+
+def street(bank=False):
+    """A segment of street along z, with a plot on each side and a connector for the end of the street.
+
+    The segment follows the terrain (projection terrain_matching). The segment to the north has the plot of the bank
+    on its west side.
+    """
+    rng = random.Random(12 if bank else 13)
+    t = Template(STREET_WIDTH, 4, STREET_LENGTH)
+    street_path(t, rng, STREET_LENGTH)
+    mid = STREET_WIDTH // 2
+    t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
+    t.jigsaw(mid, 0, STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET, STREET_ENDS_POOL, "minecraft:dirt_path")
+    # The plots are near the end of the segment: the houses of 2 streets side by side do not touch.
+    plot_z = STREET_LENGTH - 1 - HOUSE_HALF_WIDTH
+    t.jigsaw(0, 1, plot_z, "west_up", PLOT, HOUSE_FRONT, BANK_POOL if bank else HOUSE_POOL, "minecraft:air")
+    t.jigsaw(STREET_WIDTH - 1, 1, plot_z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+    # A lamp post at the far end, on the east edge.
+    lamp_post(t, STREET_WIDTH - 1, STREET_LENGTH - 1)
+    return t
+
+
+def street_end():
+    """The end of a street: a short path with a lamp post on each edge. It has no connector for another segment.
+
+    The village structure adds the path from the end of the street to the gate.
+    """
+    rng = random.Random(14)
+    t = Template(STREET_WIDTH, 4, STREET_END_LENGTH)
+    street_path(t, rng, STREET_END_LENGTH)
+    mid = STREET_WIDTH // 2
+    t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
+    lamp_post(t, 0, STREET_END_LENGTH - 1)
+    lamp_post(t, STREET_WIDTH - 1, STREET_END_LENGTH - 1)
+    return t
+
+
+# The tower piece: the tower of 5 x 5 blocks and its stair of STAIR_STEPS stairs and a path, along the north side.
+TOWER_PIECE_LENGTH = TOWER + STAIR_STEPS + 1
+
+
+def tower_piece():
+    """A tower of the palisade with its stair. The outside of the template is to the west and to the north.
+
+    The village structure turns the template for each side. The palisade continues along the north side of the
+    stair (z = 0, from x = TOWER) and, at a corner, along the west side of the tower (x = 0, from z = TOWER).
+    """
+    rng = random.Random(15)
+    t = Template(TOWER_PIECE_LENGTH, HEIGHT, TOWER)
+    tower(t, rng, 0, 0)
+    return t
+
+
+GATE_WIDTH = 5
+GATE_DEPTH = 3
+GATE_HEIGHT = 7
+
+
+def gate_piece():
+    """A gate of 3 blocks in the palisade, with its 2 posts. The outside of the template is to the north (z = 0).
+
+    The palisade line is z = 1. The path goes through the gate, from z = 0 to z = 2.
+    """
+    rng = random.Random(16)
+    t = Template(GATE_WIDTH, GATE_HEIGHT, GATE_DEPTH)
+    line = 1
+    for x in range(1, GATE_WIDTH - 1):
+        for z in range(GATE_DEPTH):
+            t.set(x, 0, z, "minecraft:dirt_path")
+            for y in range(1, 4):
+                t.set(x, y, z, "minecraft:air")
+        t.set(x, 1, line, "minecraft:spruce_fence_gate",
+              {"facing": "north", "in_wall": "false", "open": "false", "powered": "false"})
+        t.set(x, 4, line, "minecraft:spruce_planks")
+        t.set(x, 5, line, "minecraft:spruce_slab", {"type": "bottom", "waterlogged": "false"})
+    for x in (0, GATE_WIDTH - 1):
+        t.set(x, 0, line, cobble(rng))
+        for y in range(1, 6):
+            t.set(x, y, line, "minecraft:stripped_spruce_log", LOG_Y)
+        t.set(x, 6, line, "minecraft:lantern", {"hanging": "false", "waterlogged": "false"})
+    return t
+
+
 # ---------------------------------------------------------------- houses
 
 W = 9   # x: 0..8
@@ -636,7 +795,12 @@ def bank():
 
 
 PIECES = {
-    "center": center,
+    "plaza": plaza,
+    "street": street,
+    "street_bank": lambda: street(bank=True),
+    "street_end": street_end,
+    "tower": tower_piece,
+    "gate": gate_piece,
     "house_cottage": cottage,
     "house_barracks": barracks,
     "house_forge": forge,
@@ -645,14 +809,21 @@ PIECES = {
 }
 
 
+# The pieces of the GameTests.
+TEST_PIECES = {
+    "center": center,
+}
+
+
 def main():
-    os.makedirs(OUT, exist_ok=True)
-    for name, build in PIECES.items():
-        path = os.path.join(OUT, name + ".nbt")
-        template = build()
-        connect_panes(template)
-        template.write(path)
-        print("wrote", os.path.normpath(path))
+    for folder, pieces in ((OUT, PIECES), (TEST_OUT, TEST_PIECES)):
+        os.makedirs(folder, exist_ok=True)
+        for name, build in pieces.items():
+            path = os.path.join(folder, name + ".nbt")
+            template = build()
+            connect_panes(template)
+            template.write(path)
+            print("wrote", os.path.normpath(path))
 
 
 if __name__ == "__main__":

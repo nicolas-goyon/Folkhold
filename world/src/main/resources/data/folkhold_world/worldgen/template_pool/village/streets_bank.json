@@ -1,12 +1,12 @@
 {
-  "fallback": "minecraft:empty",
+  "fallback": "folkhold_world:village/street_ends",
   "elements": [
     {
       "weight": 1,
       "element": {
         "element_type": "minecraft:single_pool_element",
-        "location": "folkhold_world:village/center",
-        "projection": "rigid",
+        "location": "folkhold_world:village/street_bank",
+        "projection": "terrain_matching",
         "processors": "minecraft:empty"
       }
     }

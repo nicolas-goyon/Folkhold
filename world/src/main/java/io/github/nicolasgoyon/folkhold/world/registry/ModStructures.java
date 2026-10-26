@@ -1,0 +1,42 @@
+package io.github.nicolasgoyon.folkhold.world.registry;
+
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
+import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
+import io.github.nicolasgoyon.folkhold.world.village.structure.VillagePathPiece;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.level.levelgen.structure.StructureType;
+import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceType;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+/**
+ * Structure types and structure piece types of the world mod.
+ */
+public final class ModStructures {
+    private static final DeferredRegister<StructureType<?>> TYPES =
+            DeferredRegister.create(Registries.STRUCTURE_TYPE, FolkholdWorld.MOD_ID);
+    private static final DeferredRegister<StructurePieceType> PIECES =
+            DeferredRegister.create(Registries.STRUCTURE_PIECE, FolkholdWorld.MOD_ID);
+
+    /** The faction village: the pieces of the jigsaw pools in a closed wall ({@link FortifiedVillageStructure}). */
+    public static final DeferredHolder<StructureType<?>, StructureType<FortifiedVillageStructure>> FORTIFIED_VILLAGE =
+            TYPES.register("fortified_village", () -> () -> FortifiedVillageStructure.CODEC);
+
+    /** A segment of the palisade of a village ({@link PalisadePiece}). */
+    public static final DeferredHolder<StructurePieceType, StructurePieceType> PALISADE =
+            PIECES.register("palisade", () -> PalisadePiece::new);
+
+    /** A path from a gate of a village to its streets ({@link VillagePathPiece}). */
+    public static final DeferredHolder<StructurePieceType, StructurePieceType> VILLAGE_PATH =
+            PIECES.register("village_path", () -> (StructurePieceType.ContextlessType) VillagePathPiece::new);
+
+    private ModStructures() {
+    }
+
+    public static void register(IEventBus modEventBus) {
+        TYPES.register(modEventBus);
+        PIECES.register(modEventBus);
+    }
+}

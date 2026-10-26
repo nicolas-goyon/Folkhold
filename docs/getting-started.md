@@ -219,8 +219,14 @@ python3 tools/structures/village.py
 
 The village has:
 
-- a center piece (`center.nbt`): palisade, 4 corner towers, 2 gates, paths, a plaza with the village heart, 4 braziers (`folkhold_blocks:brazier`) and the quest board, lamp posts and torches. Each tower has a watch post (archer post) on a platform with a roof. A stair of 2 rows along the palisade goes up to the platform. White banners hang on the outer face of the palisade. The village heart gives them the banner of the faction;
-- house pieces (`house_*.nbt`). Jigsaw connectors put up to 4 houses next to the main path.
+- a plaza (`plaza.nbt`), the start piece. It has the village heart, 4 braziers (`folkhold_blocks:brazier`), the alarm bell, the quest board, the sign of the hall and lamp posts. A jigsaw connector on each side goes to a street.
+- streets (`street.nbt`, `street_bank.nbt`, `street_end.nbt`): a segment with a plot on each side, then a short end with 2 lamp posts. The paths follow the terrain.
+- house pieces (`house_*.nbt`) and the bank (`bank.nbt`) for the plots. A plot can stay empty.
+- a tower (`tower.nbt`) and a gate (`gate.nbt`) for the wall. Each tower has a watch post (archer post) on a platform with a roof. A stair of 2 rows along the palisade goes up to the platform.
+
+The structure adds the wall around the pieces: the towers at the corners and between them, a gate on each side and the palisade. The palisade comes from code: it follows the terrain (see the design document).
+
+The GameTests use a village in one piece (`world/src/gametest/resources/data/folkhold_world/structure/village/center.nbt`): palisade, 4 corner towers, 2 gates, a plaza and 4 plots. The script makes it too.
 
 To see a village in the game: `/locate structure folkhold_world:village`, then `/tp` to the position.
 
