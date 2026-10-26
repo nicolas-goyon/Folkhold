@@ -219,7 +219,7 @@ python3 tools/structures/village.py
 
 The village has:
 
-- a center piece (`center.nbt`): palisade, 4 corner towers with a watch post (archer post), 2 gates, paths, a plaza with the village heart, 4 braziers (`folkhold_blocks:brazier`) and the quest board, lamp posts and torches. White banners hang on the outer face of the palisade. The village heart gives them the banner of the faction;
+- a center piece (`center.nbt`): palisade, 4 corner towers, 2 gates, paths, a plaza with the village heart, 4 braziers (`folkhold_blocks:brazier`) and the quest board, lamp posts and torches. Each tower has a watch post (archer post) on a platform with a roof. A stair of 2 rows along the palisade goes up to the platform. White banners hang on the outer face of the palisade. The village heart gives them the banner of the faction;
 - house pieces (`house_*.nbt`). Jigsaw connectors put up to 4 houses next to the main path.
 
 To see a village in the game: `/locate structure folkhold_world:village`, then `/tp` to the position.
