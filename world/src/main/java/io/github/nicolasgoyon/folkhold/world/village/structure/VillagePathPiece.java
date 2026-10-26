@@ -1,6 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.village.structure;
 
+import io.github.nicolasgoyon.folkhold.core.sim.village.PathRamp;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
+import java.util.Arrays;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.tags.BlockTags;
@@ -20,23 +22,29 @@ import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSeriali
 import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
 
 /**
- * A straight path of 3 blocks on the terrain, from a gate of a village to its streets. On each block, the top block of
- * the ground becomes a dirt path if it is a block of dirt. The plants above it go away. The path follows the
- * terrain: it does not change the terrain before the generation of the chunks.
+ * A straight path of 3 blocks, from a gate of a village to its streets. Each row of the path has a level: the Y of its
+ * top block (see {@link PathRamp}). Thus the path goes up or down by 1 block at most from a row to the next one, and a
+ * villager walks on it.
+ *
+ * <p>On each block of a row, the blocks of the terrain and the plants in the {@link TerrainPiece#CLEARANCE} blocks
+ * above the level go away. A hole under the level gets dirt, and the top block becomes a dirt path. The path does not
+ * change water, and it does not change the blocks of the other pieces.
  */
 public final class VillagePathPiece extends StructurePiece implements PieceBeardifierModifier {
-    /** The search of the ground goes this number of blocks above and below the terrain of the ends. */
+    /** The search of the ground goes this number of blocks below the level of a row. */
     public static final int SEARCH = 16;
+    /** A row fills water with dirt when the floor of the water is less than this number of blocks under the row. */
+    public static final int FILL_DEPTH = 3;
     /** The number of blocks on each side of the middle of the path. */
     private static final int HALF_WIDTH = 1;
-    /** The free blocks above the path. */
-    private static final int HEADROOM = 2;
 
     private final int startX;
     private final int startZ;
     private final int stepX;
     private final int stepZ;
     private final int length;
+    /** The level of each row: the Y of its top block. */
+    private final int[] levels;
 
     /**
      * Makes a path.
@@ -45,17 +53,16 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
      * @param startZ the Z of the middle of the first row
      * @param stepX  the X step from a row to the next one: -1, 0 or 1
      * @param stepZ  the Z step from a row to the next one: -1, 0 or 1
-     * @param length the number of rows, at least one
-     * @param minY   the lowest Y of the box of the piece
-     * @param maxY   the highest Y of the box of the piece
+     * @param levels the level of each row: the Y of its top block, at least one row
      */
-    public VillagePathPiece(int startX, int startZ, int stepX, int stepZ, int length, int minY, int maxY) {
-        super(ModStructures.VILLAGE_PATH.get(), 0, boundingBox(startX, startZ, stepX, stepZ, length, minY, maxY));
+    public VillagePathPiece(int startX, int startZ, int stepX, int stepZ, int[] levels) {
+        super(ModStructures.VILLAGE_PATH.get(), 0, boundingBox(startX, startZ, stepX, stepZ, levels));
         this.startX = startX;
         this.startZ = startZ;
         this.stepX = stepX;
         this.stepZ = stepZ;
-        this.length = length;
+        this.length = levels.length;
+        this.levels = levels.clone();
     }
 
     /** Loads a path. */
@@ -66,13 +73,21 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
         this.stepX = tag.getInt("StepX");
         this.stepZ = tag.getInt("StepZ");
         this.length = tag.getInt("Length");
+        this.levels = tag.getIntArray("Levels");
     }
 
-    private static BoundingBox boundingBox(int startX, int startZ, int stepX, int stepZ, int length, int minY,
-            int maxY) {
+    /** The level of each row: the Y of its top block. */
+    public int[] levels() {
+        return levels.clone();
+    }
+
+    private static BoundingBox boundingBox(int startX, int startZ, int stepX, int stepZ, int[] levels) {
+        int length = levels.length;
         if (length < 1) {
             throw new IllegalArgumentException("A path needs at least one row");
         }
+        int minY = Arrays.stream(levels).min().orElseThrow() - SEARCH;
+        int maxY = Arrays.stream(levels).max().orElseThrow() + TerrainPiece.CLEARANCE;
         int endX = startX + stepX * (length - 1);
         int endZ = startZ + stepZ * (length - 1);
         // The width goes across the direction of the path.
@@ -89,6 +104,7 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
         tag.putInt("StepX", stepX);
         tag.putInt("StepZ", stepZ);
         tag.putInt("Length", length);
+        tag.putIntArray("Levels", levels);
     }
 
     @Override
@@ -102,13 +118,71 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
                 int x = startX + stepX * row + acrossX * side;
                 int z = startZ + stepZ * row + acrossZ * side;
                 if (x >= box.minX() && x <= box.maxX() && z >= box.minZ() && z <= box.maxZ()) {
-                    placePath(level, pos, x, z);
+                    if (levels.length == length) {
+                        placeRow(level, pos, x, z, levels[row]);
+                    } else {
+                        placePath(level, pos, x, z);
+                    }
                 }
             }
         }
     }
 
-    /** Changes the top block of the ground into a dirt path, and removes the plants above it. */
+    /**
+     * Places a block of a row at its level: the space above it is clear, a hole under it gets dirt, and its top block
+     * becomes a dirt path. Shallow water at the level of the row gets dirt down to its floor. Deep water and water above
+     * the level of the row do not change.
+     */
+    private static void placeRow(WorldGenLevel level, BlockPos.MutableBlockPos pos, int x, int z, int top) {
+        if (!level.getFluidState(pos.set(x, top + 1, z)).isEmpty()) {
+            return;
+        }
+        if (!level.getFluidState(pos.set(x, top, z)).isEmpty() && !fillWater(level, pos, x, z, top)) {
+            return;
+        }
+        for (int y = top + 1; y <= top + TerrainPiece.CLEARANCE; y++) {
+            BlockState state = level.getBlockState(pos.set(x, y, z));
+            if (TerrainPiece.isTerrain(state) || TerrainPiece.isPlant(state)) {
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+            }
+        }
+        for (int y = top - 1; y > top - SEARCH; y--) {
+            BlockState state = level.getBlockState(pos.set(x, y, z));
+            if (!(state.isAir() || TerrainPiece.isPlant(state))) {
+                break;
+            }
+            level.setBlock(pos, Blocks.DIRT.defaultBlockState(), Block.UPDATE_CLIENTS);
+        }
+        BlockState state = level.getBlockState(pos.set(x, top, z));
+        if (state.isAir() || TerrainPiece.isPlant(state) || TerrainPiece.isTerrain(state)) {
+            level.setBlock(pos, Blocks.DIRT_PATH.defaultBlockState(), Block.UPDATE_CLIENTS);
+        }
+    }
+
+    /**
+     * Fills shallow water under the top block of a row with dirt, down to the floor of the water. Water is shallow when
+     * its floor is less than {@link #FILL_DEPTH} blocks under the row.
+     *
+     * @return true if the water is shallow: the top block of the row is dirt
+     */
+    private static boolean fillWater(WorldGenLevel level, BlockPos.MutableBlockPos pos, int x, int z, int top) {
+        int floor = top - 1;
+        while (floor > top - FILL_DEPTH && !level.getFluidState(pos.set(x, floor, z)).isEmpty()) {
+            floor--;
+        }
+        if (!level.getFluidState(pos.set(x, floor, z)).isEmpty()) {
+            return false;
+        }
+        for (int y = floor + 1; y <= top; y++) {
+            level.setBlock(pos.set(x, y, z), Blocks.DIRT.defaultBlockState(), Block.UPDATE_CLIENTS);
+        }
+        return true;
+    }
+
+    /**
+     * Changes the top block of the ground into a dirt path, and removes the plants above it: a block of a path with no
+     * levels in its data.
+     */
     private static void placePath(WorldGenLevel level, BlockPos.MutableBlockPos pos, int x, int z) {
         int top = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1;
         int ground = PalisadePiece.groundTop(level, pos, x, z, top, top - SEARCH);
@@ -120,7 +194,7 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
             return;
         }
         level.setBlock(pos, Blocks.DIRT_PATH.defaultBlockState(), Block.UPDATE_CLIENTS);
-        for (int y = ground + 1; y <= ground + HEADROOM; y++) {
+        for (int y = ground + 1; y <= ground + TerrainPiece.CLEARANCE; y++) {
             BlockState above = level.getBlockState(pos.set(x, y, z));
             if (!above.isAir() && above.canBeReplaced() && above.getFluidState().isEmpty()) {
                 level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);

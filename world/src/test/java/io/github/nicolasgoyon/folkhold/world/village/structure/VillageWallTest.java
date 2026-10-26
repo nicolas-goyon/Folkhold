@@ -102,7 +102,7 @@ class VillageWallTest {
     /**
      * The terrain is flat along the palisade, in sections of 2 columns at their highest base, on 2 blocks inside and
      * outside the line. In front of each gate, it is flat at the level of the gate, 6 blocks outside and 3 blocks
-     * inside.
+     * inside. The terrain of a gate also clears its space.
      */
     @Test
     void terrainIsFlatAlongThePalisadeAndAtTheGates() {
@@ -135,8 +135,10 @@ class VillageWallTest {
         BoundingBox gate = north.getBoundingBox();
         assertEquals(BASE - 2, north.ground(), "The terrain of a gate is at the level of the gate");
         assertEquals(new BoundingBox(-2, BASE - 2, outline.minZ() - 6, 2, gate.maxY(), outline.minZ() + 3), gate);
-        for (TerrainPiece piece : pieces) {
+        for (int i = 0; i < pieces.size(); i++) {
+            TerrainPiece piece = pieces.get(i);
             assertTrue(piece.getBeardifierBox().equals(piece.getBoundingBox()), "The terrain changes near the box");
+            assertEquals(i >= sections, piece.clears(), "Only the terrain of a gate clears its space: piece " + i);
         }
     }
 }
