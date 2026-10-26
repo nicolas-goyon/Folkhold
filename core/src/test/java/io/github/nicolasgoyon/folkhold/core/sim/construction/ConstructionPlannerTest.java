@@ -365,8 +365,9 @@ class ConstructionPlannerTest {
     }
 
     /**
-     * A house of two storeys: the floor of the upper storey is on the walls of the lower storey. The builder stands on
-     * the upper floor, and the scaffolding of the roof stands on it.
+     * A house of two storeys: the floor of the upper storey is on the walls of the lower storey. A villager walks into
+     * the house through the doorway, and goes up the steps to the upper floor. The builder stands on the upper floor,
+     * and the scaffolding of the roof stands on it.
      */
     @Test
     void theBuilderStandsOnTheFloorOfAnUpperStorey() {
@@ -384,16 +385,85 @@ class ConstructionPlannerTest {
                 blocks.put(pos(x, 11, z), BuildBlock.solid("minecraft:oak_planks"));
             }
         }
+        // The doorway, the steps from the lower floor to the upper floor, and the hole of the steps in the upper floor.
+        blocks.put(pos(0, 2, -4), BuildBlock.AIR);
+        blocks.put(pos(0, 3, -4), BuildBlock.AIR);
+        for (int step = 0; step < 4; step++) {
+            blocks.put(pos(-3 + step, 2 + step, 3), BuildBlock.solid(STONE));
+            blocks.put(pos(-3 + step, 6, 3), BuildBlock.AIR);
+        }
 
         Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
 
         assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
         boolean onUpperFloor = plan.steps().stream().anyMatch(step -> step.type() == StepType.PLACE
-                && step.stand().map(stand -> stand.y() == 7).orElse(false));
+                && step.stand().map(stand -> stand.y() == 7 && Math.abs(stand.x()) < 4 && Math.abs(stand.z()) < 4)
+                        .orElse(false));
         boolean scaffoldingOnUpperFloor = plan.steps().stream()
-                .anyMatch(step -> step.type() == StepType.PLACE_SCAFFOLDING && step.pos().y() == 7);
+                .anyMatch(step -> step.type() == StepType.PLACE_SCAFFOLDING && step.pos().y() == 7
+                        && Math.abs(step.pos().x()) < 4 && Math.abs(step.pos().z()) < 4);
         assertTrue(onUpperFloor, "The builder must stand on the upper floor");
         assertTrue(scaffoldingOnUpperFloor, "The scaffolding of the roof must stand on the upper floor");
+    }
+
+    /**
+     * A room with no way into it. For a block of the roof, the nearest position to stand is in the room. The builder
+     * stands out of the room, where a villager can walk from the ground.
+     */
+    @Test
+    void theBuilderStandsWhereAVillagerCanWalk() {
+        Map<BuildPos, BuildBlock> levelBlocks = new HashMap<>();
+        for (int x = 0; x <= 3; x++) {
+            for (int z = -2; z <= 2; z++) {
+                boolean wall = x == 0 || x == 3 || Math.abs(z) == 2;
+                for (int y = 1; y <= 2; y++) {
+                    if (wall) {
+                        levelBlocks.put(pos(x, y, z), BuildBlock.solid(STONE));
+                    }
+                }
+                levelBlocks.put(pos(x, 3, z), BuildBlock.solid(STONE));
+            }
+        }
+        BuildPos roof = pos(1, 3, 0);
+        Map<BuildPos, BuildBlock> blocks = Map.of(roof, BuildBlock.solid("minecraft:oak_planks"));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), level(levelBlocks), REACH);
+
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
+        assertEquals(Optional.of(pos(-1, 1, 0)), plan.steps().get(index(plan, StepType.REMOVE, roof)).stand());
+        assertEquals(Optional.of(pos(-1, 1, 0)), plan.steps().get(index(plan, StepType.PLACE, roof)).stand());
+    }
+
+    /**
+     * A tower with no way into it, and a block above its top. The plan does not put scaffolding in the tower: the
+     * columns stand out of the tower, where a villager can walk to their bottom.
+     */
+    @Test
+    void scaffoldingStandsWhereAVillagerCanWalk() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                boolean wall = Math.abs(x) == 2 || Math.abs(z) == 2;
+                for (int y = 1; y <= 5; y++) {
+                    blocks.put(pos(x, y, z), wall ? BuildBlock.solid(STONE) : BuildBlock.AIR);
+                }
+            }
+        }
+        BuildPos top = pos(1, 6, 0);
+        blocks.put(top, BuildBlock.solid("minecraft:oak_planks"));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), emptyLevel(), REACH);
+
+        assertTrue(plan.warnings().isEmpty(), plan.warnings().toString());
+        assertTrue(plan.count(StepType.PLACE_SCAFFOLDING) > 0, "The tower must need scaffolding");
+        for (Step step : plan.steps()) {
+            if (step.type() == StepType.PLACE_SCAFFOLDING) {
+                BuildPos cell = step.pos();
+                assertTrue(Math.abs(cell.x()) > 2 || Math.abs(cell.z()) > 2, "Scaffolding in the tower at " + cell);
+            }
+        }
+        BuildPos stand = plan.steps().get(index(plan, StepType.PLACE, top)).stand().orElseThrow();
+        assertTrue(stand.x() > 2 && REACH.contains(stand, top), "The builder stands at " + stand);
     }
 
     /** For a high pillar, the plan makes one scaffolding column higher, and makes no other column. */

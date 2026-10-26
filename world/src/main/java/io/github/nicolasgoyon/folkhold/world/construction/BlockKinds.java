@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.construction.BlockKind;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildBlock;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildPos;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Side;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Walk;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +36,7 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.CocoaBlock;
 import net.minecraft.world.level.block.CrossCollisionBlock;
 import net.minecraft.world.level.block.DiodeBlock;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FaceAttachedHorizontalDirectionalBlock;
 import net.minecraft.world.level.block.Fallable;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -65,6 +67,9 @@ import net.minecraft.world.level.block.state.properties.BellAttachType;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * Describes the blocks of the level for the construction plans. The description gives the kind of each block, its
@@ -84,6 +89,9 @@ import net.minecraft.world.level.material.FluidState;
  *   <li>A source of water or lava is a fluid. A flowing fluid is air: it comes back from its source. A waterlogged
  *       block gets its water at the end of the construction.</li>
  *   <li>A builder stands on a block with a full top face, and in a block with no collision and no fluid.</li>
+ *   <li>On its way to a position to stand, a builder walks as the path finder of a villager. It walks through a
+ *       block with no collision, a carpet, water and a wooden door. It walks on a block with its top at 1 block or
+ *       lower, for example a slab or stairs. A fence, a wall and a fluid other than water (lava) stop it.</li>
  * </ul>
  *
  * <p>The tags {@code folkhold_world:construction/support_below} and {@code folkhold_world:construction/support_above}
@@ -99,6 +107,8 @@ public final class BlockKinds {
      * construction does not keep the data of the other blocks, for example the items of a chest.
      */
     public static final TagKey<Block> KEEP_DATA = tag("construction/keep_data");
+    /** The margin of the comparisons of the heights of the collision shapes, in blocks. */
+    private static final double SHAPE_EPSILON = 1.0E-6;
     /** The faces of a vine, in the order of the search of its support. */
     private static final List<Direction> VINE_FACES = List.of(Direction.UP, Direction.NORTH, Direction.SOUTH,
             Direction.WEST, Direction.EAST);
@@ -126,7 +136,7 @@ public final class BlockKinds {
         if (block instanceof LiquidBlock || block instanceof BubbleColumnBlock) {
             if (!state.getFluidState().isSource()) {
                 return new BuildBlock(BuildBlock.AIR_STATE, BlockKind.AIR, Optional.empty(), false, Optional.empty(),
-                        true, Optional.empty(), Optional.empty(), false, false);
+                        true, Optional.empty(), Optional.empty(), false, false, walk(state));
             }
             return build(state, BlockKind.FLUID, Optional.empty(), false, Optional.empty(), true, data);
         }
@@ -275,7 +285,25 @@ public final class BlockKinds {
         boolean passable = fluid.isEmpty()
                 && state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).isEmpty();
         return new BuildBlock(serialize(state), kind, support, supportRequired, partner, primary, Optional.empty(),
-                data, floor, passable);
+                data, floor, passable, walk(state));
+    }
+
+    /**
+     * How a builder walks through a block or on it, as the path finder of a villager. The builder walks through a
+     * block that the path finder walks through, for example a carpet, and through a wooden door: a villager opens it.
+     * It walks on the other blocks, except a block with its top higher than 1 block (a fence, a wall) and a fluid
+     * other than water (lava).
+     */
+    static Walk walk(BlockState state) {
+        FluidState fluid = state.getFluidState();
+        if (!fluid.isEmpty() && !fluid.getType().isSame(Fluids.WATER)) {
+            return Walk.BLOCKED;
+        }
+        VoxelShape shape = state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
+        if (shape.isEmpty() || DoorBlock.isWoodenDoor(state) || state.isPathfindable(PathComputationType.LAND)) {
+            return Walk.THROUGH;
+        }
+        return shape.max(Direction.Axis.Y) > 1.0 + SHAPE_EPSILON ? Walk.BLOCKED : Walk.ON;
     }
 
     /** The state as text, with all its properties (see {@link ConstructionRun} for the reverse). */
