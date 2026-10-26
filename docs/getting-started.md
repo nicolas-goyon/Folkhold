@@ -211,7 +211,7 @@ The site of the project also has one file for each language (see [Site of the pr
 
 ## Structures
 
-The structure files of the village (`world/src/main/resources/data/folkhold_world/structure/village/`) come from a script. The script also writes the data files of the village structure: the structure (`worldgen/structure/village.json`), its template pools and its processor lists. Do not edit these files by hand. Change the script, then run it in the container:
+The structure files of the village (`world/src/main/resources/data/folkhold_world/structure/village/`) come from a script. The script also writes the data files of the village structure: the structure (`worldgen/structure/village.json`), its template pools, its processor lists and the tag of its biomes. Do not edit these files by hand. Change the script, then run it in the container:
 
 ```bash
 python3 tools/structures/village.py
@@ -226,7 +226,7 @@ The village has:
 
 The structure adds the wall around the pieces: the towers at the corners and between them, a gate on each side and the palisade. The palisade comes from code: it follows the terrain (see the design document).
 
-Each biome variant has the same pieces with other materials (`VARIANTS` in the script). The pieces, pools and processor lists of the base variant (spruce) are in the folders of the village. The files of another variant are in a subfolder with its name, for example `structure/village/plains/`.
+Each biome variant has the same pieces with other materials (`VARIANTS` in the script). The pieces, pools and processor lists of the base variant (spruce) are in the folders of the village. The files of another variant are in a subfolder with its name, for example `structure/village/plains/`. The biomes of the variants give the biomes of the village (`tags/worldgen/biome/has_village.json`): to add a biome, add it to a variant in the script.
 
 The GameTests use a village in one piece (`world/src/gametest/resources/data/folkhold_world/structure/village/center.nbt`): palisade, 4 corner towers, 2 gates, a plaza and 4 plots. The script makes it too.
 

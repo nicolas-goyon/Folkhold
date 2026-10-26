@@ -184,6 +184,91 @@
         }
       },
       "homes": "folkhold_world:village/savanna/homes"
+    },
+    {
+      "biomes": [
+        "minecraft:desert"
+      ],
+      "start_pool": "folkhold_world:village/desert/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/desert/tower",
+        "gate": "folkhold_world:village/desert/gate",
+        "processors": "folkhold_world:village/desert/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:cut_sandstone"
+          },
+          "base": {
+            "Name": "minecraft:sandstone"
+          },
+          "point": {
+            "Name": "minecraft:sandstone_wall"
+          },
+          "foundation": {
+            "Name": "minecraft:sandstone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:smooth_sandstone"
+          },
+          "post": {
+            "Name": "minecraft:cut_sandstone"
+          },
+          "rail": {
+            "Name": "minecraft:sandstone_wall"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/desert/homes"
+    },
+    {
+      "biomes": [
+        "minecraft:swamp",
+        "minecraft:mangrove_swamp"
+      ],
+      "start_pool": "folkhold_world:village/swamp/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/swamp/tower",
+        "gate": "folkhold_world:village/swamp/gate",
+        "processors": "folkhold_world:village/swamp/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:mangrove_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:mud_bricks"
+          },
+          "point": {
+            "Name": "minecraft:mangrove_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:mud_bricks"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:mangrove_planks"
+          },
+          "post": {
+            "Name": "minecraft:mangrove_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:mangrove_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/swamp/homes"
     }
   ]
 }
