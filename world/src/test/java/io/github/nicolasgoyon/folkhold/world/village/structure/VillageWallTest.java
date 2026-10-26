@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village.structure;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -188,18 +189,34 @@ class VillageWallTest {
     }
 
     /**
-     * A gate goes to a level that its arm reaches: an arm of 11 rows goes up or down by 10 blocks at most. A gate in
-     * this range, or with an arm with no end, keeps its level.
+     * A gate goes to a level that its arm reaches: an arm of 11 rows, with 2 rows on the flat terrain of the gate, goes
+     * up or down by 9 blocks at most. A gate in this range, or with an arm with no end, keeps its level.
      */
     @Test
     void gateGoesToALevelThatItsArmReaches() {
         VillageWall.Arm arm = new VillageWall.Arm(0, 0, 0, 1, 11, java.util.OptionalInt.of(BASE));
         VillageWall.Arm open = new VillageWall.Arm(0, 0, 0, 1, 11, java.util.OptionalInt.empty());
 
-        assertEquals(BASE + 10, VillageWall.reachable(BASE + 21, java.util.Optional.of(arm)), "Too high: down");
-        assertEquals(BASE - 10, VillageWall.reachable(BASE - 15, java.util.Optional.of(arm)), "Too low: up");
+        assertEquals(BASE + 9, VillageWall.reachable(BASE + 21, java.util.Optional.of(arm)), "Too high: down");
+        assertEquals(BASE - 9, VillageWall.reachable(BASE - 15, java.util.Optional.of(arm)), "Too low: up");
         assertEquals(BASE + 4, VillageWall.reachable(BASE + 4, java.util.Optional.of(arm)), "In the range");
         assertEquals(BASE + 21, VillageWall.reachable(BASE + 21, java.util.Optional.of(open)), "No end");
         assertEquals(BASE + 21, VillageWall.reachable(BASE + 21, java.util.Optional.empty()), "No arm");
+    }
+
+    /**
+     * The first rows of an arm are on the flat terrain behind the gate: they stay at the level of the gate. The ramp
+     * starts after them, and an arm can go up or down by its number of rows minus these rows.
+     */
+    @Test
+    void armKeepsTheLevelOfTheGateOnItsFlatTerrain() {
+        int[] heights = {BASE - 5, BASE - 5, BASE - 5, BASE - 5, BASE - 5, BASE - 3};
+
+        int[] levels = VillageWall.levels(BASE, heights);
+
+        assertArrayEquals(new int[] {BASE, BASE, BASE - 1, BASE - 2, BASE - 3, BASE - 3}, levels);
+        VillageWall.Arm arm = new VillageWall.Arm(0, 0, 0, 1, 6, java.util.OptionalInt.of(BASE));
+        assertEquals(BASE + 4, VillageWall.reachable(BASE + 9, java.util.Optional.of(arm)),
+                "6 rows, 2 of them flat: 4 blocks up at most");
     }
 }

@@ -19,6 +19,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.TerrainAdjustment;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
+import net.neoforged.neoforge.common.Tags;
 import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
 
 /**
@@ -30,9 +31,9 @@ import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
  * a street. On each block of a row:
  *
  * <ul>
- *   <li>The blocks above the level go away up to the surface of the column ({@code WORLD_SURFACE}): the terrain,
- *       the ores, the blocks of the old street and its lanterns. In the {@link TerrainPiece#CLEARANCE} blocks above
- *       the level, the blocks of the terrain, of the streets and the plants also go away. Water stays.</li>
+ *   <li>Above the level, up to the surface of the column ({@code WORLD_SURFACE}), the blocks of the terrain, the
+ *       ores, the plants, the blocks of the old street and its lights go away. Water and the blocks of the other pieces
+ *       stay.</li>
  *   <li>A hole under the level gets dirt.</li>
  *   <li>The top block of the middle becomes a dirt path, and a block of a street there stays. The top block of an edge
  *       becomes the surface block of the terrain of its column (grass, sand).</li>
@@ -190,8 +191,8 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
             if (TerrainPiece.isTerrain(state)) {
                 surface = state;
             }
-            boolean cut = y <= highest && !state.isAir() && state.getFluidState().isEmpty();
-            if (cut || TerrainPiece.isTerrain(state) || isStreet(state) || TerrainPiece.isPlant(state)) {
+            boolean ground = TerrainPiece.isTerrain(state) || state.is(Tags.Blocks.ORES) || isStreet(state);
+            if (ground || TerrainPiece.isPlant(state) || (y <= highest && isStreetLight(state))) {
                 level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
             }
         }
@@ -218,6 +219,11 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
         } else if (!isStreet(state)) {
             level.setBlock(pos, Blocks.DIRT_PATH.defaultBlockState(), Block.UPDATE_CLIENTS);
         }
+    }
+
+    /** True for a block of a street light: a lantern on a fence. */
+    static boolean isStreetLight(BlockState state) {
+        return state.is(Blocks.LANTERN) || state.is(BlockTags.FENCES);
     }
 
     /** True for a block of the path of a street on land: a dirt path, gravel or coarse dirt. */
