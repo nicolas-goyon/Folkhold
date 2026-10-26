@@ -119,6 +119,30 @@ public final class GateAccessGameTests {
         helper.succeed();
     }
 
+    /** A path on a flat terrain with a pool of shallow water: the path fills the pool with dirt and goes over it. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_gate_access")
+    public static void gatePathFillsShallowWater(GameTestHelper helper) {
+        int[] heights = new int[LENGTH];
+        for (int row = 0; row < LENGTH; row++) {
+            heights[row] = GROUND;
+            for (int x = PATH_X - 1; x <= PATH_X + 1; x++) {
+                helper.setBlock(new BlockPos(x, GROUND, 1 + row), Blocks.DIRT);
+            }
+        }
+        BlockPos pool = new BlockPos(PATH_X, GROUND, 4);
+        helper.setBlock(pool, Blocks.WATER);
+        BlockPos start = helper.absolutePos(new BlockPos(PATH_X, GROUND, 1));
+        int[] levels = PathRamp.levels(start.getY(), absolute(helper, heights));
+
+        place(helper, new VillagePathPiece(start.getX(), start.getZ(), 0, 1, levels));
+
+        helper.assertBlockPresent(Blocks.DIRT_PATH, pool);
+        helper.assertBlockPresent(Blocks.AIR, pool.above());
+        helper.assertBlockPresent(Blocks.DIRT_PATH, pool.north());
+        helper.assertBlockPresent(Blocks.DIRT_PATH, pool.south());
+        helper.succeed();
+    }
+
     /** The heights of the terrain as absolute Y values. */
     private static int[] absolute(GameTestHelper helper, int[] heights) {
         int base = helper.absolutePos(BlockPos.ZERO).getY();

@@ -33,6 +33,8 @@ import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
 public final class VillagePathPiece extends StructurePiece implements PieceBeardifierModifier {
     /** The search of the ground goes this number of blocks below the level of a row. */
     public static final int SEARCH = 16;
+    /** A row fills water with dirt when the floor of the water is less than this number of blocks under the row. */
+    public static final int FILL_DEPTH = 3;
     /** The number of blocks on each side of the middle of the path. */
     private static final int HALF_WIDTH = 1;
 
@@ -128,11 +130,14 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
 
     /**
      * Places a block of a row at its level: the space above it is clear, a hole under it gets dirt, and its top block
-     * becomes a dirt path. Water does not change.
+     * becomes a dirt path. Shallow water at the level of the row gets dirt down to its floor. Deep water and water above
+     * the level of the row do not change.
      */
     private static void placeRow(WorldGenLevel level, BlockPos.MutableBlockPos pos, int x, int z, int top) {
-        if (!level.getFluidState(pos.set(x, top, z)).isEmpty()
-                || !level.getFluidState(pos.set(x, top + 1, z)).isEmpty()) {
+        if (!level.getFluidState(pos.set(x, top + 1, z)).isEmpty()) {
+            return;
+        }
+        if (!level.getFluidState(pos.set(x, top, z)).isEmpty() && !fillWater(level, pos, x, z, top)) {
             return;
         }
         for (int y = top + 1; y <= top + TerrainPiece.CLEARANCE; y++) {
@@ -152,6 +157,26 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
         if (state.isAir() || TerrainPiece.isPlant(state) || TerrainPiece.isTerrain(state)) {
             level.setBlock(pos, Blocks.DIRT_PATH.defaultBlockState(), Block.UPDATE_CLIENTS);
         }
+    }
+
+    /**
+     * Fills shallow water under the top block of a row with dirt, down to the floor of the water. Water is shallow when
+     * its floor is less than {@link #FILL_DEPTH} blocks under the row.
+     *
+     * @return true if the water is shallow: the top block of the row is dirt
+     */
+    private static boolean fillWater(WorldGenLevel level, BlockPos.MutableBlockPos pos, int x, int z, int top) {
+        int floor = top - 1;
+        while (floor > top - FILL_DEPTH && !level.getFluidState(pos.set(x, floor, z)).isEmpty()) {
+            floor--;
+        }
+        if (!level.getFluidState(pos.set(x, floor, z)).isEmpty()) {
+            return false;
+        }
+        for (int y = floor + 1; y <= top; y++) {
+            level.setBlock(pos.set(x, y, z), Blocks.DIRT.defaultBlockState(), Block.UPDATE_CLIENTS);
+        }
+        return true;
     }
 
     /**
