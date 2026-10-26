@@ -2,12 +2,14 @@ package io.github.nicolasgoyon.folkhold.blocks.block;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import org.junit.jupiter.api.Test;
@@ -33,5 +35,18 @@ class BrazierBlockTest {
         assertEquals(0, state.getLightEmission(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
         assertEquals(BrazierBlock.LIGHT,
                 state.setValue(BrazierBlock.LIT, true).getLightEmission(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
+    }
+
+    /** A brazier can start to burn only if it does not burn and it is not in water. */
+    @Test
+    void brazierInWaterCannotBurn() {
+        BlockState state = ModBlocks.BRAZIER.get().defaultBlockState();
+        BlockState inWater = state.setValue(BrazierBlock.WATERLOGGED, true);
+
+        assertTrue(BrazierBlock.canLight(state));
+        assertFalse(BrazierBlock.canLight(state.setValue(BrazierBlock.LIT, true)));
+        assertFalse(BrazierBlock.canLight(inWater));
+        assertTrue(state.getFluidState().isEmpty());
+        assertTrue(inWater.getFluidState().is(Fluids.WATER));
     }
 }

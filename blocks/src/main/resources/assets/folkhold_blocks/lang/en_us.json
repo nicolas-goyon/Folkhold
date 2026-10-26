@@ -1,5 +1,5 @@
 {
-  "fml.menu.mods.info.description.folkhold_blocks": "Library of the Folkhold blocks: the blocks with no game logic. The other Folkhold mods add the features.",
+  "fml.menu.mods.info.description.folkhold_blocks": "Library of the Folkhold blocks. The blocks act as similar vanilla blocks. The other Folkhold mods add the game logic.",
   "block.folkhold_blocks.village_heart": "Village Heart",
   "block.folkhold_blocks.watch_post": "Watch Post",
   "block.folkhold_blocks.bank_chest": "Bank Chest",

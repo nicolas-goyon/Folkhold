@@ -83,7 +83,7 @@ flowchart TB
         abstract["Abstract layer<br/>always simulated, pure Java"]
         concrete["Concrete layer<br/>loaded chunks only"]
     end
-    blocks["blocks<br/>library of the blocks, no game logic"]
+    blocks["blocks<br/>library of the blocks, vanilla behavior"]
     world --> core
     world --> blocks
     events --> core
@@ -96,7 +96,7 @@ The balance mod has no dependency on `core` and stays usable alone. When the wor
 
 The concrete layer reads the blocks only in chunks that are ready: loaded and complete (`ReadyChunks`). On the server, `Level.isLoaded` is also true for a chunk that has a ticket and a generation that is not complete. A read in such a chunk stops the server thread until the generation is complete. For example, the village heart does its work only when all the chunks of its scan area (24 blocks around the heart) are ready.
 
-The blocks of all the mods are in the library `blocks` (mod `folkhold_blocks`). It has no dependency, except Minecraft and NeoForge. A block of the library has only its definition: shape, block states, placement of the parts, light, model, item, loot table, tags and names. The features of a block come from the other mods: block entity, click, scheduled tick, and actions when the block goes into the level or away. A mod registers one `BlockFeature` for a block (`BlockFeatures.register`). For example, the world mod gives the village heart its block entity, its screen and the destruction of the village. The ids `folkhold_world:<block>` of the blocks of the library resolve to the blocks of the library (registry aliases).
+The blocks of all the mods are in the library `blocks` (mod `folkhold_blocks`). It has no dependency, except Minecraft and NeoForge. A block of the library has its definition: shape, block states, placement of the parts, light, model, item, loot table, tags and names. It also has the behavior that a player expects from a similar vanilla block, with no other Folkhold mod. For example, a player lights and puts out a brazier as a campfire. The library has no game logic. The other mods add the features of a block: block entity, click, scheduled tick, and actions when the block goes into the level or away. A mod registers one `BlockFeature` for a block (`BlockFeatures.register`). For example, the world mod gives the village heart its block entity, its screen and the destruction of the village. The ids `folkhold_world:<block>` of the blocks of the library resolve to the blocks of the library (registry aliases).
 
 ## World mod: factions, diplomacy, territories
 
@@ -309,12 +309,13 @@ The construction system changes the blocks of the level into the blocks of a **t
 ### Shelter at night
 
 - At night, the guards light torches and braziers, close the gates and patrol the walls. A brazier (block of the library) is 1.5 blocks high, so the mobs do not jump on it, and it does not burn the entities. A campfire of the village layout becomes a brazier.
+- A player lights and puts out a brazier as a vanilla campfire. Flint and steel, a fire charge or a burning projectile lights it. A shovel, a water potion or water puts it out. A brazier in water does not burn. A brazier that a player places is lit, except in water.
 - Braziers: the handymen of the village light the braziers in the evening and put them out in the morning. The times come from the schedule of the vanilla villagers.
   - Evening: from the day time 11000, when the villagers stop their work, to the rest time of the villagers (12000).
   - Morning: from the end of the rest time (day time 10) to the day time 2000, when the villagers start their work.
   - A handyman takes the nearest brazier that no other handyman took. It walks to a position next to the brazier, looks at the brazier and uses it: the brazier changes.
   - A handyman works when it is awake and calm: not in bed, not in the rest time, not in a panic or a raid.
-  - The village heart lights the braziers that do not burn at the start of the night. In a village with no handymen, the heart puts out the braziers at the start of the day. In a village with handymen, the braziers burn until the handymen put them out. At the day time 2000, the heart puts out the braziers that burn.
+  - The village heart lights the braziers that do not burn at the start of the night. The heart and the handymen do not light a brazier in water. In a village with no handymen, the heart puts out the braziers at the start of the day. In a village with handymen, the braziers burn until the handymen put them out. At the day time 2000, the heart puts out the braziers that burn.
   - A handyman that cannot go to a brazier stops. No handyman tries this brazier again in the same period, and the heart changes it at the end of the period.
 - The village heart prevents monster spawns in its area.
 - Village cats stay near the gates and the center. The creepers run away from them. The player cannot tame them.
@@ -782,7 +783,7 @@ Java 21, NeoForge 1.21.1, Gradle with ModDevGradle. One repository contains the 
 ```
 Folkhold/
   core/          shared library: abstract simulation, territories, scheduler
-  blocks/        library of the blocks, with no game logic
+  blocks/        library of the blocks, with vanilla behavior and no game logic
   world/         factions, villages, economy, caravans, quests
   balance/       farms, villagers, chunk loading
   events/        earthquakes, collapses
