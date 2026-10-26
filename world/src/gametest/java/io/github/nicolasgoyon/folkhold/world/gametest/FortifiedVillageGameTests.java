@@ -127,9 +127,9 @@ public final class FortifiedVillageGameTests {
     }
 
     /**
-     * The biome selects the variant of the village: oak in the plains and the forest, birch in the birch forest,
-     * acacia in the savanna, sandstone in the desert, mangrove in the swamps, and the base variant (spruce) in the
-     * taiga and the snowy biomes. The structure has all these biomes. A generated village in the plains of the test
+     * The biome selects the variant of the village: oak in the plains, the meadow, the cherry grove and the forest,
+     * birch in the birch forest, acacia in the savanna, sandstone in the desert, mangrove in the swamps, and the base
+     * variant (spruce) in the taiga, the snowy biomes and the windswept hills. The structure has all these biomes. A generated village in the plains of the test
      * world has the pieces, the palisade and the homes of the plains, and the layout of the base variant at the same
      * place.
      */
@@ -146,7 +146,10 @@ public final class FortifiedVillageGameTests {
                 Map.entry(Biomes.SAVANNA, "village/savanna/plaza"), Map.entry(Biomes.DESERT, "village/desert/plaza"),
                 Map.entry(Biomes.SWAMP, "village/swamp/plaza"), Map.entry(Biomes.MANGROVE_SWAMP, "village/swamp/plaza"),
                 Map.entry(Biomes.TAIGA, "village/plaza"), Map.entry(Biomes.SNOWY_TAIGA, "village/plaza"),
-                Map.entry(Biomes.SNOWY_PLAINS, "village/plaza"));
+                Map.entry(Biomes.SNOWY_PLAINS, "village/plaza"), Map.entry(Biomes.WINDSWEPT_HILLS, "village/plaza"),
+                Map.entry(Biomes.WINDSWEPT_FOREST, "village/plaza"),
+                Map.entry(Biomes.WINDSWEPT_GRAVELLY_HILLS, "village/plaza"),
+                Map.entry(Biomes.CHERRY_GROVE, "village/plains/plaza"));
         expected.forEach((biome, plaza) -> {
             Holder<Biome> holder = biomes.getHolderOrThrow(biome);
             helper.assertTrue(structure.biomes().contains(holder), "The village must have the biome "

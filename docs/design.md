@@ -217,18 +217,18 @@ The Folkhold villages are the main settlements of a territory. A vanilla village
 - A style sets the architecture of the buildings and some traits of the units and the village.
 - Each style has **biome variants**: the buildings use the local materials (spruce in the taiga, sandstone in the desert).
   - **Implemented**: the variants of the village pieces for the biomes of the villages:
-    - oak in the plains, the sunflower plains, the meadow and the forest;
+    - oak in the plains, the sunflower plains, the meadow, the cherry grove and the forest;
     - birch in the birch forest;
     - acacia in the savanna;
     - sandstone in the desert, with doors and fence gates of jungle wood;
     - mangrove and mud bricks in the swamp and the mangrove swamp;
-    - spruce in the taiga, the snowy taiga and the snowy plains: the base variant. In the snowy biomes, the generation of the world adds the snow on the village.
+    - spruce in the taiga, the snowy taiga, the snowy plains and the windswept hills (the windswept hills, the windswept forest and the windswept gravelly hills): the base variant. In the snowy biomes, the generation of the world adds the snow on the village.
   - A variant replaces the wood of the walls, the floors, the frames, the doors and the fences. The desert and the swamp also replace the stones. The roofs stay of dark oak in all the variants.
   - The structure script (`tools/structures/village.py`) writes the pieces, the template pools and the processor lists of each variant, in a folder with the name of the variant. The jigsaw connectors of a piece use the pools of its variant. The script also writes the biomes of the village (the tag `#folkhold_world:has_village`): the biomes of all the variants.
   - The biome at the middle of the start piece selects the variant of a village (`variants` in the structure). At a given place, a village has the same layout in all the variants. The village gets the palisade, the piers and the stilts of its variant. The repairs use the pieces of the village, and the growth uses the homes of its variant.
 - The village adapts to the terrain:
   - coast and river: docks, boats, fishing huts, bridges;
-  - mountain and cliff: large houses against the cliff, terraces, walls that follow the terrain, or a village dug into the rock;
+  - mountain and cliff: large houses against the cliff, terraces, walls that follow the terrain, or a village dug into the rock. **Implemented**: the villages of the meadow, the cherry grove and the windswept hills, with the arms of the village as ramps (see "Villages"). The grove and the snowy slopes get no village: their surface has powder snow;
   - island: the wall follows the coast, piers are the access, stilt houses.
   - gates: the terrain outside a gate can be higher or lower than the gate. Then the heart builds cobblestone stairs once (at most 6 steps). Stairs that go down have a support under each step. For stairs that go up, the heart removes the terrain above each step.
 - A village is a group of pieces on the terrain (streets, houses, towers, walls), as the vanilla villages, not one large piece.
