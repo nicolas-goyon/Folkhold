@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 
 /**
@@ -41,7 +42,8 @@ import java.util.function.Predicate;
  *   <li>When there is no such position, the plan adds a column of scaffolding next to the block, on positions that
  *       the target does not fill. A column on the ground comes before a column on a block of the plan, then the
  *       column with the fewest new blocks: a column on top of an existing column makes it higher. The plan removes
- *       all the scaffolding at the end, from the top.</li>
+ *       each column after the last step that uses it, from the top. Thus the columns do not close a way for the next
+ *       steps, for example the way from a door to the rest of a room.</li>
  *   <li>With no way from the ground to a column, the builder goes directly to the nearest position to stand. With
  *       no position to stand, the plan adds a column with no way to it.</li>
  *   <li>The plan reports the problems of the target (see {@link PlanWarning}). Examples: a falling block above air,
@@ -155,16 +157,55 @@ public final class ConstructionPlanner {
             change(pos, block);
             placed.add(pos);
         }
-        for (int i = columns.size() - 1; i >= 0; i--) {
-            List<BuildPos> column = columns.get(i);
-            for (int j = column.size() - 1; j >= 0; j--) {
-                BuildPos cell = column.get(j);
-                steps.add(new Step(StepType.REMOVE_SCAFFOLDING, cell, BuildBlock.AIR_STATE, Optional.empty(),
-                        Optional.empty(), Optional.empty(), Optional.empty()));
-                change(cell, BuildBlock.AIR);
+        return new Plan(withColumnRemovals(), warnings);
+    }
+
+    /**
+     * The steps of the plan with the removal of the scaffolding. The columns at one position on the X axis and on the
+     * Z axis go together: a column on top of another column stands on it. They go after the last step that stands on
+     * them or that adds them, from the top. The steps after this step do not use these columns: the columns are not
+     * necessary for them, and the removal only opens ways.
+     */
+    private List<Step> withColumnRemovals() {
+        Map<Long, List<BuildPos>> stacks = new HashMap<>();
+        Map<BuildPos, Long> stackOf = new HashMap<>();
+        for (List<BuildPos> column : columns) {
+            for (BuildPos cell : column) {
+                long key = columnKey(cell);
+                stacks.computeIfAbsent(key, k -> new ArrayList<>()).add(cell);
+                stackOf.put(cell, key);
             }
         }
-        return new Plan(steps, warnings);
+        Map<Long, Integer> lastUse = new HashMap<>();
+        for (int i = 0; i < steps.size(); i++) {
+            Step step = steps.get(i);
+            Long stack = step.type() == StepType.PLACE_SCAFFOLDING ? stackOf.get(step.pos())
+                    : step.stand().map(stand -> stackOf.get(stand.below())).orElse(null);
+            if (stack != null) {
+                lastUse.merge(stack, i, Math::max);
+            }
+        }
+        // The stacks that go after each step, in a fixed order.
+        Map<Integer, Set<Long>> removalsAfter = new HashMap<>();
+        lastUse.forEach((stack, step) -> removalsAfter.computeIfAbsent(step, k -> new TreeSet<>()).add(stack));
+        List<Step> all = new ArrayList<>(steps.size() + stackOf.size());
+        for (int i = 0; i < steps.size(); i++) {
+            all.add(steps.get(i));
+            for (long stack : removalsAfter.getOrDefault(i, Set.of())) {
+                List<BuildPos> cells = new ArrayList<>(stacks.get(stack));
+                cells.sort(Comparator.comparingInt(BuildPos::y).reversed());
+                for (BuildPos cell : cells) {
+                    all.add(new Step(StepType.REMOVE_SCAFFOLDING, cell, BuildBlock.AIR_STATE, Optional.empty(),
+                            Optional.empty(), Optional.empty(), Optional.empty()));
+                }
+            }
+        }
+        return all;
+    }
+
+    /** The key of the column of a position: its position on the X axis and on the Z axis. */
+    private static long columnKey(BuildPos pos) {
+        return ((long) pos.x() << 32) | (pos.z() & 0xFFFFFFFFL);
     }
 
     /** Changes the block of a position for the next steps of the plan. */

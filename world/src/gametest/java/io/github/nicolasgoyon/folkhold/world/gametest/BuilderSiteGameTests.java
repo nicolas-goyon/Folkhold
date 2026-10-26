@@ -447,7 +447,8 @@ public final class BuilderSiteGameTests {
 
     /**
      * The builders build the cottage of the villages: the walls, the roof, the door and the windows, with scaffolding
-     * for the high blocks. The blocks of the level are the blocks of the template at the end.
+     * for the high blocks. The blocks of the level are the blocks of the template at the end. No builder falls: a
+     * scaffolding block goes only when no builder is on its column.
      */
     @GameTest(template = "arena_huge", timeoutTicks = 24000, batch = "builder_site_cottage", skyAccess = true)
     public static void buildersBuildTheCottage(GameTestHelper helper) {
@@ -478,10 +479,13 @@ public final class BuilderSiteGameTests {
                             new BlockPos(box.maxX(), box.maxY(), box.maxZ())));
                     List<BlockPos> leftovers = leftovers(level, box);
                     boolean alive = builders.stream().allMatch(Entity::isAlive);
+                    List<Float> health = builders.stream().map(Villager::getHealth).toList();
+                    boolean healthy = builders.stream().allMatch(builder -> builder.getHealth() >= builder.getMaxHealth());
                     cleanUp(helper, builders, from, to);
                     helper.assertTrue(differences.isEmpty(), "Blocks different from the template: " + differences);
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
                     helper.assertTrue(alive, "The builders must stay alive");
+                    helper.assertTrue(healthy, "The builders must not fall: their health is " + health);
                 })
                 .thenSucceed();
     }
