@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.Attitude;
+import io.github.nicolasgoyon.folkhold.core.sim.faction.CultureRegions;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionTrait;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -10,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.RiderEntity;
+import io.github.nicolasgoyon.folkhold.world.faction.CultureMap;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
@@ -82,6 +84,29 @@ public final class FactionGameTests {
         helper.assertTrue(faction.attitude() == Attitude.NEUTRAL, "An unknown attitude gives neutral");
         helper.assertTrue(faction.traits().equals(Set.of(FactionTrait.MERCHANT)),
                 "The known trait stays and the unknown trait is skipped: " + faction.traits());
+        helper.succeed();
+    }
+
+    /**
+     * A position belongs to a faction of the culture of its region. The culture of a region is the same for all the
+     * positions of the region, and it is a culture of the mod.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "faction_regions")
+    public static void ownerHasTheCultureOfTheRegion(GameTestHelper helper) {
+        FactionData data = FactionData.get(helper.getLevel().getServer());
+        CultureMap map = CultureMap.of(helper.getLevel());
+        BlockPos pos = helper.absolutePos(BlockPos.ZERO);
+        int start = CultureRegions.region(pos.getX()) * CultureRegions.REGION;
+        String culture = map.cultureAt(pos.getX(), pos.getZ());
+        boolean sameRegion = culture.equals(map.cultureAt(start, pos.getZ()))
+                && culture.equals(map.cultureAt(start + CultureRegions.REGION - 1, pos.getZ()));
+        boolean known = Cultures.byId(culture).isPresent();
+        String owner = data.ownerAt(pos).cultureId();
+
+        helper.assertTrue(known, "The culture of a region must be a culture of the mod: " + culture);
+        helper.assertTrue(sameRegion, "All the positions of a region must have the same culture");
+        helper.assertTrue(owner.equals(culture),
+                "The owner must have the culture of the region: " + owner + ", not " + culture);
         helper.succeed();
     }
 

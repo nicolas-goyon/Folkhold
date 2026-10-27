@@ -1,13 +1,18 @@
 package io.github.nicolasgoyon.folkhold.world.faction;
 
 import io.github.nicolasgoyon.folkhold.core.sim.faction.CultureInfo;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.util.List;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.entity.BannerPattern;
 
 /**
- * A culture: template of factions (colors, banner, name syllables).
+ * A culture: template of factions (colors, banner, name syllables, biomes of affinity).
  *
  * @param id           the culture id, for example {@code valeholm}
  * @param color        the primary color (RGB): tabards, map, messages
@@ -23,6 +28,15 @@ public record Culture(String id, int color, DyeColor bannerBase, List<BannerLaye
 
     /** One pattern layer of a banner. */
     public record BannerLayer(ResourceKey<BannerPattern> pattern, DyeColor color) {
+    }
+
+    /**
+     * The biomes of affinity of the culture: the tag {@code folkhold_world:culture/<id>}. The culture is frequent in
+     * the regions of these biomes (see {@link CultureMap}).
+     */
+    public TagKey<Biome> affinity() {
+        return TagKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
+                "culture/" + id));
     }
 
     /** Translation key of the culture name, for example {@code folkhold_world.culture.valeholm}. */
