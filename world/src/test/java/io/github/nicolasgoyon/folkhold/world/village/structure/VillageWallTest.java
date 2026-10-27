@@ -141,4 +141,65 @@ class VillageWallTest {
             assertEquals(i >= sections, piece.clears(), "Only the terrain of a gate clears its space: piece " + i);
         }
     }
+
+    /**
+     * An arm goes from the inner row of a gate to the first piece on its axis that is not a street, and ends at the
+     * level of the floor of this piece. A street on the axis does not stop it.
+     */
+    @Test
+    void armGoesThroughTheStreetsToThePlaza() {
+        WallLayout layout = layout();
+        Gate north = layout.gates().stream().filter(gate -> gate.side() == Side.NORTH).findFirst().orElseThrow();
+        int line = layout.outline().minZ();
+        VillageWall.Stop plaza = new VillageWall.Stop(new Box(-5, -5, 5, 5), BASE + 3);
+
+        VillageWall.Arm arm = VillageWall.arm(layout, north, List.of(plaza)).orElseThrow();
+
+        assertEquals(0, arm.startX());
+        assertEquals(line + 2, arm.startZ(), "The arm starts after the inner row of the gate");
+        assertEquals(0, arm.stepX());
+        assertEquals(1, arm.stepZ());
+        assertEquals(-5 - (line + 2), arm.length(), "The arm stops at the plaza");
+        assertEquals(BASE + 3, arm.end().orElseThrow(), "The arm ends at the level of the plaza");
+    }
+
+    /** With no piece on its axis, an arm stops at the outline and has no end level. */
+    @Test
+    void armWithNoPieceStopsAtTheOutline() {
+        WallLayout layout = layout();
+        Gate north = layout.gates().stream().filter(gate -> gate.side() == Side.NORTH).findFirst().orElseThrow();
+
+        VillageWall.Arm arm = VillageWall.arm(layout, north, List.of()).orElseThrow();
+
+        assertTrue(arm.end().isEmpty());
+        assertEquals(layout.outline().maxZ() + 1, arm.z(arm.length()), "The last row is on the outline");
+    }
+
+    /** The row of a plot: the distance from the gate along the arm, in the width of a street only. */
+    @Test
+    void rowOfAPositionIsItsDistanceAlongTheArm() {
+        VillageWall.Arm arm = new VillageWall.Arm(10, 20, 0, 1, 15, java.util.OptionalInt.empty());
+
+        assertEquals(4, arm.row(12, 24, VillageWall.STREET_HALF_WIDTH).orElseThrow(), "A plot on the east edge");
+        assertEquals(4, arm.row(8, 24, VillageWall.STREET_HALF_WIDTH).orElseThrow(), "A plot on the west edge");
+        assertTrue(arm.row(13, 24, VillageWall.STREET_HALF_WIDTH).isEmpty(), "Out of the width of the street");
+        assertTrue(arm.row(10, 19, VillageWall.STREET_HALF_WIDTH).isEmpty(), "Before the first row");
+        assertTrue(arm.row(10, 35, VillageWall.STREET_HALF_WIDTH).isEmpty(), "After the last row");
+    }
+
+    /**
+     * A gate goes to a level that its arm reaches: an arm of 11 rows goes up or down by 10 blocks at most. A gate in
+     * this range, or with an arm with no end, keeps its level.
+     */
+    @Test
+    void gateGoesToALevelThatItsArmReaches() {
+        VillageWall.Arm arm = new VillageWall.Arm(0, 0, 0, 1, 11, java.util.OptionalInt.of(BASE));
+        VillageWall.Arm open = new VillageWall.Arm(0, 0, 0, 1, 11, java.util.OptionalInt.empty());
+
+        assertEquals(BASE + 10, VillageWall.reachable(BASE + 21, java.util.Optional.of(arm)), "Too high: down");
+        assertEquals(BASE - 10, VillageWall.reachable(BASE - 15, java.util.Optional.of(arm)), "Too low: up");
+        assertEquals(BASE + 4, VillageWall.reachable(BASE + 4, java.util.Optional.of(arm)), "In the range");
+        assertEquals(BASE + 21, VillageWall.reachable(BASE + 21, java.util.Optional.of(open)), "No end");
+        assertEquals(BASE + 21, VillageWall.reachable(BASE + 21, java.util.Optional.empty()), "No arm");
+    }
 }

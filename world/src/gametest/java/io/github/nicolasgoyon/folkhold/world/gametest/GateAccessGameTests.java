@@ -143,6 +143,43 @@ public final class GateAccessGameTests {
         helper.succeed();
     }
 
+    /**
+     * An arm with the width of a street, in a terrain 6 blocks above its level: the arm removes the terrain and the
+     * blocks of the old street up to the surface. The middle gets a dirt path, and the edges get the surface block of
+     * the terrain (grass).
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_gate_access")
+    public static void streetArmCutsToTheSurface(GameTestHelper helper) {
+        int surface = GROUND + 6;
+        int[] heights = new int[LENGTH];
+        for (int row = 0; row < LENGTH; row++) {
+            heights[row] = GROUND;
+            for (int x = PATH_X - 2; x <= PATH_X + 2; x++) {
+                for (int y = GROUND; y < surface; y++) {
+                    helper.setBlock(new BlockPos(x, y, 1 + row), Blocks.STONE);
+                }
+                boolean middle = Math.abs(x - PATH_X) <= 1;
+                helper.setBlock(new BlockPos(x, surface, 1 + row), middle ? Blocks.DIRT_PATH : Blocks.GRASS_BLOCK);
+            }
+        }
+        BlockPos start = helper.absolutePos(new BlockPos(PATH_X, GROUND, 1));
+        int[] levels = PathRamp.levels(start.getY(), absolute(helper, heights));
+
+        place(helper, new VillagePathPiece(start.getX(), start.getZ(), 0, 1, levels, true));
+
+        for (int row = 0; row < LENGTH; row++) {
+            for (int x = PATH_X - 2; x <= PATH_X + 2; x++) {
+                BlockPos top = new BlockPos(x, GROUND, 1 + row);
+                boolean middle = Math.abs(x - PATH_X) <= 1;
+                helper.assertBlockPresent(middle ? Blocks.DIRT_PATH : Blocks.GRASS_BLOCK, top);
+                for (int y = GROUND + 1; y <= surface; y++) {
+                    helper.assertBlockPresent(Blocks.AIR, new BlockPos(x, y, 1 + row));
+                }
+            }
+        }
+        helper.succeed();
+    }
+
     /** The heights of the terrain as absolute Y values. */
     private static int[] absolute(GameTestHelper helper, int[] heights) {
         int base = helper.absolutePos(BlockPos.ZERO).getY();
