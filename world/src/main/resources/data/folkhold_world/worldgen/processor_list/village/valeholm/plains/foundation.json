@@ -1,0 +1,17 @@
+{
+  "processors": [
+    {
+      "processor_type": "folkhold_world:foundation",
+      "block": {
+        "Name": "minecraft:cobblestone"
+      },
+      "max_depth": 32,
+      "stilt": {
+        "Name": "minecraft:oak_log",
+        "Properties": {
+          "axis": "y"
+        }
+      }
+    }
+  ]
+}
