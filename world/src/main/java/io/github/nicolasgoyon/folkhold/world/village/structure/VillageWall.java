@@ -13,6 +13,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Tower;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots.Plot;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -76,6 +77,11 @@ public final class VillageWall {
     private static final int[] FRONT = {2, 4, 6};
     /** A gate opens on water when this number of the points in front of it are on water, or more. */
     static final int WATER_FRONT = 2;
+    /**
+     * The first rows of an arm on the flat terrain behind its gate: an arm starts 2 blocks inside the line, and the
+     * flat terrain goes {@link #ENTRANCE} blocks inside the line.
+     */
+    static final int FLAT_ROWS = ENTRANCE - 1;
     /** The number of blocks on each side of the middle of a street: the plots are at this distance. */
     static final int STREET_HALF_WIDTH = 2;
     /** A pier starts at this distance outside the line: after the outer row of the gate. */
@@ -483,7 +489,7 @@ public final class VillageWall {
             return level;
         }
         int end = arm.get().end().getAsInt();
-        int reach = (arm.get().length() - 1) * PathRamp.MAX_STEP;
+        int reach = Math.max(0, arm.get().length() - FLAT_ROWS) * PathRamp.MAX_STEP;
         return Math.max(end - reach, Math.min(end + reach, level));
     }
 
@@ -497,7 +503,28 @@ public final class VillageWall {
             heights[row] = terrain.height(arm.x(row), arm.z(row));
         }
         arm.end().ifPresent(end -> heights[heights.length - 1] = end);
-        return PathRamp.levels(gateLevel, heights);
+        return levels(gateLevel, heights);
+    }
+
+    /**
+     * The levels of the rows of an arm from the heights at its rows. The first {@link #FLAT_ROWS} rows are on the flat
+     * terrain of the gate: they stay at the level of the gate. The ramp starts at the last of these rows.
+     *
+     * @param gateLevel the level of the gate
+     * @param heights   the height of the terrain at each row, and the level of the piece at the end of the arm at the
+     *                  last row
+     * @return the level of each row
+     */
+    static int[] levels(int gateLevel, int[] heights) {
+        int flat = Math.min(FLAT_ROWS, heights.length);
+        int[] levels = new int[heights.length];
+        Arrays.fill(levels, 0, flat, gateLevel);
+        if (flat == 0 || flat == heights.length) {
+            return levels;
+        }
+        int[] ramp = PathRamp.levels(gateLevel, Arrays.copyOfRange(heights, flat - 1, heights.length));
+        System.arraycopy(ramp, 1, levels, flat, ramp.length - 1);
+        return levels;
     }
 
     /**

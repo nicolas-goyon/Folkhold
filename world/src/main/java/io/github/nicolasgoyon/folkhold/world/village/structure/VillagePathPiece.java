@@ -19,6 +19,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.TerrainAdjustment;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
+import net.neoforged.neoforge.common.Tags;
 import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
 
 /**
@@ -30,9 +31,9 @@ import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
  * a street. On each block of a row:
  *
  * <ul>
- *   <li>The blocks of the terrain, the blocks of the streets and the plants above the level go away: all of them in
- *       the {@link TerrainPiece#CLEARANCE} blocks above the level, and the blocks of the terrain and of the streets up
- *       to the surface of the terrain.</li>
+ *   <li>Above the level, up to the surface of the column ({@code WORLD_SURFACE}), the blocks of the terrain, the
+ *       ores, the plants, the blocks of the old street and its lights go away. Water and the blocks of the other pieces
+ *       stay.</li>
  *   <li>A hole under the level gets dirt.</li>
  *   <li>The top block of the middle becomes a dirt path, and a block of a street there stays. The top block of an edge
  *       becomes the surface block of the terrain of its column (grass, sand).</li>
@@ -43,6 +44,8 @@ import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
 public final class VillagePathPiece extends StructurePiece implements PieceBeardifierModifier {
     /** The search of the ground goes this number of blocks below the level of a row. */
     public static final int SEARCH = 16;
+    /** A row removes the blocks above it up to this number of blocks, at most. */
+    public static final int MAX_CUT = 48;
     /** A row fills water with dirt when the floor of the water is less than this number of blocks under the row. */
     public static final int FILL_DEPTH = 3;
     /** The number of blocks of path on each side of the middle. */
@@ -167,7 +170,7 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
     }
 
     /**
-     * Places a block of a row at its level: the space above it is clear up to the surface of the terrain, a hole under
+     * Places a block of a row at its level: the space above it is clear up to the surface of the column, a hole under
      * it gets dirt, and its top block becomes a block of path or the surface block of the terrain. Shallow water at the
      * level of the row gets dirt down to its floor. Deep water and water above the level of the row do not change.
      *
@@ -182,16 +185,15 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
             return;
         }
         BlockState surface = null;
-        for (int y = top + 1; y < top + SEARCH; y++) {
+        int highest = Math.min(top + MAX_CUT, level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1);
+        for (int y = top + 1; y <= Math.max(highest, top + TerrainPiece.CLEARANCE); y++) {
             BlockState state = level.getBlockState(pos.set(x, y, z));
-            boolean ground = TerrainPiece.isTerrain(state) || isStreet(state);
             if (TerrainPiece.isTerrain(state)) {
                 surface = state;
             }
-            if (ground || (y <= top + TerrainPiece.CLEARANCE && TerrainPiece.isPlant(state))) {
+            boolean ground = TerrainPiece.isTerrain(state) || state.is(Tags.Blocks.ORES) || isStreet(state);
+            if (ground || TerrainPiece.isPlant(state) || (y <= highest && isStreetLight(state))) {
                 level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
-            } else if (y > top + TerrainPiece.CLEARANCE) {
-                break;
             }
         }
         for (int y = top - 1; y > top - SEARCH; y--) {
@@ -217,6 +219,11 @@ public final class VillagePathPiece extends StructurePiece implements PieceBeard
         } else if (!isStreet(state)) {
             level.setBlock(pos, Blocks.DIRT_PATH.defaultBlockState(), Block.UPDATE_CLIENTS);
         }
+    }
+
+    /** True for a block of a street light: a lantern on a fence. */
+    static boolean isStreetLight(BlockState state) {
+        return state.is(Blocks.LANTERN) || state.is(BlockTags.FENCES);
     }
 
     /** True for a block of the path of a street on land: a dirt path, gravel or coarse dirt. */

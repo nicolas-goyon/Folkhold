@@ -927,10 +927,12 @@ class Variant:
 
 # The variants of the village, with their biomes. The tag of the biomes of the village has the biomes of all the
 # variants. In a biome of the tag that no other variant has, the village uses the base variant.
-BASE = Variant("taiga", ["minecraft:taiga", "minecraft:snowy_taiga", "minecraft:snowy_plains"], {})
+BASE = Variant("taiga", ["minecraft:taiga", "minecraft:snowy_taiga", "minecraft:snowy_plains", "minecraft:windswept_hills",
+                        "minecraft:windswept_forest", "minecraft:windswept_gravelly_hills"], {})
 VARIANTS = (
     BASE,
-    Variant("plains", ["minecraft:plains", "minecraft:sunflower_plains", "minecraft:meadow", "minecraft:forest"],
+    Variant("plains", ["minecraft:plains", "minecraft:sunflower_plains", "minecraft:meadow",
+                       "minecraft:cherry_grove", "minecraft:forest"],
             wood("spruce", "oak")),
     Variant("birch", ["minecraft:birch_forest"], wood("spruce", "birch")),
     Variant("savanna", ["minecraft:savanna"], wood("spruce", "acacia")),
