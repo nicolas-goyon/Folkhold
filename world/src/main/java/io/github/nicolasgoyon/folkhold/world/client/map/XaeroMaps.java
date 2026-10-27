@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.world.client.ClientTerritoryMap;
 import io.github.nicolasgoyon.folkhold.world.client.TerritoryMapView;
 import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 
@@ -18,6 +19,7 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
  *   <li>The minimap shows the discovered villages as waypoints. Xaero's World Map also shows them.</li>
  *   <li>The client config hides the territories ({@link ClientConfig#SHOW_MAP_TERRITORIES}) or the waypoints of the
  *       villages ({@link ClientConfig#SHOW_MAP_VILLAGES}).</li>
+ *   <li>The journal opens the world map of Xaero's World Map at a village ({@link #openWorldMap}).</li>
  *   <li>The hooks use internal parts of Xaero's mods. An error in a hook stops the hook of this mod for the rest of
  *       the game, and the log gives the error. The other parts of the game do not change.</li>
  * </ul>
@@ -38,6 +40,7 @@ public final class XaeroMaps {
     private static String shown = "";
     private static boolean worldMapFailed;
     private static boolean minimapFailed;
+    private static boolean worldMapScreenFailed;
 
     private XaeroMaps() {
     }
@@ -68,6 +71,33 @@ public final class XaeroMaps {
                 minimapFailed = true;
                 FolkholdWorld.LOGGER.warn("The territories cannot show on the map of Xaero's Minimap", error);
             }
+        }
+    }
+
+    /** True if the journal can open the world map of Xaero's World Map. */
+    public static boolean hasWorldMap() {
+        return !worldMapScreenFailed && ModList.get().isLoaded(WORLD_MAP_MOD);
+    }
+
+    /**
+     * Opens the world map of Xaero's World Map with a block of the Overworld at its center. Escape goes back to a
+     * screen.
+     *
+     * @param parent the screen that Escape opens again
+     * @param blockX block X at the center of the map
+     * @param blockZ block Z at the center of the map
+     * @return true if the world map opens
+     */
+    public static boolean openWorldMap(Screen parent, int blockX, int blockZ) {
+        if (!hasWorldMap()) {
+            return false;
+        }
+        try {
+            return WorldMapScreens.open(parent, blockX, blockZ);
+        } catch (Throwable error) {
+            worldMapScreenFailed = true;
+            FolkholdWorld.LOGGER.warn("The world map of Xaero's World Map cannot open from the journal", error);
+            return false;
         }
     }
 }
