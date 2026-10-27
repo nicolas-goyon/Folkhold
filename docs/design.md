@@ -149,7 +149,7 @@ The mod stores all of this in `SavedData` of the Overworld level (settlements, m
 - **Unclaimed land**: a chunk that no village claims.
 - **Destruction of a village**: kill the captain and destroy the village heart (the central banner). The village becomes ruins. Its territory becomes unclaimed. The ruins stay in the world.
 
-The faction of a new village is the faction with the nearest territory center.
+The faction of a new village comes from the regions of the cultures (`CultureRegions`, `CultureMap`). The world has a grid of square regions of 2048 blocks. The seed and the biome at the middle of a region select the culture of the region: a culture has a weight of 8 in its biomes of affinity (the tag `#folkhold_world:culture/<id>`) and a weight of 1 in the other biomes. Valeholm is frequent in the cold and frozen biomes, Ashmark in the temperate biomes, and Sunreach in the hot biomes. A village belongs to the nearest faction of the culture of its region: the faction with the nearest territory center.
 
 - **Trade**: each trade between two villages creates a caravan. The goods arrive with the caravan (see "Trade between villages").
 - **Relations**: each caravan that arrives raises the relation between the two factions a little.
@@ -167,7 +167,7 @@ The faction of a new village is the faction with the nearest territory center.
 
 ### Cultures
 
-A culture is a template for factions: name, colors, banner, name syllables (for faction and village names), pitch of the voices of its units. **Implemented**: the cultures are Java definitions (`Cultures`). **Planned**: each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
+A culture is a template for factions: name, colors, banner, name syllables (for faction and village names), pitch of the voices of its units, biomes of affinity. The style of the villages is the visual aspect of the culture. A culture has several factions, and the factions of a culture can be allies or enemies. **Implemented**: the cultures are Java definitions (`Cultures`). **Planned**: each culture moves to a JSON file in the mod (`data/folkhold_world/folkhold/cultures/<id>.json`), and a new culture then needs no code.
 
 The factions of a world are not static content. The mod creates them when the world starts, from the cultures, and saves them in the world.
 

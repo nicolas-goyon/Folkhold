@@ -1,0 +1,21 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:plains",
+    "minecraft:sunflower_plains",
+    "minecraft:forest",
+    "minecraft:flower_forest",
+    "minecraft:birch_forest",
+    "minecraft:old_growth_birch_forest",
+    "minecraft:dark_forest",
+    "minecraft:meadow",
+    "minecraft:cherry_grove",
+    "minecraft:swamp",
+    "minecraft:mangrove_swamp",
+    "minecraft:river",
+    "minecraft:beach",
+    "minecraft:ocean",
+    "minecraft:deep_ocean",
+    "minecraft:mushroom_fields"
+  ]
+}
