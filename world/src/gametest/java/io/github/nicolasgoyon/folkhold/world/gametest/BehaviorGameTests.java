@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.network.VillageHeartPayload;
@@ -15,6 +16,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -129,6 +131,29 @@ public final class BehaviorGameTests {
 
         helper.assertTrue(near, "A position in the chase radius must be in the chase area");
         helper.assertTrue(!far, "A position outside the chase radius must not be in the chase area");
+        helper.succeed();
+    }
+
+    /**
+     * Deep water is out of the chase area: a target that swims away from an island or a coast is safe. Shallow water
+     * stays in the area.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "behavior_chase_area")
+    public static void deepWaterIsOutOfTheChaseArea(GameTestHelper helper) {
+        Scene scene = scene(helper, 0);
+        BlockPos deep = new BlockPos(3, 1 + FactionUnit.DEEP_WATER - 1, 3);
+        BlockPos shallow = new BlockPos(5, 2, 3);
+        for (int y = 1; y <= deep.getY(); y++) {
+            helper.setBlock(new BlockPos(deep.getX(), y, deep.getZ()), Blocks.WATER);
+        }
+        helper.setBlock(shallow, Blocks.WATER);
+        helper.setBlock(shallow.below(), Blocks.WATER);
+        boolean inDeep = scene.guard().isInChaseArea(helper.absolutePos(deep));
+        boolean inShallow = scene.guard().isInChaseArea(helper.absolutePos(shallow));
+        scene.remove(helper);
+
+        helper.assertTrue(!inDeep, "Deep water must be out of the chase area");
+        helper.assertTrue(inShallow, "Shallow water must be in the chase area");
         helper.succeed();
     }
 

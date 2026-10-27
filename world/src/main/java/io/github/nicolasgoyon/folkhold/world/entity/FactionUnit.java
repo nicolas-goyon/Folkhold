@@ -36,6 +36,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -89,8 +90,9 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  *       instead of its home.</li>
  * </ul>
  *
- * <p>A unit chases a target only in its chase area (see {@link #isInChaseArea}). When the unit or its target
- * leaves the area, the unit stops the chase, ignores all targets for {@link #GIVE_UP_TICKS} and goes back. The unit
+ * <p>A unit chases a target only in its chase area (see {@link #isInChaseArea}). The area has no deep water: a
+ * target that swims away from an island or a coast is out of the area. When the unit or its target leaves the area,
+ * the unit stops the chase, ignores all targets for {@link #GIVE_UP_TICKS} and goes back. The unit
  * also stops the chase after {@link #UNREACHABLE_TICKS} with no path to the target and no line of sight to it.
  *
  * <p>The attributes come from the config of the unit type when the unit spawns.
@@ -128,6 +130,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final double ROUT_SPEED = 1.3;
     /** After the end of a chase at the limit of the chase area, the unit ignores all targets for this time. */
     static final int GIVE_UP_TICKS = 100;
+    /** Water of this depth, in blocks, or more is deep: a unit does not chase a target in it. */
+    public static final int DEEP_WATER = 3;
     /** A unit stops the chase after this time with no path to its target and no line of sight to it. */
     static final int UNREACHABLE_TICKS = 200;
     /** A path goes to the target when its end is nearer than this distance to the target, in blocks. */
@@ -429,14 +433,32 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
      * <ul>
      *   <li>not farther than the chase radius ({@link #chaseRadius()}) from the center of the chase area
      *       ({@link #chaseCenter()});</li>
-     *   <li>not in the territory of another faction, for a unit with a faction.</li>
+     *   <li>not in the territory of another faction, for a unit with a faction;</li>
+     *   <li>not in deep water (see {@link #isDeepWater}).</li>
      * </ul>
      *
      * @param pos the position
      * @return true if the position is in the chase area
      */
     public boolean isInChaseArea(BlockPos pos) {
-        return isInChaseRadius(pos) && isInTerritory(pos);
+        return isInChaseRadius(pos) && isInTerritory(pos) && !isDeepWater(level(), pos);
+    }
+
+    /**
+     * True if a position is in deep water: the block at the position and the {@link #DEEP_WATER} - 1 blocks under it
+     * are water. A unit does not swim after a target in deep water.
+     *
+     * @param level the level
+     * @param pos   the position
+     * @return true for deep water
+     */
+    public static boolean isDeepWater(Level level, BlockPos pos) {
+        for (int depth = 0; depth < DEEP_WATER; depth++) {
+            if (!level.getFluidState(pos.below(depth)).is(FluidTags.WATER)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** True if the position is not farther than the chase radius from the center of the chase area. */
@@ -619,9 +641,10 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             setTarget(null);
             target = null;
         }
-        // The distance check is cheap: each tick. The territory check only each 10 ticks.
+        // The distance check is cheap: each tick. The territory and water checks only each 10 ticks.
         if (target != null && (!isInChaseRadius(target.blockPosition()) || !isInChaseRadius(blockPosition())
-                || (tickCount % 10 == 0 && (!isInTerritory(target.blockPosition()) || !isInTerritory(blockPosition()))))) {
+                || (tickCount % 10 == 0 && (!isInTerritory(target.blockPosition()) || !isInTerritory(blockPosition())
+                        || isDeepWater(level(), target.blockPosition()) || isDeepWater(level(), blockPosition()))))) {
             giveUpChase();
             target = null;
         }
