@@ -536,5 +536,893 @@
         }
       }
     }
+  },
+  "valeholm/hamlet": {
+    "guard": {
+      "mainhand": "minecraft:iron_axe",
+      "offhand": "minecraft:shield",
+      "head": "minecraft:chainmail_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:chainmail_leggings",
+      "feet": "minecraft:chainmail_boots"
+    },
+    "captain": {
+      "mainhand": "minecraft:iron_axe",
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": "minecraft:chainmail_chestplate",
+      "legs": "minecraft:iron_leggings",
+      "feet": "minecraft:iron_boots"
+    },
+    "rider": {
+      "mainhand": "minecraft:iron_axe",
+      "head": "minecraft:chainmail_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:leather_leggings",
+      "feet": "minecraft:leather_boots"
+    }
+  },
+  "valeholm/village": {
+    "guard": {
+      "mainhand": "minecraft:iron_axe",
+      "offhand": "minecraft:shield",
+      "head": {
+        "item": "minecraft:chainmail_helmet",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:chainmail_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": {
+        "item": "minecraft:chainmail_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    },
+    "captain": {
+      "mainhand": "minecraft:iron_axe",
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": {
+        "item": "minecraft:chainmail_chestplate",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    },
+    "rider": {
+      "mainhand": "minecraft:iron_axe",
+      "head": "minecraft:chainmail_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:leather_leggings",
+      "feet": "minecraft:leather_boots"
+    }
+  },
+  "valeholm/town": {
+    "guard": {
+      "mainhand": "minecraft:iron_axe",
+      "offhand": "minecraft:shield",
+      "head": {
+        "item": "minecraft:iron_helmet",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:chainmail_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    },
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 1
+          }
+        },
+        "head": {
+          "item": "minecraft:iron_helmet",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:chainmail_leggings",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "feet": "minecraft:leather_boots"
+      }
+    ],
+    "captain": {
+      "mainhand": "minecraft:iron_axe",
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": {
+        "item": "minecraft:iron_chestplate",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    },
+    "rider": {
+      "mainhand": "minecraft:iron_axe",
+      "head": "minecraft:iron_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:chainmail_leggings",
+      "feet": "minecraft:leather_boots"
+    }
+  },
+  "valeholm/city": {
+    "guard": {
+      "mainhand": {
+        "item": "minecraft:diamond_axe",
+        "enchantments": {
+          "minecraft:sharpness": 1
+        }
+      },
+      "offhand": "minecraft:shield",
+      "head": {
+        "item": "minecraft:iron_helmet",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      }
+    },
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 2
+          }
+        },
+        "head": {
+          "item": "minecraft:iron_helmet",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "feet": "minecraft:chainmail_boots"
+      }
+    ],
+    "captain": {
+      "mainhand": {
+        "item": "minecraft:diamond_axe",
+        "enchantments": {
+          "minecraft:sharpness": 1
+        }
+      },
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": {
+        "item": "minecraft:iron_chestplate",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "legs": {
+        "item": "minecraft:diamond_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:diamond_boots",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      }
+    },
+    "rider": {
+      "mainhand": "minecraft:diamond_axe",
+      "head": {
+        "item": "minecraft:iron_helmet",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": "minecraft:iron_boots"
+    }
+  },
+  "valeholm/capital": {
+    "guard": {
+      "mainhand": {
+        "item": "minecraft:netherite_axe",
+        "enchantments": {
+          "minecraft:sharpness": 2
+        }
+      },
+      "offhand": "minecraft:shield",
+      "head": {
+        "item": "minecraft:diamond_helmet",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:diamond_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:diamond_boots",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      }
+    },
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 3
+          }
+        },
+        "head": {
+          "item": "minecraft:diamond_helmet",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "feet": {
+          "item": "minecraft:iron_boots",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        }
+      }
+    ],
+    "captain": {
+      "mainhand": {
+        "item": "minecraft:netherite_axe",
+        "enchantments": {
+          "minecraft:sharpness": 2
+        }
+      },
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": {
+        "item": "minecraft:diamond_chestplate",
+        "enchantments": {
+          "minecraft:protection": 3
+        }
+      },
+      "legs": {
+        "item": "minecraft:diamond_leggings",
+        "enchantments": {
+          "minecraft:protection": 3
+        }
+      },
+      "feet": {
+        "item": "minecraft:diamond_boots",
+        "enchantments": {
+          "minecraft:protection": 3
+        }
+      }
+    },
+    "rider": {
+      "mainhand": {
+        "item": "minecraft:diamond_axe",
+        "enchantments": {
+          "minecraft:sharpness": 1
+        }
+      },
+      "head": {
+        "item": "minecraft:diamond_helmet",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:diamond_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    }
+  },
+  "ashmark/hamlet": {
+    "archer": [
+      {
+        "mainhand": "minecraft:crossbow",
+        "head": "minecraft:chainmail_helmet",
+        "chest": "tabard",
+        "legs": "minecraft:chainmail_leggings",
+        "feet": "minecraft:leather_boots"
+      }
+    ]
+  },
+  "ashmark/village": {
+    "archer": [
+      {
+        "mainhand": "minecraft:crossbow",
+        "head": {
+          "item": "minecraft:chainmail_helmet",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:chainmail_leggings",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "feet": "minecraft:leather_boots"
+      }
+    ]
+  },
+  "ashmark/town": {
+    "archer": [
+      {
+        "mainhand": "minecraft:crossbow",
+        "head": {
+          "item": "minecraft:iron_helmet",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:chainmail_leggings",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "feet": "minecraft:leather_boots"
+      }
+    ]
+  },
+  "ashmark/city": {
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:crossbow",
+          "enchantments": {
+            "minecraft:quick_charge": 1
+          }
+        },
+        "head": {
+          "item": "minecraft:iron_helmet",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "feet": "minecraft:chainmail_boots"
+      }
+    ]
+  },
+  "ashmark/capital": {
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:crossbow",
+          "enchantments": {
+            "minecraft:quick_charge": 1,
+            "minecraft:piercing": 1
+          }
+        },
+        "head": {
+          "item": "minecraft:diamond_helmet",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "feet": {
+          "item": "minecraft:iron_boots",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        }
+      }
+    ]
+  },
+  "sunreach/hamlet": {
+    "guard": {
+      "mainhand": "minecraft:trident",
+      "head": "minecraft:golden_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:chainmail_leggings",
+      "feet": "minecraft:leather_boots"
+    },
+    "archer": [
+      {
+        "mainhand": "minecraft:bow",
+        "head": "minecraft:golden_helmet",
+        "chest": "tabard",
+        "legs": "minecraft:leather_leggings",
+        "feet": "minecraft:leather_boots"
+      }
+    ],
+    "captain": {
+      "mainhand": "minecraft:trident",
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": "minecraft:golden_chestplate",
+      "legs": "minecraft:chainmail_leggings",
+      "feet": "minecraft:chainmail_boots"
+    },
+    "rider": {
+      "mainhand": "minecraft:trident",
+      "head": "minecraft:golden_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:leather_leggings",
+      "feet": "minecraft:leather_boots"
+    }
+  },
+  "sunreach/village": {
+    "guard": {
+      "mainhand": "minecraft:trident",
+      "head": {
+        "item": "minecraft:golden_helmet",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:chainmail_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": {
+        "item": "minecraft:chainmail_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    },
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 1
+          }
+        },
+        "head": {
+          "item": "minecraft:golden_helmet",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:chainmail_leggings",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "feet": "minecraft:leather_boots"
+      }
+    ],
+    "captain": {
+      "mainhand": "minecraft:trident",
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": {
+        "item": "minecraft:golden_chestplate",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "legs": {
+        "item": "minecraft:chainmail_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": {
+        "item": "minecraft:chainmail_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    },
+    "rider": {
+      "mainhand": "minecraft:trident",
+      "head": "minecraft:golden_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:leather_leggings",
+      "feet": "minecraft:leather_boots"
+    }
+  },
+  "sunreach/town": {
+    "guard": {
+      "mainhand": "minecraft:trident",
+      "head": {
+        "item": "minecraft:chainmail_helmet",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:chainmail_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": {
+        "item": "minecraft:chainmail_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    },
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 1
+          }
+        },
+        "head": {
+          "item": "minecraft:golden_helmet",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:chainmail_leggings",
+          "enchantments": {
+            "minecraft:protection": 1
+          }
+        },
+        "feet": "minecraft:leather_boots"
+      }
+    ],
+    "captain": {
+      "mainhand": "minecraft:trident",
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": {
+        "item": "minecraft:golden_chestplate",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    },
+    "rider": {
+      "mainhand": "minecraft:trident",
+      "head": "minecraft:chainmail_helmet",
+      "chest": "tabard",
+      "legs": "minecraft:chainmail_leggings",
+      "feet": "minecraft:leather_boots"
+    }
+  },
+  "sunreach/city": {
+    "guard": {
+      "mainhand": {
+        "item": "minecraft:trident",
+        "enchantments": {
+          "minecraft:sharpness": 1
+        }
+      },
+      "head": {
+        "item": "minecraft:iron_helmet",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:chainmail_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      }
+    },
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 2
+          }
+        },
+        "head": {
+          "item": "minecraft:golden_helmet",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        },
+        "feet": "minecraft:chainmail_boots"
+      }
+    ],
+    "captain": {
+      "mainhand": {
+        "item": "minecraft:trident",
+        "enchantments": {
+          "minecraft:sharpness": 1
+        }
+      },
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": {
+        "item": "minecraft:golden_chestplate",
+        "enchantments": {
+          "minecraft:protection": 3
+        }
+      },
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      }
+    },
+    "rider": {
+      "mainhand": {
+        "item": "minecraft:trident",
+        "enchantments": {
+          "minecraft:sharpness": 1
+        }
+      },
+      "head": {
+        "item": "minecraft:iron_helmet",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      },
+      "feet": "minecraft:iron_boots"
+    }
+  },
+  "sunreach/capital": {
+    "guard": {
+      "mainhand": {
+        "item": "minecraft:trident",
+        "enchantments": {
+          "minecraft:sharpness": 2
+        }
+      },
+      "head": {
+        "item": "minecraft:diamond_helmet",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:diamond_boots",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      }
+    },
+    "archer": [
+      {
+        "mainhand": {
+          "item": "minecraft:bow",
+          "enchantments": {
+            "minecraft:power": 3
+          }
+        },
+        "head": {
+          "item": "minecraft:golden_helmet",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "chest": "tabard",
+        "legs": {
+          "item": "minecraft:iron_leggings",
+          "enchantments": {
+            "minecraft:protection": 3
+          }
+        },
+        "feet": {
+          "item": "minecraft:iron_boots",
+          "enchantments": {
+            "minecraft:protection": 2
+          }
+        }
+      }
+    ],
+    "captain": {
+      "mainhand": {
+        "item": "minecraft:trident",
+        "enchantments": {
+          "minecraft:sharpness": 2
+        }
+      },
+      "offhand": "minecraft:shield",
+      "head": "banner",
+      "chest": {
+        "item": "minecraft:diamond_chestplate",
+        "enchantments": {
+          "minecraft:protection": 3
+        }
+      },
+      "legs": {
+        "item": "minecraft:diamond_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:diamond_boots",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      }
+    },
+    "rider": {
+      "mainhand": {
+        "item": "minecraft:trident",
+        "enchantments": {
+          "minecraft:sharpness": 1
+        }
+      },
+      "head": {
+        "item": "minecraft:diamond_helmet",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "chest": "tabard",
+      "legs": {
+        "item": "minecraft:iron_leggings",
+        "enchantments": {
+          "minecraft:protection": 2
+        }
+      },
+      "feet": {
+        "item": "minecraft:iron_boots",
+        "enchantments": {
+          "minecraft:protection": 1
+        }
+      }
+    }
   }
 }

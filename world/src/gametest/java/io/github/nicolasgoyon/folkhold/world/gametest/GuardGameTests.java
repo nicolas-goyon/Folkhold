@@ -53,14 +53,17 @@ public final class GuardGameTests {
     public static void guardSpawnsWithEquipmentAndConfiguredHealth(GameTestHelper helper) {
         GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(0, 1, 0));
 
-        // A heart of an earlier test can be near: the guard then has the equipment set of its level.
-        GarrisonEquipment.Piece sword = GarrisonEquipment.get().pieces(guard.getEquipmentSet(), GarrisonRole.GUARD)
-                .get(EquipmentSlot.MAINHAND);
+        // A heart of an earlier test can be near: the guard then has the equipment set of its level. The culture of
+        // the faction of the guard can change its weapon.
+        java.util.Map<EquipmentSlot, GarrisonEquipment.Piece> pieces = GarrisonEquipment.get().pieces(
+                GarrisonEquipment.culture(guard), guard.getEquipmentSet(), GarrisonRole.GUARD, guard.getUUID());
+        GarrisonEquipment.Piece weapon = pieces.get(EquipmentSlot.MAINHAND);
         helper.assertTrue(guard.getItemBySlot(EquipmentSlot.MAINHAND)
-                        .is(BuiltInRegistries.ITEM.get(ResourceLocation.parse(sword.item()))),
-                "The guard must hold the sword of its equipment set " + guard.getEquipmentSet());
-        helper.assertTrue(guard.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD),
-                "The guard must hold a shield");
+                        .is(BuiltInRegistries.ITEM.get(ResourceLocation.parse(weapon.item()))),
+                "The guard must hold the weapon of its equipment set " + guard.getEquipmentSet());
+        helper.assertTrue(guard.getItemBySlot(EquipmentSlot.OFFHAND).is(Items.SHIELD)
+                        == pieces.containsKey(EquipmentSlot.OFFHAND),
+                "The guard must hold the shield of its equipment set");
 
         double expectedHealth = WorldConfig.GUARD.health();
         helper.assertTrue(Math.abs(guard.getMaxHealth() - expectedHealth) < 0.001,
