@@ -12,13 +12,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import javax.annotation.Nullable;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
 /**
  * The territories on the vanilla maps: a light fill and a border in the color of the faction of each territory, and a
- * marker at each village (see {@link ClientMapTerritories}). The overlay changes only the texture of the map on the
- * client: the data of the map does not change.
+ * marker at each village (see {@link ClientMapTerritories}). The overlay is a transparent texture over the map, on the
+ * client: the data and the texture of the map do not change.
  *
  * <ul>
  *   <li>The overlay shows only on the explored pixels of the map: the pixels with a color. The player does not need to
@@ -115,21 +116,37 @@ public final class VanillaMapOverlay {
     }
 
     /**
-     * Draws the overlay on the pixels of a map texture. The client does not know the center of a map: a map with no
-     * center from the server has no overlay.
+     * Paints the overlay of a map on a transparent texture of {@link #SIZE} x {@link #SIZE} pixels. The client does not
+     * know the center of a map: a map with no center from the server has no overlay.
      *
      * @param id     the id of the map
      * @param data   the data of the map
-     * @param pixels the pixels of the texture
+     * @param pixels receives each pixel of the texture, as 0xAABBGGRR: transparent with no overlay
+     * @return true if the overlay has a pixel
      */
-    public static void draw(int id, MapItemSavedData data, Pixels pixels) {
+    public static boolean paint(int id, MapItemSavedData data, PixelSink pixels) {
+        int[] overlay = overlay(id, data);
+        boolean any = false;
+        for (int z = 0; z < SIZE; z++) {
+            for (int x = 0; x < SIZE; x++) {
+                int argb = overlay == null ? NONE : overlay[z * SIZE + x];
+                pixels.set(x, z, abgr(argb));
+                any |= argb != NONE;
+            }
+        }
+        return any;
+    }
+
+    /** The colors of the overlay of a map, or null with no overlay. */
+    @Nullable
+    private static int[] overlay(int id, MapItemSavedData data) {
         if (!ClientConfig.SHOW_VANILLA_MAP_TERRITORIES.get() || data.dimension != Level.OVERWORLD) {
-            return;
+            return null;
         }
         TerritoryMapView view = ClientMapTerritories.get();
         Optional<MapTerritoryPayload.MapCenter> center = ClientMapTerritories.center(id);
         if (view.villages().isEmpty() || center.isEmpty()) {
-            return;
+            return null;
         }
         Map<String, Integer> colors = new HashMap<>();
         List<Marker> markers = new ArrayList<>();
@@ -141,34 +158,12 @@ public final class VanillaMapOverlay {
         for (int i = 0; i < seen.length; i++) {
             seen[i] = data.colors[i] != 0;
         }
-        int[] overlay = colors(center.get().x(), center.get().z(), data.scale, seen, view::ownerOf, colors, markers);
-        for (int z = 0; z < SIZE; z++) {
-            for (int x = 0; x < SIZE; x++) {
-                int argb = overlay[z * SIZE + x];
-                if (argb != NONE) {
-                    pixels.set(x, z, blend(pixels.get(x, z), argb));
-                }
-            }
-        }
+        return colors(center.get().x(), center.get().z(), data.scale, seen, view::ownerOf, colors, markers);
     }
 
-    /**
-     * A color over a pixel of a texture.
-     *
-     * @param abgr the pixel, as 0xAABBGGRR
-     * @param argb the color, as 0xAARRGGBB: the alpha is the opacity
-     * @return the opaque pixel, as 0xAABBGGRR
-     */
-    static int blend(int abgr, int argb) {
-        int alpha = argb >>> 24;
-        int red = mix(abgr & 0xFF, argb >> 16 & 0xFF, alpha);
-        int green = mix(abgr >> 8 & 0xFF, argb >> 8 & 0xFF, alpha);
-        int blue = mix(abgr >> 16 & 0xFF, argb & 0xFF, alpha);
-        return OPAQUE | blue << 16 | green << 8 | red;
-    }
-
-    private static int mix(int under, int over, int alpha) {
-        return (under * (255 - alpha) + over * alpha) / 255;
+    /** A color 0xAARRGGBB as a color 0xAABBGGRR, the format of the pixels of a texture. */
+    static int abgr(int argb) {
+        return (argb & 0xFF00FF00) | ((argb & 0xFF) << 16) | ((argb >> 16) & 0xFF);
     }
 
     /**
@@ -181,17 +176,9 @@ public final class VanillaMapOverlay {
     public record Marker(int x, int z, int color) {
     }
 
-    /** The pixels of a texture, as 0xAABBGGRR. */
-    public interface Pixels {
-        /**
-         * The color of a pixel.
-         *
-         * @param x the X of the pixel
-         * @param z the Y of the pixel in the texture: the Z of the map
-         * @return the color, as 0xAABBGGRR
-         */
-        int get(int x, int z);
-
+    /** Receives the pixels of a texture. */
+    @FunctionalInterface
+    public interface PixelSink {
         /**
          * Sets a pixel.
          *
