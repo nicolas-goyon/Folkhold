@@ -1,0 +1,14 @@
+{
+  "processors": [
+    {
+      "processor_type": "folkhold_world:foundation",
+      "block": {
+        "Name": "minecraft:sandstone"
+      },
+      "max_depth": 32,
+      "stilt": {
+        "Name": "minecraft:cut_sandstone"
+      }
+    }
+  ]
+}

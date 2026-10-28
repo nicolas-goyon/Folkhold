@@ -230,8 +230,8 @@ public final class FortifiedVillageGameTests {
     }
 
     /**
-     * Each variant has all the pieces of the base variant, with its materials: no piece of a variant has a block of
-     * the spruce wood of the base variant.
+     * Each variant has all the pieces of the base variant, with its materials: no piece of a biome variant has a block
+     * of the spruce wood of the base variant. The base variant of a culture keeps the spruce.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_variants")
     public static void variantPiecesHaveTheirMaterials(GameTestHelper helper) {
@@ -251,7 +251,9 @@ public final class FortifiedVillageGameTests {
             Set<String> pieces = pieceNames(templates, folder);
             helper.assertTrue(pieces.equals(basePieces), "The variant " + folder + " must have the pieces of the base"
                     + " variant: " + pieces);
-            for (String piece : pieces) {
+            // The base variant of a culture keeps the spruce of the base variant.
+            boolean spruce = variant.culture().isPresent() && variant.biomes().size() == 0;
+            for (String piece : spruce ? Set.<String>of() : pieces) {
                 ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, folder + piece);
                 ListTag palette = templates.getOrCreate(id).save(new CompoundTag()).getList("palette",
                         Tag.TAG_COMPOUND);

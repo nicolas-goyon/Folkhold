@@ -5,6 +5,8 @@ Output:
 - world/src/main/resources/data/folkhold_world/structure/village/*.nbt: the pieces of the village structure.
 - world/src/main/resources/data/folkhold_world/structure/village/<variant>/*.nbt: the pieces of the other biome
   variants (see VARIANTS).
+- world/src/main/resources/data/folkhold_world/structure/village/<culture>/[<variant>/]*.nbt: the pieces of the style
+  of a culture (see STYLES), with the same biome variants.
 - world/src/main/resources/data/folkhold_world/worldgen/: the structure (structure/village.json), the template pools
   (template_pool/village/) and the processor lists (processor_list/village/) of each variant.
 - world/src/main/resources/data/folkhold_world/tags/worldgen/biome/has_village.json: the biomes of the village, from
@@ -805,6 +807,172 @@ def bank():
     return t
 
 
+# ---------------------------------------------------------------- Valeholm style (Norse)
+
+# A long house: the gable end and the door face the street (z = 0 is the porch), the body goes deep into the plot.
+LW = 9    # x: 0..8
+LD = 13   # z: 0 = porch, 1..12 = body
+LH = 16
+# The walls go up to this layer. The roof starts above it.
+LONG_WALL_TOP = 3
+# The hearth is in the middle of the body.
+HEARTH_Z = 6
+
+
+def long_roof_top(x):
+    """The layer of the top block of the steep roof over a column: the roof goes up by 2 blocks for each block to the
+    ridge."""
+    k = min(x, LW - 1 - x)
+    return LONG_WALL_TOP + 2 + 2 * k
+
+
+def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
+    """A Norse long house: a base of cobblestone, walls of horizontal spruce logs between posts of stripped spruce logs,
+    a steep roof of dark oak with a ridge along the house, and carved horns at the ends of the ridge.
+
+    The building sign of the kind stands on the porch, next to the east porch post. A hearth of stone bricks is in the
+    middle of the body, with a campfire that is not lit.
+    """
+    t = Template(LW, LH, LD)
+    t.fill(0, 1, 0, LW - 1, LH - 1, LD - 1, "minecraft:air")
+    mid = LW // 2
+    # Porch and floor.
+    for x in range(LW):
+        t.set(x, 0, 0, "minecraft:cobblestone" if x in (0, LW - 1) else "minecraft:spruce_planks")
+        for z in range(1, LD):
+            edge = x in (0, LW - 1) or z in (1, LD - 1)
+            t.set(x, 0, z, cobble(rng) if edge else "minecraft:spruce_planks")
+    # Walls: posts at the corners and every 4 blocks along the sides, logs between them.
+    for x in range(LW):
+        for z in range(1, LD):
+            side = x in (0, LW - 1)
+            end = z in (1, LD - 1)
+            if not (side or end):
+                continue
+            post = (side and end) or (side and (z - 1) % 4 == 0) or (end and x == mid)
+            for y in range(1, LONG_WALL_TOP + 1):
+                if post:
+                    t.set(x, y, z, "minecraft:stripped_spruce_log", LOG_Y)
+                elif y == 1:
+                    t.set(x, y, z, wall_lower(rng))
+                else:
+                    t.set(x, y, z, "minecraft:spruce_log", {"axis": "z" if side else "x"})
+    # Small windows on the sides.
+    for z in (4, 8):
+        for x in (0, LW - 1):
+            t.set(x, 2, z, "minecraft:glass_pane")
+    # Front opening.
+    if wide_front:
+        for x in (mid - 1, mid, mid + 1):
+            for y in (1, 2):
+                t.set(x, y, 1, "minecraft:air")
+    elif door:
+        t.set(mid, 1, 1, "minecraft:spruce_door",
+              {"facing": "north", "half": "lower", "hinge": "left", "open": "false", "powered": "false"})
+        t.set(mid, 2, 1, "minecraft:spruce_door",
+              {"facing": "north", "half": "upper", "hinge": "left", "open": "false", "powered": "false"})
+        t.set(mid, 3, 1, "minecraft:stripped_spruce_log", {"axis": "x"})
+    # Porch posts.
+    for x in (0, LW - 1):
+        for y in range(1, LONG_WALL_TOP + 1):
+            t.set(x, y, 0, "minecraft:spruce_fence")
+    # Porch light: 2 wall torches on the front wall.
+    for x in (mid - 2, mid + 2):
+        t.set(x, 2, 0, *wall_torch("north"))
+    # Steep roof (ridge along z): 2 layers for each block to the ridge, over the porch.
+    for x in range(LW):
+        top = long_roof_top(x)
+        for z in range(LD):
+            if x == mid:
+                t.set(x, top - 1, z, "minecraft:dark_oak_planks")
+                t.set(x, top, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+            else:
+                facing = "east" if x < mid else "west"
+                t.set(x, top - 1, z, "minecraft:dark_oak_planks")
+                t.set(x, top, z, "minecraft:dark_oak_stairs", stairs(facing))
+        # Gable walls under the roof, at the front and the back of the body.
+        if 0 < x < LW - 1:
+            for y in range(LONG_WALL_TOP + 1, top - 1):
+                for z in (1, LD - 1):
+                    t.set(x, y, z, "minecraft:spruce_planks")
+    # Carved horns at the 2 ends of the ridge.
+    ridge = long_roof_top(mid)
+    for z in (0, LD - 1):
+        for x in (mid - 1, mid + 1):
+            t.set(x, long_roof_top(x) + 1, z, "minecraft:spruce_fence")
+            t.set(x, long_roof_top(x) + 2, z, "minecraft:spruce_fence")
+        t.set(mid, ridge + 1, z, "minecraft:spruce_fence")
+    # Hearth in the middle of the body.
+    for z in (HEARTH_Z - 1, HEARTH_Z, HEARTH_Z + 1):
+        t.set(mid, 0, z, "minecraft:stone_bricks")
+    t.set(mid, 1, HEARTH_Z, "minecraft:campfire",
+          {"facing": "north", "lit": "false", "signal_fire": "false", "waterlogged": "false"})
+    building_sign(t, LW - 2, 1, 0, sign)
+    # Jigsaw connector in the porch, facing out (north).
+    t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
+    return t
+
+
+def long_bed(t, x, z_foot, color):
+    """A bed along a side wall, with the head toward the back wall."""
+    bed(t, x, z_foot, color)
+
+
+def norse_cottage():
+    rng = random.Random(12)
+    t = long_house_shell(rng, "house", cobble)
+    # 3 beds: each bed gives a place to an inhabitant of the village.
+    long_bed(t, 1, 9, "blue")
+    long_bed(t, 2, 9, "blue")
+    long_bed(t, LW - 2, 9, "blue")
+    t.set(LW - 2, 1, 3, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
+    t.set(1, 1, 3, "minecraft:crafting_table")
+    t.set(LW - 2, 1, 7, "minecraft:barrel", {"facing": "up", "open": "false"})
+    lantern(t, 1, 1, 7)
+    t.set(LW // 2, long_roof_top(LW // 2) - 2, 9, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    return t
+
+
+def norse_barracks():
+    rng = random.Random(13)
+    t = long_house_shell(rng, "barracks", cobble)
+    for x in (1, 2, LW - 3, LW - 2):
+        long_bed(t, x, 9, "red")
+    t.set(1, 1, 3, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(LW - 2, 1, 3, BANNER, {"rotation": "4"})
+    t.set(1, 1, 6, "minecraft:spruce_fence")
+    t.set(LW - 2, 1, 6, "minecraft:spruce_fence")
+    lantern(t, 1, 1, 7)
+    t.set(LW // 2, long_roof_top(LW // 2) - 2, 9, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    return t
+
+
+def norse_forge():
+    rng = random.Random(14)
+    t = long_house_shell(rng, "forge", cobble, wide_front=True)
+    t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
+    t.set(LW - 2, 1, 10, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
+    t.set(LW - 2, 1, 9, "minecraft:furnace", {"facing": "west", "lit": "false"})
+    t.set(1, 1, 10, "minecraft:smithing_table")
+    t.set(1, 1, 9, "minecraft:grindstone", {"face": "floor", "facing": "east"})
+    t.set(LW - 2, 1, 3, "minecraft:water_cauldron", {"level": "3"})
+    lantern(t, 1, 1, 7)
+    return t
+
+
+def norse_storehouse():
+    rng = random.Random(15)
+    t = long_house_shell(rng, "storehouse", cobble)
+    for (x, z) in ((1, 10), (2, 10), (1, 9), (LW - 2, 10), (LW - 2, 9), (LW - 3, 10)):
+        t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
+    for (x, z) in ((1, 3), (1, 4), (LW - 2, 3)):
+        t.set(x, 1, z, "minecraft:hay_block", LOG_Y)
+    t.set(1, 2, 3, "minecraft:hay_block", LOG_Y)
+    t.set(LW - 2, 1, 4, "minecraft:composter", {"level": "0"})
+    lantern(t, 1, 1, 7)
+    return t
+
+
 PIECES = {
     "plaza": plaza,
     "street": street,
@@ -817,6 +985,18 @@ PIECES = {
     "house_forge": forge,
     "house_storehouse": storehouse,
     "bank": bank,
+}
+
+
+# The styles of the cultures: the pieces that a culture changes. The other pieces are the pieces of PIECES. The
+# villages of a culture with no style here use PIECES.
+STYLES = {
+    "valeholm": {
+        "house_cottage": norse_cottage,
+        "house_barracks": norse_barracks,
+        "house_forge": norse_forge,
+        "house_storehouse": norse_storehouse,
+    },
 }
 
 
@@ -881,18 +1061,29 @@ class Variant:
     (see plain).
     """
 
-    def __init__(self, name, biomes, blocks):
+    def __init__(self, name, biomes, blocks, culture=None):
         self.name = name
         self.biomes = biomes
         self.blocks = blocks
+        self.culture = culture
 
     @property
     def base(self):
         return not self.blocks
 
+    def of(self, culture):
+        """The same variant for the style of a culture."""
+        return Variant(self.name, self.biomes, self.blocks, culture)
+
     def path(self, name):
-        """The path of a file of the village for this variant, with no namespace and no extension."""
-        return f"village/{name}" if self.base else f"village/{self.name}/{name}"
+        """The path of a file of the village for this variant, with no namespace and no extension. The files of the
+        style of a culture are in a folder with the name of the culture."""
+        parts = ["village"]
+        if self.culture:
+            parts.append(self.culture)
+        if not self.base:
+            parts.append(self.name)
+        return "/".join(parts + [name])
 
     def id(self, name):
         """The id of a file of the village for this variant: a piece, a pool or a processor list."""
@@ -1024,15 +1215,26 @@ def village_settings(v):
     }
 
 
+def all_variants():
+    """The variants of all the cultures, then the variants of the styles of the cultures."""
+    return list(VARIANTS) + [v.of(culture) for culture in STYLES for v in VARIANTS]
+
+
 def structure():
-    """The village structure: the base variant, then the list of the other variants with their biomes."""
+    """The village structure: the base variant, then the list of the other variants with their biomes. A variant of
+    the style of a culture has the culture. The base variant of a style has no biome: it is the variant of the culture
+    in the biomes of no other variant of the culture."""
     base = village_settings(BASE)
     variants = []
-    for v in VARIANTS:
-        if not v.base:
-            settings = village_settings(v)
-            variants.append({"biomes": v.biomes, "start_pool": settings["start_pool"], "wall": settings["wall"],
-                             "homes": settings["homes"]})
+    for v in all_variants():
+        if v.base and not v.culture:
+            continue
+        settings = village_settings(v)
+        entry = {"biomes": [] if v.base else v.biomes, "start_pool": settings["start_pool"],
+                 "wall": settings["wall"], "homes": settings["homes"]}
+        if v.culture:
+            entry["culture"] = v.culture
+        variants.append(entry)
     return {
         "type": f"{NS}:fortified_village",
         "biomes": f"#{NS}:has_village",
@@ -1056,10 +1258,12 @@ def write_json(path, data):
 
 
 def main():
-    for v in VARIANTS:
+    for v in all_variants():
         folder = os.path.join(DATA, "structure", *v.path("").split("/"))
         os.makedirs(folder, exist_ok=True)
-        for name, build in PIECES.items():
+        style = STYLES.get(v.culture, {})
+        for name, base_build in PIECES.items():
+            build = style.get(name, base_build)
             path = os.path.join(folder, name + ".nbt")
             template = build()
             connect_panes(template)

@@ -270,6 +270,279 @@
         }
       },
       "homes": "folkhold_world:village/swamp/homes"
+    },
+    {
+      "biomes": [],
+      "start_pool": "folkhold_world:village/valeholm/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/valeholm/tower",
+        "gate": "folkhold_world:village/valeholm/gate",
+        "processors": "folkhold_world:village/valeholm/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:spruce_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:cobblestone"
+          },
+          "point": {
+            "Name": "minecraft:spruce_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:cobblestone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:spruce_planks"
+          },
+          "post": {
+            "Name": "minecraft:spruce_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:spruce_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/valeholm/homes",
+      "culture": "valeholm"
+    },
+    {
+      "biomes": [
+        "minecraft:plains",
+        "minecraft:sunflower_plains",
+        "minecraft:meadow",
+        "minecraft:cherry_grove",
+        "minecraft:forest"
+      ],
+      "start_pool": "folkhold_world:village/valeholm/plains/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/valeholm/plains/tower",
+        "gate": "folkhold_world:village/valeholm/plains/gate",
+        "processors": "folkhold_world:village/valeholm/plains/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:oak_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:cobblestone"
+          },
+          "point": {
+            "Name": "minecraft:oak_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:cobblestone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:oak_planks"
+          },
+          "post": {
+            "Name": "minecraft:oak_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:oak_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/valeholm/plains/homes",
+      "culture": "valeholm"
+    },
+    {
+      "biomes": [
+        "minecraft:birch_forest"
+      ],
+      "start_pool": "folkhold_world:village/valeholm/birch/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/valeholm/birch/tower",
+        "gate": "folkhold_world:village/valeholm/birch/gate",
+        "processors": "folkhold_world:village/valeholm/birch/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:birch_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:cobblestone"
+          },
+          "point": {
+            "Name": "minecraft:birch_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:cobblestone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:birch_planks"
+          },
+          "post": {
+            "Name": "minecraft:birch_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:birch_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/valeholm/birch/homes",
+      "culture": "valeholm"
+    },
+    {
+      "biomes": [
+        "minecraft:savanna"
+      ],
+      "start_pool": "folkhold_world:village/valeholm/savanna/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/valeholm/savanna/tower",
+        "gate": "folkhold_world:village/valeholm/savanna/gate",
+        "processors": "folkhold_world:village/valeholm/savanna/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:acacia_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:cobblestone"
+          },
+          "point": {
+            "Name": "minecraft:acacia_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:cobblestone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:acacia_planks"
+          },
+          "post": {
+            "Name": "minecraft:acacia_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:acacia_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/valeholm/savanna/homes",
+      "culture": "valeholm"
+    },
+    {
+      "biomes": [
+        "minecraft:desert"
+      ],
+      "start_pool": "folkhold_world:village/valeholm/desert/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/valeholm/desert/tower",
+        "gate": "folkhold_world:village/valeholm/desert/gate",
+        "processors": "folkhold_world:village/valeholm/desert/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:cut_sandstone"
+          },
+          "base": {
+            "Name": "minecraft:sandstone"
+          },
+          "point": {
+            "Name": "minecraft:sandstone_wall"
+          },
+          "foundation": {
+            "Name": "minecraft:sandstone"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:smooth_sandstone"
+          },
+          "post": {
+            "Name": "minecraft:cut_sandstone"
+          },
+          "rail": {
+            "Name": "minecraft:sandstone_wall"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/valeholm/desert/homes",
+      "culture": "valeholm"
+    },
+    {
+      "biomes": [
+        "minecraft:swamp",
+        "minecraft:mangrove_swamp"
+      ],
+      "start_pool": "folkhold_world:village/valeholm/swamp/plaza",
+      "wall": {
+        "margin": 4,
+        "tower_spacing": 40,
+        "tower": "folkhold_world:village/valeholm/swamp/tower",
+        "gate": "folkhold_world:village/valeholm/swamp/gate",
+        "processors": "folkhold_world:village/valeholm/swamp/foundation",
+        "palisade": {
+          "log": {
+            "Name": "minecraft:mangrove_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "base": {
+            "Name": "minecraft:mud_bricks"
+          },
+          "point": {
+            "Name": "minecraft:mangrove_fence"
+          },
+          "foundation": {
+            "Name": "minecraft:mud_bricks"
+          }
+        },
+        "pier": {
+          "deck": {
+            "Name": "minecraft:mangrove_planks"
+          },
+          "post": {
+            "Name": "minecraft:mangrove_log",
+            "Properties": {
+              "axis": "y"
+            }
+          },
+          "rail": {
+            "Name": "minecraft:mangrove_fence"
+          }
+        }
+      },
+      "homes": "folkhold_world:village/valeholm/swamp/homes",
+      "culture": "valeholm"
     }
   ]
 }
