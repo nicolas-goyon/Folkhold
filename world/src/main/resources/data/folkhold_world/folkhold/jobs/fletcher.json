@@ -12,5 +12,6 @@
   ],
   "min_level": 3,
   "weight": 6,
-  "profession": "minecraft:fletcher"
+  "profession": "minecraft:fletcher",
+  "cultures": {"ashmark": 3}
 }

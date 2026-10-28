@@ -7,5 +7,6 @@
   "min_level": 1,
   "weight": 15,
   "biomes": ["#minecraft:is_jungle"],
-  "profession": "minecraft:farmer"
+  "profession": "minecraft:farmer",
+  "cultures": {"sunreach": 3}
 }

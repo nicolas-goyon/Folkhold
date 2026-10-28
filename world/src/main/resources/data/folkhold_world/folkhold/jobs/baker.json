@@ -7,5 +7,6 @@
   ],
   "min_level": 1,
   "weight": 15,
-  "profession": "folkhold_world:baker"
+  "profession": "folkhold_world:baker",
+  "cultures": {"ashmark": 3}
 }

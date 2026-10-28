@@ -18,5 +18,6 @@
   ],
   "min_level": 5,
   "weight": 8,
-  "profession": "minecraft:weaponsmith"
+  "profession": "minecraft:weaponsmith",
+  "cultures": {"ashmark": 3}
 }

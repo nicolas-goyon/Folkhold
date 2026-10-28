@@ -8,5 +8,6 @@
   "min_level": 1,
   "weight": 10,
   "biomes": ["#minecraft:is_taiga"],
-  "profession": "folkhold_world:lumberjack"
+  "profession": "folkhold_world:lumberjack",
+  "cultures": {"valeholm": 3}
 }

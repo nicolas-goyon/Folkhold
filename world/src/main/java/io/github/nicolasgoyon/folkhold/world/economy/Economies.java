@@ -6,10 +6,12 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomySettings;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.JobAssignment;
+import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
@@ -137,13 +139,18 @@ public final class Economies {
         }
     }
 
-    /** The jobs that a settlement can have: minimum level and biome. */
+    /**
+     * The jobs that a settlement can have: minimum level and biome. The culture of the faction of the settlement
+     * changes the weights of the jobs (see {@link Job#forCulture}).
+     */
     public static List<Job> eligibleJobs(MinecraftServer server, Settlement settlement) {
         Optional<Holder.Reference<Biome>> biome = biomeHolder(server, settlement.biome());
+        String culture = FactionData.get(server).byId(settlement.factionId()).map(FactionSpec::cultureId)
+                .orElse(null);
         List<Job> result = new ArrayList<>();
         for (Job job : EconomyData.jobs().values()) {
             if (job.minLevel() <= settlement.level() && matchesBiome(job, settlement.biome(), biome)) {
-                result.add(job);
+                result.add(job.forCulture(culture));
             }
         }
         return result;

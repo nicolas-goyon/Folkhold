@@ -9,5 +9,6 @@
   ],
   "min_level": 3,
   "weight": 5,
-  "profession": "folkhold_world:baker"
+  "profession": "folkhold_world:baker",
+  "cultures": {"sunreach": 3}
 }

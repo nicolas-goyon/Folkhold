@@ -19,5 +19,6 @@
   ],
   "min_level": 1,
   "weight": 10,
-  "profession": "minecraft:mason"
+  "profession": "minecraft:mason",
+  "cultures": {"ashmark": 3}
 }

@@ -7,5 +7,6 @@
   "min_level": 1,
   "weight": 15,
   "biomes": ["#minecraft:is_ocean", "#minecraft:is_beach", "#minecraft:is_river", "minecraft:swamp", "minecraft:mangrove_swamp"],
-  "profession": "minecraft:fisherman"
+  "profession": "minecraft:fisherman",
+  "cultures": {"valeholm": 3}
 }

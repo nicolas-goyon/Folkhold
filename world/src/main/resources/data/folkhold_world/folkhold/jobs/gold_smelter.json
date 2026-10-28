@@ -8,5 +8,6 @@
   ],
   "min_level": 9,
   "weight": 2,
-  "profession": "minecraft:armorer"
+  "profession": "minecraft:armorer",
+  "cultures": {"sunreach": 3}
 }
