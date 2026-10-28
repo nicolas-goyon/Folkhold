@@ -47,10 +47,14 @@ final class AdminMapWidget extends AbstractWidget {
     /** The names of the settlements show from this scale, in pixels for each block. */
     private static final double NAME_SCALE = 0.125;
     private static final int HIT = 6;
+    /** The smallest margin around the marks when the map shows all of them, in blocks. */
+    private static final double MARGIN = 256.0;
     private static final int CLICK_MOVE = 3;
     private static final int KEY_MOVE = 32;
 
-    private static final MapViewport VIEWPORT = new MapViewport();
+    /** The smallest scale: the map of the admin screen shows all the world. */
+    private static final double MIN_SCALE = 1.0 / 512.0;
+    private static final MapViewport VIEWPORT = new MapViewport(MIN_SCALE);
     private static boolean placed;
 
     private final Font font;
@@ -74,7 +78,7 @@ final class AdminMapWidget extends AbstractWidget {
         this.onSelect = onSelect;
     }
 
-    /** Shows all the marks. */
+    /** Shows all the marks, with a margin. */
     void showAll() {
         double minX = Double.MAX_VALUE;
         double minZ = Double.MAX_VALUE;
@@ -92,7 +96,8 @@ final class AdminMapWidget extends AbstractWidget {
                 VIEWPORT.center(player.getX(), player.getZ());
             }
         } else {
-            VIEWPORT.fit(minX, minZ, maxX, maxZ, inner());
+            double margin = Math.max(MARGIN, Math.max(maxX - minX, maxZ - minZ) / 10.0);
+            VIEWPORT.fit(minX - margin, minZ - margin, maxX + margin, maxZ + margin, inner());
         }
         placed = true;
     }

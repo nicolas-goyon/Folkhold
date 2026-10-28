@@ -21,6 +21,21 @@ final class MapViewport {
     private double centerX;
     private double centerZ;
     private double scale = 0.5;
+    private final double minScale;
+
+    /** A viewport with the smallest scale {@link #MIN_SCALE}. */
+    MapViewport() {
+        this(MIN_SCALE);
+    }
+
+    /**
+     * A viewport with a smallest scale.
+     *
+     * @param minScale the smallest scale, in pixels for each block
+     */
+    MapViewport(double minScale) {
+        this.minScale = minScale;
+    }
 
     /** The block X at the center of the map. */
     double centerX() {
@@ -98,7 +113,7 @@ final class MapViewport {
         scale = clamp(Math.min(area.width() / spanX, area.height() / spanZ));
     }
 
-    private static double clamp(double value) {
-        return Math.max(MIN_SCALE, Math.min(MAX_SCALE, value));
+    private double clamp(double value) {
+        return Math.max(minScale, Math.min(MAX_SCALE, value));
     }
 }
