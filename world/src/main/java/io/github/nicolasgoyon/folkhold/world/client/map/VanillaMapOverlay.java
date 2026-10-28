@@ -16,15 +16,18 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
 /**
- * The territories on the vanilla maps: the borders of the territories in the color of their faction, and a marker at
- * each village (see {@link ClientMapTerritories}). The overlay changes only the texture of the map on the client: the
- * data of the map does not change.
+ * The territories on the vanilla maps: a light fill and a border in the color of the faction of each territory, and a
+ * marker at each village (see {@link ClientMapTerritories}). The overlay changes only the texture of the map on the
+ * client: the data of the map does not change.
  *
  * <ul>
+ *   <li>The overlay shows only on the explored pixels of the map: the pixels with a color. The player does not need to
+ *       enter a territory to see its border.</li>
+ *   <li>A territory has a fill of {@link #FILL_ALPHA} of the color of its faction over the colors of the map.</li>
  *   <li>A pixel is a border when its chunk has an owner, and the chunk of a next pixel has another owner. The border
  *       is inside the territory, with a width of one pixel.</li>
  *   <li>A village has a marker of {@link #MARKER} x {@link #MARKER} pixels in the color of its faction, with a dark
- *       outline.</li>
+ *       outline, when the pixel of the village is explored.</li>
  *   <li>Only the maps of the overworld show the territories. The client setting
  *       {@link ClientConfig#SHOW_VANILLA_MAP_TERRITORIES} turns the overlay off.</li>
  * </ul>
@@ -34,10 +37,13 @@ public final class VanillaMapOverlay {
     public static final int SIZE = 128;
     /** The side of the marker of a village, in pixels, without the outline. */
     public static final int MARKER = 3;
+    /** The opacity of the fill of a territory, from 0 to 255. */
+    public static final int FILL_ALPHA = 0x50;
     /** The color of the outline of a marker, as 0xRRGGBB. */
     private static final int OUTLINE = 0x202020;
     /** No color: the pixel of the map stays. */
-    public static final int NONE = -1;
+    public static final int NONE = 0;
+    private static final int OPAQUE = 0xFF000000;
 
     private VanillaMapOverlay() {
     }
@@ -48,13 +54,15 @@ public final class VanillaMapOverlay {
      * @param centerX the X of the center of the map, in blocks
      * @param centerZ the Z of the center of the map, in blocks
      * @param scale   the scale of the map: a pixel is 2^scale blocks
+     * @param seen    true for an explored pixel, at the index {@code z * SIZE + x}
      * @param owner   the owner of a chunk (chunk X, chunk Z), or empty
-     * @param colors  the color of each owner, as 0xRRGGBB. An owner with no color has no border.
+     * @param colors  the color of each owner, as 0xRRGGBB. An owner with no color has no fill and no border.
      * @param markers the markers of the villages
-     * @return the color of each pixel as 0xRRGGBB, or {@link #NONE}, at the index {@code z * SIZE + x}
+     * @return the color of each pixel as 0xAARRGGBB (the alpha is the opacity), or {@link #NONE}, at the index
+     *     {@code z * SIZE + x}
      */
-    public static int[] colors(int centerX, int centerZ, int scale, BiFunction<Integer, Integer, Optional<String>> owner,
-            Map<String, Integer> colors, List<Marker> markers) {
+    public static int[] colors(int centerX, int centerZ, int scale, boolean[] seen,
+            BiFunction<Integer, Integer, Optional<String>> owner, Map<String, Integer> colors, List<Marker> markers) {
         int factor = 1 << scale;
         int originX = (Math.floorDiv(centerX, factor) - SIZE / 2) * factor;
         int originZ = (Math.floorDiv(centerZ, factor) - SIZE / 2) * factor;
@@ -74,7 +82,7 @@ public final class VanillaMapOverlay {
             for (int x = 0; x < SIZE; x++) {
                 String here = owners[(z + 1) * (SIZE + 2) + x + 1];
                 Integer color = here == null ? null : colors.get(here);
-                if (color == null) {
+                if (color == null || !seen[z * SIZE + x]) {
                     continue;
                 }
                 boolean border = false;
@@ -82,14 +90,15 @@ public final class VanillaMapOverlay {
                     String next = owners[(z + 1 + side[1]) * (SIZE + 2) + x + 1 + side[0]];
                     border |= !here.equals(next);
                 }
-                if (border) {
-                    result[z * SIZE + x] = color;
-                }
+                result[z * SIZE + x] = (border ? OPAQUE : FILL_ALPHA << 24) | color;
             }
         }
         for (Marker marker : markers) {
             int px = Math.floorDiv(marker.x() - originX, factor);
             int pz = Math.floorDiv(marker.z() - originZ, factor);
+            if (px < 0 || px >= SIZE || pz < 0 || pz >= SIZE || !seen[pz * SIZE + px]) {
+                continue;
+            }
             int half = MARKER / 2;
             for (int dz = -half - 1; dz <= half + 1; dz++) {
                 for (int dx = -half - 1; dx <= half + 1; dx++) {
@@ -97,7 +106,7 @@ public final class VanillaMapOverlay {
                     int z = pz + dz;
                     if (x >= 0 && x < SIZE && z >= 0 && z < SIZE) {
                         boolean edge = Math.abs(dx) > half || Math.abs(dz) > half;
-                        result[z * SIZE + x] = edge ? OUTLINE : marker.color();
+                        result[z * SIZE + x] = OPAQUE | (edge ? OUTLINE : marker.color());
                     }
                 }
             }
@@ -111,9 +120,9 @@ public final class VanillaMapOverlay {
      *
      * @param id     the id of the map
      * @param data   the data of the map
-     * @param pixels the pixels of the texture: {@code setPixel(x, z, abgr)}
+     * @param pixels the pixels of the texture
      */
-    public static void draw(int id, MapItemSavedData data, PixelSink pixels) {
+    public static void draw(int id, MapItemSavedData data, Pixels pixels) {
         if (!ClientConfig.SHOW_VANILLA_MAP_TERRITORIES.get() || data.dimension != Level.OVERWORLD) {
             return;
         }
@@ -128,15 +137,38 @@ public final class VanillaMapOverlay {
             colors.put(village.id(), village.color());
             markers.add(new Marker(village.claimant().x(), village.claimant().z(), village.color()));
         }
-        int[] overlay = colors(center.get().x(), center.get().z(), data.scale, view::ownerOf, colors, markers);
+        boolean[] seen = new boolean[SIZE * SIZE];
+        for (int i = 0; i < seen.length; i++) {
+            seen[i] = data.colors[i] != 0;
+        }
+        int[] overlay = colors(center.get().x(), center.get().z(), data.scale, seen, view::ownerOf, colors, markers);
         for (int z = 0; z < SIZE; z++) {
             for (int x = 0; x < SIZE; x++) {
-                int rgb = overlay[z * SIZE + x];
-                if (rgb != NONE) {
-                    pixels.set(x, z, abgr(rgb));
+                int argb = overlay[z * SIZE + x];
+                if (argb != NONE) {
+                    pixels.set(x, z, blend(pixels.get(x, z), argb));
                 }
             }
         }
+    }
+
+    /**
+     * A color over a pixel of a texture.
+     *
+     * @param abgr the pixel, as 0xAABBGGRR
+     * @param argb the color, as 0xAARRGGBB: the alpha is the opacity
+     * @return the opaque pixel, as 0xAABBGGRR
+     */
+    static int blend(int abgr, int argb) {
+        int alpha = argb >>> 24;
+        int red = mix(abgr & 0xFF, argb >> 16 & 0xFF, alpha);
+        int green = mix(abgr >> 8 & 0xFF, argb >> 8 & 0xFF, alpha);
+        int blue = mix(abgr >> 16 & 0xFF, argb & 0xFF, alpha);
+        return OPAQUE | blue << 16 | green << 8 | red;
+    }
+
+    private static int mix(int under, int over, int alpha) {
+        return (under * (255 - alpha) + over * alpha) / 255;
     }
 
     /**
@@ -149,14 +181,17 @@ public final class VanillaMapOverlay {
     public record Marker(int x, int z, int color) {
     }
 
-    /** A color 0xRRGGBB as an opaque color 0xAABBGGRR, the format of the pixels of a texture. */
-    static int abgr(int rgb) {
-        return 0xFF000000 | (rgb & 0xFF) << 16 | (rgb & 0xFF00) | (rgb >> 16 & 0xFF);
-    }
+    /** The pixels of a texture, as 0xAABBGGRR. */
+    public interface Pixels {
+        /**
+         * The color of a pixel.
+         *
+         * @param x the X of the pixel
+         * @param z the Y of the pixel in the texture: the Z of the map
+         * @return the color, as 0xAABBGGRR
+         */
+        int get(int x, int z);
 
-    /** The pixels of a texture. */
-    @FunctionalInterface
-    public interface PixelSink {
         /**
          * Sets a pixel.
          *
