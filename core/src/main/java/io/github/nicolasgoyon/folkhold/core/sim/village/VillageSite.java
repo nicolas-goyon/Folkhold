@@ -3,8 +3,8 @@ package io.github.nicolasgoyon.folkhold.core.sim.village;
 import java.util.function.IntBinaryOperator;
 
 /**
- * The check of the terrain before a village starts. A village does not start on water, in a large deep water or on
- * the steepest slopes. The streets of the village follow the terrain. The terrain adaptation and the foundations of the
+ * The check of the terrain before a village starts. A village does not start on water or on the steepest slopes. A
+ * village in a large deep water (an island, a peninsula, a coast) is a maritime village. The streets of the village follow the terrain. The terrain adaptation and the foundations of the
  * structure accept the other slopes. Over shallow water, the buildings stand on stilts and the streets go on planks.
  *
  * <p>The check reads the surface of the terrain (the Y of the first free block, water included) on a square grid of
@@ -15,7 +15,8 @@ import java.util.function.IntBinaryOperator;
  *   <li>The middle of the plaza is on water when its surface is higher than its floor (the top solid block).</li>
  *   <li>A point is low when its surface is at the sea level or lower: the sea, a lake or a river. A low point is deep
  *       when its water is deeper than {@link #MAX_SHALLOW_DEPTH} blocks. At most {@link #MAX_DEEP_PERCENT} percent of
- *       the points are deep. The check reads the floor of a point only when the point is low.</li>
+ *       the points are deep, else the village is a maritime village. The check reads the floor of a point only when
+ *       the point is low.</li>
  *   <li>The slope between 2 neighbor points is the difference of their surfaces, divided by {@link #STEP}. The mean
  *       slope of the pairs of neighbor points is at most {@link #MAX_SLOPE_PERCENT} percent.</li>
  * </ul>
@@ -38,8 +39,11 @@ public final class VillageSite {
         ACCEPTED,
         /** The middle of the plaza is on water. */
         WATER_IN_THE_MIDDLE,
-        /** Too many points are deep. */
-        TOO_MUCH_WATER,
+        /**
+         * The village can start as a maritime village: the middle is on land, and more than
+         * {@link #MAX_DEEP_PERCENT} percent of the points are deep. An island, a peninsula or a coast.
+         */
+        MARITIME,
         /** The mean slope is too steep. */
         TOO_STEEP
     }
@@ -81,9 +85,6 @@ public final class VillageSite {
                 }
             }
         }
-        if (100 * deep > MAX_DEEP_PERCENT * GRID * GRID) {
-            return Result.TOO_MUCH_WATER;
-        }
         int differences = 0;
         int pairs = 0;
         for (int row = 0; row < GRID; row++) {
@@ -99,6 +100,9 @@ public final class VillageSite {
                 }
             }
         }
-        return 100 * differences > MAX_SLOPE_PERCENT * pairs * STEP ? Result.TOO_STEEP : Result.ACCEPTED;
+        if (100 * differences > MAX_SLOPE_PERCENT * pairs * STEP) {
+            return Result.TOO_STEEP;
+        }
+        return 100 * deep > MAX_DEEP_PERCENT * GRID * GRID ? Result.MARITIME : Result.ACCEPTED;
     }
 }

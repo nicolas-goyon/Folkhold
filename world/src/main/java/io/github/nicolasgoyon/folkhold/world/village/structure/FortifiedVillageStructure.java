@@ -177,9 +177,17 @@ public final class FortifiedVillageStructure extends Structure {
             restartRandom(context);
             stub = place(context, variant, start);
         }
-        return stub.filter(village -> checkSite(context, village.position()) == VillageSite.Result.ACCEPTED)
-                .map(village -> new GenerationStub(village.position(),
-                        builder -> generate(context, village, variant, builder)));
+        if (stub.isEmpty()) {
+            return Optional.empty();
+        }
+        GenerationStub village = stub.get();
+        VillageSite.Result site = checkSite(context, village.position());
+        if (site != VillageSite.Result.ACCEPTED && site != VillageSite.Result.MARITIME) {
+            return Optional.empty();
+        }
+        boolean maritime = site == VillageSite.Result.MARITIME;
+        return Optional.of(new GenerationStub(village.position(),
+                builder -> generate(context, village, variant, maritime, builder)));
     }
 
     /**
@@ -279,9 +287,10 @@ public final class FortifiedVillageStructure extends Structure {
 
     /**
      * Adds the pieces of the pools, then the pieces of the wall around them. The wall also keeps the space of a home on
-     * each free plot (see {@link VillagePlots}).
+     * each free plot (see {@link VillagePlots}). A maritime village has the palisade on its land side only (see
+     * {@link VillageWall}).
      */
-    private void generate(GenerationContext context, GenerationStub village, Variant variant,
+    private void generate(GenerationContext context, GenerationStub village, Variant variant, boolean maritime,
             StructurePiecesBuilder builder) {
         List<StructurePiece> pieces = village.getPiecesBuilder().build().pieces();
         pieces.forEach(builder::addPiece);
@@ -290,7 +299,8 @@ public final class FortifiedVillageStructure extends Structure {
                 .filter(plot -> !plot.built())
                 .flatMap(plot -> VillagePlots.space(templates, variant.homes().value(), plot).stream())
                 .toList();
-        VillageWall.add(context, pieces, freePlots, village.position(), variant.wall()).forEach(builder::addPiece);
+        VillageWall.add(context, pieces, freePlots, village.position(), variant.wall(), maritime)
+                .forEach(builder::addPiece);
     }
 
     @Override

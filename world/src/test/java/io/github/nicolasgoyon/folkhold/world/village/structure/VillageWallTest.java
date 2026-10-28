@@ -219,4 +219,25 @@ class VillageWallTest {
         assertEquals(BASE + 4, VillageWall.reachable(BASE + 9, java.util.Optional.of(arm)),
                 "6 rows, 2 of them flat: 4 blocks up at most");
     }
+
+    /**
+     * A segment with columns that do not keep the palisade (a maritime village): the palisade goes on the runs of kept
+     * columns only.
+     */
+    @Test
+    void maritimeSegmentKeepsItsRunsOnLand() {
+        WallLayout layout = layout();
+        Segment first = layout.segments().get(0);
+        boolean[] keep = new boolean[layout.ringSize()];
+        java.util.Arrays.fill(keep, true);
+        keep[layout.ringIndex(first.side(), first.from() + 2)] = false;
+        keep[layout.ringIndex(first.side(), first.from() + 3)] = false;
+
+        List<Segment> runs = VillageWall.runs(layout, first, keep);
+
+        assertEquals(List.of(new Segment(first.side(), first.from(), first.from() + 1),
+                new Segment(first.side(), first.from() + 4, first.to())), runs);
+        java.util.Arrays.fill(keep, false);
+        assertTrue(VillageWall.runs(layout, first, keep).isEmpty(), "No kept column: no palisade");
+    }
 }
