@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.mixin;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import io.github.nicolasgoyon.folkhold.world.client.map.VanillaMapOverlay;
 import net.minecraft.client.gui.MapRenderer;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -39,8 +40,19 @@ abstract class MapInstanceMixin {
     @Inject(method = "updateTexture", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/renderer/texture/DynamicTexture;upload()V"))
     private void folkhold$drawTerritories(CallbackInfo info) {
-        if (texture.getPixels() != null) {
-            VanillaMapOverlay.draw(folkhold$mapId, data, (x, z, abgr) -> texture.getPixels().setPixelRGBA(x, z, abgr));
+        NativeImage image = texture.getPixels();
+        if (image != null) {
+            VanillaMapOverlay.draw(folkhold$mapId, data, new VanillaMapOverlay.Pixels() {
+                @Override
+                public int get(int x, int z) {
+                    return image.getPixelRGBA(x, z);
+                }
+
+                @Override
+                public void set(int x, int z, int abgr) {
+                    image.setPixelRGBA(x, z, abgr);
+                }
+            });
         }
     }
 }
