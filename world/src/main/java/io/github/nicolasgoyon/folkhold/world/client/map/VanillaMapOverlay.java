@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.client.map;
 import io.github.nicolasgoyon.folkhold.world.client.ClientMapTerritories;
 import io.github.nicolasgoyon.folkhold.world.client.TerritoryMapView;
 import io.github.nicolasgoyon.folkhold.world.config.ClientConfig;
+import io.github.nicolasgoyon.folkhold.world.network.MapTerritoryPayload;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryMapPayload;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -105,17 +106,20 @@ public final class VanillaMapOverlay {
     }
 
     /**
-     * Draws the overlay on the pixels of a map texture.
+     * Draws the overlay on the pixels of a map texture. The client does not know the center of a map: a map with no
+     * center from the server has no overlay.
      *
+     * @param id     the id of the map
      * @param data   the data of the map
      * @param pixels the pixels of the texture: {@code setPixel(x, z, abgr)}
      */
-    public static void draw(MapItemSavedData data, PixelSink pixels) {
+    public static void draw(int id, MapItemSavedData data, PixelSink pixels) {
         if (!ClientConfig.SHOW_VANILLA_MAP_TERRITORIES.get() || data.dimension != Level.OVERWORLD) {
             return;
         }
         TerritoryMapView view = ClientMapTerritories.get();
-        if (view.villages().isEmpty()) {
+        Optional<MapTerritoryPayload.MapCenter> center = ClientMapTerritories.center(id);
+        if (view.villages().isEmpty() || center.isEmpty()) {
             return;
         }
         Map<String, Integer> colors = new HashMap<>();
@@ -124,7 +128,7 @@ public final class VanillaMapOverlay {
             colors.put(village.id(), village.color());
             markers.add(new Marker(village.claimant().x(), village.claimant().z(), village.color()));
         }
-        int[] overlay = colors(data.centerX, data.centerZ, data.scale, view::ownerOf, colors, markers);
+        int[] overlay = colors(center.get().x(), center.get().z(), data.scale, view::ownerOf, colors, markers);
         for (int z = 0; z < SIZE; z++) {
             for (int x = 0; x < SIZE; x++) {
                 int rgb = overlay[z * SIZE + x];

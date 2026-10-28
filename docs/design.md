@@ -749,8 +749,11 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
   - The button "Details" opens the selected village in the tab "Villages". In the tab "Villages", the button "Show on the map" opens the tab "Map" at the village.
   - With Xaero's World Map, the button "World map" opens the world map of Xaero's at the selected village. With no selection, it opens at the center of the map. Escape goes back to the journal. Xaero's World Map has no public method for this: the world mod sets the camera of its screen with reflection.
 - **Planned**: the player shows or hides the layers of the map of the journal, for example the routes of the caravans.
-- The vanilla maps also show the territory borders and the known villages.
-- The player can update a map at a distance: a cartographer block, or a surveyor map that updates itself (for example each 10 minutes).
+- **Implemented** (`MapTerritories`, `VanillaMapOverlay`): the vanilla maps show all the territories in their area, also the territories that the player did not discover.
+  - The maps are the filled maps of the Overworld in the hands of the player, and in the item frames at 32 blocks or less. Every 2 seconds, the server sends the settlements whose territory can touch the area of one of these maps, with the center of each map: the client does not know the center of a vanilla map. It sends the payload only when it changes.
+  - The client draws the overlay on the texture of the map (a client mixin of the map renderer): a border of one pixel inside each territory in the color of its faction, and a square marker with a dark outline at each village. The data of the map does not change.
+  - The client config hides the overlay (`showVanillaMapTerritories`).
+- **Planned**: a cartographer block updates a map at a distance. The player puts a map in it and pays a cost (paper or emeralds). The block updates the map from the chunks that are already generated, with a limit of chunks for each update.
 - A **faction journal** shows the discovered factions and villages: reputation, relations, position, distance.
   - **Implemented** (`Journals`, `JournalScreen`, key J): a player discovers a village when the player enters its territory. The player visits the village when the player comes near its heart (the village message). The server keeps the journal of each player.
   - Tab "Villages": a text filter, a filter on the visits, a sort by distance, name or reputation. The details show the faction, the reputation in the village, the position and the direction, the day of the discovery and of the last visit.

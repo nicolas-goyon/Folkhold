@@ -8,11 +8,13 @@ import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryMapPayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -20,6 +22,7 @@ import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
@@ -64,6 +67,16 @@ public final class MapTerritories {
             return new Area(data.centerX - half, data.centerZ - half, data.centerX + half, data.centerZ + half);
         }
 
+        /** The center of the area. */
+        int centerX() {
+            return Math.floorDiv(minX + maxX, 2);
+        }
+
+        /** The center of the area. */
+        int centerZ() {
+            return Math.floorDiv(minZ + maxZ, 2);
+        }
+
         /** True if the disc of a claim can have a chunk in this area, with a margin of one chunk. */
         boolean touches(Claimant claimant) {
             int reach = 16 * (claimant.radius() + 1);
@@ -88,31 +101,39 @@ public final class MapTerritories {
 
     /** Sends the territories of the maps of a player if they changed since the last payload. */
     static void update(ServerPlayer player) {
-        MapTerritoryPayload payload = new MapTerritoryPayload(payload(player.serverLevel(), areas(player)));
+        Map<Integer, Area> maps = maps(player);
+        List<MapTerritoryPayload.MapCenter> centers = maps.entrySet().stream()
+                .map(map -> new MapTerritoryPayload.MapCenter(map.getKey(), map.getValue().centerX(),
+                        map.getValue().centerZ()))
+                .sorted(Comparator.comparingInt(MapTerritoryPayload.MapCenter::id)).toList();
+        MapTerritoryPayload payload = new MapTerritoryPayload(payload(player.serverLevel(),
+                List.copyOf(maps.values())), centers);
         MapTerritoryPayload sent = SENT.getOrDefault(player.getUUID(), MapTerritoryPayload.EMPTY);
         if (!payload.equals(sent) && ModNetwork.send(player, payload)) {
             SENT.put(player.getUUID(), payload);
         }
     }
 
-    /** The areas of the maps of a player: in its hands, and in the item frames near it. */
-    static List<Area> areas(ServerPlayer player) {
+    /** The areas of the maps of a player, by map id: in its hands, and in the item frames near it. */
+    static Map<Integer, Area> maps(ServerPlayer player) {
         ServerLevel level = player.serverLevel();
-        List<Area> areas = new ArrayList<>();
+        Map<Integer, Area> maps = new HashMap<>();
         for (InteractionHand hand : InteractionHand.values()) {
-            area(level, player.getItemInHand(hand)).ifPresent(areas::add);
+            add(level, player.getItemInHand(hand), maps);
         }
         for (ItemFrame frame : level.getEntitiesOfClass(ItemFrame.class,
                 player.getBoundingBox().inflate(FRAME_DISTANCE))) {
-            area(level, frame.getItem()).ifPresent(areas::add);
+            add(level, frame.getItem(), maps);
         }
-        return areas;
+        return maps;
     }
 
-    private static Optional<Area> area(ServerLevel level, ItemStack stack) {
-        MapItemSavedData data = stack.getItem() instanceof MapItem ? MapItem.getSavedData(stack, level) : null;
-        return data == null || data.dimension != level.dimension() || level.dimension() != Level.OVERWORLD
-                ? Optional.empty() : Optional.of(Area.of(data));
+    private static void add(ServerLevel level, ItemStack stack, Map<Integer, Area> maps) {
+        MapId id = stack.get(DataComponents.MAP_ID);
+        MapItemSavedData data = id == null ? null : MapItem.getSavedData(id, level);
+        if (data != null && data.dimension == level.dimension() && level.dimension() == Level.OVERWORLD) {
+            maps.put(id.id(), Area.of(data));
+        }
     }
 
     /**
