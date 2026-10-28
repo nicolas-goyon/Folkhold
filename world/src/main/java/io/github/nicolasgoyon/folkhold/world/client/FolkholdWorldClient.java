@@ -58,6 +58,7 @@ public final class FolkholdWorldClient {
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         ClientTerritory.clear();
         ClientTerritoryMap.clear();
+        ClientMapTerritories.clear();
         ClientJournalMap.clear();
         ClientQuestLog.clear();
         TerritoryTitleHud.clear();

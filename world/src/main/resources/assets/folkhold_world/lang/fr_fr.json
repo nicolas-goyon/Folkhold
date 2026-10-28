@@ -383,6 +383,7 @@
   "folkhold_world.configuration.showQuestHud": "HUD des quêtes",
   "folkhold_world.configuration.showMapTerritories": "Territoires sur les cartes",
   "folkhold_world.configuration.showMapVillages": "Villages sur les cartes",
+  "folkhold_world.configuration.showVanillaMapTerritories": "Territoires sur les cartes vanilla",
   "message.folkhold_world.quest_board_no_village": "Ce tableau de quêtes n'est pas dans un village actif.",
   "message.folkhold_world.captain_refuses": "%s : Je n'ai pas de travail pour toi.",
   "message.folkhold_world.quest_accepted": "Quête acceptée : %s",

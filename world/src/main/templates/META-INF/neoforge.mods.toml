@@ -12,6 +12,10 @@ displayURL = "https://github.com/nicolas-goyon/Folkhold"
 # The mod list shows the translated description (key: fml.menu.mods.info.description.<mod_id>) when it exists.
 description = '''${mod_description}'''
 
+# The vanilla maps show the territories (client only).
+[[mixins]]
+config = "folkhold_world.mixins.json"
+
 [[dependencies.${mod_id}]]
 modId = "neoforge"
 type = "required"
