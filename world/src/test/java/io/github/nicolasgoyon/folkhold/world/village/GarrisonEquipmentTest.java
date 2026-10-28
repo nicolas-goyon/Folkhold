@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -155,6 +156,18 @@ class GarrisonEquipmentTest {
             }
             assertTrue(sets.pieces("sunreach", set, GarrisonRole.GUARD, id).get(EquipmentSlot.OFFHAND) == null,
                     "A spear needs both hands: no shield " + set);
+        }
+    }
+
+    /** In each culture, the weapon of the guards of a capital is better than in a hamlet: another item or enchantments. */
+    @Test
+    void capitalWeaponIsBetterInEachCulture() throws IOException {
+        Sets sets = dataFile();
+        UUID id = new UUID(0L, 1L);
+        for (String culture : List.of("valeholm", "ashmark", "sunreach")) {
+            Piece hamlet = sets.pieces(culture, "hamlet", GarrisonRole.GUARD, id).get(EquipmentSlot.MAINHAND);
+            Piece capital = sets.pieces(culture, "capital", GarrisonRole.GUARD, id).get(EquipmentSlot.MAINHAND);
+            assertNotEquals(hamlet, capital, culture);
         }
     }
 

@@ -169,15 +169,15 @@ public final class GarrisonGameTests {
         long now = helper.getLevel().getGameTime();
         heart.ensureGarrison(now);
         FactionUnit guard = units(heart, GarrisonRole.GUARD).get(0);
-        String hamletWeapon = weapon(guard, "hamlet");
+        GarrisonEquipment.Piece hamletWeapon = weapon(guard, "hamlet");
         boolean hamletEquipped = guard.getMainHandItem().is(BuiltInRegistries.ITEM.get(
-                ResourceLocation.parse(hamletWeapon)));
+                ResourceLocation.parse(hamletWeapon.item())));
 
         setLevel(helper, heart, 17);
         heart.ensureGarrison(now + 1);
-        String capitalWeapon = weapon(guard, "capital");
+        GarrisonEquipment.Piece capitalWeapon = weapon(guard, "capital");
         boolean capitalEquipped = guard.getMainHandItem().is(BuiltInRegistries.ITEM.get(
-                ResourceLocation.parse(capitalWeapon)));
+                ResourceLocation.parse(capitalWeapon.item())));
         boolean enchanted = guard.getItemBySlot(EquipmentSlot.HEAD).isEnchanted();
         String set = guard.getEquipmentSet();
         removeVillage(helper, heart);
@@ -185,16 +185,16 @@ public final class GarrisonGameTests {
         helper.assertTrue(hamletEquipped, "A guard of a hamlet must have the weapon of the hamlet: " + hamletWeapon);
         helper.assertTrue(capitalEquipped && enchanted, "A guard of a capital must have the weapon of the capital ("
                 + capitalWeapon + ") and an enchanted helmet");
-        helper.assertTrue(!hamletWeapon.equals(capitalWeapon), "The weapon of a capital is better than the weapon "
-                + "of a hamlet");
+        helper.assertTrue(!hamletWeapon.equals(capitalWeapon), "The weapon of a capital (" + capitalWeapon
+                + ") must be better than the weapon of a hamlet (" + hamletWeapon + "): another item or enchantments");
         helper.assertTrue("capital".equals(set), "The guard must have the set of the capital: " + set);
         helper.succeed();
     }
 
     /** The weapon of a guard in a set, for the culture of its faction. */
-    private static String weapon(FactionUnit guard, String set) {
+    private static GarrisonEquipment.Piece weapon(FactionUnit guard, String set) {
         return GarrisonEquipment.get().pieces(GarrisonEquipment.culture(guard), set, GarrisonRole.GUARD,
-                guard.getUUID()).get(EquipmentSlot.MAINHAND).item();
+                guard.getUUID()).get(EquipmentSlot.MAINHAND);
     }
 
     /**
