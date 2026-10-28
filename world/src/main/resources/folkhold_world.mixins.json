@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.github.nicolasgoyon.folkhold.world.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MapInstanceMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

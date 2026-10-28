@@ -90,13 +90,24 @@ public final class TerritoryMaps {
             if (claimant == null || settlement.isEmpty()) {
                 continue;
             }
-            Optional<FactionSpec> faction = factions.byId(settlement.get().factionId());
-            villages.add(new TerritoryMapPayload.Village(claimant,
-                    settlement.get().hasHeart() ? settlement.get().heartY() : DEFAULT_Y, settlement.get().name(),
-                    faction.map(FactionSpec::name).orElse(settlement.get().factionId()),
-                    faction.map(FactionSpec::color).orElse(0xFFFFFF)));
+            villages.add(village(claimant, settlement.get(), factions));
         }
         return new TerritoryMapPayload(villages, neighbors(settlements.claimants(), villages));
+    }
+
+    /**
+     * A village of the maps: its claim, the Y of its heart, its name, and the name and the color of its faction.
+     *
+     * @param claimant   the claim of the settlement
+     * @param settlement the settlement
+     * @param factions   the factions
+     * @return the village
+     */
+    static TerritoryMapPayload.Village village(Claimant claimant, Settlement settlement, FactionData factions) {
+        Optional<FactionSpec> faction = factions.byId(settlement.factionId());
+        return new TerritoryMapPayload.Village(claimant, settlement.hasHeart() ? settlement.heartY() : DEFAULT_Y,
+                settlement.name(), faction.map(FactionSpec::name).orElse(settlement.factionId()),
+                faction.map(FactionSpec::color).orElse(0xFFFFFF));
     }
 
     /**
