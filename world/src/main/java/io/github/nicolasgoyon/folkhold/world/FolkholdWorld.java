@@ -50,6 +50,7 @@ import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.VanillaGolems;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBuildingTable;
 import io.github.nicolasgoyon.folkhold.world.village.VillageDetachments;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -159,6 +160,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(ConstructionRuns::onServerStopped);
         NeoForge.EVENT_BUS.addListener(ConstructionCommands::onServerStopped);
         NeoForge.EVENT_BUS.addListener(LevelTables::onAddReloadListener);
+        NeoForge.EVENT_BUS.addListener(VillageBuildingTable::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(GarrisonEquipment::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(EconomyData::onAddReloadListener);
         SimulationTicker.addSystem("economy", Economies::tick);

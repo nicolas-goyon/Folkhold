@@ -1,0 +1,10 @@
+{
+  "buildings": [
+    {"kind": "storehouse", "min_level": 3},
+    {"kind": "forge", "min_level": 5},
+    {"kind": "barracks", "min_level": 9},
+    {"kind": "storehouse", "min_level": 9},
+    {"kind": "forge", "min_level": 13},
+    {"kind": "barracks", "min_level": 17}
+  ]
+}
