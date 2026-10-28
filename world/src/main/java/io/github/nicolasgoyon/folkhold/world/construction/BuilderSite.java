@@ -809,7 +809,8 @@ public final class BuilderSite {
 
     /**
      * The target of a repair site: the blocks of the structure pieces of the village at the damaged positions. A piece
-     * replaces the blocks of the pieces before it. The palisades come after the template pieces.
+     * replaces the blocks of the pieces before it. The palisades come after the template pieces, and the surface of
+     * the streets last.
      */
     private Target repairTarget(ServerLevel level, VillageReference reference) {
         Map<BuildPos, BuildBlock> blocks = new HashMap<>();
@@ -822,6 +823,11 @@ public final class BuilderSite {
         reference.palisadeBlocks().forEach((pos, state) -> {
             if (repairPositions.contains(pos)) {
                 blocks.put(BlockKinds.toBuildPos(pos), BlockKinds.describe(pos, state, Optional.empty()));
+            }
+        });
+        reference.streets().forEach((pos, state) -> {
+            if (repairPositions.contains(pos)) {
+                blocks.putIfAbsent(BlockKinds.toBuildPos(pos), BlockKinds.describe(pos, state, Optional.empty()));
             }
         });
         return new Target(blocks);

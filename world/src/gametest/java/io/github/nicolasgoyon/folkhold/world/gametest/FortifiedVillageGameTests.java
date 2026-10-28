@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.StreetBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.VillageClearing;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
@@ -110,6 +111,11 @@ public final class FortifiedVillageGameTests {
                 "The wall must have a palisade");
         helper.assertTrue(village.start().getPieces().stream().anyMatch(VillagePathPiece.class::isInstance),
                 "A path must go from a gate to the streets");
+        // The heart records the surface of the streets: most columns of the streets in the area have a surface block.
+        long columns = reference.streetColumns().stream().filter(reference::isInArea).count();
+        int surface = StreetBlocks.record(level, reference).size();
+        helper.assertTrue(columns > 0 && surface * 10L >= columns * 9L, "The streets must have their surface: "
+                + surface + " of " + columns + " columns");
 
         Walk closed = walk(level, village.heart(), area);
         helper.assertTrue(closed.positions() >= MIN_WALK, "The walk must go through the village: "
