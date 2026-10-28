@@ -50,10 +50,11 @@ class VillageSiteTest {
     }
 
     /**
-     * A deep lake on 4 points of 9 is accepted, a deep lake on 5 points is refused. A surface at the sea level is low.
+     * A deep lake on 4 points of 9 gives a village, a deep lake on 5 points gives a maritime village. A surface at the
+     * sea level is low.
      */
     @Test
-    void largeLakeIsRefused() {
+    void largeLakeGivesAMaritimeVillage() {
         // The lake covers the west column and the point to the north of the middle.
         Result fourPoints = VillageSite.check(LAND, LAND, SEA,
                 (dx, dz) -> dx < 0 || (dx == 0 && dz < 0) ? SEA : LAND, VillageSiteTest::deepFloor);
@@ -62,7 +63,7 @@ class VillageSiteTest {
                 VillageSiteTest::deepFloor);
 
         assertEquals(Result.ACCEPTED, fourPoints);
-        assertEquals(Result.TOO_MUCH_WATER, fivePoints);
+        assertEquals(Result.MARITIME, fivePoints);
     }
 
     /**
@@ -93,7 +94,7 @@ class VillageSiteTest {
 
     /**
      * Shallow water on 8 points of 9 is accepted: an island, or a lake shore. The buildings stand on stilts over it.
-     * Water one block deeper than the limit on 5 points is refused.
+     * Water one block deeper than the limit on 5 points gives a maritime village.
      */
     @Test
     void shallowWaterIsAccepted() {
@@ -103,7 +104,7 @@ class VillageSiteTest {
                 (dx, dz) -> dx <= 0 ? SEA - VillageSite.MAX_SHALLOW_DEPTH - 1 : SEA + 1);
 
         assertEquals(Result.ACCEPTED, island);
-        assertEquals(Result.TOO_MUCH_WATER, deeper);
+        assertEquals(Result.MARITIME, deeper);
     }
 
     /** The check reads the floor of the low points only. */
@@ -122,5 +123,12 @@ class VillageSiteTest {
     /** The floor of a deep water at each point: the sea, a large lake. */
     private static int deepFloor(int dx, int dz) {
         return SEA - 20;
+    }
+
+    /** A small island in deep water: the middle on land, and the 8 other points in deep water. */
+    @Test
+    void smallIslandGivesAMaritimeVillage() {
+        assertEquals(Result.MARITIME, VillageSite.check(SEA + 1, SEA + 1, SEA, (dx, dz) -> SEA,
+                VillageSiteTest::deepFloor));
     }
 }

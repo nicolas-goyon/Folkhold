@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.village.structure;
 import io.github.nicolasgoyon.folkhold.core.sim.village.HeightGrid;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PathRamp;
+import io.github.nicolasgoyon.folkhold.core.sim.village.SeaWall;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Box;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Cell;
@@ -99,10 +100,12 @@ public final class VillageWall {
      * @param reserved the spaces for later buildings, for example the homes of the free plots
      * @param center   the middle of the start piece
      * @param settings the settings of the wall
+     * @param maritime true for a maritime village: the water is the wall, and the palisade stands on the land side
+     *                 only (see {@link SeaWall})
      * @return the pieces of the wall
      */
     public static List<StructurePiece> add(Structure.GenerationContext context, List<StructurePiece> village,
-            List<BoundingBox> reserved, BlockPos center, WallSettings settings) {
+            List<BoundingBox> reserved, BlockPos center, WallSettings settings, boolean maritime) {
         List<Box> boxes = village.stream().map(piece -> box(piece.getBoundingBox())).toList();
         List<Box> inside = new ArrayList<>(boxes);
         reserved.forEach(space -> inside.add(box(space)));
@@ -117,6 +120,7 @@ public final class VillageWall {
             Cell cell = layout.ringCell(i);
             water[i] = isWater(terrain.height(cell.x(), cell.z()), seaLevel);
         }
+        boolean[] keep = maritime ? SeaWall.keep(water) : allColumns(water.length);
         Set<Gate> waterGates = new HashSet<>();
         for (Gate gate : layout.gates()) {
             if (isWaterGate(layout, gate, terrain::height, seaLevel)) {
@@ -142,17 +146,23 @@ public final class VillageWall {
         }
         int[] smooth = PalisadeHeights.smooth(bases);
         for (Tower tower : layout.towers()) {
-            pieces.add(template(templates, settings, settings.tower(),
-                    towerOrigin(layout, tower, towerLevels.get(tower)), rotation(tower.side())));
+            if (kept(keep, layout.ringIndices(layout.towerBox(tower)))) {
+                pieces.add(template(templates, settings, settings.tower(),
+                        towerOrigin(layout, tower, towerLevels.get(tower)), rotation(tower.side())));
+            }
         }
-        for (Gate gate : layout.gates()) {
+        List<Gate> keptGates = layout.gates().stream().filter(gate -> kept(keep, layout.ringIndices(gate))).toList();
+        gateLevels.keySet().retainAll(keptGates);
+        for (Gate gate : keptGates) {
             pieces.add(template(templates, settings, settings.gate(), gateOrigin(layout, gate, gateLevels.get(gate)),
                     rotation(gate.side())));
         }
         for (Segment segment : layout.segments()) {
-            pieces.add(palisade(layout, segment, smooth, settings.palisade()));
+            for (Segment run : runs(layout, segment, keep)) {
+                pieces.add(palisade(layout, run, smooth, settings.palisade()));
+            }
         }
-        for (Gate gate : layout.gates()) {
+        for (Gate gate : keptGates) {
             Arm arm = arms.get(gate);
             if (arm != null) {
                 int[] levels = levels(arm, gateLevels.get(gate), terrain);
@@ -165,6 +175,34 @@ public final class VillageWall {
         }
         pieces.addAll(terrain(layout, smooth, gateLevels, water, waterGates));
         return pieces;
+    }
+
+    /** All the columns of a ring keep the palisade. */
+    private static boolean[] allColumns(int size) {
+        boolean[] keep = new boolean[size];
+        Arrays.fill(keep, true);
+        return keep;
+    }
+
+    /** True if one column of a list keeps the palisade. */
+    private static boolean kept(boolean[] keep, List<Integer> indices) {
+        return indices.stream().anyMatch(index -> keep[index]);
+    }
+
+    /** The runs of the columns of a segment that keep the palisade. */
+    static List<Segment> runs(WallLayout layout, Segment segment, boolean[] keep) {
+        List<Segment> runs = new ArrayList<>();
+        int start = -1;
+        for (int along = segment.from(); along <= segment.to() + 1; along++) {
+            boolean on = along <= segment.to() && keep[layout.ringIndex(segment.side(), along)];
+            if (on && start < 0) {
+                start = along;
+            } else if (!on && start >= 0) {
+                runs.add(new Segment(segment.side(), start, along - 1));
+                start = -1;
+            }
+        }
+        return runs;
     }
 
     /**
@@ -267,7 +305,7 @@ public final class VillageWall {
                 }
             }
         }
-        for (Gate gate : layout.gates()) {
+        for (Gate gate : layout.gates().stream().filter(gateLevels::containsKey).toList()) {
             int middle = layout.along(gate);
             pieces.add(across(layout.cell(gate.side(), middle - WallLayout.GATE / 2),
                     layout.cell(gate.side(), middle + WallLayout.GATE / 2), gate.side(),
