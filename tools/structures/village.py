@@ -1100,6 +1100,190 @@ def norse_street(bank=False):
     lamp_post(t, 0, NORSE_STREET_LENGTH - 1)
     return t
 
+# ---------------------------------------------------------------- Sunreach style (desert and Mediterranean)
+
+# A flat house: the door faces the street (z = 0 is the porch with its awning).
+FW = 9    # x: 0..8
+FD = 11   # z: 0 = porch, 1..10 = body
+# A courtyard house: rooms around a courtyard open to the sky.
+CW = 13   # x: 0..12
+CD = 13   # z: 0 = porch, 1..12 = body
+FH = 7
+# The walls go up to this layer. The flat roof is the layer above it, and the parapet the layer above the roof.
+FLAT_WALL_TOP = 3
+
+
+def awning(t, mid):
+    """A striped awning of wool over the porch, on 2 posts."""
+    for x in range(mid - 2, mid + 3):
+        t.set(x, FLAT_WALL_TOP, 0, "minecraft:orange_wool" if (x - mid) % 2 == 0 else "minecraft:white_wool")
+    for x in (mid - 2, mid + 2):
+        for y in range(1, FLAT_WALL_TOP):
+            t.set(x, y, 0, "minecraft:spruce_fence")
+
+
+def flat_house_shell(rng, sign, width, depth, wide_front=False, courtyard=False):
+    """A Sunreach house: walls of smooth sandstone with pillars of cut sandstone at the corners, a band of terracotta,
+    a flat roof with a parapet, small windows with iron bars and a striped awning over the door.
+
+    With a courtyard, the rooms go around a courtyard open to the sky, with a basin in the middle: the inner walls have
+    an opening on each side.
+    """
+    t = Template(width, FH, depth)
+    t.fill(0, 1, 1, width - 1, FH - 1, depth - 1, "minecraft:air")
+    mid = width // 2
+    # Porch.
+    for x in range(mid - 2, mid + 3):
+        t.set(x, 0, 0, "minecraft:smooth_sandstone")
+        for y in range(1, FLAT_WALL_TOP + 1):
+            t.set(x, y, 0, "minecraft:air")
+    # Floor.
+    for x in range(width):
+        for z in range(1, depth):
+            edge = x in (0, width - 1) or z in (1, depth - 1)
+            t.set(x, 0, z, "minecraft:sandstone" if edge else "minecraft:smooth_sandstone")
+    # Outer walls.
+    for x in range(width):
+        for z in range(1, depth):
+            if not (x in (0, width - 1) or z in (1, depth - 1)):
+                continue
+            corner = x in (0, width - 1) and z in (1, depth - 1)
+            for y in range(1, FLAT_WALL_TOP + 1):
+                if corner:
+                    t.set(x, y, z, "minecraft:cut_sandstone")
+                elif y == FLAT_WALL_TOP:
+                    t.set(x, y, z, "minecraft:terracotta")
+                else:
+                    t.set(x, y, z, "minecraft:smooth_sandstone")
+    # Courtyard: inner walls with an opening on each side, and a basin.
+    inner = None
+    if courtyard:
+        inner = (4, 5, width - 5, depth - 5)   # min x, min z, max x, max z of the open court: rooms of 2 blocks
+        x0, z0, x1, z1 = inner
+        for x in range(x0 - 1, x1 + 2):
+            for z in range(z0 - 1, z1 + 2):
+                wall = x in (x0 - 1, x1 + 1) or z in (z0 - 1, z1 + 1)
+                if not wall:
+                    continue
+                opening = x == (x0 + x1) // 2 or z == (z0 + z1) // 2
+                for y in range(1, FLAT_WALL_TOP + 1):
+                    if opening and y < FLAT_WALL_TOP:
+                        continue
+                    t.set(x, y, z, "minecraft:terracotta" if y == FLAT_WALL_TOP else "minecraft:smooth_sandstone")
+        cx, cz = (x0 + x1) // 2, (z0 + z1) // 2
+        for x in range(x0, x1 + 1):
+            for z in range(z0, z1 + 1):
+                t.set(x, 0, z, "minecraft:cut_sandstone")
+        t.set(cx, 0, cz, "minecraft:smooth_sandstone")
+        t.set(cx, 1, cz, "minecraft:water_cauldron", {"level": "3"})
+        for x, z in ((x0, z0), (x1, z1)):
+            t.set(x, 1, z, "minecraft:potted_cactus")
+    # Windows with iron bars.
+    for z in range(3, depth - 2, 4):
+        for x in (0, width - 1):
+            t.set(x, 2, z, "minecraft:iron_bars")
+    for x in (2, width - 3):
+        t.set(x, 2, depth - 1, "minecraft:iron_bars")
+    # Front opening.
+    if wide_front:
+        for x in (mid - 1, mid, mid + 1):
+            for y in (1, 2):
+                t.set(x, y, 1, "minecraft:air")
+    else:
+        t.set(mid, 1, 1, "minecraft:spruce_door",
+              {"facing": "north", "half": "lower", "hinge": "left", "open": "false", "powered": "false"})
+        t.set(mid, 2, 1, "minecraft:spruce_door",
+              {"facing": "north", "half": "upper", "hinge": "left", "open": "false", "powered": "false"})
+    awning(t, mid)
+    # Flat roof and parapet. The courtyard stays open.
+    for x in range(width):
+        for z in range(1, depth):
+            if inner and inner[0] <= x <= inner[2] and inner[1] <= z <= inner[3]:
+                continue
+            t.set(x, FLAT_WALL_TOP + 1, z, "minecraft:smooth_sandstone")
+            if x in (0, width - 1) or z in (1, depth - 1):
+                if (x + z) % 2 == 0:
+                    t.set(x, FLAT_WALL_TOP + 2, z, "minecraft:sandstone_wall")
+                else:
+                    t.set(x, FLAT_WALL_TOP + 2, z, "minecraft:smooth_sandstone_slab",
+                          {"type": "bottom", "waterlogged": "false"})
+    # Lights.
+    for x in (mid - 1, mid + 1):
+        t.set(x, 2, 0, *wall_torch("north"))
+    building_sign(t, mid + 1, 1, 0, sign)
+    # Jigsaw connector in the porch, facing out (north).
+    t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
+    return t
+
+
+def sun_cottage():
+    rng = random.Random(42)
+    t = flat_house_shell(rng, "house", FW, FD)
+    # 3 beds: each bed gives a place to an inhabitant of the village.
+    for x in (1, 2, FW - 2):
+        bed(t, x, FD - 3, "orange")
+    t.set(1, 1, 2, "minecraft:crafting_table")
+    t.set(FW - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
+    t.set(1, 1, 5, "minecraft:decorated_pot", {"cracked": "false", "facing": "east", "waterlogged": "false"})
+    t.set(FW - 2, 1, 5, "minecraft:flower_pot")
+    lantern(t, 1, 1, 4)
+    lantern(t, FW - 2, 1, 6)
+    return t
+
+
+def sun_cottage_courtyard():
+    rng = random.Random(43)
+    t = flat_house_shell(rng, "house", CW, CD, courtyard=True)
+    # 3 beds in the back rooms.
+    for x in (1, 2, CW - 2):
+        bed(t, x, CD - 3, "orange")
+    t.set(1, 1, 2, "minecraft:crafting_table")
+    t.set(CW - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
+    t.set(1, 1, 6, "minecraft:decorated_pot", {"cracked": "false", "facing": "east", "waterlogged": "false"})
+    lantern(t, 1, 1, 4)
+    lantern(t, CW - 2, 1, 6)
+    return t
+
+
+def sun_barracks():
+    rng = random.Random(44)
+    t = flat_house_shell(rng, "barracks", CW, CD, courtyard=True)
+    for x in (1, 2, CW - 3, CW - 2):
+        bed(t, x, CD - 3, "red")
+    t.set(1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(CW - 2, 1, 2, BANNER, {"rotation": "4"})
+    t.set(1, 1, 6, "minecraft:barrel", {"facing": "up", "open": "false"})
+    lantern(t, 1, 1, 4)
+    lantern(t, CW - 2, 1, 6)
+    return t
+
+
+def sun_forge():
+    rng = random.Random(45)
+    t = flat_house_shell(rng, "forge", FW, FD, wide_front=True)
+    t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
+    t.set(FW - 2, 1, FD - 2, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
+    t.set(FW - 2, 1, FD - 3, "minecraft:furnace", {"facing": "west", "lit": "false"})
+    t.set(1, 1, FD - 2, "minecraft:smithing_table")
+    t.set(1, 1, FD - 3, "minecraft:grindstone", {"face": "floor", "facing": "east"})
+    t.set(FW - 2, 1, 3, "minecraft:water_cauldron", {"level": "3"})
+    lantern(t, 1, 1, 6)
+    return t
+
+
+def sun_storehouse():
+    rng = random.Random(46)
+    t = flat_house_shell(rng, "storehouse", CW, CD, courtyard=True)
+    for x in range(1, 5):
+        t.set(x, 1, CD - 2, "minecraft:barrel", {"facing": "up", "open": "false"})
+    for x in range(CW - 5, CW - 1):
+        t.set(x, 1, CD - 2, "minecraft:decorated_pot", {"cracked": "false", "facing": "north", "waterlogged": "false"})
+    for z in (2, 3):
+        t.set(1, 1, z, "minecraft:hay_block", LOG_Y)
+    t.set(CW - 2, 1, 2, "minecraft:composter", {"level": "0"})
+    lantern(t, 1, 1, 5)
+    return t
+
 PIECES = {
     "plaza": plaza,
     "street": street,
@@ -1128,6 +1312,13 @@ STYLES = {
         "house_storehouse": norse_storehouse,
         "house_storehouse_side": norse_storehouse_side,
     },
+    "sunreach": {
+        "house_cottage": sun_cottage,
+        "house_cottage_courtyard": sun_cottage_courtyard,
+        "house_barracks": sun_barracks,
+        "house_forge": sun_forge,
+        "house_storehouse": sun_storehouse,
+    },
 }
 # The houses of the pool of the houses of each style, with their weights. The jigsaw tries the houses in a random
 # order with these weights: a house that touches another piece goes to the next house, and a plot with no house that
@@ -1136,6 +1327,8 @@ HOUSES = [(3, "house_cottage"), (2, "house_barracks"), (1, "house_forge"), (2, "
 STYLE_HOUSES = {
     "valeholm": [(2, "house_cottage"), (2, "house_cottage_side"), (2, "house_barracks"), (1, "house_forge"),
                  (1, "house_storehouse"), (1, "house_storehouse_side")],
+    "sunreach": [(3, "house_cottage"), (2, "house_cottage_courtyard"), (2, "house_barracks"), (1, "house_forge"),
+                 (2, "house_storehouse")],
 }
 
 
