@@ -16,5 +16,6 @@
   ],
   "min_level": 5,
   "weight": 4,
-  "profession": "minecraft:shepherd"
+  "profession": "minecraft:shepherd",
+  "cultures": {"sunreach": 3}
 }

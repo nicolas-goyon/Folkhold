@@ -421,7 +421,7 @@ Each village has real stocks. It produces and consumes according to its jobs. It
 
 ### Jobs and recipes
 
-Each job has one recipe for each cycle (1 game day = 24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle, not on each abstract tick. The jobs and the recipes are data files (`data/folkhold_world/folkhold/jobs/<id>.json`). The culture and the biome select the jobs and the materials (spruce in the taiga, sandstone in the desert). The level of the settlement sets the number of job slots and the minimum level of some jobs.
+Each job has one recipe for each cycle (1 game day = 24,000 ticks = 10 abstract ticks). Production and consumption run once each cycle, not on each abstract tick. The jobs and the recipes are data files (`data/folkhold_world/folkhold/jobs/<id>.json`). The culture and the biome select the jobs and the materials (spruce in the taiga, sandstone in the desert). The biome limits the jobs (`biomes` in the job file). A culture makes its specialties more frequent: the line `cultures` of a job file multiplies the weight of the job in the settlements of a culture (3 for the specialties). The merchants sell the stocks of the village: the specialties of the culture are the most frequent goods. The level of the settlement sets the number of job slots and the minimum level of some jobs.
 
 The jobs cover most of the base items of the Overworld. The player crafts the other items. The jobs do not produce:
 
@@ -453,6 +453,14 @@ The jobs cover most of the base items of the Overworld. The player crafts the ot
 | Crafted goods | Tanner | leather | leather armor, saddles, bundles |
 | Crafted goods | Weaver | wool, planks | beds, carpets, banners |
 | Crafted goods | Tinker | iron ingots, copper ingots, redstone | buckets, shears, rails, minecarts, lanterns, lightning rods |
+
+The specialties of the cultures:
+
+| Culture | Jobs (weight × 3) | Goods |
+| --- | --- | --- |
+| Valeholm | fisher, butcher, tanner, miner, smelter, lumberjack and sawyer of spruce, shepherd | fish, meat, leather and furs, iron, spruce wood, wool |
+| Ashmark | farmer, baker, blacksmith, carpenter, fletcher, mason, weaver | crops, bread, tools and armor, wood goods, crossbows, stone, beds |
+| Sunreach | dyer, gold smelter, gardener, gardener of the jungle, papermaker, beekeeper, pastry cook | dyes, gold, sugar cane and cocoa, paper, honey, pastries |
 
 A recipe with no inputs produces nothing. The job goes into "need" state and buys.
 

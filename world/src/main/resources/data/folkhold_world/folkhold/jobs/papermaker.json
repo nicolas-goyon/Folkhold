@@ -9,5 +9,6 @@
   ],
   "min_level": 5,
   "weight": 4,
-  "profession": "minecraft:librarian"
+  "profession": "minecraft:librarian",
+  "cultures": {"sunreach": 3}
 }

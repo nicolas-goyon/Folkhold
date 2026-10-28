@@ -155,8 +155,13 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
         for (JsonElement element : GsonHelper.getAsJsonArray(json, "biomes", new JsonArray())) {
             biomes.add(element.getAsString());
         }
+        Map<String, Integer> cultures = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : GsonHelper.getAsJsonObject(json, "cultures", new JsonObject())
+                .entrySet()) {
+            cultures.put(entry.getKey(), GsonHelper.convertToInt(entry.getValue(), entry.getKey()));
+        }
         return new Job(id, new Recipe(inputs, outputs), GsonHelper.getAsInt(json, "min_level", 1),
-                GsonHelper.getAsInt(json, "weight", 10), biomes);
+                GsonHelper.getAsInt(json, "weight", 10), biomes, cultures);
     }
 
     /**

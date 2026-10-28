@@ -11,5 +11,6 @@
   ],
   "min_level": 3,
   "weight": 5,
-  "profession": "minecraft:shepherd"
+  "profession": "minecraft:shepherd",
+  "cultures": {"ashmark": 3}
 }

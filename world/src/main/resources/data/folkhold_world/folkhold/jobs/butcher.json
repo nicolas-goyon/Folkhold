@@ -12,5 +12,6 @@
   ],
   "min_level": 3,
   "weight": 8,
-  "profession": "minecraft:butcher"
+  "profession": "minecraft:butcher",
+  "cultures": {"valeholm": 3}
 }

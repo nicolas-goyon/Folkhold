@@ -8,5 +8,6 @@
   ],
   "min_level": 1,
   "weight": 8,
-  "profession": "minecraft:shepherd"
+  "profession": "minecraft:shepherd",
+  "cultures": {"valeholm": 3}
 }

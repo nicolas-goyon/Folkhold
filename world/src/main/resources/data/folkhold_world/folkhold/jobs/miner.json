@@ -15,5 +15,6 @@
   ],
   "min_level": 1,
   "weight": 15,
-  "profession": "minecraft:toolsmith"
+  "profession": "minecraft:toolsmith",
+  "cultures": {"valeholm": 3}
 }

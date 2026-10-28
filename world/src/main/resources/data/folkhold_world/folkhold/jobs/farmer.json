@@ -9,5 +9,6 @@
   ],
   "min_level": 1,
   "weight": 20,
-  "profession": "minecraft:farmer"
+  "profession": "minecraft:farmer",
+  "cultures": {"ashmark": 3}
 }

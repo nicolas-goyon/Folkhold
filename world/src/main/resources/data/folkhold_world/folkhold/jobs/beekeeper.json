@@ -8,5 +8,6 @@
   ],
   "min_level": 3,
   "weight": 4,
-  "profession": "minecraft:farmer"
+  "profession": "minecraft:farmer",
+  "cultures": {"sunreach": 3}
 }

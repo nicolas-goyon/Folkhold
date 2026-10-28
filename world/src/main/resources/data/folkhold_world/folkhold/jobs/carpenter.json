@@ -13,5 +13,6 @@
   ],
   "min_level": 1,
   "weight": 8,
-  "profession": "folkhold_world:lumberjack"
+  "profession": "folkhold_world:lumberjack",
+  "cultures": {"ashmark": 3}
 }
