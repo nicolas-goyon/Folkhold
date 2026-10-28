@@ -873,6 +873,9 @@ The project moves forward in milestones. Each milestone gives a playable world. 
 | J6 · Village architecture | Styles for each faction with biome variants, villages of several pieces, coast, mountain and island villages, growth with new buildings, walls and paths, territories on the maps of Xaero's and in the journal | Each faction has its own look, villages fit the terrain and grow with their level |
 | J7 · Maps and journal | Territories on the vanilla maps, map updates at a distance, faction journal | The player plans a trip with the map and the journal |
 | J8 · Additional mods | Balance mod: farms, trades, anvil. Events mod: earthquakes, collapses and storms | Farms have limits, the anvil has no cap, first earthquakes and storms |
+| J9 · Release v1 | Balance of the raids, in-game changelog, project site, CI jobs, fixes before the first public version | A large village resists a raid, a small village falls; the player reads the changes of each version |
+| J10 · Village life | A building for each job, market and daily schedule, growth outside the palisade (rings, fields, mills), mountain and cliff villages | Villages work at fixed hours and spread over their land when they grow |
+| J11 · Water and travel | River bridges, ferries and boats at the piers, caravans in ships, natural routes | Caravans and villages use the rivers and the sea |
 
 ```mermaid
 flowchart TB
@@ -885,6 +888,10 @@ flowchart TB
     J2 --> J7["J7 · Maps and journal"]
     J5 -- "villages repair the damage of the events" --> J8["J8 · Additional mods"]
     J2 -. "balance mod can start here" .-> J8
+    J7 --> J9["J9 · Release v1"]
+    J8 --> J9
+    J9 --> J10["J10 · Village life"]
+    J9 --> J11["J11 · Water and travel"]
 ```
 
 Notes:
@@ -892,7 +899,8 @@ Notes:
 - The guard, the village, the factions and the reputation (the first milestones) give a mod that is interesting to play.
 - The abstract simulation is the core of the project and the part with the highest risk: it is pure Java with JUnit tests.
 - Wars between factions come in phase 2, after the caravans and the quests.
-- Version 1 contains the milestones of the table. The living villages, the architecture and the maps depend on the factions and the abstract simulation, not on each other: their order can change.
+- Version 1 contains the milestones J0 to J9. J9 prepares the first public version. The living villages, the architecture and the maps depend on the factions and the abstract simulation, not on each other: their order can change.
+- J10 and J11 come after version 1. They do not depend on each other.
 - The additional mods come last. The balance mod removes comfort that comes from the farms and the vanilla trades. The villages, the trade and the NPCs give this comfort first. The natural events damage the villages, and the villages repair this damage (J5).
 
 ## Risks and open questions
