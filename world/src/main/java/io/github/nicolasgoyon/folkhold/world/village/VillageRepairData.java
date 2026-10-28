@@ -4,15 +4,21 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntArrayTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.saveddata.SavedData;
 
@@ -24,6 +30,7 @@ import net.minecraft.world.level.saveddata.SavedData;
  *   <li>The blocks that the players placed in a village. When a player breaks such a block, the position is not kept
  *       any more. The construction sites of the builders also keep these blocks.</li>
  *   <li>The boxes of the construction sites of the builders: the new buildings of the village.</li>
+ *   <li>The surface blocks of the streets (see {@link StreetBlocks}): the heart records them once.</li>
  * </ul>
  */
 public final class VillageRepairData extends SavedData {
@@ -35,6 +42,8 @@ public final class VillageRepairData extends SavedData {
     private final Map<Long, LongSet> playerBlocks = new HashMap<>();
     /** The boxes of the construction sites, for each village heart. */
     private final Map<Long, List<BoundingBox>> constructions = new HashMap<>();
+    /** The surface blocks of the streets, for each village heart. */
+    private final Map<Long, Map<BlockPos, BlockState>> streets = new HashMap<>();
 
     private VillageRepairData() {
     }
@@ -99,10 +108,27 @@ public final class VillageRepairData extends SavedData {
         }
     }
 
+    /**
+     * The surface blocks of the streets of a village.
+     *
+     * @param heart the position of the village heart
+     * @return the blocks, or empty before the record of the streets
+     */
+    public Optional<Map<BlockPos, BlockState>> streets(BlockPos heart) {
+        return Optional.ofNullable(streets.get(heart.asLong()));
+    }
+
+    /** Records the surface blocks of the streets of a village. */
+    public void setStreets(BlockPos heart, Map<BlockPos, BlockState> blocks) {
+        streets.put(heart.asLong(), Map.copyOf(blocks));
+        setDirty();
+    }
+
     /** Forgets the data of a village: the village has no heart any more. */
     public void forget(BlockPos heart) {
         boolean changed = playerBlocks.remove(heart.asLong()) != null;
         changed |= constructions.remove(heart.asLong()) != null;
+        changed |= streets.remove(heart.asLong()) != null;
         if (changed) {
             setDirty();
         }
@@ -124,6 +150,17 @@ public final class VillageRepairData extends SavedData {
                         box.maxZ()}));
             }
             village.put("Constructions", boxes);
+            Map<BlockPos, BlockState> streetBlocks = streets.get(heart);
+            if (streetBlocks != null) {
+                ListTag streetList = new ListTag();
+                streetBlocks.forEach((pos, state) -> {
+                    CompoundTag street = new CompoundTag();
+                    street.putLong("Pos", pos.asLong());
+                    street.put("State", NbtUtils.writeBlockState(state));
+                    streetList.add(street);
+                });
+                village.put("Streets", streetList);
+            }
             villages.add(village);
         }
         tag.put("Villages", villages);
@@ -131,9 +168,10 @@ public final class VillageRepairData extends SavedData {
     }
 
     private List<Long> villageKeys() {
-        List<Long> keys = new ArrayList<>(playerBlocks.keySet());
-        constructions.keySet().stream().filter(key -> !playerBlocks.containsKey(key)).forEach(keys::add);
-        return keys;
+        Set<Long> keys = new LinkedHashSet<>(playerBlocks.keySet());
+        keys.addAll(constructions.keySet());
+        keys.addAll(streets.keySet());
+        return new ArrayList<>(keys);
     }
 
     private static VillageRepairData load(CompoundTag tag, HolderLookup.Provider registries) {
@@ -153,6 +191,16 @@ public final class VillageRepairData extends SavedData {
                     data.constructions.computeIfAbsent(heart, key -> new ArrayList<>())
                             .add(new BoundingBox(box[0], box[1], box[2], box[3], box[4], box[5]));
                 }
+            }
+            if (village.contains("Streets", Tag.TAG_LIST)) {
+                Map<BlockPos, BlockState> streetBlocks = new HashMap<>();
+                ListTag streetList = village.getList("Streets", Tag.TAG_COMPOUND);
+                for (int j = 0; j < streetList.size(); j++) {
+                    CompoundTag street = streetList.getCompound(j);
+                    streetBlocks.put(BlockPos.of(street.getLong("Pos")), NbtUtils.readBlockState(
+                            registries.lookupOrThrow(Registries.BLOCK), street.getCompound("State")));
+                }
+                data.streets.put(heart, streetBlocks);
             }
         }
         return data;

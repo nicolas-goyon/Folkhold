@@ -51,6 +51,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *   <li>The damaged blocks make groups (see {@link Clusters}). The builders repair the largest group first, with a
  *       repair site (see {@link BuilderSite#repair}): fences around the work zone, materials of the stock, quests for
  *       the rare blocks.</li>
+ *   <li>The holes of the streets are damaged blocks too (see {@link StreetBlocks}). The first check records the
+ *       surface of the streets.</li>
  *   <li>After a repair, its positions wait {@link #RETRY_TICKS} ticks before a new repair: a block that does not stay
  *       in place does not start a repair at each check.</li>
  * </ul>
@@ -80,7 +82,8 @@ public final class VillageRepairs {
                 || VillageFolk.of(level, heartPos, ModProfessions.BUILDER.get()).isEmpty()) {
             return Optional.empty();
         }
-        Optional<VillageReference> reference = heart.repairReference(level);
+        Optional<VillageReference> reference = heart.repairReference(level).map(found -> withStreets(level, heart,
+                found));
         if (reference.isEmpty()) {
             return Optional.empty();
         }
@@ -95,6 +98,27 @@ public final class VillageRepairs {
         FolkholdWorld.LOGGER.debug("Village {}: {} damaged blocks in {} groups, repair of {} blocks", heartPos,
                 damaged.size(), groups.size(), positions.size());
         return Optional.of(BuilderSites.startRepair(level, heartPos, reference.get(), positions));
+    }
+
+    /**
+     * The reference of a village with the surface blocks of its streets. The first call records the streets (see
+     * {@link StreetBlocks#record}). The heart keeps the reference with its streets.
+     */
+    private static VillageReference withStreets(ServerLevel level, VillageHeartBlockEntity heart,
+            VillageReference reference) {
+        if (!reference.streets().isEmpty() || reference.streetColumns().isEmpty()) {
+            return reference;
+        }
+        VillageRepairData data = VillageRepairData.get(level);
+        BlockPos heartPos = heart.getBlockPos();
+        Map<BlockPos, BlockState> streets = data.streets(heartPos).orElseGet(() -> {
+            Map<BlockPos, BlockState> recorded = StreetBlocks.record(level, reference);
+            data.setStreets(heartPos, recorded);
+            return recorded;
+        });
+        VillageReference result = reference.withStreets(streets);
+        heart.setRepairReference(result);
+        return result;
     }
 
     /**
@@ -120,6 +144,12 @@ public final class VillageRepairs {
             if (!pos.equals(heartPos) && !data.keeps(heartPos, pos) && !heart.isRecentlyRepaired(pos, now)
                     && zones.stream().noneMatch(zone -> isInZone(zone, pos))
                     && RepairRules.isDamaged(level.getBlockState(pos), entry.getValue())) {
+                damaged.add(pos);
+            }
+        }
+        for (BlockPos pos : StreetBlocks.holes(level, reference)) {
+            if (!expected.containsKey(pos) && !data.keeps(heartPos, pos) && !heart.isRecentlyRepaired(pos, now)
+                    && zones.stream().noneMatch(zone -> isInZone(zone, pos))) {
                 damaged.add(pos);
             }
         }

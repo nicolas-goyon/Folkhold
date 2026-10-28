@@ -7,10 +7,13 @@ import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageS
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PierPiece;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderGetter;
@@ -43,7 +46,8 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
  * <ul>
  *   <li>A template piece is a structure template at a position, with a turn. The template pieces come in the order of
  *       the generation: a piece replaces the blocks of the pieces before it. A piece that follows the terrain (the
- *       streets) is not a part of the reference: its blocks go to the height of the terrain.</li>
+ *       streets) is not a template piece: its blocks go to the height of the terrain. The reference keeps its columns,
+ *       and the surface blocks of the streets that the heart records (see {@link StreetBlocks}).</li>
  *   <li>A palisade is a segment of the palisade: the base block and the logs of each column (see
  *       {@link PalisadePiece}). The point on top of a column and the foundation under it are not a part of the
  *       reference. The logs above the first {@link PalisadeHeights#LOGS} logs are not a part of it too.</li>
@@ -62,9 +66,13 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
  * @param plots     the plots of the streets
  * @param homes     the id of the pool of the homes, or empty
  * @param piers     the boxes of the piers
+ * @param streetColumns the columns of the streets (Y 0): the columns of the street pieces of the structure. The
+ *                  saved data of a reference does not keep them.
+ * @param streets   the surface blocks of the streets that the repairs keep (see {@link StreetBlocks})
  */
 public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area,
-        List<VillagePlots.Plot> plots, Optional<ResourceLocation> homes, List<BoundingBox> piers) {
+        List<VillagePlots.Plot> plots, Optional<ResourceLocation> homes, List<BoundingBox> piers,
+        List<BlockPos> streetColumns, Map<BlockPos, BlockState> streets) {
     /**
      * A structure piece of a village.
      *
@@ -127,6 +135,14 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         palisades = List.copyOf(palisades);
         plots = List.copyOf(plots);
         piers = List.copyOf(piers);
+        streetColumns = List.copyOf(streetColumns);
+        streets = Map.copyOf(streets);
+    }
+
+    /** A reference with no streets. */
+    public VillageReference(List<Piece> pieces, List<Palisade> palisades, Optional<BoundingBox> area,
+            List<VillagePlots.Plot> plots, Optional<ResourceLocation> homes, List<BoundingBox> piers) {
+        this(pieces, palisades, area, plots, homes, piers, List.of(), Map.of());
     }
 
     /** A reference with no piers. */
@@ -147,7 +163,12 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
 
     /** This reference with a pool of homes. */
     public VillageReference withHomes(ResourceLocation pool) {
-        return new VillageReference(pieces, palisades, area, plots, Optional.of(pool), piers);
+        return new VillageReference(pieces, palisades, area, plots, Optional.of(pool), piers, streetColumns, streets);
+    }
+
+    /** This reference with the surface blocks of its streets. */
+    public VillageReference withStreets(Map<BlockPos, BlockState> blocks) {
+        return new VillageReference(pieces, palisades, area, plots, homes, piers, streetColumns, blocks);
     }
 
     /** The blocks of all the palisades, in the order of the palisades. */
@@ -208,6 +229,7 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         List<BoundingBox> templateBoxes = new ArrayList<>();
         List<BoundingBox> palisadeBoxes = new ArrayList<>();
         List<BoundingBox> piers = new ArrayList<>();
+        Set<BlockPos> streetColumns = new LinkedHashSet<>();
         for (StructurePiece piece : pieces) {
             if (piece instanceof PoolElementStructurePiece pool
                     && pool.getElement().getProjection() == StructureTemplatePool.Projection.RIGID) {
@@ -215,6 +237,14 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
                 if (template.isPresent()) {
                     templates.add(new Piece(template.get(), pool.getPosition(), pool.getRotation()));
                     templateBoxes.add(pool.getBoundingBox());
+                }
+            } else if (piece instanceof PoolElementStructurePiece pool
+                    && pool.getElement().getProjection() == StructureTemplatePool.Projection.TERRAIN_MATCHING) {
+                BoundingBox box = pool.getBoundingBox();
+                for (int x = box.minX(); x <= box.maxX(); x++) {
+                    for (int z = box.minZ(); z <= box.maxZ(); z++) {
+                        streetColumns.add(new BlockPos(x, 0, z));
+                    }
                 }
             } else if (piece instanceof PalisadePiece palisade) {
                 palisades.add(Palisade.of(palisade));
@@ -231,7 +261,8 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
                 .map(box -> new BoundingBox(box.minX(), templateBox.minY(), box.minZ(), box.maxX(),
                         templateBox.maxY(), box.maxZ()));
         return Optional.of(new VillageReference(templates, palisades, area,
-                VillagePlots.of(level.getStructureManager(), pieces), Optional.empty(), piers));
+                VillagePlots.of(level.getStructureManager(), pieces), Optional.empty(), piers,
+                List.copyOf(streetColumns), Map.of()));
     }
 
     /**
@@ -296,6 +327,14 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
             pierList.add(new IntArrayTag(boxArray(pier)));
         }
         tag.put("Piers", pierList);
+        ListTag streetList = new ListTag();
+        streets.forEach((pos, state) -> {
+            CompoundTag streetTag = new CompoundTag();
+            streetTag.putLong("Pos", pos.asLong());
+            streetTag.put("State", NbtUtils.writeBlockState(state));
+            streetList.add(streetTag);
+        });
+        tag.put("Streets", streetList);
         return tag;
     }
 
@@ -362,8 +401,15 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
         for (int i = 0; i < pierList.size(); i++) {
             box(pierList.getIntArray(i)).ifPresent(piers::add);
         }
+        Map<BlockPos, BlockState> streets = new HashMap<>();
+        ListTag streetList = tag.getList("Streets", Tag.TAG_COMPOUND);
+        for (int i = 0; i < streetList.size(); i++) {
+            CompoundTag streetTag = streetList.getCompound(i);
+            streets.put(BlockPos.of(streetTag.getLong("Pos")),
+                    NbtUtils.readBlockState(blocks, streetTag.getCompound("State")));
+        }
         return pieces.isEmpty() ? Optional.empty()
-                : Optional.of(new VillageReference(pieces, palisades, area, plots, homes, piers));
+                : Optional.of(new VillageReference(pieces, palisades, area, plots, homes, piers, List.of(), streets));
     }
 
     private static Optional<Rotation> rotation(String name) {
