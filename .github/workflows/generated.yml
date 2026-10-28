@@ -39,6 +39,7 @@ jobs:
           python3 tools/pixvox/quest_board.py
           python3 tools/textures/villager_professions.py
           python3 tools/textures/golem_armband.py
+          python3 tools/textures/map_decorations.py
           python3 tools/pixvox/export.py
           python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/empty.nbt
           python3 tools/make_test_structure.py world/src/gametest/resources/data/folkhold_world/structure/arena.nbt --size 16 4 16

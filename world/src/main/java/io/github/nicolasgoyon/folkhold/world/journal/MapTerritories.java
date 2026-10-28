@@ -38,7 +38,7 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  *   <li>The payload has all the settlements whose territory can touch the area of a map: also the territories that the
  *       player did not discover. The client calculates the borders from the claims (see {@link TerritoryMaps}).</li>
  *   <li>The server checks the maps of each player every {@link #CHECK_TICKS} ticks. It sends the payload only when it
- *       changes.</li>
+ *       changes. It also gives the waypoints of the villages to the maps (see {@link MapWaypoints}).</li>
  * </ul>
  */
 public final class MapTerritories {
@@ -102,6 +102,13 @@ public final class MapTerritories {
     /** Sends the territories of the maps of a player if they changed since the last payload. */
     static void update(ServerPlayer player) {
         Map<Integer, Area> maps = maps(player);
+        ServerLevel level = player.serverLevel();
+        for (int id : maps.keySet()) {
+            MapItemSavedData data = MapItem.getSavedData(new MapId(id), level);
+            if (data != null) {
+                MapWaypoints.apply(level, id, data);
+            }
+        }
         List<MapTerritoryPayload.MapCenter> centers = maps.entrySet().stream()
                 .map(map -> new MapTerritoryPayload.MapCenter(map.getKey(), map.getValue().centerX(),
                         map.getValue().centerZ()))
