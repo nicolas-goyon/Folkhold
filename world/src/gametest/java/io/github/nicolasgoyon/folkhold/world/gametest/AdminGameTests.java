@@ -6,12 +6,14 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
+import io.github.nicolasgoyon.folkhold.world.admin.AdminMap;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
+import io.github.nicolasgoyon.folkhold.world.network.AdminMapPayload;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
@@ -239,6 +241,34 @@ public final class AdminGameTests {
                 "The discovery must check the regions up to " + radius + " blocks in each direction");
         helper.assertTrue(again.found() == 0, "A second discovery must find no new settlement: " + again.found());
         helper.assertTrue(again.radius() == radius && again.inRadius() >= 0, "The discovery must give the distance");
+        helper.succeed();
+    }
+
+    /**
+     * The map of the admin screen has the village with the color of its faction, its territory, and the ruin of a
+     * village as a ruin.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "admin_map")
+    public static void mapHasTheSettlementsAndTheirTerritories(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Settlement settlement = settlementOf(helper, newHeart(helper));
+
+        AdminMapPayload active = AdminMap.build(server);
+        retire(helper, settlement);
+        AdminMapPayload ruined = AdminMap.build(server);
+
+        Optional<AdminMapPayload.Mark> mark = active.marks().stream()
+                .filter(entry -> entry.id().equals(settlement.id())).findFirst();
+        helper.assertTrue(mark.isPresent(), "The map must have the village");
+        helper.assertTrue(mark.get().kind() == AdminMapPayload.VILLAGE, "The village has a heart: " + mark.get());
+        helper.assertTrue(mark.get().x() == settlement.x() && mark.get().z() == settlement.z(),
+                "The mark is at the village");
+        helper.assertTrue(active.territories().villages().stream().anyMatch(village -> village.id()
+                .equals(settlement.id())), "The map must have the territory of the village");
+        helper.assertTrue(ruined.marks().stream().anyMatch(entry -> entry.id().equals(settlement.id())
+                && entry.kind() == AdminMapPayload.RUIN), "A ruin is a ruin on the map");
+        helper.assertTrue(ruined.territories().villages().stream().noneMatch(village -> village.id()
+                .equals(settlement.id())), "A ruin has no territory");
         helper.succeed();
     }
 }

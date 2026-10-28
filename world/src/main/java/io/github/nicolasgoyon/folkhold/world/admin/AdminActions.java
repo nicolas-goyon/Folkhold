@@ -69,6 +69,9 @@ import net.minecraft.world.level.levelgen.Heightmap;
  *       direction around the player (see {@link SettlementDiscovery#discoverAround}).</li>
  *   <li>{@code groups}: sends the caravans, the traveling merchants and the quests (see {@link GroupOverview}).
  *       The client shows them in a tabbed screen.</li>
+ *   <li>{@code map}: sends the map of the admin screen (see {@link AdminMap}).</li>
+ *   <li>{@code teleport_point}: teleports the player to the surface at a position. The settlement id is the position:
+ *       "x z", in blocks.</li>
  * </ul>
  * After an action, the server sends the result ({@link AdminResultPayload}), the list and the details of the
  * settlement again.
@@ -135,6 +138,16 @@ public final class AdminActions {
         }
         if (payload.action().equals("groups")) {
             ModNetwork.send(player, GroupOverview.build(player.server));
+            return;
+        }
+        if (payload.action().equals("map")) {
+            ModNetwork.send(player, AdminMap.build(player.server));
+            return;
+        }
+        if (payload.action().equals("teleport_point")) {
+            Optional<Result> result = teleportToPoint(player, payload.settlementId());
+            result.ifPresent(found -> ModNetwork.send(player, new AdminResultPayload(found.message(),
+                    found.success())));
             return;
         }
         perform(player.server, player, payload).ifPresent(result -> {
@@ -358,6 +371,27 @@ public final class AdminActions {
         }
         return level.getBlockEntity(pos) instanceof VillageHeartBlockEntity heart
                 ? Optional.of(heart) : Optional.empty();
+    }
+
+    /** Teleports a player to the surface at a position "x z" of the Overworld, for example a caravan of the map. */
+    private static Optional<Result> teleportToPoint(ServerPlayer player, String position) {
+        String[] parts = position.trim().split(" ", -1);
+        if (parts.length != 2) {
+            return Optional.of(Result.refused("unknown"));
+        }
+        int x;
+        int z;
+        try {
+            x = Integer.parseInt(parts[0]);
+            z = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException e) {
+            return Optional.of(Result.refused("unknown"));
+        }
+        ServerLevel level = player.server.overworld();
+        level.getChunk(x >> 4, z >> 4);
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        player.teleportTo(level, x + 0.5, y, z + 0.5, player.getYRot(), player.getXRot());
+        return Optional.of(Result.done("teleport_point", x, z));
     }
 
     /**

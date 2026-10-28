@@ -43,7 +43,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *
  * <ul>
  *   <li>Header: refresh, the simulation menu (one tick or one cycle for all settlements, the discovery of the
- *       villages around the operator), and the caravans and quests screen.</li>
+ *       villages around the operator), the map of the world (see {@link AdminMapScreen}), and the caravans and quests
+ *       screen.</li>
  *   <li>Left: the settlements. A text filter (name, id or faction) and three chips (state, level range, sort order)
  *       select them. A click on a settlement shows its details. The name of a settlement that is not generated (it
  *       exists only in the simulation) is in italics.</li>
@@ -174,6 +175,15 @@ public class AdminScreen extends UiScreen {
         return UiOverlay.rootScreen() instanceof AdminScreen admin ? admin : null;
     }
 
+    /**
+     * Selects a settlement for the next opening of the admin screen, for example from the map of the admin screen.
+     *
+     * @param id the id of the settlement
+     */
+    public static void select(String id) {
+        lastSelected = id;
+    }
+
     /** Forgets the state kept between two openings. Called when the player leaves a world or a server. */
     public static void clear() {
         lastText = "";
@@ -254,6 +264,8 @@ public class AdminScreen extends UiScreen {
         boolean compact = isCompact();
         Component groups = Component.translatable(KEY + (compact ? "action.groups_short" : "action.groups"));
         x -= headerButton(x, y, groups, button -> send("groups", "", 0)).getWidth() + UiTheme.GAP;
+        Component mapLabel = Component.translatable(KEY + "action.map");
+        x -= headerButton(x, y, mapLabel, button -> send("map", "", 0)).getWidth() + UiTheme.GAP;
         Component simulation = Component.translatable(KEY + "menu.simulation").append(MENU_CLOSED);
         UiButton simulationButton = headerButton(x, y, simulation, button -> {
             button.setMessage(Component.translatable(KEY + "menu.simulation").append(MENU_OPEN));
