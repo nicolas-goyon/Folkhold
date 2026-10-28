@@ -387,6 +387,7 @@
   "folkhold_world.cartography.move.north": "Déplacer la carte vers le nord (avec un papier). Encore : dézoomer",
   "folkhold_world.cartography.move.south": "Déplacer la carte vers le sud (avec un papier). Encore : dézoomer",
   "folkhold_world.cartography.move.west": "Déplacer la carte vers l'ouest (avec un papier). Encore : dézoomer",
+  "folkhold_world.cartography.move.update": "Mettre à jour la carte avec les terres explorées (avec un papier). Encore : dézoomer",
   "folkhold_world.cartography.move.east": "Déplacer la carte vers l'est (avec un papier). Encore : dézoomer",
   "folkhold_world.map.waypoint.added": "%s est sur la carte",
   "folkhold_world.map.waypoint.removed": "%s n'est plus sur la carte",

@@ -387,6 +387,7 @@
   "folkhold_world.cartography.move.north": "Move the map north (with a paper). Again: zoom out",
   "folkhold_world.cartography.move.south": "Move the map south (with a paper). Again: zoom out",
   "folkhold_world.cartography.move.west": "Move the map west (with a paper). Again: zoom out",
+  "folkhold_world.cartography.move.update": "Update the map from the explored land (with a paper). Again: zoom out",
   "folkhold_world.cartography.move.east": "Move the map east (with a paper). Again: zoom out",
   "folkhold_world.map.waypoint.added": "%s is on the map",
   "folkhold_world.map.waypoint.removed": "%s is not on the map any more",
