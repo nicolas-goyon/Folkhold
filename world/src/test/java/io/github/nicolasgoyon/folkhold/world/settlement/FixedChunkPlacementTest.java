@@ -26,7 +26,7 @@ class FixedChunkPlacementTest {
     private static final String TEST_WORLD_SET =
             "/datapacks/test_world/data/folkhold_world/worldgen/structure_set/villages.json";
 
-    /** The data pack of the test world gives the faction villages one start chunk, 5 chunks east of the origin. */
+    /** The data pack of the test world gives the faction villages one start chunk, 6 chunks east of the origin. */
     @Test
     void testWorldVillagesHaveOneStartChunk() throws IOException {
         JsonObject set = readJson(TEST_WORLD_SET);
@@ -35,7 +35,7 @@ class FixedChunkPlacementTest {
                 .getOrThrow();
 
         FixedChunkPlacement fixed = assertInstanceOf(FixedChunkPlacement.class, placement);
-        assertEquals(new ChunkPos(5, 0), fixed.chunk());
+        assertEquals(new ChunkPos(6, 0), fixed.chunk());
     }
 
     /** Only the start chunk is a placement chunk. */

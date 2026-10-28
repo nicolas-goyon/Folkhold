@@ -175,9 +175,9 @@ Hot reload: when the debugger is attached, VS Code can replace the body of a cha
 
 ## Test world
 
-The data pack "Folkhold test world" adds the world type "Folkhold Test". It is a flat world (plains, no trees) with one faction village next to the spawn point. The village starts in the chunk (5, 0), about 80 blocks to the east of the spawn point. It is a normal faction village: heart, garrison, bank, quest board and settlement in the simulation. A test of the villages starts with no search for a village.
+The data pack "Folkhold test world" adds the world type "Folkhold Test". It is a flat world (plains, no trees) with one faction village next to the spawn point. The village starts in the chunk (6, 0), about 96 blocks to the east of the spawn point. It is a normal faction village: heart, garrison, bank, quest board and settlement in the simulation. A test of the villages starts with no search for a village.
 
-The data pack is part of `folkhold_world` and is off by default. It also changes the placement of the faction villages for all the world types: one village only, in the chunk (5, 0). Turn it on only for a test world.
+The data pack is part of `folkhold_world` and is off by default. It also changes the placement of the faction villages for all the world types: one village only, in the chunk (6, 0). Turn it on only for a test world.
 
 In the client:
 

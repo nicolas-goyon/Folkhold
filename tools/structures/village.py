@@ -809,26 +809,34 @@ def bank():
 
 # ---------------------------------------------------------------- Valeholm style (Norse)
 
-# A long house: the gable end and the door face the street (z = 0 is the porch), the body goes deep into the plot.
+# A deep long house: the gable end and the door face the street (z = 0 is the porch), the body goes deep into the plot.
 LW = 9    # x: 0..8
-LD = 13   # z: 0 = porch, 1..12 = body
+LD = 17   # z: 0 = porch, 1..16 = body
 LH = 16
+# A side long house: the long side and the door face the street (z = 0 is the porch), the body goes along the street.
+SL = 17   # x: 0..16
+SD = 10   # z: 0 = porch, 1..9 = body
 # The walls go up to this layer. The roof starts above it.
 LONG_WALL_TOP = 3
-# The hearth is in the middle of the body.
-HEARTH_Z = 6
+# A Norse street: a segment of 21 blocks with 2 plots on each side, for the long houses.
+NORSE_STREET_LENGTH = 21
+NORSE_PLOTS = (6, 16)
 
 
-def long_roof_top(x):
-    """The layer of the top block of the steep roof over a column: the roof goes up by 2 blocks for each block to the
-    ridge."""
-    k = min(x, LW - 1 - x)
+def steep_roof_top(across, width):
+    """The layer of the top block of a steep roof over a row across the house: the roof goes up by 2 blocks for each
+    block to the ridge."""
+    k = min(across, width - 1 - across)
     return LONG_WALL_TOP + 2 + 2 * k
 
 
+def unlit_campfire(facing="north"):
+    return "minecraft:campfire", {"facing": facing, "lit": "false", "signal_fire": "false", "waterlogged": "false"}
+
+
 def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
-    """A Norse long house: a base of cobblestone, walls of horizontal spruce logs between posts of stripped spruce logs,
-    a steep roof of dark oak with a ridge along the house, and carved horns at the ends of the ridge.
+    """A deep Norse long house: a base of cobblestone, walls of horizontal spruce logs between posts of stripped spruce
+    logs, a steep roof of dark oak with a ridge along the house, and carved horns at the ends of the ridge.
 
     The building sign of the kind stands on the porch, next to the east porch post. A hearth of stone bricks is in the
     middle of the body, with a campfire that is not lit.
@@ -858,7 +866,7 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
                 else:
                     t.set(x, y, z, "minecraft:spruce_log", {"axis": "z" if side else "x"})
     # Small windows on the sides.
-    for z in (4, 8):
+    for z in (3, 7, 11, 15):
         for x in (0, LW - 1):
             t.set(x, 2, z, "minecraft:glass_pane")
     # Front opening.
@@ -879,57 +887,145 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
     # Porch light: 2 wall torches on the front wall.
     for x in (mid - 2, mid + 2):
         t.set(x, 2, 0, *wall_torch("north"))
-    # Steep roof (ridge along z): 2 layers for each block to the ridge, over the porch.
+    # Steep roof (ridge along z), over the porch.
     for x in range(LW):
-        top = long_roof_top(x)
+        top = steep_roof_top(x, LW)
         for z in range(LD):
+            t.set(x, top - 1, z, "minecraft:dark_oak_planks")
             if x == mid:
-                t.set(x, top - 1, z, "minecraft:dark_oak_planks")
                 t.set(x, top, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
             else:
-                facing = "east" if x < mid else "west"
-                t.set(x, top - 1, z, "minecraft:dark_oak_planks")
-                t.set(x, top, z, "minecraft:dark_oak_stairs", stairs(facing))
+                t.set(x, top, z, "minecraft:dark_oak_stairs", stairs("east" if x < mid else "west"))
         # Gable walls under the roof, at the front and the back of the body.
         if 0 < x < LW - 1:
             for y in range(LONG_WALL_TOP + 1, top - 1):
                 for z in (1, LD - 1):
                     t.set(x, y, z, "minecraft:spruce_planks")
     # Carved horns at the 2 ends of the ridge.
-    ridge = long_roof_top(mid)
     for z in (0, LD - 1):
         for x in (mid - 1, mid + 1):
-            t.set(x, long_roof_top(x) + 1, z, "minecraft:spruce_fence")
-            t.set(x, long_roof_top(x) + 2, z, "minecraft:spruce_fence")
-        t.set(mid, ridge + 1, z, "minecraft:spruce_fence")
-    # Hearth in the middle of the body.
-    for z in (HEARTH_Z - 1, HEARTH_Z, HEARTH_Z + 1):
+            t.set(x, steep_roof_top(x, LW) + 1, z, "minecraft:spruce_fence")
+            t.set(x, steep_roof_top(x, LW) + 2, z, "minecraft:spruce_fence")
+        t.set(mid, steep_roof_top(mid, LW) + 1, z, "minecraft:spruce_fence")
+    # Long hearth in the middle of the body.
+    hearth = LD // 2
+    for z in range(hearth - 2, hearth + 3):
         t.set(mid, 0, z, "minecraft:stone_bricks")
-    t.set(mid, 1, HEARTH_Z, "minecraft:campfire",
-          {"facing": "north", "lit": "false", "signal_fire": "false", "waterlogged": "false"})
+    t.set(mid, 1, hearth, *unlit_campfire())
+    t.set(mid, steep_roof_top(mid, LW) - 2, hearth + 4, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
     building_sign(t, LW - 2, 1, 0, sign)
     # Jigsaw connector in the porch, facing out (north).
     t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
     return t
 
 
-def long_bed(t, x, z_foot, color):
-    """A bed along a side wall, with the head toward the back wall."""
-    bed(t, x, z_foot, color)
+def side_house_shell(rng, sign, wall_lower):
+    """A side Norse long house: the same walls and roof as a deep long house, with the ridge along the street and the
+    door in the middle of the long side. A small porch with 2 posts is in front of the door. The hearth is in the
+    middle of the body, along the ridge.
+    """
+    t = Template(SL, LH, SD)
+    t.fill(0, 1, 1, SL - 1, LH - 1, SD - 1, "minecraft:air")
+    mid = SL // 2
+    ridge = (SD + 1) // 2   # the body is z = 1..SD - 1
+    # Porch in front of the door.
+    for x in range(mid - 3, mid + 4):
+        t.set(x, 0, 0, "minecraft:cobblestone" if x in (mid - 3, mid + 3) else "minecraft:spruce_planks")
+        for y in range(1, 4):
+            t.set(x, y, 0, "minecraft:air")
+    # Floor.
+    for x in range(SL):
+        for z in range(1, SD):
+            edge = x in (0, SL - 1) or z in (1, SD - 1)
+            t.set(x, 0, z, cobble(rng) if edge else "minecraft:spruce_planks")
+    # Walls.
+    for x in range(SL):
+        for z in range(1, SD):
+            long_side = z in (1, SD - 1)
+            end = x in (0, SL - 1)
+            if not (long_side or end):
+                continue
+            post = (long_side and end) or (long_side and x % 4 == 0) or (end and z == ridge)
+            for y in range(1, LONG_WALL_TOP + 1):
+                if post:
+                    t.set(x, y, z, "minecraft:stripped_spruce_log", LOG_Y)
+                elif y == 1:
+                    t.set(x, y, z, wall_lower(rng))
+                else:
+                    t.set(x, y, z, "minecraft:spruce_log", {"axis": "x" if long_side else "z"})
+    # Windows on the long sides.
+    for x in (2, 6, SL - 7, SL - 3):
+        for z in (1, SD - 1):
+            if x not in (mid - 1, mid, mid + 1):
+                t.set(x, 2, z, "minecraft:glass_pane")
+    # Door in the middle of the front side.
+    t.set(mid, 1, 1, "minecraft:spruce_door",
+          {"facing": "north", "half": "lower", "hinge": "left", "open": "false", "powered": "false"})
+    t.set(mid, 2, 1, "minecraft:spruce_door",
+          {"facing": "north", "half": "upper", "hinge": "left", "open": "false", "powered": "false"})
+    t.set(mid, 3, 1, "minecraft:stripped_spruce_log", {"axis": "x"})
+    for x in (mid - 3, mid + 3):
+        for y in range(1, LONG_WALL_TOP + 1):
+            t.set(x, y, 0, "minecraft:spruce_fence")
+    for x in (mid - 2, mid + 2):
+        t.set(x, 2, 0, *wall_torch("north"))
+    # Steep roof (ridge along x). The eave goes over the porch.
+    for z in range(1, SD):
+        top = steep_roof_top(z - 1, SD - 1)
+        for x in range(SL):
+            t.set(x, top - 1, z, "minecraft:dark_oak_planks")
+            if z == ridge:
+                t.set(x, top, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+            else:
+                t.set(x, top, z, "minecraft:dark_oak_stairs", stairs("south" if z < ridge else "north"))
+        if 1 < z < SD - 1:
+            for y in range(LONG_WALL_TOP + 1, top - 1):
+                for x in (0, SL - 1):
+                    t.set(x, y, z, "minecraft:spruce_planks")
+    for x in range(SL):
+        t.set(x, LONG_WALL_TOP + 1, 0, "minecraft:dark_oak_stairs", stairs("south"))
+    # Carved horns at the 2 ends of the ridge.
+    for x in (0, SL - 1):
+        for z in (ridge - 1, ridge + 1):
+            t.set(x, steep_roof_top(z - 1, SD - 1) + 1, z, "minecraft:spruce_fence")
+            t.set(x, steep_roof_top(z - 1, SD - 1) + 2, z, "minecraft:spruce_fence")
+        t.set(x, steep_roof_top(ridge - 1, SD - 1) + 1, ridge, "minecraft:spruce_fence")
+    # Long hearth along the ridge.
+    for x in range(mid - 3, mid + 4):
+        t.set(x, 0, ridge, "minecraft:stone_bricks")
+    t.set(mid, 1, ridge, *unlit_campfire("east"))
+    t.set(mid + 4, steep_roof_top(ridge - 1, SD - 1) - 2, ridge, "minecraft:lantern",
+          {"hanging": "true", "waterlogged": "false"})
+    building_sign(t, mid + 2, 1, 0, sign)
+    # Jigsaw connector in the porch, facing out (north).
+    t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
+    return t
 
 
 def norse_cottage():
     rng = random.Random(12)
     t = long_house_shell(rng, "house", cobble)
     # 3 beds: each bed gives a place to an inhabitant of the village.
-    long_bed(t, 1, 9, "blue")
-    long_bed(t, 2, 9, "blue")
-    long_bed(t, LW - 2, 9, "blue")
+    for x in (1, 2, LW - 2):
+        bed(t, x, LD - 4, "blue")
     t.set(LW - 2, 1, 3, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
     t.set(1, 1, 3, "minecraft:crafting_table")
-    t.set(LW - 2, 1, 7, "minecraft:barrel", {"facing": "up", "open": "false"})
-    lantern(t, 1, 1, 7)
-    t.set(LW // 2, long_roof_top(LW // 2) - 2, 9, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    t.set(LW - 2, 1, 9, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(1, 1, 9, "minecraft:loom", {"facing": "east"})
+    lantern(t, 1, 1, 6)
+    return t
+
+
+def norse_cottage_side():
+    rng = random.Random(22)
+    t = side_house_shell(rng, "house", cobble)
+    # 3 beds along the back wall.
+    for x in (2, 3, SL - 3):
+        bed(t, x, SD - 3, "blue")
+    t.set(1, 1, 2, "minecraft:crafting_table")
+    t.set(SL - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
+    t.set(SL - 2, 1, SD - 2, "minecraft:barrel", {"facing": "up", "open": "false"})
+    lantern(t, 1, 1, SD - 2)
     return t
 
 
@@ -937,13 +1033,14 @@ def norse_barracks():
     rng = random.Random(13)
     t = long_house_shell(rng, "barracks", cobble)
     for x in (1, 2, LW - 3, LW - 2):
-        long_bed(t, x, 9, "red")
-    t.set(1, 1, 3, "minecraft:barrel", {"facing": "up", "open": "false"})
+        bed(t, x, LD - 4, "red")
+    for z in (3, 5):
+        t.set(1, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(LW - 2, 1, 3, BANNER, {"rotation": "4"})
-    t.set(1, 1, 6, "minecraft:spruce_fence")
-    t.set(LW - 2, 1, 6, "minecraft:spruce_fence")
-    lantern(t, 1, 1, 7)
-    t.set(LW // 2, long_roof_top(LW // 2) - 2, 9, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    for z in (6, 10):
+        t.set(1, 1, z, "minecraft:spruce_fence")
+        t.set(LW - 2, 1, z, "minecraft:spruce_fence")
+    lantern(t, 1, 1, 8)
     return t
 
 
@@ -951,10 +1048,10 @@ def norse_forge():
     rng = random.Random(14)
     t = long_house_shell(rng, "forge", cobble, wide_front=True)
     t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
-    t.set(LW - 2, 1, 10, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
-    t.set(LW - 2, 1, 9, "minecraft:furnace", {"facing": "west", "lit": "false"})
-    t.set(1, 1, 10, "minecraft:smithing_table")
-    t.set(1, 1, 9, "minecraft:grindstone", {"face": "floor", "facing": "east"})
+    t.set(LW - 2, 1, LD - 3, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
+    t.set(LW - 2, 1, LD - 4, "minecraft:furnace", {"facing": "west", "lit": "false"})
+    t.set(1, 1, LD - 3, "minecraft:smithing_table")
+    t.set(1, 1, LD - 4, "minecraft:grindstone", {"face": "floor", "facing": "east"})
     t.set(LW - 2, 1, 3, "minecraft:water_cauldron", {"level": "3"})
     lantern(t, 1, 1, 7)
     return t
@@ -963,8 +1060,9 @@ def norse_forge():
 def norse_storehouse():
     rng = random.Random(15)
     t = long_house_shell(rng, "storehouse", cobble)
-    for (x, z) in ((1, 10), (2, 10), (1, 9), (LW - 2, 10), (LW - 2, 9), (LW - 3, 10)):
-        t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
+    for z in range(LD - 6, LD - 1):
+        t.set(1, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
+        t.set(LW - 2, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
     for (x, z) in ((1, 3), (1, 4), (LW - 2, 3)):
         t.set(x, 1, z, "minecraft:hay_block", LOG_Y)
     t.set(1, 2, 3, "minecraft:hay_block", LOG_Y)
@@ -972,6 +1070,35 @@ def norse_storehouse():
     lantern(t, 1, 1, 7)
     return t
 
+
+def norse_storehouse_side():
+    rng = random.Random(25)
+    t = side_house_shell(rng, "storehouse", cobble)
+    for x in range(1, 6):
+        t.set(x, 1, SD - 2, "minecraft:barrel", {"facing": "up", "open": "false"})
+    for x in range(SL - 6, SL - 1):
+        t.set(x, 1, SD - 2, "minecraft:hay_block", LOG_Y)
+    t.set(1, 1, 2, "minecraft:composter", {"level": "0"})
+    lantern(t, SL - 2, 1, 2)
+    return t
+
+
+def norse_street(bank=False):
+    """A Norse street along z: a segment of NORSE_STREET_LENGTH blocks with 2 plots on each side (NORSE_PLOTS), for
+    the long houses. The segment to the north has the plot of the bank on its west side, near the plaza."""
+    rng = random.Random(32 if bank else 33)
+    t = Template(STREET_WIDTH, 4, NORSE_STREET_LENGTH)
+    street_path(t, rng, NORSE_STREET_LENGTH)
+    mid = STREET_WIDTH // 2
+    t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
+    t.jigsaw(mid, 0, NORSE_STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET, STREET_ENDS_POOL, "minecraft:dirt_path")
+    for i, z in enumerate(NORSE_PLOTS):
+        west = BANK_POOL if bank and i == 0 else HOUSE_POOL
+        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air")
+        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+    lamp_post(t, STREET_WIDTH - 1, NORSE_PLOTS[0] + 5)
+    lamp_post(t, 0, NORSE_STREET_LENGTH - 1)
+    return t
 
 PIECES = {
     "plaza": plaza,
@@ -992,11 +1119,23 @@ PIECES = {
 # villages of a culture with no style here use PIECES.
 STYLES = {
     "valeholm": {
+        "street": norse_street,
+        "street_bank": lambda: norse_street(bank=True),
         "house_cottage": norse_cottage,
+        "house_cottage_side": norse_cottage_side,
         "house_barracks": norse_barracks,
         "house_forge": norse_forge,
         "house_storehouse": norse_storehouse,
+        "house_storehouse_side": norse_storehouse_side,
     },
+}
+# The houses of the pool of the houses of each style, with their weights. The jigsaw tries the houses in a random
+# order with these weights: a house that touches another piece goes to the next house, and a plot with no house that
+# fits stays free. The styles that are not here use HOUSES.
+HOUSES = [(3, "house_cottage"), (2, "house_barracks"), (1, "house_forge"), (2, "house_storehouse")]
+STYLE_HOUSES = {
+    "valeholm": [(2, "house_cottage"), (2, "house_cottage_side"), (2, "house_barracks"), (1, "house_forge"),
+                 (1, "house_storehouse"), (1, "house_storehouse_side")],
 }
 
 
@@ -1157,8 +1296,8 @@ def pools(v):
 
     return {
         "plaza": pool([(1, house("plaza"))]),
-        "houses": pool([(3, house("house_cottage")), (2, house("house_barracks")), (1, house("house_forge")),
-                        (2, house("house_storehouse")), (1, {"element_type": "minecraft:empty_pool_element"})]),
+        "houses": pool([(weight, house(piece)) for weight, piece in STYLE_HOUSES.get(v.culture, HOUSES)]
+                       + [(1, {"element_type": "minecraft:empty_pool_element"})]),
         "homes": pool([(1, house("house_cottage"))]),
         "bank": pool([(1, house("bank"))]),
         "streets_first": pool([(1, street("street"))], v.id("street_ends")),
@@ -1262,8 +1401,7 @@ def main():
         folder = os.path.join(DATA, "structure", *v.path("").split("/"))
         os.makedirs(folder, exist_ok=True)
         style = STYLES.get(v.culture, {})
-        for name, base_build in PIECES.items():
-            build = style.get(name, base_build)
+        for name, build in {**PIECES, **style}.items():
             path = os.path.join(folder, name + ".nbt")
             template = build()
             connect_panes(template)
