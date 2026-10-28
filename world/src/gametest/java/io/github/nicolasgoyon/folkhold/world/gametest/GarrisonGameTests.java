@@ -6,14 +6,16 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
+import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -167,20 +169,32 @@ public final class GarrisonGameTests {
         long now = helper.getLevel().getGameTime();
         heart.ensureGarrison(now);
         FactionUnit guard = units(heart, GarrisonRole.GUARD).get(0);
-        boolean ironSword = guard.getMainHandItem().is(Items.IRON_SWORD);
+        GarrisonEquipment.Piece hamletWeapon = weapon(guard, "hamlet");
+        boolean hamletEquipped = guard.getMainHandItem().is(BuiltInRegistries.ITEM.get(
+                ResourceLocation.parse(hamletWeapon.item())));
 
         setLevel(helper, heart, 17);
         heart.ensureGarrison(now + 1);
-        boolean netheriteSword = guard.getMainHandItem().is(Items.NETHERITE_SWORD);
+        GarrisonEquipment.Piece capitalWeapon = weapon(guard, "capital");
+        boolean capitalEquipped = guard.getMainHandItem().is(BuiltInRegistries.ITEM.get(
+                ResourceLocation.parse(capitalWeapon.item())));
         boolean enchanted = guard.getItemBySlot(EquipmentSlot.HEAD).isEnchanted();
         String set = guard.getEquipmentSet();
         removeVillage(helper, heart);
 
-        helper.assertTrue(ironSword, "A guard of a hamlet must have an iron sword");
-        helper.assertTrue(netheriteSword && enchanted, "A guard of a capital must have a netherite sword and an "
-                + "enchanted helmet");
+        helper.assertTrue(hamletEquipped, "A guard of a hamlet must have the weapon of the hamlet: " + hamletWeapon);
+        helper.assertTrue(capitalEquipped && enchanted, "A guard of a capital must have the weapon of the capital ("
+                + capitalWeapon + ") and an enchanted helmet");
+        helper.assertTrue(!hamletWeapon.equals(capitalWeapon), "The weapon of a capital (" + capitalWeapon
+                + ") must be better than the weapon of a hamlet (" + hamletWeapon + "): another item or enchantments");
         helper.assertTrue("capital".equals(set), "The guard must have the set of the capital: " + set);
         helper.succeed();
+    }
+
+    /** The weapon of a guard in a set, for the culture of its faction. */
+    private static GarrisonEquipment.Piece weapon(FactionUnit guard, String set) {
+        return GarrisonEquipment.get().pieces(GarrisonEquipment.culture(guard), set, GarrisonRole.GUARD,
+                guard.getUUID()).get(EquipmentSlot.MAINHAND);
     }
 
     /**

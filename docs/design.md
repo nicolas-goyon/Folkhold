@@ -398,6 +398,10 @@ All values are configurable, with a global difficulty multiplier. This lets us a
 - the patrol radius of the riders, and the health and the speed of their horses: server config;
 - the number of units of each role for each level: `garrison` in the level table (`levels.json`);
 - the equipment of each role for each level: the equipment set of the level (`equipment` in `levels.json`), defined in `garrison_equipment.json`. A role can have variants: each unit takes one variant, from its id. The archers of the town, the city and the capital have a bow variant and a crossbow variant.
+- the equipment of each culture: the set `<culture>/<set>` (for example `valeholm/hamlet`) changes some roles for the units of the factions of the culture. The other roles come from the set with no culture. A stronger weapon goes with a lighter armor:
+  - Valeholm: axes and shields for the guards, the captain and the riders, with chainmail at the small levels; bows for the archers.
+  - Ashmark: the swords and the shields of the sets with no culture; crossbows for the archers.
+  - Sunreach: spears (tridents) with no shield for the guards and the riders, light armor with gold; bows for the archers. The captain keeps a shield.
 
 The garrison and its equipment grow with the tier. The units do not drop their equipment.
 

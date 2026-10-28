@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.village;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import java.io.IOException;
@@ -65,8 +66,10 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  *   <li>{@code tabard}: a leather chestplate in the color of the faction of the unit;</li>
  *   <li>{@code banner}: the banner of the faction of the unit.</li>
  * </ul>
- * A unit with a set that is not in the file, or a role that is not in its set, gets the items of its role in the set
- * {@code hamlet} of {@link #DEFAULT}. The archers need a bow or a crossbow in the main hand. The faction golem has no
+ * A culture can change the equipment of some roles: the set {@code <culture>/<set>}, for example
+ * {@code valeholm/hamlet}, gives the roles that change for the units of the factions of the culture. A role that is
+ * not in the set of the culture comes from the set with no culture. A unit with a set that is not in the file, or a
+ * role that is not in its set, gets the items of its role in the set {@code hamlet} of {@link #DEFAULT}. The archers need a bow or a crossbow in the main hand. The faction golem has no
  * equipment: its role has an empty object.
  */
 public final class GarrisonEquipment extends SimplePreparableReloadListener<GarrisonEquipment.Sets> {
@@ -164,6 +167,43 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
         }
 
         /**
+         * The variants of a role in a set, for the units of a culture: the role in the set of the culture
+         * ({@code <culture>/<set>}), else the role in the set with no culture (see {@link #variants(String,
+         * GarrisonRole)}).
+         *
+         * @param culture the id of the culture of the unit, or null for a unit with no culture
+         * @param set     the id of the set
+         * @param role    the role of the unit
+         * @return the variants, one or more
+         */
+        public List<Map<EquipmentSlot, Piece>> variants(@Nullable String culture, String set, GarrisonRole role) {
+            if (culture != null) {
+                List<Map<EquipmentSlot, Piece>> variants = sets.getOrDefault(culture + "/" + set, Map.of())
+                        .get(role.serializedName());
+                if (variants != null && !variants.isEmpty()) {
+                    return variants;
+                }
+            }
+            return variants(set, role);
+        }
+
+        /**
+         * The pieces of the variant of a unit of a culture: the id of the unit selects one variant of its role (see
+         * {@link #variants(String, String, GarrisonRole)}).
+         *
+         * @param culture the id of the culture of the unit, or null for a unit with no culture
+         * @param set     the id of the set
+         * @param role    the role of the unit
+         * @param unitId  the id of the unit
+         * @return the piece of each slot
+         */
+        public Map<EquipmentSlot, Piece> pieces(@Nullable String culture, String set, GarrisonRole role,
+                UUID unitId) {
+            List<Map<EquipmentSlot, Piece>> variants = variants(culture, set, role);
+            return variants.get(Math.floorMod(unitId.hashCode(), variants.size()));
+        }
+
+        /**
          * The pieces of the first variant of a role in a set (see {@link #variants}).
          *
          * @param set  the id of the set
@@ -219,17 +259,29 @@ public final class GarrisonEquipment extends SimplePreparableReloadListener<Garr
 
     /**
      * Puts the items of a set in the equipment slots of a unit. A slot that is not in the set becomes empty. When the
-     * role has variants, the id of the unit selects one.
+     * role has variants, the id of the unit selects one. The culture of the faction of the unit can change the items
+     * of its role (see {@link Sets#variants(String, String, GarrisonRole)}).
      *
      * @param unit the unit
      * @param set  the id of the set
      */
     public static void equip(FactionUnit unit, String set) {
-        Map<EquipmentSlot, Piece> pieces = current.pieces(set, unit.role(), unit.getUUID());
+        Map<EquipmentSlot, Piece> pieces = current.pieces(culture(unit), set, unit.role(), unit.getUUID());
         for (EquipmentSlot slot : SLOTS) {
             Piece piece = pieces.get(slot);
             unit.setItemSlot(slot, piece == null ? ItemStack.EMPTY : piece.create(unit));
         }
+    }
+
+    /**
+     * The id of the culture of the faction of a unit, or null for a unit with no faction.
+     *
+     * @param unit the unit
+     * @return the id of the culture, or null
+     */
+    @Nullable
+    public static String culture(FactionUnit unit) {
+        return unit.faction().map(FactionSpec::cultureId).orElse(null);
     }
 
     @Override
