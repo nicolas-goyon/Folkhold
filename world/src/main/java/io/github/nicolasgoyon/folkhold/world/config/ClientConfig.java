@@ -3,9 +3,8 @@ package io.github.nicolasgoyon.folkhold.world.config;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
- * Client configuration of the world mod: display options of each player. The territory HUD, the quest HUD, the
- * discovered territories and villages on the maps of Xaero's mods, and the territories on the vanilla maps show by
- * default.
+ * Client configuration of the world mod: display options of each player. The territory HUD, the quest HUD and the
+ * discovered territories and villages on the maps of Xaero's mods show by default.
  */
 public final class ClientConfig {
     public static final ModConfigSpec SPEC;
@@ -14,7 +13,6 @@ public final class ClientConfig {
     public static final ModConfigSpec.BooleanValue SHOW_QUEST_HUD;
     public static final ModConfigSpec.BooleanValue SHOW_MAP_TERRITORIES;
     public static final ModConfigSpec.BooleanValue SHOW_MAP_VILLAGES;
-    public static final ModConfigSpec.BooleanValue SHOW_VANILLA_MAP_TERRITORIES;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -38,11 +36,6 @@ public final class ClientConfig {
                         "also shows them.")
                 .translation(WorldConfig.KEY_PREFIX + "showMapVillages")
                 .define("showMapVillages", true);
-        SHOW_VANILLA_MAP_TERRITORIES = builder
-                .comment("Show the territories and the villages on the vanilla maps: the borders in the color of",
-                        "their faction, and a marker at each village. The maps show all the territories in their area.")
-                .translation(WorldConfig.KEY_PREFIX + "showVanillaMapTerritories")
-                .define("showVanillaMapTerritories", true);
         SPEC = builder.build();
     }
 

@@ -5,8 +5,10 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModMapDecorations;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -18,7 +20,9 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.Level;
@@ -26,6 +30,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /**
  * The waypoints of the villages on the vanilla maps, as the banners of the game.
@@ -33,8 +38,9 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
  * <ul>
  *   <li>A player uses a filled map of the Overworld on a village heart: the map gets a waypoint at the heart, with the
  *       name of the village. A second use removes the waypoint.</li>
- *   <li>The server keeps the waypoints of each map (data {@code folkhold_map_waypoints}). It gives the decorations to
- *       the maps near the players again (see {@link MapTerritories}): the game does not save them in the map.</li>
+ *   <li>The server keeps the waypoints of each map (data {@code folkhold_map_waypoints}). Every {@link #CHECK_TICKS}
+ *       ticks, it gives the decorations to the maps in the hands of each player and in the item frames at
+ *       {@link #FRAME_DISTANCE} blocks or less: the game does not save them in the map.</li>
  *   <li>A waypoint of a village that is not active any more (a ruin, a village with no heart) goes away.</li>
  * </ul>
  */
@@ -44,6 +50,10 @@ public final class MapWaypoints extends SavedData {
             new SavedData.Factory<>(MapWaypoints::new, MapWaypoints::load, null);
     /** The id of a decoration of a waypoint starts with this text, then the id of the settlement. */
     static final String DECORATION_PREFIX = "folkhold_village_";
+    /** The server gives the waypoints to the maps near each player every this number of ticks. */
+    static final int CHECK_TICKS = 40;
+    /** The item frames with a map at this distance or less from a player get the waypoints, in blocks. */
+    static final double FRAME_DISTANCE = 32.0;
     /** The decoration of a waypoint points down, as a banner. */
     private static final double ROTATION = 180.0;
 
@@ -96,6 +106,30 @@ public final class MapWaypoints extends SavedData {
         apply(level, id.id(), data);
         player.displayClientMessage(Component.translatable(added ? "folkhold_world.map.waypoint.added"
                 : "folkhold_world.map.waypoint.removed", settlement.get().name()), true);
+    }
+
+    /** Gives the waypoints to the maps of a player: in its hands, and in the item frames near it. */
+    public static void onPlayerTick(PlayerTickEvent.Post event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.tickCount % CHECK_TICKS != 0
+                || player.level().dimension() != Level.OVERWORLD) {
+            return;
+        }
+        ServerLevel level = player.serverLevel();
+        List<ItemStack> stacks = new ArrayList<>();
+        for (InteractionHand hand : InteractionHand.values()) {
+            stacks.add(player.getItemInHand(hand));
+        }
+        for (ItemFrame frame : level.getEntitiesOfClass(ItemFrame.class,
+                player.getBoundingBox().inflate(FRAME_DISTANCE))) {
+            stacks.add(frame.getItem());
+        }
+        for (ItemStack stack : stacks) {
+            MapId id = stack.get(DataComponents.MAP_ID);
+            MapItemSavedData data = id == null ? null : MapItem.getSavedData(id, level);
+            if (data != null && data.dimension == Level.OVERWORLD) {
+                apply(level, id.id(), data);
+            }
+        }
     }
 
     /**

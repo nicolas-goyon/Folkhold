@@ -383,7 +383,6 @@
   "folkhold_world.configuration.showQuestHud": "Quest HUD",
   "folkhold_world.configuration.showMapTerritories": "Territories on the maps",
   "folkhold_world.configuration.showMapVillages": "Villages on the maps",
-  "folkhold_world.configuration.showVanillaMapTerritories": "Territories on the vanilla maps",
   "folkhold_world.cartography.move.north": "Move the map north (with a paper). Again: zoom out",
   "folkhold_world.cartography.move.south": "Move the map south (with a paper). Again: zoom out",
   "folkhold_world.cartography.move.west": "Move the map west (with a paper). Again: zoom out",
