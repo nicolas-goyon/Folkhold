@@ -5,6 +5,7 @@ import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSite;
+import io.github.nicolasgoyon.folkhold.world.faction.CultureMap;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
@@ -93,21 +94,30 @@ public final class FortifiedVillageStructure extends Structure {
             .validate(FortifiedVillageStructure::verifyRange);
 
     /**
-     * A biome variant of the village: the same village with other materials, for example the local wood.
+     * A variant of the village: the pieces of a culture (its style), or the same village with other materials, for
+     * example the local wood.
      *
-     * @param biomes    the biomes of the variant
+     * @param biomes    the biomes of the variant. A variant of a culture with no biome is the base variant of the
+     *                  culture, in all the biomes.
      * @param startPool the pool of the start piece
      * @param wall      the settings of the wall
      * @param homes     the pool of the homes that the builders build on the free plots
+     * @param culture   the id of the culture of the variant, or empty for a variant of all the cultures
      */
     public record Variant(HolderSet<Biome> biomes, Holder<StructureTemplatePool> startPool, WallSettings wall,
-            Holder<StructureTemplatePool> homes) {
+            Holder<StructureTemplatePool> homes, Optional<String> culture) {
         public static final Codec<Variant> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 RegistryCodecs.homogeneousList(Registries.BIOME).fieldOf("biomes").forGetter(Variant::biomes),
                 StructureTemplatePool.CODEC.fieldOf("start_pool").forGetter(Variant::startPool),
                 WallSettings.CODEC.fieldOf("wall").forGetter(Variant::wall),
-                StructureTemplatePool.CODEC.fieldOf("homes").forGetter(Variant::homes))
+                StructureTemplatePool.CODEC.fieldOf("homes").forGetter(Variant::homes),
+                Codec.STRING.optionalFieldOf("culture").forGetter(Variant::culture))
                 .apply(instance, Variant::new));
+
+        /** True if the variant is for a culture: a variant with no culture is for all the cultures. */
+        boolean isFor(String id) {
+            return culture.map(id::equals).orElse(true);
+        }
     }
 
     private final Holder<StructureTemplatePool> startPool;
@@ -129,7 +139,7 @@ public final class FortifiedVillageStructure extends Structure {
         this.wall = wall;
         this.homes = homes;
         this.variants = List.copyOf(variants);
-        this.base = new Variant(HolderSet.direct(), startPool, wall, homes);
+        this.base = new Variant(HolderSet.direct(), startPool, wall, homes, Optional.empty());
     }
 
     /**
@@ -151,15 +161,18 @@ public final class FortifiedVillageStructure extends Structure {
     public Optional<GenerationStub> findGenerationPoint(GenerationContext context) {
         ChunkPos chunk = context.chunkPos();
         BlockPos start = new BlockPos(chunk.getMinBlockX(), 0, chunk.getMinBlockZ());
-        // The biome at the middle of the start piece of the base variant selects the variant. The two placements start
-        // with the same random. Thus the start piece of the variant has the same rotation and the same middle (the
-        // start pieces of the variants have the same size), and the village has the same layout in all the variants.
+        // The culture of the region and the biome at the middle of the start piece of the base variant select the
+        // variant. The two placements start with the same random. Thus the start piece of a variant of the same pieces
+        // has the same rotation and the same middle (the start pieces have the same size), and the village has the
+        // same layout in these variants.
         restartRandom(context);
         Optional<GenerationStub> stub = place(context, base, start);
         if (stub.isEmpty()) {
             return Optional.empty();
         }
-        Variant variant = variantAt(biomeAt(context, stub.get().position()));
+        BlockPos middle = stub.get().position();
+        CultureMap cultures = new CultureMap(context.seed(), context.biomeSource(), context.randomState().sampler());
+        Variant variant = variantAt(cultures.cultureAt(middle.getX(), middle.getZ()), biomeAt(context, middle));
         if (variant != base) {
             restartRandom(context);
             stub = place(context, variant, start);
@@ -191,9 +204,32 @@ public final class FortifiedVillageStructure extends Structure {
                 QuartPos.fromBlock(pos.getZ()), context.randomState().sampler());
     }
 
-    /** The first variant with a biome, or the base variant. */
+    /** The first variant of all the cultures with a biome, or the base variant. */
     public Variant variantAt(Holder<Biome> biome) {
-        return variants.stream().filter(variant -> variant.biomes().contains(biome)).findFirst().orElse(base);
+        return variants.stream().filter(variant -> variant.culture().isEmpty() && variant.biomes().contains(biome))
+                .findFirst().orElse(base);
+    }
+
+    /**
+     * The variant of a village of a culture in a biome. The order of the search:
+     *
+     * <ol>
+     *   <li>a variant of the culture with the biome;</li>
+     *   <li>the base variant of the culture: a variant of the culture with no biome;</li>
+     *   <li>a variant of all the cultures with the biome;</li>
+     *   <li>the base variant of the structure.</li>
+     * </ol>
+     *
+     * @param culture the id of the culture
+     * @param biome   the biome
+     * @return the variant
+     */
+    public Variant variantAt(String culture, Holder<Biome> biome) {
+        List<Variant> ofCulture = variants.stream().filter(variant -> variant.culture().isPresent())
+                .filter(variant -> variant.isFor(culture)).toList();
+        return ofCulture.stream().filter(variant -> variant.biomes().contains(biome)).findFirst()
+                .or(() -> ofCulture.stream().filter(variant -> variant.biomes().size() == 0).findFirst())
+                .orElseGet(() -> variantAt(biome));
     }
 
     /**

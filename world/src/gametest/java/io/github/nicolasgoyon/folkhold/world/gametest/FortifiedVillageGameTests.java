@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
@@ -124,6 +125,47 @@ public final class FortifiedVillageGameTests {
         helper.assertTrue(fenceGates.stream().anyMatch(gate -> gate.distManhattan(exit.atY(gate.getY())) <= 2),
                 "The walk must go out through a gate: " + exit);
         helper.succeed();
+    }
+
+    /**
+     * The culture and the biome select the variant: first a variant of the culture with the biome, then the base
+     * variant of the culture, then a variant of all the cultures with the biome, then the base variant. The test uses
+     * the pools of the biome variants as the pools of the variants of a culture.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_variants")
+    public static void cultureSelectsTheVariant(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
+        Registry<StructureTemplatePool> pools = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
+        Holder<Biome> plains = biomes.getHolderOrThrow(Biomes.PLAINS);
+        Holder<Biome> desert = biomes.getHolderOrThrow(Biomes.DESERT);
+        FortifiedVillageStructure.Variant northPlains = new FortifiedVillageStructure.Variant(HolderSet.direct(plains),
+                pool(pools, "village/birch/plaza"), structure.wall(), structure.homes(), Optional.of("valeholm"));
+        FortifiedVillageStructure.Variant northBase = new FortifiedVillageStructure.Variant(HolderSet.direct(),
+                pool(pools, "village/savanna/plaza"), structure.wall(), structure.homes(), Optional.of("valeholm"));
+        FortifiedVillageStructure.Variant allPlains = new FortifiedVillageStructure.Variant(HolderSet.direct(plains),
+                pool(pools, "village/plains/plaza"), structure.wall(), structure.homes(), Optional.empty());
+        FortifiedVillageStructure cultures = new FortifiedVillageStructure(new Structure.StructureSettings(
+                structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
+                structure.startPool(), structure.size(), structure.maxDistanceFromCenter(), structure.wall(),
+                structure.homes(), List.of(allPlains, northBase, northPlains));
+
+        helper.assertTrue(cultures.variantAt("valeholm", plains) == northPlains,
+                "A variant of the culture with the biome comes first");
+        helper.assertTrue(cultures.variantAt("valeholm", desert) == northBase,
+                "With no variant of the culture for the biome, the base variant of the culture");
+        helper.assertTrue(cultures.variantAt("ashmark", plains) == allPlains,
+                "With no variant of the culture, a variant of all the cultures with the biome");
+        helper.assertTrue(cultures.variantAt("ashmark", desert).startPool().equals(structure.startPool()),
+                "With no other variant, the base variant of the structure");
+        helper.succeed();
+    }
+
+    private static Holder<StructureTemplatePool> pool(Registry<StructureTemplatePool> pools, String path) {
+        return pools.getHolderOrThrow(ResourceKey.create(Registries.TEMPLATE_POOL,
+                ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, path)));
     }
 
     /**
