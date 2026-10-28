@@ -1,0 +1,31 @@
+{
+  "processors": [
+    {
+      "processor_type": "folkhold_world:optional_replace",
+      "replacements": [
+        {
+          "input": "minecraft:stone",
+          "output": "immersive_weathering:mossy_stone"
+        },
+        {
+          "input": "minecraft:stone_slab",
+          "output": "immersive_weathering:mossy_stone_slab"
+        },
+        {
+          "input": "minecraft:iron_bars",
+          "output": "immersive_weathering:rusted_iron_bars"
+        }
+      ]
+    },
+    {
+      "processor_type": "folkhold_world:foundation",
+      "block": {
+        "Name": "minecraft:sandstone"
+      },
+      "max_depth": 32,
+      "stilt": {
+        "Name": "minecraft:cut_sandstone"
+      }
+    }
+  ]
+}

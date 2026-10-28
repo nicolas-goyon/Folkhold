@@ -69,7 +69,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       {@link VillagePlots}).</li>
  *   <li>{@code variants}: the biome variants of the village (see {@link Variant}). The biome at the middle of the start
  *       piece selects the first variant with this biome. In the other biomes, the village uses the start pool, the
- *       wall and the homes of the structure: the base variant.</li>
+ *       wall and the homes of the structure: the base variant. A site on the coast selects a maritime variant (see
+ *       {@link VillageSite.Result#MARITIME}).</li>
  * </ul>
  */
 public final class FortifiedVillageStructure extends Structure {
@@ -103,16 +104,25 @@ public final class FortifiedVillageStructure extends Structure {
      * @param wall      the settings of the wall
      * @param homes     the pool of the homes that the builders build on the free plots
      * @param culture   the id of the culture of the variant, or empty for a variant of all the cultures
+     * @param maritime  true for a variant of a maritime village: a village on the coast or on an island. Only a
+     *                  maritime site selects a maritime variant.
      */
     public record Variant(HolderSet<Biome> biomes, Holder<StructureTemplatePool> startPool, WallSettings wall,
-            Holder<StructureTemplatePool> homes, Optional<String> culture) {
+            Holder<StructureTemplatePool> homes, Optional<String> culture, boolean maritime) {
         public static final Codec<Variant> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 RegistryCodecs.homogeneousList(Registries.BIOME).fieldOf("biomes").forGetter(Variant::biomes),
                 StructureTemplatePool.CODEC.fieldOf("start_pool").forGetter(Variant::startPool),
                 WallSettings.CODEC.fieldOf("wall").forGetter(Variant::wall),
                 StructureTemplatePool.CODEC.fieldOf("homes").forGetter(Variant::homes),
-                Codec.STRING.optionalFieldOf("culture").forGetter(Variant::culture))
+                Codec.STRING.optionalFieldOf("culture").forGetter(Variant::culture),
+                Codec.BOOL.optionalFieldOf("maritime", false).forGetter(Variant::maritime))
                 .apply(instance, Variant::new));
+
+        /** A variant that is not maritime. */
+        public Variant(HolderSet<Biome> biomes, Holder<StructureTemplatePool> startPool, WallSettings wall,
+                Holder<StructureTemplatePool> homes, Optional<String> culture) {
+            this(biomes, startPool, wall, homes, culture, false);
+        }
 
         /** True if the variant is for a culture: a variant with no culture is for all the cultures. */
         boolean isFor(String id) {
@@ -161,18 +171,24 @@ public final class FortifiedVillageStructure extends Structure {
     public Optional<GenerationStub> findGenerationPoint(GenerationContext context) {
         ChunkPos chunk = context.chunkPos();
         BlockPos start = new BlockPos(chunk.getMinBlockX(), 0, chunk.getMinBlockZ());
-        // The culture of the region and the biome at the middle of the start piece of the base variant select the
-        // variant. The two placements start with the same random. Thus the start piece of a variant of the same pieces
-        // has the same rotation and the same middle (the start pieces have the same size), and the village has the
-        // same layout in these variants.
+        // The culture of the region, the biome at the middle of the start piece of the base variant and the site select
+        // the variant. The two placements start with the same random. Thus the start piece of a variant of the same
+        // pieces has the same rotation and the same middle (the start pieces have the same size), and the village has
+        // the same layout in these variants.
         restartRandom(context);
         Optional<GenerationStub> stub = place(context, base, start);
         if (stub.isEmpty()) {
             return Optional.empty();
         }
         BlockPos middle = stub.get().position();
+        VillageSite.Result site = checkSite(context, middle);
+        if (site != VillageSite.Result.ACCEPTED && site != VillageSite.Result.MARITIME) {
+            return Optional.empty();
+        }
+        boolean maritime = site == VillageSite.Result.MARITIME;
         CultureMap cultures = new CultureMap(context.seed(), context.biomeSource(), context.randomState().sampler());
-        Variant variant = variantAt(cultures.cultureAt(middle.getX(), middle.getZ()), biomeAt(context, middle));
+        Variant variant = variantAt(cultures.cultureAt(middle.getX(), middle.getZ()), biomeAt(context, middle),
+                maritime);
         if (variant != base) {
             restartRandom(context);
             stub = place(context, variant, start);
@@ -181,11 +197,6 @@ public final class FortifiedVillageStructure extends Structure {
             return Optional.empty();
         }
         GenerationStub village = stub.get();
-        VillageSite.Result site = checkSite(context, village.position());
-        if (site != VillageSite.Result.ACCEPTED && site != VillageSite.Result.MARITIME) {
-            return Optional.empty();
-        }
-        boolean maritime = site == VillageSite.Result.MARITIME;
         return Optional.of(new GenerationStub(village.position(),
                 builder -> generate(context, village, variant, maritime, builder)));
     }
@@ -212,9 +223,13 @@ public final class FortifiedVillageStructure extends Structure {
                 QuartPos.fromBlock(pos.getZ()), context.randomState().sampler());
     }
 
-    /** The first variant of all the cultures with a biome, or the base variant. */
+    /**
+     * The first variant of all the cultures with a biome, or the base variant. The maritime variants are not in the
+     * search.
+     */
     public Variant variantAt(Holder<Biome> biome) {
-        return variants.stream().filter(variant -> variant.culture().isEmpty() && variant.biomes().contains(biome))
+        return variants.stream().filter(variant -> !variant.maritime())
+                .filter(variant -> variant.culture().isEmpty() && variant.biomes().contains(biome))
                 .findFirst().orElse(base);
     }
 
@@ -233,11 +248,35 @@ public final class FortifiedVillageStructure extends Structure {
      * @return the variant
      */
     public Variant variantAt(String culture, Holder<Biome> biome) {
-        List<Variant> ofCulture = variants.stream().filter(variant -> variant.culture().isPresent())
+        List<Variant> ofCulture = variants.stream().filter(variant -> !variant.maritime())
+                .filter(variant -> variant.culture().isPresent())
                 .filter(variant -> variant.isFor(culture)).toList();
         return ofCulture.stream().filter(variant -> variant.biomes().contains(biome)).findFirst()
                 .or(() -> ofCulture.stream().filter(variant -> variant.biomes().size() == 0).findFirst())
                 .orElseGet(() -> variantAt(biome));
+    }
+
+    /**
+     * The variant of a village of a culture in a biome, on a site. On a maritime site, the variant is the first
+     * maritime variant with the biome, else the first maritime variant with no biome. With no maritime variant, or on
+     * another site, the variant is {@link #variantAt(String, Holder)}.
+     *
+     * @param culture  the id of the culture
+     * @param biome    the biome
+     * @param maritime true for a maritime site
+     * @return the variant
+     */
+    public Variant variantAt(String culture, Holder<Biome> biome, boolean maritime) {
+        if (maritime) {
+            List<Variant> atSea = variants.stream().filter(Variant::maritime).filter(variant -> variant.isFor(culture))
+                    .toList();
+            Optional<Variant> found = atSea.stream().filter(variant -> variant.biomes().contains(biome)).findFirst()
+                    .or(() -> atSea.stream().filter(variant -> variant.biomes().size() == 0).findFirst());
+            if (found.isPresent()) {
+                return found.get();
+            }
+        }
+        return variantAt(culture, biome);
     }
 
     /**
