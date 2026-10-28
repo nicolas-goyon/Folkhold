@@ -8,9 +8,6 @@
     "MapItemMixin",
     "MapItemSavedDataAccessor"
   ],
-  "client": [
-    "MapInstanceMixin"
-  ],
   "injectors": {
     "defaultRequire": 1
   }
