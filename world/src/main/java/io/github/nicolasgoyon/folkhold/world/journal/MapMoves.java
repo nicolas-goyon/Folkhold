@@ -12,7 +12,7 @@ import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
 /**
- * The move of a vanilla map in the cartography table. The game puts the center of a map on a grid: a zoomed-out map
+ * The move and the update of a vanilla map in the cartography table. The game puts the center of a map on a grid: a zoomed-out map
  * is not always around the player. The move gives a new map, one step from the old map in a direction.
  *
  * <ul>
@@ -22,6 +22,8 @@ import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
  *   <li>A step is half of the side of the map: the new map has half of the area of the old map.</li>
  *   <li>The new map has the same scale. It keeps the explored pixels of the old map in their new positions.</li>
  *   <li>A locked map does not move.</li>
+ *   <li>The button {@link #UPDATE} gives the same map, updated at a distance when the player takes it (see
+ *       {@link MapUpdates}).</li>
  * </ul>
  */
 public final class MapMoves {
@@ -30,8 +32,10 @@ public final class MapMoves {
     public static final int SOUTH = 1;
     public static final int WEST = 2;
     public static final int EAST = 3;
-    /** No direction: the zoom of the game. */
-    public static final int NONE = 4;
+    /** The update of the map at a distance (see {@link MapUpdates}): the id of its button. */
+    public static final int UPDATE = 4;
+    /** No selection: the zoom of the game. */
+    public static final int NONE = -1;
     /** The side of a map, in pixels. */
     public static final int SIZE = 128;
     /** A step, in pixels: half of the side of a map. */
@@ -87,7 +91,14 @@ public final class MapMoves {
             stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         }
         MapItemSavedData data = MapItem.getSavedData(stack, level);
-        if (!(level instanceof ServerLevel) || data == null || data.locked) {
+        if (!(level instanceof ServerLevel server) || data == null || data.locked) {
+            return;
+        }
+        if (direction == UPDATE) {
+            MapId current = stack.get(DataComponents.MAP_ID);
+            if (current != null) {
+                MapUpdates.start(server, current, data);
+            }
             return;
         }
         MapId id = level.getFreeMapId();

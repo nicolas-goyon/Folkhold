@@ -13,8 +13,9 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 
 /**
  * The buttons of the move of a map in the screen of the cartography table (see {@link MapMoves}): an arrow for each
- * direction, between the slots and the preview of the map. A button sends its direction to the menu of the server. The
- * selected arrow is yellow; the same arrow again selects the zoom of the game.
+ * direction, between the slots and the preview of the map, and the button of the update in the middle. A button sends
+ * its id to the menu of the server. The selected button is yellow; the same button again selects the zoom of the
+ * game.
  */
 public final class CartographyButtons {
     /** The middle of the arrows, from the top left corner of the screen. */
@@ -24,7 +25,7 @@ public final class CartographyButtons {
     private static final int GAP = 11;
 
     private static final Map<Integer, Button> BUTTONS = new HashMap<>();
-    private static final String[] ARROWS = {"^", "v", "<", ">"};
+    private static final String[] ARROWS = {"^", "v", "<", ">", "\u21bb"};
     private static int selected = MapMoves.NONE;
 
     private CartographyButtons() {
@@ -42,6 +43,7 @@ public final class CartographyButtons {
         add(event, screen, MapMoves.SOUTH, "south", left, top + GAP);
         add(event, screen, MapMoves.WEST, "west", left - GAP, top);
         add(event, screen, MapMoves.EAST, "east", left + GAP, top);
+        add(event, screen, MapMoves.UPDATE, "update", left, top);
     }
 
     private static void add(ScreenEvent.Init.Post event, CartographyTableScreen screen, int direction, String name,

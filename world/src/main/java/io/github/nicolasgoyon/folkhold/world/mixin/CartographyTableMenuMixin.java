@@ -19,8 +19,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * The move of a map in the cartography table (see {@link MapMoves}): a button of the screen selects a direction, and
- * the map with a paper gives the moved map in place of the zoomed map.
+ * The move and the update of a map in the cartography table (see {@link MapMoves}): a button of the screen selects a
+ * direction or the update, and the map with a paper gives the moved or updated map in place of the zoomed map.
  */
 @Mixin(CartographyTableMenu.class)
 // Mixin calls the injected methods, and gives them the parameter of the callback.
@@ -34,7 +34,7 @@ abstract class CartographyTableMenuMixin extends AbstractContainerMenu {
     @Final
     private ResultContainer resultContainer;
 
-    /** The selected direction ({@link MapMoves#NONE} for the zoom of the game). */
+    /** The selected button ({@link MapMoves#NONE} for the zoom of the game). */
     @Unique
     private int folkhold$direction = MapMoves.NONE;
 
@@ -44,7 +44,7 @@ abstract class CartographyTableMenuMixin extends AbstractContainerMenu {
 
     @Override
     public boolean clickMenuButton(Player player, int id) {
-        if (id < 0 || id > MapMoves.NONE) {
+        if (id < MapMoves.NORTH || id > MapMoves.UPDATE) {
             return false;
         }
         folkhold$direction = id == folkhold$direction ? MapMoves.NONE : id;
