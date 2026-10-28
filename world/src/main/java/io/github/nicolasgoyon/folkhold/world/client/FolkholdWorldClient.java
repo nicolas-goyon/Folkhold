@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.client.map.CartographyButtons;
 import io.github.nicolasgoyon.folkhold.world.client.map.XaeroMaps;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.AnimatedVillagerRenderer;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionGolemModel;
@@ -40,6 +41,7 @@ public final class FolkholdWorldClient {
         modEventBus.addListener(FolkholdWorldClient::onRegisterLayers);
         modEventBus.addListener(FolkholdWorldClient::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener(FolkholdWorldClient::onLoggingOut);
+        NeoForge.EVENT_BUS.addListener(CartographyButtons::onScreenInit);
         NeoForge.EVENT_BUS.addListener(QuestTargetMarker::onRenderLiving);
         modEventBus.addListener(AnimatedVillagerRenderer::onAddLayers);
         // Lowest priority: the other listeners of the event see the villager before it changes renderer.
