@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.registry;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FoundationProcessor;
+import io.github.nicolasgoyon.folkhold.world.village.structure.OptionalReplaceProcessor;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PierPiece;
 import io.github.nicolasgoyon.folkhold.world.village.structure.TerrainPiece;
@@ -49,6 +50,10 @@ public final class ModStructures {
     /** A foundation under a structure template ({@link FoundationProcessor}). */
     public static final DeferredHolder<StructureProcessorType<?>, StructureProcessorType<FoundationProcessor>>
             FOUNDATION = PROCESSORS.register("foundation", () -> () -> FoundationProcessor.CODEC);
+
+    /** The blocks of an optional mod in a template ({@link OptionalReplaceProcessor}). */
+    public static final DeferredHolder<StructureProcessorType<?>, StructureProcessorType<OptionalReplaceProcessor>>
+            OPTIONAL_REPLACE = PROCESSORS.register("optional_replace", () -> () -> OptionalReplaceProcessor.CODEC);
 
     private ModStructures() {
     }

@@ -1284,6 +1284,90 @@ def sun_storehouse():
     lantern(t, 1, 1, 5)
     return t
 
+# ---------------------------------------------------------------- maritime pieces
+
+def weathered(rng):
+    """The lower wall of a maritime building: mossy cobblestone and stone. The processor of the maritime variants
+    replaces the stone by the mossy stone of Immersive Weathering, when the mod is present."""
+    return "minecraft:mossy_cobblestone" if rng.random() < 0.6 else "minecraft:stone"
+
+
+def planks(_rng):
+    return "minecraft:spruce_planks"
+
+
+def stone_base(t):
+    """A row of stone slabs on the porch, between the posts: the quay of a maritime building."""
+    for x in range(1, W - 1):
+        if t.get(x, 0, 0) == "minecraft:spruce_planks":
+            t.set(x, 0, 0, "minecraft:stone_slab", {"type": "double", "waterlogged": "false"})
+
+
+def iron_windows(t):
+    """Iron bars in the side windows: the processor of the maritime variants rusts them, when Immersive Weathering is
+    present."""
+    for z in (3, 6):
+        t.set(0, 2, z, "minecraft:iron_bars")
+        t.set(W - 1, 2, z, "minecraft:iron_bars")
+
+
+def fishing_hut():
+    """The home of a family of fishers: 2 beds, the barrels of the catch, a smoker and the nets on the walls."""
+    rng = random.Random(21)
+    t = house_shell(rng, weathered, planks, "house")
+    iron_windows(t)
+    for x in (1, 2):
+        bed(t, x, 6, "cyan")
+    t.set(7, 1, 7, "minecraft:smoker", {"facing": "north", "lit": "false"})
+    t.set(6, 1, 7, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(7, 1, 6, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(7, 1, 2, "minecraft:water_cauldron", {"level": "3"})
+    # The nets: cobwebs on the back wall, over the beds.
+    for x in (1, 2, 3):
+        t.set(x, 3, 7, "minecraft:cobweb")
+    lantern(t, 4, 1, 7)
+    lantern(t, 1, 1, 2)
+    stone_base(t)
+    return t
+
+
+def fish_market():
+    """The fish market: an open hall with the stalls of the catch."""
+    rng = random.Random(22)
+    t = house_shell(rng, weathered, planks, "market", wide_front=True)
+    iron_windows(t)
+    # The stalls: a counter of slabs, with the barrels and the water tanks of the catch.
+    for x in (1, 2, 6, 7):
+        t.set(x, 1, 4, "minecraft:spruce_slab", {"type": "top", "waterlogged": "false"})
+    for x in (1, 7):
+        t.set(x, 1, 5, "minecraft:water_cauldron", {"level": "3"})
+    for (x, z) in ((1, 7), (2, 7), (6, 7), (7, 7)):
+        t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(4, 1, 7, "minecraft:smoker", {"facing": "north", "lit": "false"})
+    t.set(2, 1, 5, "minecraft:blue_carpet")
+    t.set(6, 1, 5, "minecraft:blue_carpet")
+    lantern(t, 4, 1, 4)
+    stone_base(t)
+    return t
+
+
+def smokehouse():
+    """The smokehouse: the smokers and the racks of the fish of the village."""
+    rng = random.Random(23)
+    t = house_shell(rng, weathered, weathered, "storehouse")
+    iron_windows(t)
+    for x in (2, 4, 6):
+        t.set(x, 1, 7, "minecraft:smoker", {"facing": "north", "lit": "false"})
+    # The racks: chains from the roof beam, over the smokers.
+    for x in (2, 4, 6):
+        t.set(x, 3, 6, "minecraft:chain", {"axis": "y", "waterlogged": "false"})
+    for (x, z) in ((1, 7), (7, 7), (1, 6), (7, 6)):
+        t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(1, 1, 2, "minecraft:composter", {"level": "0"})
+    lantern(t, 4, 1, 3)
+    stone_base(t)
+    return t
+
 PIECES = {
     "plaza": plaza,
     "street": street,
@@ -1320,6 +1404,22 @@ STYLES = {
         "house_storehouse": sun_storehouse,
     },
 }
+# The pieces of the maritime villages: the village of a site on the coast or on an island, in all the cultures. The
+# other pieces are the pieces of PIECES.
+MARITIME = {
+    "house_fishing_hut": fishing_hut,
+    "house_fish_market": fish_market,
+    "house_smokehouse": smokehouse,
+}
+MARITIME_HOUSES = [(3, "house_fishing_hut"), (1, "house_fish_market"), (1, "house_smokehouse"),
+                   (2, "house_cottage"), (1, "house_barracks"), (1, "house_storehouse")]
+# The blocks of Immersive Weathering in the maritime pieces, when the mod is present (see OptionalReplaceProcessor).
+WEATHERED = {
+    "minecraft:stone": "immersive_weathering:mossy_stone",
+    "minecraft:stone_slab": "immersive_weathering:mossy_stone_slab",
+    "minecraft:iron_bars": "immersive_weathering:rusted_iron_bars",
+}
+
 # The houses of the pool of the houses of each style, with their weights. The jigsaw tries the houses in a random
 # order with these weights: a house that touches another piece goes to the next house, and a plot with no house that
 # fits stays free. The styles that are not here use HOUSES.
@@ -1393,11 +1493,12 @@ class Variant:
     (see plain).
     """
 
-    def __init__(self, name, biomes, blocks, culture=None):
+    def __init__(self, name, biomes, blocks, culture=None, maritime=False):
         self.name = name
         self.biomes = biomes
         self.blocks = blocks
         self.culture = culture
+        self.maritime = maritime
 
     @property
     def base(self):
@@ -1407,12 +1508,24 @@ class Variant:
         """The same variant for the style of a culture."""
         return Variant(self.name, self.biomes, self.blocks, culture)
 
+    def at_sea(self):
+        """The same variant for a maritime village."""
+        return Variant(self.name, self.biomes, self.blocks, maritime=True)
+
+    @property
+    def pieces(self):
+        """The pieces of the variant: the pieces of PIECES, with the pieces of its style."""
+        return {**PIECES, **(MARITIME if self.maritime else STYLES.get(self.culture, {}))}
+
     def path(self, name):
         """The path of a file of the village for this variant, with no namespace and no extension. The files of the
-        style of a culture are in a folder with the name of the culture."""
+        style of a culture are in a folder with the name of the culture, and the files of a maritime village are in the
+        folder "maritime"."""
         parts = ["village"]
         if self.culture:
             parts.append(self.culture)
+        if self.maritime:
+            parts.append("maritime")
         if not self.base:
             parts.append(self.name)
         return "/".join(parts + [name])
@@ -1487,9 +1600,11 @@ def pools(v):
     def street(piece):
         return element(v, piece, "terrain_matching", "street")
 
+    houses = MARITIME_HOUSES if v.maritime else STYLE_HOUSES.get(v.culture, HOUSES)
+
     return {
         "plaza": pool([(1, house("plaza"))]),
-        "houses": pool([(weight, house(piece)) for weight, piece in STYLE_HOUSES.get(v.culture, HOUSES)]
+        "houses": pool([(weight, house(piece)) for weight, piece in houses]
                        + [(1, {"element_type": "minecraft:empty_pool_element"})]),
         "homes": pool([(1, house("house_cottage"))]),
         "bank": pool([(1, house("bank"))]),
@@ -1507,8 +1622,12 @@ def processor_lists(v):
         "location_predicate": {"predicate_type": "minecraft:block_match", "block": "minecraft:water"},
         "output_state": planks,
     } for path in ("minecraft:dirt_path", "minecraft:gravel", "minecraft:coarse_dirt")]
+    weathered = [{
+        "processor_type": f"{NS}:optional_replace",
+        "replacements": [{"input": block, "output": out} for block, out in WEATHERED.items()],
+    }] if v.maritime else []
     return {
-        "foundation": {"processors": [{
+        "foundation": {"processors": weathered + [{
             "processor_type": f"{NS}:foundation",
             "block": v.state("minecraft:cobblestone"),
             "max_depth": 32,
@@ -1548,24 +1667,28 @@ def village_settings(v):
 
 
 def all_variants():
-    """The variants of all the cultures, then the variants of the styles of the cultures."""
-    return list(VARIANTS) + [v.of(culture) for culture in STYLES for v in VARIANTS]
+    """The variants of all the cultures, then the variants of the styles of the cultures, then the maritime
+    variants."""
+    return (list(VARIANTS) + [v.of(culture) for culture in STYLES for v in VARIANTS]
+            + [v.at_sea() for v in VARIANTS])
 
 
 def structure():
     """The village structure: the base variant, then the list of the other variants with their biomes. A variant of
     the style of a culture has the culture. The base variant of a style has no biome: it is the variant of the culture
-    in the biomes of no other variant of the culture."""
+    in the biomes of no other variant of the culture. The maritime variants are for a site on the coast."""
     base = village_settings(BASE)
     variants = []
     for v in all_variants():
-        if v.base and not v.culture:
+        if v.base and not v.culture and not v.maritime:
             continue
         settings = village_settings(v)
         entry = {"biomes": [] if v.base else v.biomes, "start_pool": settings["start_pool"],
                  "wall": settings["wall"], "homes": settings["homes"]}
         if v.culture:
             entry["culture"] = v.culture
+        if v.maritime:
+            entry["maritime"] = True
         variants.append(entry)
     return {
         "type": f"{NS}:fortified_village",
@@ -1593,8 +1716,7 @@ def main():
     for v in all_variants():
         folder = os.path.join(DATA, "structure", *v.path("").split("/"))
         os.makedirs(folder, exist_ok=True)
-        style = STYLES.get(v.culture, {})
-        for name, build in {**PIECES, **style}.items():
+        for name, build in v.pieces.items():
             path = os.path.join(folder, name + ".nbt")
             template = build()
             connect_panes(template)

@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
+import io.github.nicolasgoyon.folkhold.world.village.structure.OptionalReplaceProcessor;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
 import io.github.nicolasgoyon.folkhold.world.village.structure.VillagePathPiece;
 import java.util.ArrayDeque;
@@ -54,6 +55,8 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -163,6 +166,63 @@ public final class FortifiedVillageGameTests {
         helper.succeed();
     }
 
+    /**
+     * A maritime site selects a maritime variant: the maritime variant of the biome, else the maritime base variant.
+     * Another site never selects a maritime variant.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_variants")
+    public static void maritimeSiteSelectsAMaritimeVariant(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        Registry<Biome> biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
+        Map<ResourceKey<Biome>, String> expected = Map.of(Biomes.PLAINS, "village/maritime/plains/plaza",
+                Biomes.DESERT, "village/maritime/desert/plaza", Biomes.TAIGA, "village/maritime/plaza",
+                Biomes.BEACH, "village/maritime/plaza");
+        for (String culture : List.of("valeholm", "ashmark", "sunreach")) {
+            expected.forEach((biome, plaza) -> {
+                Holder<Biome> holder = biomes.getHolderOrThrow(biome);
+                String found = structure.variantAt(culture, holder, true).startPool().unwrapKey()
+                        .map(key -> key.location().getPath()).orElse("");
+                helper.assertTrue(found.equals(plaza), "The maritime variant of " + biome.location() + " must start "
+                        + "with " + plaza + ", not " + found);
+                helper.assertFalse(structure.variantAt(culture, holder, false).maritime(),
+                        "Another site must not select a maritime variant");
+            });
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The optional replacement changes a block when the output block exists, and keeps the properties that the two
+     * blocks have. With no output block (a mod that is not present), the block of the template stays.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_variants")
+    public static void optionalReplaceNeedsTheOutputBlock(GameTestHelper helper) {
+        OptionalReplaceProcessor processor = new OptionalReplaceProcessor(List.of(
+                new OptionalReplaceProcessor.Replacement(Blocks.OAK_STAIRS,
+                        ResourceLocation.withDefaultNamespace("spruce_stairs")),
+                new OptionalReplaceProcessor.Replacement(Blocks.STONE,
+                        ResourceLocation.fromNamespaceAndPath("folkhold_absent_mod", "mossy_stone"))));
+        BlockState stairs = Blocks.OAK_STAIRS.defaultBlockState().setValue(StairBlock.FACING, Direction.WEST);
+        BlockState replaced = process(helper, processor, stairs);
+        helper.assertTrue(replaced.is(Blocks.SPRUCE_STAIRS), "The output block must replace the input block");
+        helper.assertTrue(replaced.getValue(StairBlock.FACING) == Direction.WEST, "The facing must stay");
+        helper.assertTrue(process(helper, processor, Blocks.STONE.defaultBlockState()).is(Blocks.STONE),
+                "With no output block, the input block must stay");
+        helper.assertTrue(process(helper, processor, Blocks.DIRT.defaultBlockState()).is(Blocks.DIRT),
+                "A block with no replacement must stay");
+        helper.succeed();
+    }
+
+    private static BlockState process(GameTestHelper helper, OptionalReplaceProcessor processor, BlockState state) {
+        StructureTemplate.StructureBlockInfo info = new StructureTemplate.StructureBlockInfo(BlockPos.ZERO, state,
+                null);
+        StructureTemplate.StructureBlockInfo result = processor.process(helper.getLevel(), BlockPos.ZERO,
+                BlockPos.ZERO, info, info, new StructurePlaceSettings(), null);
+        return result == null ? Blocks.AIR.defaultBlockState() : result.state();
+    }
+
     private static Holder<StructureTemplatePool> pool(Registry<StructureTemplatePool> pools, String path) {
         return pools.getHolderOrThrow(ResourceKey.create(Registries.TEMPLATE_POOL,
                 ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, path)));
@@ -252,8 +312,8 @@ public final class FortifiedVillageGameTests {
             Set<String> pieces = pieceNames(templates, folder);
             helper.assertTrue(pieces.containsAll(basePieces), "The variant " + folder + " must have the pieces of the"
                     + " base variant: " + pieces);
-            // The base variant of a culture keeps the spruce of the base variant.
-            boolean spruce = variant.culture().isPresent() && variant.biomes().size() == 0;
+            // The base variant of a culture and the maritime base variant keep the spruce of the base variant.
+            boolean spruce = (variant.culture().isPresent() || variant.maritime()) && variant.biomes().size() == 0;
             for (String piece : spruce ? Set.<String>of() : pieces) {
                 ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, folder + piece);
                 ListTag palette = templates.getOrCreate(id).save(new CompoundTag()).getList("palette",

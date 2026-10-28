@@ -1,0 +1,14 @@
+{
+  "fallback": "folkhold_world:village/maritime/swamp/street_ends",
+  "elements": [
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/swamp/street_bank",
+        "projection": "terrain_matching",
+        "processors": "folkhold_world:village/maritime/swamp/street"
+      }
+    }
+  ]
+}
