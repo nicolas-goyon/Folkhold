@@ -75,11 +75,11 @@ class VanillaMapOverlayTest {
         assertEquals(VanillaMapOverlay.NONE, colors[20 * SIZE + 40]);
     }
 
-    /** The blend mixes the color over the pixel with its opacity, in the color format of the texture. */
+    /** The colors of the texture keep their opacity, with the red and the blue in the order of the texture. */
     @Test
-    void blendUsesTheOpacity() {
-        assertEquals(0xFF3322FF, VanillaMapOverlay.blend(0xFF000000, 0xFFFF2233));
-        // Half of red over white: red stays, green and blue go to the half.
-        assertEquals(0xFF7F7FFF, VanillaMapOverlay.blend(0xFFFFFFFF, 0x80FF0000));
+    void colorOfATextureIsAbgr() {
+        assertEquals(0xFF3322FF, VanillaMapOverlay.abgr(0xFFFF2233));
+        assertEquals(0x50332211, VanillaMapOverlay.abgr(0x50112233));
+        assertEquals(0, VanillaMapOverlay.abgr(VanillaMapOverlay.NONE));
     }
 }
