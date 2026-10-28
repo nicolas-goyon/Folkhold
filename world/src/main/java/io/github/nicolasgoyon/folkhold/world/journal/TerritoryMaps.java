@@ -103,7 +103,8 @@ public final class TerritoryMaps {
      * @param factions   the factions
      * @return the village
      */
-    static TerritoryMapPayload.Village village(Claimant claimant, Settlement settlement, FactionData factions) {
+    public static TerritoryMapPayload.Village village(Claimant claimant, Settlement settlement,
+            FactionData factions) {
         Optional<FactionSpec> faction = factions.byId(settlement.factionId());
         return new TerritoryMapPayload.Village(claimant, settlement.hasHeart() ? settlement.heartY() : DEFAULT_Y,
                 settlement.name(), faction.map(FactionSpec::name).orElse(settlement.factionId()),
