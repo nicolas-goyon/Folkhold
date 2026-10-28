@@ -751,7 +751,8 @@ All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict"
 - **Planned**: the player shows or hides the layers of the map of the journal, for example the routes of the caravans.
 - **Implemented** (`MapTerritories`, `VanillaMapOverlay`): the vanilla maps show all the territories in their area, also the territories that the player did not discover.
   - The maps are the filled maps of the Overworld in the hands of the player, and in the item frames at 32 blocks or less. Every 2 seconds, the server sends the settlements whose territory can touch the area of one of these maps, with the center of each map: the client does not know the center of a vanilla map. It sends the payload only when it changes.
-  - The client draws the overlay on the texture of the map (a client mixin of the map renderer): a border of one pixel inside each territory in the color of its faction, and a square marker with a dark outline at each village. The data of the map does not change.
+  - The client draws the overlay on the texture of the map (a client mixin of the map renderer): a light fill of the color of the faction on each territory, a border of one pixel inside it, and a square marker with a dark outline at each village. The data of the map does not change.
+  - The overlay shows only on the explored pixels of the map. The player does not need to enter a territory: a border that the map saw shows.
   - The client config hides the overlay (`showVanillaMapTerritories`).
 - **Planned**: a cartographer block updates a map at a distance. The player puts a map in it and pays a cost (paper or emeralds). The block updates the map from the chunks that are already generated, with a limit of chunks for each update.
 - A **faction journal** shows the discovered factions and villages: reputation, relations, position, distance.
