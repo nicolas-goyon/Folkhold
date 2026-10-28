@@ -1,0 +1,17 @@
+{
+  "processors": [
+    {
+      "processor_type": "folkhold_world:foundation",
+      "block": {
+        "Name": "minecraft:mud_bricks"
+      },
+      "max_depth": 32,
+      "stilt": {
+        "Name": "minecraft:mangrove_log",
+        "Properties": {
+          "axis": "y"
+        }
+      }
+    }
+  ]
+}

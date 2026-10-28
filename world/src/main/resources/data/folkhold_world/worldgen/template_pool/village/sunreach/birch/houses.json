@@ -1,0 +1,56 @@
+{
+  "fallback": "minecraft:empty",
+  "elements": [
+    {
+      "weight": 3,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/birch/house_cottage",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/birch/foundation"
+      }
+    },
+    {
+      "weight": 2,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/birch/house_cottage_courtyard",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/birch/foundation"
+      }
+    },
+    {
+      "weight": 2,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/birch/house_barracks",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/birch/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/birch/house_forge",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/birch/foundation"
+      }
+    },
+    {
+      "weight": 2,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/birch/house_storehouse",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/birch/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:empty_pool_element"
+      }
+    }
+  ]
+}
