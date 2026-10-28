@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -26,7 +27,8 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * In-game tests for the growth of a village: its builders build a new home on a free plot (see {@link VillageGrowth}).
+ * In-game tests for the growth of a village: its builders build a new home or a building of the level on a free plot
+ * (see {@link VillageGrowth}).
  * See {@link TestSupport} for the templates and the helpers.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
@@ -42,6 +44,8 @@ public final class VillageGrowthGameTests {
             "village/homes");
     private static final ResourceLocation COTTAGE = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
             "village/house_cottage");
+    private static final ResourceLocation FORGE = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
+            "village/house_forge");
 
     private VillageGrowthGameTests() {
     }
@@ -63,7 +67,9 @@ public final class VillageGrowthGameTests {
                 false);
         heart.setRepairReference(new VillageReference(List.of(), List.of(), Optional.empty(), List.of(plot),
                 Optional.of(HOMES)));
-        // The first check of the garrison scans the village (no bed) and creates the builders.
+        // The first check of the garrison scans the village (no bed) and creates the builders. The level 1 needs no
+        // building.
+        settlement.setProgress(1, 0);
         settlement.economy().setPopulation(Merchants.merchantCount(settlement) + 3);
         heart.ensureGarrison(level.getGameTime());
         boolean enoughPlaces = VillageGrowth.check(level, heart).isEmpty();
@@ -89,6 +95,49 @@ public final class VillageGrowthGameTests {
         BlockPos expected = new BlockPos(front.getX(), ground - 1, front.getZ() + 4);
         helper.assertTrue(site.get().origin().equals(expected), "Expected the origin " + expected + ", found "
                 + site.get().origin());
+        helper.succeed();
+    }
+
+    /**
+     * A village with enough places and a missing building of its level: its builders start this building on the free
+     * plot. The village of the level 5 has a storehouse sign, so the forge comes first. A village of the level 1 needs
+     * no building.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "village_growth_building")
+    public static void buildersStartAMissingBuildingOfTheLevel(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        TestSupport.buildFloor(helper, SIZE);
+        helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
+        helper.setBlock(HEART.east(2), ModBlocks.buildingSign(BuildingSignKind.STOREHOUSE));
+        VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+        heart.ensureSettlement();
+        Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
+        VillagePlots.Plot plot = new VillagePlots.Plot(helper.absolutePos(CONNECTOR), Direction.EAST, HOUSE_FRONT,
+                false);
+        heart.setRepairReference(new VillageReference(List.of(), List.of(), Optional.empty(), List.of(plot),
+                Optional.of(HOMES)));
+        // The first check of the garrison scans the village and creates the builders. The population fills the
+        // places of the staff: the village needs no home.
+        settlement.setProgress(1, 0);
+        settlement.economy().setPopulation(Merchants.merchantCount(settlement) + 3);
+        heart.ensureGarrison(level.getGameTime());
+        boolean lowLevel = VillageGrowth.check(level, heart).isEmpty();
+
+        settlement.setProgress(5, 0);
+        settlement.economy().setPopulation(Merchants.merchantCount(settlement) + 3);
+        Optional<BuilderSite> site = VillageGrowth.check(level, heart);
+
+        BuilderSites.stop(level);
+        heart.getUnits().forEach(Entity::discard);
+        heart.getCats().forEach(Entity::discard);
+        Merchants.merchantsOf(level, heart.getBlockPos()).forEach(Entity::discard);
+        VillageFolk.inhabitants(level, heart.getBlockPos()).forEach(Entity::discard);
+        helper.assertTrue(heart.getLayout().buildings().getOrDefault("storehouse", 0) == 1,
+                "The scan must count the storehouse sign: " + heart.getLayout().buildings());
+        helper.assertTrue(lowLevel, "A village of the level 1 must build nothing");
+        helper.assertTrue(site.isPresent(), "A village with a missing building must start it on the free plot");
+        helper.assertTrue(site.get().template().equals(FORGE), "The building must be the forge: "
+                + site.get().template());
         helper.succeed();
     }
 }

@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillageBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
@@ -26,29 +27,40 @@ import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 
 /**
- * The growth of a village: its builders build new homes on the free plots of its streets (see {@link VillagePlots}).
+ * The growth of a village: its builders build new homes and the buildings of its level on the free plots of its
+ * streets (see {@link VillagePlots}).
  *
  * <ul>
- *   <li>The village needs places: the population of the settlement, minus the merchants, is more than the places (see
- *       {@link VillageBeds}).</li>
+ *   <li>A village that needs places gets a new home: the population of the settlement, minus the merchants, is more
+ *       than the places (see {@link VillageBeds}). The home comes from the pool of the homes of the village
+ *       structure.</li>
+ *   <li>Else, a village with a missing building of its level gets this building (see {@link VillageBuildings} and
+ *       {@link VillageBuildingTable}). The scan of the heart counts the building signs of each kind. The building comes
+ *       from the pool of the houses of the variant of the village: the piece {@code house_<kind>}. A variant with no
+ *       such piece gets no building of this kind.</li>
  *   <li>The village has builders and no construction site. The heart looks for a free plot after the check of the
  *       repairs: a repair comes first.</li>
  *   <li>A free plot has no building of the generation. The space of the home has no piece of the village structure, no
  *       palisade, no earlier construction site and no block of a player. The nearest free plot to the heart comes
  *       first.</li>
- *   <li>The home comes from the pool of the homes of the village structure. Its connector goes in front of the
- *       connector of the plot, on the ground of the street.</li>
+ *   <li>The connector of the building goes in front of the connector of the plot, on the ground of the street.</li>
  *   <li>The construction uses the stock of the village and the delivery quests, as the other sites (see
- *       {@link BuilderSites}). At the end, the heart scans the village again: the new beds give places.</li>
- *   <li>A level that goes down does not remove a home.</li>
+ *       {@link BuilderSites}). At the end, the heart scans the village again: the new beds give places, and the new
+ *       building sign counts.</li>
+ *   <li>A level that goes down does not remove a building.</li>
  * </ul>
  */
 public final class VillageGrowth {
     private VillageGrowth() {
     }
 
+    /** The name of the pool of the houses of a variant, in the folder of the pool of its homes. */
+    private static final String HOUSES = "houses";
+    /** The name of the piece of a building of a kind starts with this text. */
+    private static final String BUILDING_PREFIX = "house_";
+
     /**
-     * Starts the construction of a home on a free plot, if the village needs places.
+     * Starts the construction of a home or of a missing building of the level on a free plot.
      *
      * @param level the level
      * @param heart the village heart
@@ -62,16 +74,16 @@ public final class VillageGrowth {
         }
         Optional<Settlement> settlement = Settlements.of(level.getServer(), heart).filter(Settlement::isActive);
         Optional<VillageReference> reference = heart.repairReference(level);
-        if (settlement.isEmpty() || !needsPlaces(settlement.get()) || reference.isEmpty()
-                || reference.get().homes().isEmpty()) {
+        if (settlement.isEmpty() || reference.isEmpty() || reference.get().homes().isEmpty()) {
             return Optional.empty();
         }
-        Optional<StructureTemplatePool> homes = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL)
-                .getOptional(reference.get().homes().get());
-        if (homes.isEmpty()) {
+        Optional<StructurePoolElement> next = needsPlaces(settlement.get())
+                ? pool(level, reference.get().homes().get()).map(homes -> homes.getRandomTemplate(level.random))
+                : missingBuilding(level, heart, settlement.get(), reference.get().homes().get());
+        if (next.isEmpty()) {
             return Optional.empty();
         }
-        StructurePoolElement element = homes.get().getRandomTemplate(level.random);
+        StructurePoolElement element = next.get();
         Optional<ResourceLocation> template = VillageReference.templateOf(level, element);
         if (template.isEmpty()) {
             return Optional.empty();
@@ -89,13 +101,47 @@ public final class VillageGrowth {
             Optional<VillagePlots.Placement> placement = VillagePlots.place(level.getStructureManager(), element, plot,
                     ground);
             if (placement.isPresent() && isFree(level, heartPos, reference.get(), placement.get().box())) {
-                FolkholdWorld.LOGGER.debug("Village {}: a new home {} on the plot {}", heartPos, template.get(),
+                FolkholdWorld.LOGGER.debug("Village {}: a new building {} on the plot {}", heartPos, template.get(),
                         plot.connector());
                 return Optional.of(BuilderSites.start(level, template.get(), placement.get().origin(),
                         placement.get().rotation(), Mirror.NONE, heartPos, null));
             }
         }
         return Optional.empty();
+    }
+
+    private static Optional<StructureTemplatePool> pool(ServerLevel level, ResourceLocation id) {
+        return level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL).getOptional(id);
+    }
+
+    /**
+     * The piece of the first missing building of the level of a village, from the pool of the houses of its variant.
+     *
+     * @param level      the level
+     * @param heart      the village heart
+     * @param settlement the settlement of the village
+     * @param homes      the id of the pool of the homes of the variant of the village
+     * @return the piece, or empty when the village has all the buildings of its level, has no scan, or its variant has
+     *     no piece for the missing building
+     */
+    static Optional<StructurePoolElement> missingBuilding(ServerLevel level, VillageHeartBlockEntity heart,
+            Settlement settlement, ResourceLocation homes) {
+        VillageLayout layout = heart.getLayout();
+        if (!layout.isScanned()) {
+            return Optional.empty();
+        }
+        Optional<String> kind = VillageBuildings.missing(VillageBuildingTable.get(), settlement.level(),
+                layout.buildings());
+        if (kind.isEmpty()) {
+            return Optional.empty();
+        }
+        String path = homes.getPath();
+        ResourceLocation houses = homes.withPath(path.substring(0, path.lastIndexOf('/') + 1) + HOUSES);
+        String suffix = "/" + BUILDING_PREFIX + kind.get();
+        return pool(level, houses).flatMap(pool -> pool.getShuffledTemplates(level.random).stream()
+                .filter(element -> VillageReference.templateOf(level, element)
+                        .filter(template -> template.getPath().endsWith(suffix)).isPresent())
+                .findFirst());
     }
 
     /**

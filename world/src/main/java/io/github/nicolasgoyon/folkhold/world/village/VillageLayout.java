@@ -1,12 +1,16 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -24,6 +28,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.registries.DeferredBlock;
 
 /**
  * Important positions of a village, found with a scan of the blocks around the heart. The heart scans the village
@@ -40,6 +45,8 @@ import net.minecraft.world.phys.Vec3;
  *   <li><b>quest boards</b>: the middle part of each quest board. The heart starts the updates of their papers;</li>
  *   <li><b>beds</b>: the head part of each bed. The beds of the homes give the places of the inhabitants (see
  *       {@link VillageBeds}).</li>
+ *   <li><b>buildings</b>: the number of building signs of each kind. The growth builds the missing buildings of the
+ *       level (see {@link VillageGrowth}).</li>
  * </ul>
  *
  * <p>The scan area is the area of the village structure (see {@link VillageReference#area()}), larger by
@@ -59,7 +66,7 @@ public final class VillageLayout {
     /** The scan area is larger than the area of the village structure by this number of blocks on each side. */
     static final int AREA_MARGIN = 1;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 8;
+    static final int VERSION = 9;
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -80,6 +87,7 @@ public final class VillageLayout {
     private final List<BlockPos> bells = new ArrayList<>();
     private final List<BlockPos> questBoards = new ArrayList<>();
     private final List<BlockPos> beds = new ArrayList<>();
+    private final Map<String, Integer> buildings = new HashMap<>();
 
     public boolean isScanned() {
         return scanned;
@@ -178,6 +186,11 @@ public final class VillageLayout {
         return Collections.unmodifiableList(beds);
     }
 
+    /** The number of building signs of each kind, for example {@code forge}. */
+    public Map<String, Integer> buildings() {
+        return Collections.unmodifiableMap(buildings);
+    }
+
     /**
      * The scan area of a heart with no village structure: a box of {@link #SCAN_RADIUS} blocks around the heart.
      *
@@ -258,6 +271,7 @@ public final class VillageLayout {
         bells.clear();
         questBoards.clear();
         beds.clear();
+        buildings.clear();
         BlockPos min = new BlockPos(area.minX(), area.minY(), area.minZ());
         BlockPos max = new BlockPos(area.maxX(), area.maxY(), area.maxZ());
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
@@ -278,6 +292,13 @@ public final class VillageLayout {
                 questBoards.add(pos.immutable());
             } else if (state.getBlock() instanceof BedBlock && state.getValue(BedBlock.PART) == BedPart.HEAD) {
                 beds.add(pos.immutable());
+            } else if (state.getBlock() instanceof BuildingSignBlock) {
+                for (Map.Entry<BuildingSignKind, DeferredBlock<BuildingSignBlock>> sign
+                        : ModBlocks.BUILDING_SIGNS.entrySet()) {
+                    if (state.is(sign.getValue().get())) {
+                        buildings.merge(sign.getKey().serializedName(), 1, Integer::sum);
+                    }
+                }
             }
         }
         for (BlockPos post : posts) {
@@ -300,6 +321,9 @@ public final class VillageLayout {
         tag.put("Bells", savePositions(bells));
         tag.put("QuestBoards", savePositions(questBoards));
         tag.put("Beds", savePositions(beds));
+        CompoundTag kinds = new CompoundTag();
+        buildings.forEach(kinds::putInt);
+        tag.put("Buildings", kinds);
         return tag;
     }
 
@@ -317,6 +341,11 @@ public final class VillageLayout {
         loadPositions(tag, "Bells", bells);
         loadPositions(tag, "QuestBoards", questBoards);
         loadPositions(tag, "Beds", beds);
+        buildings.clear();
+        CompoundTag kinds = tag.getCompound("Buildings");
+        for (String kind : kinds.getAllKeys()) {
+            buildings.put(kind, kinds.getInt(kind));
+        }
     }
 
     private static ListTag savePositions(List<BlockPos> positions) {
