@@ -90,6 +90,9 @@ public final class MapWaypoints extends SavedData {
         event.setCancellationResult(InteractionResult.SUCCESS);
         boolean added = get(level).toggle(id.id(), settlement.get().id(),
                 new Waypoint(event.getPos().getX(), event.getPos().getZ(), settlement.get().name()));
+        if (!added) {
+            data.removeDecoration(DECORATION_PREFIX + settlement.get().id());
+        }
         apply(level, id.id(), data);
         player.displayClientMessage(Component.translatable(added ? "folkhold_world.map.waypoint.added"
                 : "folkhold_world.map.waypoint.removed", settlement.get().name()), true);
