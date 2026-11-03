@@ -730,7 +730,7 @@ This mod does not need the world mod. It limits infinite farms with regional bud
 
 The catch-up is reliable only for our own blocks and some simple vanilla blocks (crops, furnaces). It does not cover redstone contraptions.
 
-All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict" preset.
+All thresholds are in `folkhold_balance-server.toml`, with a "soft" preset and a "strict" preset.
 
 ## Balance mod: rails
 
@@ -746,7 +746,7 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 
 ### Train
 
-- **Implemented** (`Trains`, `Coupling`): the game ticks the entities in a random order. Thus the mod moves the trains after the entities, at the end of the tick of each level. It finds each train one time, then corrects the speed of each minecart in order from the front minecart. A long train has no delay of one tick for each minecart.
+- **Implemented** (`Trains`, `Coupling`): the game ticks the entities in a random order. Thus the mod moves the trains after the entities, at the end of the tick of each level. It finds each train one time, then corrects the motion of each minecart in order from the front minecart. The correction of a minecart uses the corrected motion of the minecart in front of it. Thus a long train has no delay of one tick for each minecart.
 - The front minecart pulls the back minecart. The mod changes only the speed of the back minecart, along its rail:
   - below the buffer distance, the back minecart slows down. Two linked minecarts do not push each other as vanilla minecarts do;
   - from the buffer distance to the rest distance, the chain is slack;
@@ -754,8 +754,11 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
   - above the maximum distance, the chain acts as a rigid bar.
 - The motion of a minecart stays below the speed limit of its rail, so that a minecart does not leave a curve.
 - A link breaks when the distance stays above the break distance for some ticks. This tolerance keeps the train together after a lag of some ticks. The chain drops at the middle of the link.
-- A link breaks and drops the chain when a minecart is destroyed or goes through a portal. A link does not break when a minecart unloads: it waits until the two minecarts are loaded again. When a minecart breaks a link and the other minecart is not loaded, the other minecart forgets the link when it loads again.
-- The client draws a chain between the two minecarts of each link, as a leash. The server sends the links when a link changes and when a player starts to track a minecart: the data attachments do not go to the client.
+- A link breaks and drops the chain when a minecart is destroyed or goes through a portal. A link does not break when a minecart unloads.
+- A train stops as one unit when one of its minecarts is not loaded, or is in a chunk at the edge of the simulation distance (the level does not tick its entities). The motion of each minecart is zero, and a furnace minecart keeps its push until the train moves again. The links wait, and the break counters do not increase.
+- When a minecart breaks a link and the other minecart is not in the level, the other minecart forgets the link when it is in the level again. The world keeps this record for 7 game days.
+- The mod repairs the links each tick. It removes a link that only one minecart has, and drops its chain. When `maxCarts` is less than the size of a train, the links after `maxCarts` minecarts break and drop their chains.
+- The client draws a chain between the two minecarts of each link, as a leash. The server sends the links to the players that track a minecart when a link changes, and when a player starts to track a minecart: the data attachments do not go to the client.
 
 ### Configuration
 
