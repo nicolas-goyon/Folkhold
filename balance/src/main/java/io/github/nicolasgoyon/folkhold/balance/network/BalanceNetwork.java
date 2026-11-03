@@ -21,16 +21,16 @@ public final class BalanceNetwork {
      * Sends a payload to a player. A connection with no channel for the payload (a mock player of the GameTests)
      * gets nothing: the payload is dropped.
      *
+     * <p>{@link PacketDistributor#sendToPlayersTrackingEntity} does not do this check: a connection with no channel
+     * makes it throw an exception.
+     *
      * @param player  the player
      * @param payload the payload
-     * @return true if the payload is sent, false if the connection has no channel for it
      */
-    public static boolean send(ServerPlayer player, CustomPacketPayload payload) {
-        if (player.connection == null || !player.connection.hasChannel(payload)) {
-            return false;
+    public static void send(ServerPlayer player, CustomPacketPayload payload) {
+        if (player.connection != null && player.connection.hasChannel(payload)) {
+            PacketDistributor.sendToPlayer(player, payload);
         }
-        PacketDistributor.sendToPlayer(player, payload);
-        return true;
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {

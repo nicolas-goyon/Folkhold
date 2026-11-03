@@ -195,16 +195,21 @@ public final class CartLinks {
             drop = drop.add(other.get().position()).scale(0.5);
             sync(level, other.get());
         } else {
-            StaleLinks.get(level.getServer()).add(partner, cart.getUUID());
+            StaleLinks.get(level.getServer()).add(partner, cart.getUUID(), level.getServer().overworld().getGameTime());
         }
         if (!cart.isRemoved()) {
             sync(level, cart);
         }
         if (dropChain) {
-            ItemEntity item = new ItemEntity(level, drop.x, drop.y + 0.5, drop.z, new ItemStack(Items.CHAIN));
-            item.setDefaultPickUpDelay();
-            level.addFreshEntity(item);
+            dropChain(level, drop);
         }
+    }
+
+    /** Drops one chain at a position. */
+    static void dropChain(ServerLevel level, Vec3 pos) {
+        ItemEntity item = new ItemEntity(level, pos.x, pos.y + 0.5, pos.z, new ItemStack(Items.CHAIN));
+        item.setDefaultPickUpDelay();
+        level.addFreshEntity(item);
     }
 
     /**
@@ -230,13 +235,10 @@ public final class CartLinks {
         return id.flatMap(uuid -> find(level, uuid)).map(AbstractMinecart::getId).orElse(CartLinkPayload.NONE);
     }
 
-    /**
-     * Sends the links of a minecart to the players of its level. A player that does not track the minecart forgets
-     * the link when its client does not find the minecart.
-     */
+    /** Sends the links of a minecart to the players that track it (see {@link Trains#trackers}). */
     static void sync(ServerLevel level, AbstractMinecart cart) {
         CartLinkPayload payload = payload(level, cart);
-        for (ServerPlayer player : level.players()) {
+        for (ServerPlayer player : Trains.trackers(cart)) {
             BalanceNetwork.send(player, payload);
         }
     }

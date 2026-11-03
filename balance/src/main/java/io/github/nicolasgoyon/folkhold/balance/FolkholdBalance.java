@@ -35,6 +35,7 @@ public final class FolkholdBalance {
         // Lowest priority: the links break only when no other listener cancels the travel.
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, Trains::onTravelToDimension);
         NeoForge.EVENT_BUS.addListener(Trains::onStartTracking);
+        NeoForge.EVENT_BUS.addListener(Trains::onStopTracking);
         NeoForge.EVENT_BUS.addListener(Trains::onServerStopped);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }

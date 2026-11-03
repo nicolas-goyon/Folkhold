@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.balance.rail;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
 import io.github.nicolasgoyon.folkhold.balance.network.BalanceNetwork;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModAttachments;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -19,6 +20,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
+import net.minecraft.world.entity.vehicle.MinecartFurnace;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseRailBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -34,11 +36,12 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  * The movement of the trains, on the server.
  *
  * <p>The game ticks the entities in a random order. Thus the mod moves the trains after the entities, in
- * {@link LevelTickEvent.Post}: it finds each train one time, then corrects the speed of each minecart in order from
- * the front minecart. Each correction uses the positions of the same tick, so a long train has no delay of one tick
- * for each minecart.
+ * {@link LevelTickEvent.Post}: it finds each train one time, then corrects the motion of each minecart in order from
+ * the front minecart. The correction of a minecart uses the corrected motion of the minecart in front of it, so a
+ * long train has no delay of one tick for each minecart.
  *
- * <p>A link waits when one of its minecarts is not loaded. A link breaks when a minecart is destroyed or goes through
+ * <p>A train stops as one unit when one of its minecarts is not in a chunk that ticks its entities, or is not loaded.
+ * Its links wait, and the break counters do not increase. A link breaks when a minecart is destroyed or goes through
  * a portal, or when the chain stays too long above its break distance (see {@link Coupling}).
  */
 public final class Trains {
@@ -46,12 +49,20 @@ public final class Trains {
     private static final Map<ResourceKey<Level>, Set<AbstractMinecart>> LINKED = new HashMap<>();
     /** The break counter of each back minecart whose chain is above the break distance. */
     private static final Map<UUID, Integer> STRETCH_TICKS = new HashMap<>();
+    /** The push of each furnace minecart of a train that waits. The push comes back when the train moves again. */
+    private static final Map<UUID, Vec3> PAUSED_PUSH = new HashMap<>();
+    /** The players that track each minecart. */
+    private static final Map<AbstractMinecart, Set<ServerPlayer>> TRACKERS = new HashMap<>();
     /** A horizontal distance below this value gives no direction to the chain, in blocks. */
     private static final double MIN_HORIZONTAL_DISTANCE = 1.0E-4;
     /** The chain moves a minecart on a rail only when the cosine between the chain and the rail is at least this. */
     private static final double MIN_RAIL_ALIGNMENT = 0.2;
     /** The parts of a diagonal unit vector. */
     private static final double DIAGONAL = Math.sqrt(0.5);
+    /** The interval of the check of {@link StaleLinks}, in ticks. */
+    private static final int STALE_CHECK_TICKS = 20;
+    /** The interval of the removal of old entries of {@link StaleLinks}, in ticks. */
+    private static final int STALE_CLEANUP_TICKS = 1200;
 
     private Trains() {
     }
@@ -69,6 +80,7 @@ public final class Trains {
             carts.remove(cart);
         }
         STRETCH_TICKS.remove(cart.getUUID());
+        PAUSED_PUSH.remove(cart.getUUID());
     }
 
     /** Forgets the break counter of the link between two minecarts. */
@@ -77,10 +89,18 @@ public final class Trains {
         STRETCH_TICKS.remove(partner);
     }
 
-    /** The number of loaded minecarts with a link in a level. */
-    public static int trackedCount(ServerLevel level) {
-        Set<AbstractMinecart> carts = LINKED.get(level.dimension());
-        return carts == null ? 0 : carts.size();
+    /** The players that track a minecart. */
+    static Set<ServerPlayer> trackers(AbstractMinecart cart) {
+        return TRACKERS.getOrDefault(cart, Set.of());
+    }
+
+    /**
+     * Tells if the level ticks a minecart: it is in the level and in a chunk that ticks its entities. The level also
+     * gives the minecarts of the chunks at the edge of the simulation distance, and these minecarts do not move.
+     */
+    static boolean isActive(ServerLevel level, AbstractMinecart cart) {
+        return !cart.isRemoved() && level.getEntity(cart.getUUID()) == cart
+                && level.isPositionEntityTicking(cart.blockPosition());
     }
 
     public static void onLevelTick(LevelTickEvent.Post event) {
@@ -93,15 +113,23 @@ public final class Trains {
         }
         // A minecart that unloads while its chunk is not accessible does not leave the level again.
         carts.removeIf(Entity::isRemoved);
+        long time = level.getGameTime();
+        if (time % STALE_CHECK_TICKS == 0) {
+            StaleLinks stale = StaleLinks.get(level.getServer());
+            if (time % STALE_CLEANUP_TICKS == 0) {
+                stale.removeOld(level.getServer().overworld().getGameTime());
+            }
+            for (AbstractMinecart cart : List.copyOf(carts)) {
+                if (stale.has(cart.getUUID())) {
+                    forgetStaleLinks(level, cart);
+                }
+            }
+        }
         Coupling coupling = BalanceConfig.coupling();
         int maxCarts = BalanceConfig.TRAIN_MAX_CARTS.get();
         Set<AbstractMinecart> done = Collections.newSetFromMap(new IdentityHashMap<>());
         // A copy in a stable order: a link that breaks changes the set.
-        StaleLinks stale = StaleLinks.get(level.getServer());
         for (AbstractMinecart cart : List.copyOf(new LinkedHashSet<>(carts))) {
-            if (stale.has(cart.getUUID())) {
-                forgetStaleLinks(level, cart);
-            }
             // A minecart in a chunk that is not accessible stays in the set, but the level does not give it.
             if (!done.contains(cart) && !cart.isRemoved() && level.getEntity(cart.getUUID()) == cart
                     && isFront(level, cart)) {
@@ -111,8 +139,9 @@ public final class Trains {
     }
 
     /**
-     * Tells if a minecart is the front minecart of the loaded part of its train: it has no front link, or the
-     * minecart in front is not loaded. A front link that the other minecart does not have is removed.
+     * Tells if a minecart is the front minecart of the part of its train that the level gives: it has no front link,
+     * or the level does not give the minecart in front. A front link that the other minecart does not have is
+     * removed.
      */
     private static boolean isFront(ServerLevel level, AbstractMinecart cart) {
         Optional<UUID> frontId = CartLinks.get(cart).front();
@@ -124,44 +153,100 @@ public final class Trains {
             return true;
         }
         if (!CartLinks.get(front.get()).back().equals(Optional.of(cart.getUUID()))) {
-            CartLinks.set(cart, CartLinks.get(cart).withFront(Optional.empty()));
-            CartLinks.sync(level, cart);
+            removeOneSided(level, cart, frontId.get());
             return true;
         }
         return false;
     }
 
+    /**
+     * Collects the train from its front minecart, then moves it. The train stops when a link waits for a minecart.
+     */
     private static void moveTrain(ServerLevel level, AbstractMinecart head, Coupling coupling, int maxCarts,
                                   Set<AbstractMinecart> done) {
+        List<AbstractMinecart> train = new ArrayList<>();
+        train.add(head);
+        done.add(head);
+        // After isFront, a front link that stays is a link to a minecart that the level does not give.
+        boolean waiting = CartLinks.get(head).front().isPresent();
         AbstractMinecart current = head;
-        done.add(current);
-        for (int i = 0; i < maxCarts; i++) {
+        while (true) {
             Optional<UUID> backId = CartLinks.get(current).back();
             if (backId.isEmpty()) {
-                return;
+                break;
+            }
+            if (train.size() >= maxCarts) {
+                // The maximum number of minecarts is less than the size of the train.
+                CartLinks.unlink(level, current, backId.get(), true);
+                break;
             }
             Optional<AbstractMinecart> found = CartLinks.find(level, backId.get());
             if (found.isEmpty()) {
-                // The minecart behind is not loaded: the link waits.
-                return;
+                waiting = true;
+                break;
             }
             AbstractMinecart back = found.get();
             if (done.contains(back) || !CartLinks.get(back).front().equals(Optional.of(current.getUUID()))) {
-                // A back link that the other minecart does not have.
-                CartLinks.set(current, CartLinks.get(current).withBack(Optional.empty()));
-                CartLinks.sync(level, current);
-                return;
+                removeOneSided(level, current, backId.get());
+                break;
             }
+            train.add(back);
             done.add(back);
-            if (pull(level, coupling, current, back)) {
+            current = back;
+        }
+        if (waiting || !train.stream().allMatch(cart -> isActive(level, cart))) {
+            stop(train);
+            return;
+        }
+        for (AbstractMinecart cart : train) {
+            resume(cart);
+        }
+        for (int i = 0; i + 1 < train.size(); i++) {
+            if (pull(level, coupling, train.get(i), train.get(i + 1))) {
+                // The minecarts behind the broken link are a new train: they move in the next tick.
                 return;
             }
-            current = back;
         }
     }
 
     /**
-     * Applies the chain between two minecarts for one tick.
+     * Removes a link that the other minecart does not have, and drops its chain. A link that {@link StaleLinks}
+     * records has no chain: the chain dropped when the link broke.
+     */
+    private static void removeOneSided(ServerLevel level, AbstractMinecart cart, UUID partner) {
+        CartLinks.set(cart, CartLinks.get(cart).without(partner));
+        CartLinks.sync(level, cart);
+        if (!StaleLinks.get(level.getServer()).remove(cart.getUUID(), partner)) {
+            CartLinks.dropChain(level, cart.position());
+        }
+    }
+
+    /**
+     * Stops a train that waits: no motion, and no push for a furnace minecart. The break counters do not increase.
+     */
+    private static void stop(List<AbstractMinecart> train) {
+        for (AbstractMinecart cart : train) {
+            STRETCH_TICKS.remove(cart.getUUID());
+            cart.setDeltaMovement(Vec3.ZERO);
+            if (cart instanceof MinecartFurnace furnace && (furnace.xPush != 0.0 || furnace.zPush != 0.0)) {
+                PAUSED_PUSH.put(furnace.getUUID(), new Vec3(furnace.xPush, 0.0, furnace.zPush));
+                furnace.xPush = 0.0;
+                furnace.zPush = 0.0;
+            }
+        }
+    }
+
+    /** Gives back its push to a furnace minecart of a train that moves again. */
+    private static void resume(AbstractMinecart cart) {
+        Vec3 push = PAUSED_PUSH.remove(cart.getUUID());
+        if (push != null && cart instanceof MinecartFurnace furnace) {
+            furnace.xPush = push.x;
+            furnace.zPush = push.z;
+        }
+    }
+
+    /**
+     * Applies the chain between two minecarts for one tick. The front minecart has its motion for the next tick.
      *
      * @return true if the link breaks
      */
@@ -186,14 +271,26 @@ public final class Trains {
         }
         double nx = dx / horizontal;
         double nz = dz / horizontal;
-        // The speeds come from the movement of this tick. The motion of a furnace minecart is not its speed.
-        double frontSpeed = (front.getX() - front.xo) * nx + (front.getZ() - front.zo) * nz;
-        double backSpeed = (back.getX() - back.xo) * nx + (back.getZ() - back.zo) * nz;
-        double impulse = coupling.impulse(distance, frontSpeed - backSpeed);
+        double impulse = coupling.impulse(distance, nextSpeed(front, nx, nz) - currentSpeed(back, nx, nz));
         if (impulse != 0.0) {
             accelerate(level, back, nx, nz, impulse);
         }
         return false;
+    }
+
+    /**
+     * The speed of a minecart in the next tick along a direction: its motion, limited to the speed limit of its rail.
+     * The motion of a furnace minecart is much more than its speed, so the limit is necessary.
+     */
+    private static double nextSpeed(AbstractMinecart cart, double nx, double nz) {
+        Vec3 motion = cart.getDeltaMovement();
+        double limit = cart.getMaxSpeedWithRail();
+        return Math.clamp(motion.x * nx + motion.z * nz, -limit, limit);
+    }
+
+    /** The speed of the movement of a minecart in this tick along a direction. */
+    private static double currentSpeed(AbstractMinecart cart, double nx, double nz) {
+        return (cart.getX() - cart.xo) * nx + (cart.getZ() - cart.zo) * nz;
     }
 
     /**
@@ -221,7 +318,7 @@ public final class Trains {
             dirZ = Math.signum(along) * axis[1];
         }
         Vec3 motion = cart.getDeltaMovement();
-        double speed = (cart.getX() - cart.xo) * dirX + (cart.getZ() - cart.zo) * dirZ;
+        double speed = currentSpeed(cart, dirX, dirZ);
         double current = motion.x * dirX + motion.z * dirZ;
         double change = speed + impulse - current;
         // A pull does not slow the minecart, and a push does not make it faster.
@@ -265,7 +362,6 @@ public final class Trains {
         if (event.getLevel() instanceof ServerLevel level && event.getEntity() instanceof AbstractMinecart cart
                 && cart.hasData(ModAttachments.CART_LINK)) {
             forgetStaleLinks(level, cart);
-            CartLinks.set(cart, CartLinks.get(cart));
         }
     }
 
@@ -311,16 +407,34 @@ public final class Trains {
         }
     }
 
-    /** A player starts to track a minecart with a link: the client gets the links to draw the chains. */
+    /** A player starts to track a minecart. If the minecart has a link, the client gets it to draw the chain. */
     public static void onStartTracking(PlayerEvent.StartTracking event) {
         if (event.getEntity() instanceof ServerPlayer player && event.getTarget() instanceof AbstractMinecart cart
-                && cart.level() instanceof ServerLevel level && !CartLinks.get(cart).isEmpty()) {
-            BalanceNetwork.send(player, CartLinks.payload(level, cart));
+                && cart.level() instanceof ServerLevel level) {
+            TRACKERS.computeIfAbsent(cart, key -> Collections.newSetFromMap(new IdentityHashMap<>())).add(player);
+            if (!CartLinks.get(cart).isEmpty()) {
+                BalanceNetwork.send(player, CartLinks.payload(level, cart));
+            }
+        }
+    }
+
+    /** A player stops to track a minecart. The game also sends this event when the player or the minecart leaves. */
+    public static void onStopTracking(PlayerEvent.StopTracking event) {
+        if (event.getTarget() instanceof AbstractMinecart cart) {
+            Set<ServerPlayer> players = TRACKERS.get(cart);
+            if (players != null) {
+                players.remove(event.getEntity());
+                if (players.isEmpty()) {
+                    TRACKERS.remove(cart);
+                }
+            }
         }
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
         LINKED.clear();
         STRETCH_TICKS.clear();
+        PAUSED_PUSH.clear();
+        TRACKERS.clear();
     }
 }
