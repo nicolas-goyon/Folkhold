@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.balance;
 
 import com.mojang.logging.LogUtils;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
+import io.github.nicolasgoyon.folkhold.balance.enchantment.BlockedEnchantmentIds;
 import io.github.nicolasgoyon.folkhold.balance.enchantment.VillagerOffers;
 import io.github.nicolasgoyon.folkhold.balance.network.BalanceNetwork;
 import io.github.nicolasgoyon.folkhold.balance.rail.ChainUse;
@@ -28,6 +29,8 @@ public final class FolkholdBalance {
         modContainer.registerConfig(ModConfig.Type.SERVER, BalanceConfig.SPEC);
         ModAttachments.register(modEventBus);
         ModLootModifiers.register(modEventBus);
+        modEventBus.addListener(BlockedEnchantmentIds::onConfigLoad);
+        modEventBus.addListener(BlockedEnchantmentIds::onConfigReload);
         modEventBus.addListener(BalanceNetwork::register);
         NeoForge.EVENT_BUS.addListener(ChainUse::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(ChainUse::onLoggedOut);
@@ -44,6 +47,7 @@ public final class FolkholdBalance {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillagerOffers::onVillagerTrades);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillagerOffers::onWandererTrades);
         NeoForge.EVENT_BUS.addListener(VillagerOffers::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(VillagerOffers::onConversion);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
 }

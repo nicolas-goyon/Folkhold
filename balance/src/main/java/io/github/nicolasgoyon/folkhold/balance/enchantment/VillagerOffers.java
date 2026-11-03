@@ -18,6 +18,7 @@ import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingConversionEvent;
 import net.neoforged.neoforge.event.village.VillagerTradesEvent;
 import net.neoforged.neoforge.event.village.WandererTradesEvent;
 
@@ -51,6 +52,18 @@ public final class VillagerOffers {
     }
 
     /**
+     * Cleans the offers of a villager that a conversion makes, for example a cured zombie villager. The zombie
+     * villager gives its offers to the villager after the villager joins the level.
+     */
+    public static void onConversion(LivingConversionEvent.Post event) {
+        if (!event.getEntity().level().isClientSide() && event.getOutcome() instanceof AbstractVillager villager
+                && BalanceConfig.SPEC.isLoaded() && BalanceConfig.BLOCKED_IN_TRADES.get()
+                && BalanceConfig.BLOCKED_CLEAN_EXISTING_OFFERS.get()) {
+            clean(villager);
+        }
+    }
+
+    /**
      * Replaces each blocked enchantment on the result of an offer with a random enchantment of the tag
      * {@code #minecraft:tradeable}, at the same level in the range of the new enchantment. For a vanilla book offer
      * (one stored enchantment for emeralds), the price is calculated again with the vanilla formula. The uses, the
@@ -69,7 +82,7 @@ public final class VillagerOffers {
         for (MerchantOffer offer : offers) {
             // The result of an offer is the stack of the offer, not a copy.
             ItemStack result = offer.getResult();
-            if (BlockedEnchantments.replaceBlocked(result, filter, EnchantmentTags.TRADEABLE,
+            if (BlockedEnchantments.replaceBlocked(result, filter, EnchantmentTags.TRADEABLE, false,
                     villager.level().registryAccess(), villager.getRandom())) {
                 reprice(offer, result, villager);
                 changed++;

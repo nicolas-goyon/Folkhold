@@ -13,7 +13,8 @@ import net.neoforged.neoforge.common.loot.LootModifier;
 
 /**
  * Replaces each blocked enchantment in the loot of fishing (config {@code inFishing}) and of chests (config
- * {@code inChestLoot}) with a random enchantment of the tag {@code #minecraft:on_random_loot}, at the same level in
+ * {@code inChestLoot}) with a random enchantment of the tag {@code #minecraft:on_random_loot} (picked with the weights of the enchantments), at
+ * the same level in
  * the range of the new enchantment. The modifier applies to enchanted items and to enchanted books.
  */
 public final class BlockedEnchantmentsLootModifier extends LootModifier {
@@ -32,7 +33,7 @@ public final class BlockedEnchantmentsLootModifier extends LootModifier {
         }
         EnchantmentFilter filter = BlockedEnchantments.filter();
         for (ItemStack stack : generatedLoot) {
-            BlockedEnchantments.replaceBlocked(stack, filter, EnchantmentTags.ON_RANDOM_LOOT,
+            BlockedEnchantments.replaceBlocked(stack, filter, EnchantmentTags.ON_RANDOM_LOOT, true,
                     context.getLevel().registryAccess(), context.getRandom());
         }
         return generatedLoot;

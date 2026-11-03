@@ -11,7 +11,7 @@
   "folkhold_balance.configuration.damping": "Chain damping",
   "folkhold_balance.configuration.maxCarts": "Maximum minecarts in a train",
   "folkhold_balance.configuration.blockedEnchantments": "Blocked enchantments",
-  "folkhold_balance.configuration.enchantments": "Blocked enchantments",
+  "folkhold_balance.configuration.enchantments": "Enchantments",
   "folkhold_balance.configuration.inTrades": "Block them in new offers",
   "folkhold_balance.configuration.cleanExistingOffers": "Clean the existing offers",
   "folkhold_balance.configuration.rerollAttempts": "New attempts for an offer",

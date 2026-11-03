@@ -11,7 +11,7 @@
   "folkhold_balance.configuration.damping": "Amortissement de la chaîne",
   "folkhold_balance.configuration.maxCarts": "Nombre maximal de wagonnets dans un train",
   "folkhold_balance.configuration.blockedEnchantments": "Enchantements bloqués",
-  "folkhold_balance.configuration.enchantments": "Enchantements bloqués",
+  "folkhold_balance.configuration.enchantments": "Enchantements",
   "folkhold_balance.configuration.inTrades": "Les bloquer dans les nouvelles offres",
   "folkhold_balance.configuration.cleanExistingOffers": "Nettoyer les offres existantes",
   "folkhold_balance.configuration.rerollAttempts": "Nouveaux essais pour une offre",

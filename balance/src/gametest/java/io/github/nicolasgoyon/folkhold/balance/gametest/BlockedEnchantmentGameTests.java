@@ -13,17 +13,20 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.EnchantmentTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.monster.ZombieVillager;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerData;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.npc.VillagerTrades;
 import net.minecraft.world.entity.npc.VillagerTrades.ItemListing;
 import net.minecraft.world.entity.npc.VillagerType;
+import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.entity.projectile.FishingHook;
 import net.minecraft.world.item.EnchantedBookItem;
 import net.minecraft.world.item.ItemStack;
@@ -177,6 +180,61 @@ public final class BlockedEnchantmentGameTests {
         helper.succeed();
     }
 
+    /**
+     * A zombie villager with a Mending book offer is cured. The villager gets the offers after it joins the level, and
+     * the clean after the conversion removes Mending.
+     */
+    @GameTest(template = "bench", batch = "balance_enchantments", timeoutTicks = 100)
+    public static void curedZombieVillagerLosesMending(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ZombieVillager zombie = helper.spawn(EntityType.ZOMBIE_VILLAGER, new Vec3(2.5, 1, 2.5));
+        zombie.setVillagerData(new VillagerData(VillagerType.PLAINS, VillagerProfession.LIBRARIAN, 2));
+        MerchantOffers offers = new MerchantOffers();
+        offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, 40), Optional.of(new ItemCost(Items.BOOK)),
+                EnchantedBookItem.createForEnchantment(
+                        new EnchantmentInstance(enchantment(level, Enchantments.MENDING), 1)), 12, 5, 0.2F));
+        zombie.setTradeOffers(offers);
+        // A conversion time of 1 tick: the conversion ends at the next tick of the zombie villager.
+        CompoundTag data = new CompoundTag();
+        zombie.saveWithoutId(data);
+        data.putInt("ConversionTime", 1);
+        zombie.load(data);
+        helper.succeedWhen(() -> {
+            List<Villager> villagers = level.getEntitiesOfClass(Villager.class, helper.getBounds());
+            helper.assertTrue(villagers.size() == 1, "The zombie villager is not cured");
+            Villager villager = villagers.get(0);
+            MerchantOffers after = villager.getOffers();
+            helper.assertTrue(after.size() == 1, "The villager has " + after.size() + " offers, not 1");
+            helper.assertTrue(after.get(0).getResult().is(Items.ENCHANTED_BOOK), "The offer is not a book");
+            helper.assertFalse(hasMending(after.get(0).getResult()), "The cured villager sells Mending");
+            villager.discard();
+        });
+    }
+
+    /** A wandering trader joins the level with a Mending book offer: the book gets a different enchantment. */
+    @GameTest(template = "bench", batch = "balance_enchantments")
+    public static void wanderingTraderLosesMending(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        WanderingTrader trader = new WanderingTrader(EntityType.WANDERING_TRADER, level);
+        // The trader makes its offers with the filtered listings, then gets a Mending offer.
+        MerchantOffers offers = trader.getOffers();
+        int count = offers.size();
+        offers.add(new MerchantOffer(new ItemCost(Items.EMERALD, 30), Optional.of(new ItemCost(Items.BOOK)),
+                EnchantedBookItem.createForEnchantment(
+                        new EnchantmentInstance(enchantment(level, Enchantments.MENDING), 1)), 1, 1, 0.05F));
+        Vec3 position = helper.absoluteVec(new Vec3(2.5, 1, 2.5));
+        trader.moveTo(position.x, position.y, position.z);
+        level.addFreshEntity(trader);
+        MerchantOffers after = trader.getOffers();
+        helper.assertTrue(after.size() == count + 1, "The trader lost or got offers");
+        for (MerchantOffer offer : after) {
+            helper.assertFalse(hasMending(offer.getResult()), "The wandering trader sells Mending");
+        }
+        helper.assertTrue(after.get(count).getResult().is(Items.ENCHANTED_BOOK), "The book offer is not a book");
+        trader.discard();
+        helper.succeed();
+    }
+
     /** A villager with no offers yet joins the level: the filter does not make its offers. */
     @GameTest(template = "bench", batch = "balance_enchantments")
     public static void villagerWithNoOffersStaysWithNoOffers(GameTestHelper helper) {
@@ -204,6 +262,7 @@ public final class BlockedEnchantmentGameTests {
                 .withLuck(100.0F)
                 .create(LootContextParamSets.FISHING);
         int rawMending = 0;
+        int enchantedTools = 0;
         for (int seed = 1; seed <= ROLLS; seed++) {
             List<ItemStack> raw = new ArrayList<>();
             Consumer<ItemStack> output = raw::add;
@@ -216,9 +275,25 @@ public final class BlockedEnchantmentGameTests {
                 helper.assertTrue(loot.get(i).getItem() == raw.get(i).getItem()
                         && loot.get(i).getCount() == raw.get(i).getCount(), "The modifier changes an item, seed " + seed);
                 helper.assertFalse(hasMending(loot.get(i)), "The fishing loot has Mending, seed " + seed);
+                if (hasMending(raw.get(i)) && !raw.get(i).is(Items.ENCHANTED_BOOK)) {
+                    // A bow or a fishing rod with Mending keeps its other enchantments at the same levels.
+                    enchantedTools++;
+                    ItemEnchantments before = raw.get(i).getOrDefault(DataComponents.ENCHANTMENTS,
+                            ItemEnchantments.EMPTY);
+                    ItemEnchantments after = loot.get(i).getOrDefault(DataComponents.ENCHANTMENTS,
+                            ItemEnchantments.EMPTY);
+                    for (Holder<Enchantment> enchantment : before.keySet()) {
+                        helper.assertTrue(enchantment.is(Enchantments.MENDING)
+                                || after.getLevel(enchantment) == before.getLevel(enchantment),
+                                "The " + raw.get(i).getItem() + " lost " + enchantment + ", seed " + seed);
+                    }
+                    helper.assertTrue(after.size() == before.size(),
+                            "The " + raw.get(i).getItem() + " did not get a new enchantment, seed " + seed);
+                }
             }
         }
         helper.assertTrue(rawMending > 0, "The raw fishing loot has no Mending: the test proves nothing");
+        helper.assertTrue(enchantedTools > 0, "The raw fishing loot has no bow or rod with Mending");
         helper.succeed();
     }
 

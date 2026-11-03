@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.balance.enchantment;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentType;
@@ -10,6 +11,8 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.RandomSource;
+import net.minecraft.util.random.WeightedEntry;
+import net.minecraft.util.random.WeightedRandom;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -26,11 +29,9 @@ public final class BlockedEnchantments {
     private BlockedEnchantments() {
     }
 
-    /** The filter from the config, or the default list before the server loads the config. */
+    /** The filter from the config. The server config must be loaded. */
     public static EnchantmentFilter filter() {
-        return EnchantmentFilter.parse(BalanceConfig.SPEC.isLoaded()
-                ? BalanceConfig.BLOCKED_ENCHANTMENTS.get()
-                : DEFAULT);
+        return EnchantmentFilter.parse(BalanceConfig.BLOCKED_ENCHANTMENTS.get());
     }
 
     /**
@@ -64,12 +65,14 @@ public final class BlockedEnchantments {
      * @param stack    the item, changed in place
      * @param filter   the blocked enchantments
      * @param pool     the tag of the possible new enchantments
+     * @param weighted true to pick the new enchantment with the weights of the enchantments, as the loot functions
+     *                 do; false to pick with the same chance for each enchantment, as a librarian does
      * @param registry the registries of the level
      * @param random   the random source
      * @return true if the item changed
      */
     public static boolean replaceBlocked(ItemStack stack, EnchantmentFilter filter, TagKey<Enchantment> pool,
-            RegistryAccess registry, RandomSource random) {
+            boolean weighted, RegistryAccess registry, RandomSource random) {
         if (!hasBlocked(stack, filter)) {
             return false;
         }
@@ -92,15 +95,17 @@ public final class BlockedEnchantments {
             }
             result.removeIf(blocked::contains);
             for (Holder<Enchantment> old : blocked) {
-                List<Holder<Enchantment>> possible = new ArrayList<>();
+                List<WeightedEntry.Wrapper<Holder<Enchantment>>> possible = new ArrayList<>();
                 for (Holder<Enchantment> candidate : candidates) {
                     if (!filter.test(candidate) && (book || stack.supportsEnchantment(candidate))
                             && isCompatible(candidate, result)) {
-                        possible.add(candidate);
+                        possible.add(WeightedEntry.wrap(candidate, weighted ? candidate.value().getWeight() : 1));
                     }
                 }
-                if (!possible.isEmpty()) {
-                    Holder<Enchantment> replacement = possible.get(random.nextInt(possible.size()));
+                Optional<WeightedEntry.Wrapper<Holder<Enchantment>>> picked = WeightedRandom.getRandomItem(random,
+                        possible);
+                if (picked.isPresent()) {
+                    Holder<Enchantment> replacement = picked.get().data();
                     result.set(replacement, BookOffers.replacementLevel(enchantments.getLevel(old),
                             replacement.value().getMinLevel(), replacement.value().getMaxLevel()));
                 }

@@ -722,10 +722,14 @@ This mod does not need the world mod. It limits infinite farms with regional bud
     times. When all the attempts fail, the villager takes an offer from a different listing.
   - When a villager or a wandering trader joins a level, each blocked enchantment in its offers changes to a random
     enchantment of `#minecraft:tradeable`. The new enchantment is compatible with the other enchantments of the item,
-    and the item supports it. The level stays the same, in the range of the new enchantment. A vanilla book offer
+    and the item supports it (for an item that is not a book). The level stays the same, in the range of the new enchantment. A vanilla book offer
     gets a new price from the vanilla formula. The uses and the other values of the offer stay the same.
+  - A cured zombie villager gets its offers after it joins the level. The mod cleans these offers after the
+    conversion.
+  - When the server loads its config, it logs a warning for each id or tag of `enchantments` that does not exist.
   - Fishing: each blocked enchantment in the fishing loot changes to a random enchantment of
-    `#minecraft:on_random_loot`, with the same rules. The loot modifier reads the id of the table that the game rolls:
+    `#minecraft:on_random_loot`, with the same rules. The weights of the enchantments give the chance of each new
+    enchantment, as in the vanilla loot functions. The loot modifier reads the id of the table that the game rolls:
     `minecraft:gameplay/fishing`, not its nested table `gameplay/fishing/treasure`.
   - Chest loot does not change by default: Mending stays an exploration reward. The enchanting table never gives
     Mending (tag `#minecraft:in_enchanting_table`).
