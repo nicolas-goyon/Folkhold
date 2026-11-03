@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.Locale;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -27,7 +29,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.WallSignBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -109,7 +113,25 @@ public final class EarthquakeGameTests {
     }
 
     private static Earthquake start(GameTestHelper helper, BlockPos relativeCenter, EarthquakeSettings settings) {
-        return Earthquakes.start(helper.getLevel(), helper.absolutePos(relativeCenter), settings, SEED);
+        return Earthquakes.start(helper.getLevel(), helper.absolutePos(relativeCenter), settings, SEED)
+                .orElseThrow(() -> new IllegalStateException("The earthquake of the test must start"));
+    }
+
+    /**
+     * Records the largest number of blocks that an earthquake changes in one tick: the difference of its count of
+     * changed blocks between two ticks of the test.
+     *
+     * @return an array with the largest number at index 0
+     */
+    private static int[] trackChangesInTick(GameTestHelper helper, Earthquake earthquake) {
+        int[] max = {0};
+        int[] last = {0};
+        helper.onEachTick(() -> {
+            int changed = earthquake.changedBlocks();
+            max[0] = Math.max(max[0], changed - last[0]);
+            last[0] = changed;
+        });
+        return max;
     }
 
     /** A wood house and a brick house at the same distance from the epicenter: the wood house loses more blocks. */
@@ -194,14 +216,15 @@ public final class EarthquakeGameTests {
         }
         int batch = 5;
         Earthquake earthquake = start(helper, new BlockPos(8, 1, 8), new EarthquakeSettings(12, 10.0, 0, 1, batch));
+        int[] maxChanges = trackChangesInTick(helper, earthquake);
 
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
                     removeDebris(helper);
-                    helper.assertTrue(earthquake.maxChangesInTick() <= batch, "At most " + batch
-                            + " changed blocks in one tick, not " + earthquake.maxChangesInTick());
+                    helper.assertTrue(maxChanges[0] <= batch, "At most " + batch
+                            + " changed blocks in one tick, not " + maxChanges[0]);
                     helper.assertTrue(earthquake.changedBlocks() >= 50, "The earthquake must change most of the "
                             + "100 floating planks, not " + earthquake.changedBlocks());
                     helper.assertTrue(earthquake.elapsedTicks() >= earthquake.changedBlocks() / batch,
@@ -210,28 +233,101 @@ public final class EarthquakeGameTests {
                 .thenSucceed();
     }
 
-    /** An earthquake opens cracks in the surface: some blocks of a flat stone floor go away. */
+    /** An earthquake opens cracks in the natural ground: some blocks of a flat stone floor go away. */
     @GameTest(template = "quake_arena", timeoutTicks = 400, batch = "earthquake_cracks", skyAccess = true)
-    public static void cracksOpenInTheSurface(GameTestHelper helper) {
+    public static void cracksOpenInTheNaturalGround(GameTestHelper helper) {
         prepare(helper, 40, 32);
-        Earthquake earthquake = start(helper, new BlockPos(20, 1, 16), new EarthquakeSettings(12, 2.0, 0, 20, 64));
+        Earthquake earthquake = start(helper, new BlockPos(20, 1, 16), new EarthquakeSettings(15, 4.0, 0, 20, 64));
 
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
-                    int holes = 0;
-                    for (int x = 0; x < 40; x++) {
-                        for (int z = 0; z < 32; z++) {
-                            if (!helper.getBlockState(new BlockPos(x, 0, z)).is(Blocks.STONE)) {
-                                holes++;
+                    int holes = countOtherBlocks(helper, Blocks.STONE);
+                    removeDebris(helper);
+                    helper.assertTrue(holes > 0, "The cracks must remove blocks of the stone floor");
+                    helper.assertTrue(holes < 40 * 32 / 4, "The cracks must be narrow lines, not " + holes
+                            + " blocks");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A crack does not remove a block outside the tag {@code folkhold_events:crackable}. The floor is gold blocks,
+     * with the same earthquake as {@link #cracksOpenInTheNaturalGround}: all the gold blocks stay.
+     */
+    @GameTest(template = "quake_arena", timeoutTicks = 400, batch = "earthquake_no_cracks", skyAccess = true)
+    public static void cracksDoNotRemoveOtherBlocks(GameTestHelper helper) {
+        prepare(helper, 40, 32);
+        for (int x = 0; x < 40; x++) {
+            for (int z = 0; z < 32; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.GOLD_BLOCK);
+            }
+        }
+        Earthquake earthquake = start(helper, new BlockPos(20, 1, 16), new EarthquakeSettings(15, 4.0, 0, 20, 64));
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
+                .thenIdle(LANDING_TICKS)
+                .thenExecute(() -> {
+                    int holes = countOtherBlocks(helper, Blocks.GOLD_BLOCK);
+                    removeDebris(helper);
+                    helper.assertTrue(holes == 0, "A crack must not remove a block outside the tag crackable: "
+                            + holes + " gold blocks went away");
+                })
+                .thenSucceed();
+    }
+
+    /** The number of positions of the floor of the arena (40 × 32, y = 0) without the given block. */
+    private static int countOtherBlocks(GameTestHelper helper, Block block) {
+        int count = 0;
+        for (int x = 0; x < 40; x++) {
+            for (int z = 0; z < 32; z++) {
+                if (!helper.getBlockState(new BlockPos(x, 0, z)).is(block)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /** A sign with text on a wall of planks keeps its text: the earthquake does not move the support of the sign. */
+    @GameTest(template = "quake_small", timeoutTicks = 400, batch = "earthquake_sign", skyAccess = true)
+    public static void signOnAWallKeepsItsText(GameTestHelper helper) {
+        prepare(helper, 16, 16);
+        for (int x = 5; x <= 11; x++) {
+            for (int y = 1; y <= 4; y++) {
+                helper.setBlock(new BlockPos(x, y, 8), Blocks.OAK_PLANKS);
+            }
+        }
+        BlockPos support = new BlockPos(8, 3, 8);
+        BlockPos signPos = support.north();
+        helper.setBlock(signPos, Blocks.OAK_WALL_SIGN.defaultBlockState()
+                .setValue(WallSignBlock.FACING, Direction.NORTH));
+        if (helper.getBlockEntity(signPos) instanceof SignBlockEntity sign) {
+            sign.setText(sign.getFrontText().setMessage(0, Component.literal("Folkhold")), true);
+        }
+        Earthquake earthquake = start(helper, new BlockPos(8, 1, 6), new EarthquakeSettings(8, 10.0, 0, 20, 64));
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
+                .thenIdle(LANDING_TICKS)
+                .thenExecute(() -> {
+                    int wallLost = 0;
+                    for (int x = 5; x <= 11; x++) {
+                        for (int y = 1; y <= 4; y++) {
+                            if (!helper.getBlockState(new BlockPos(x, y, 8)).is(Blocks.OAK_PLANKS)) {
+                                wallLost++;
                             }
                         }
                     }
                     removeDebris(helper);
-                    helper.assertTrue(holes > 0, "The cracks must remove blocks of the floor");
-                    helper.assertTrue(holes < 40 * 32 / 4, "The cracks must be narrow lines, not " + holes
-                            + " blocks");
+                    helper.assertTrue(wallLost > 0, "The earthquake must reach the wall");
+                    helper.assertTrue(helper.getBlockState(support).is(Blocks.OAK_PLANKS),
+                            "The support of the sign must stay");
+                    helper.assertTrue(helper.getBlockEntity(signPos) instanceof SignBlockEntity sign
+                            && sign.getFrontText().getMessage(0, false).getString().equals("Folkhold"),
+                            "The sign must keep its text");
                 })
                 .thenSucceed();
     }
@@ -293,6 +389,9 @@ public final class EarthquakeGameTests {
         server.getCommands().performPrefixedCommand(source, String.format(Locale.ROOT,
                 "folkhold earthquake start %d %d %d 8 0.5", pos.getX(), pos.getY(), pos.getZ()));
         List<Earthquake> started = Earthquakes.active(level);
+        server.getCommands().performPrefixedCommand(source, String.format(Locale.ROOT,
+                "folkhold earthquake start %d %d %d 8 0.5", pos.getX() + 10, pos.getY(), pos.getZ()));
+        List<Earthquake> overlap = Earthquakes.active(level);
         server.getCommands().performPrefixedCommand(source, "folkhold earthquake stop");
         List<Earthquake> afterStop = Earthquakes.active(level);
         CommandSourceStack player = server.createCommandSourceStack().withLevel(level).withPermission(0)
@@ -304,6 +403,7 @@ public final class EarthquakeGameTests {
 
         helper.assertTrue(started.size() == 1 && started.get(0).center().equals(pos)
                 && started.get(0).settings().radius() == 8, "The command must start one earthquake at the position");
+        helper.assertTrue(overlap.size() == 1, "An earthquake must not start in the area of an active earthquake");
         helper.assertTrue(afterStop.isEmpty(), "The command must stop the earthquake");
         helper.assertTrue(notOperator.isEmpty(), "A source that is not an operator must not start an earthquake");
         helper.succeed();
@@ -340,10 +440,10 @@ public final class EarthquakeGameTests {
     }
 
     /**
-     * The cost of a strong earthquake on the server thread, in an area with 9 wood houses and 3 brick houses. The
-     * shake is short, so the batch size limits the changes of most ticks. The test logs
-     * the changed blocks, the time of the earthquake for each tick, the largest number of falling blocks at one time
-     * and the mean tick time of the server.
+     * The cost of a strong earthquake on the server, in an area with 9 wood houses and 3 brick houses. The shake is
+     * short, so the batch size limits the changes of most ticks. The test measures the tick time of the server for 40
+     * ticks before the earthquake, then during the earthquake and the landing of its blocks. It logs the two times,
+     * the changed blocks and the largest number of falling blocks at one time.
      */
     @GameTest(template = "quake_arena", timeoutTicks = 800, batch = "earthquake_cost", skyAccess = true)
     public static void costOfAnEarthquake(GameTestHelper helper) {
@@ -356,35 +456,60 @@ public final class EarthquakeGameTests {
             houses.addAll(buildHouse(helper, corners[i][0], corners[i][1], block));
         }
         int batch = 16;
-        Earthquake earthquake = start(helper, new BlockPos(20, 1, 16), new EarthquakeSettings(20, 3.0, 0, 60, batch));
+        MinecraftServer server = helper.getLevel().getServer();
+        TickTimes before = new TickTimes();
+        TickTimes during = new TickTimes();
+        Earthquake[] earthquake = new Earthquake[1];
         int[] peakFalling = {0};
-        long[] serverNanos = {0L};
-        int[] serverTicks = {0};
         helper.onEachTick(() -> {
-            if (!earthquake.isDone()) {
+            // The time of the last complete tick of the server.
+            long nanos = server.getTickTimesNanos()[(server.getTickCount() - 1) % 100];
+            if (earthquake[0] == null) {
+                before.add(nanos);
+            } else {
+                during.add(nanos);
                 peakFalling[0] = Math.max(peakFalling[0], helper.getLevel().getEntitiesOfClass(
                         FallingBlockEntity.class, helper.getBounds().inflate(8.0)).size());
-                serverNanos[0] += helper.getLevel().getServer().getAverageTickTimeNanos();
-                serverTicks[0]++;
             }
         });
 
         helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
+                .thenIdle(40)
+                .thenExecute(() -> earthquake[0] = start(helper, new BlockPos(20, 1, 16),
+                        new EarthquakeSettings(20, 3.0, 0, 60, batch)))
+                .thenWaitUntil(() -> helper.assertTrue(earthquake[0].isDone(), "The earthquake must end"))
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
-                    int ticks = Math.max(1, earthquake.elapsedTicks());
                     FolkholdEvents.LOGGER.info(String.format(Locale.ROOT, "Earthquake cost: %d house blocks, %d "
-                                    + "changed blocks in %d ticks, at most %d in one tick, earthquake %.3f ms mean and "
-                                    + "%.3f ms max for each tick, at most %d falling blocks, server tick %.2f ms mean",
-                            houses.size(), earthquake.changedBlocks(), ticks, earthquake.maxChangesInTick(),
-                            earthquake.busyNanos() / 1e6 / ticks, earthquake.maxTickNanos() / 1e6, peakFalling[0],
-                            serverNanos[0] / 1e6 / Math.max(1, serverTicks[0])));
+                                    + "changed blocks in %d ticks, at most %d falling blocks. Server tick before: "
+                                    + "%.2f ms mean, %.2f ms max. During: %.2f ms mean, %.2f ms max",
+                            houses.size(), earthquake[0].changedBlocks(), earthquake[0].elapsedTicks(),
+                            peakFalling[0], before.meanMillis(), before.maxMillis(), during.meanMillis(),
+                            during.maxMillis()));
                     removeDebris(helper);
-                    helper.assertTrue(earthquake.maxChangesInTick() <= batch, "At most " + batch
-                            + " changed blocks in one tick");
-                    helper.assertTrue(earthquake.changedBlocks() > 0, "The earthquake must change blocks");
+                    helper.assertTrue(earthquake[0].changedBlocks() > 0, "The earthquake must change blocks");
                 })
                 .thenSucceed();
+    }
+
+    /** The tick times of the server in a period. */
+    private static final class TickTimes {
+        private long total;
+        private long max;
+        private int count;
+
+        void add(long nanos) {
+            total += nanos;
+            max = Math.max(max, nanos);
+            count++;
+        }
+
+        double meanMillis() {
+            return count == 0 ? 0.0 : total / 1e6 / count;
+        }
+
+        double maxMillis() {
+            return max / 1e6;
+        }
     }
 }
