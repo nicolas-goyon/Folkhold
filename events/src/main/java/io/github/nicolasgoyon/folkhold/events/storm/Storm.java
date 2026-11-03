@@ -36,9 +36,12 @@ import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LevelEvent;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -68,14 +71,19 @@ import net.minecraft.world.phys.Vec3;
  *   <li>The other blocks fly away with the wind as falling blocks. A flying block hurts the entities that it hits and
  *       lands as a block, or drops its item when it cannot land.</li>
  * </ul>
- * The storm never deletes a block with no drop.
+ * The storm selects only natural leaves and blocks with an item, and no double slab. With the game rule
+ * {@code doEntityDrops} false, a flying block that cannot land drops nothing, as in vanilla.
  *
  * <p>The storm never changes a protected block (see {@link EventBlockTags#isProtected}), a fluid, a part of a double
- * block, an attached block or the trunk of a natural tree. It does not move the support of a protected block, of a
+ * block, an attached block, the trunk of a natural tree or a block of the tag {@code folkhold_events:natural_tree}. It does not move the support of a protected block, of a
  * block with a block entity or of an attached block, and it does not move a block with an item frame or a painting on
  * it. It examines {@value #MAX_COLUMNS_PER_TICK} columns at most in one tick and changes
  * {@link StormSettings#blocksPerTick()} blocks at most in one tick. It does not load chunks: it ignores the columns,
  * the entities and the lightning targets of the chunks that do not tick.
+ *
+ * <p>Weather: the storm sets the vanilla weather only when the game rule {@code doWeatherCycle} is true. When the rain of
+ * the storm stops before the end (a player sleeps, the command {@code /weather clear}, another mod), the storm ends.
+ * The extra lightning strikes occur only while it rains.
  */
 public final class Storm implements WorldEvent {
     /** The players at this distance from the area or nearer hear the storm, in blocks. */
@@ -117,6 +125,8 @@ public final class Storm implements WorldEvent {
     private static final double GUST_FACTOR = 3.0;
     /** Push of a gust on a player along the wind, for a strength of 1, in blocks per tick. */
     private static final double PLAYER_GUST = 0.25;
+    /** The largest push of a gust on a player, for all the strengths, in blocks per tick. */
+    private static final double MAX_PLAYER_GUST = 0.5;
     /** Speed of a mob that a gust throws, along the wind and up, in blocks per tick. */
     private static final double THROW_SPEED = 0.5;
     private static final double THROW_LIFT = 0.45;
@@ -244,6 +254,13 @@ public final class Storm implements WorldEvent {
         if (phase == Phase.DONE) {
             return;
         }
+        if (weatherSet && !level.getLevelData().isRaining()) {
+            // A player slept, a command or another mod cleared the weather of the storm: the storm ends with it.
+            weatherSet = false;
+            phase = Phase.DONE;
+            pending.clear();
+            return;
+        }
         elapsed++;
         if (elapsed == 1) {
             announce();
@@ -277,7 +294,7 @@ public final class Storm implements WorldEvent {
         for (ServerPlayer player : nearPlayers()) {
             player.displayClientMessage(Component.translatable("folkhold_events.storm.announce"), true);
         }
-        if (settings.weather()) {
+        if (canSetWeather()) {
             level.setWeatherParameters(0, settings.announceTicks() + settings.durationTicks() + WEATHER_MARGIN, true,
                     false);
             weatherSet = true;
@@ -302,11 +319,21 @@ public final class Storm implements WorldEvent {
         for (ServerPlayer player : nearPlayers()) {
             player.displayClientMessage(Component.translatable("folkhold_events.storm.start"), true);
         }
-        if (settings.weather()) {
+        if (canSetWeather()) {
             level.setWeatherParameters(0, settings.durationTicks() + WEATHER_MARGIN, true, true);
             weatherSet = true;
         }
         nextGust = elapsed + GUST_MIN_INTERVAL / 2;
+    }
+
+    /**
+     * True if the storm sets the weather: the settings ask for it, the game rule {@code doWeatherCycle} is true, and
+     * the dimension has sky light. With {@code doWeatherCycle} false, the weather does not change by itself, so a
+     * weather of the storm that stays after an error stays for ever.
+     */
+    private boolean canSetWeather() {
+        return settings.weather() && level.getGameRules().getBoolean(GameRules.RULE_WEATHER_CYCLE)
+                && level.dimensionType().hasSkyLight();
     }
 
     /** Ends the storm. The weather of the storm stops when no other storm of the level keeps it. */
@@ -425,8 +452,8 @@ public final class Storm implements WorldEvent {
 
     /**
      * True if the wind can tear up a block: a block that an event can change, not the trunk of a natural tree, not the
-     * support of a block that must stay, with an item for a block that shatters, and with a free path for a block that
-     * flies (see {@link #flightStart}).
+     * support of a block that must stay, natural leaves or a block with an item (not a double slab), and with a free
+     * path for a block that flies (see {@link #flightStart}).
      */
     private boolean canTear(BlockPos pos, BlockState state) {
         if (!BlockRules.isChangeable(level, pos, state)
@@ -434,10 +461,17 @@ public final class Storm implements WorldEvent {
                 || BlockRules.holdsABlock(level, pos)) {
             return false;
         }
-        if (state.is(EventBlockTags.SHATTERS)) {
-            return BlockRules.isNaturalLeaves(state) || state.getBlock().asItem() != Items.AIR;
+        if (BlockRules.isNaturalLeaves(state)) {
+            return true;
         }
-        return flightStart(pos).isPresent();
+        // A block with no item, or a double slab (one block that drops two items), loses a part of its drop when it
+        // cannot land.
+        if (state.getBlock().asItem() == Items.AIR
+                || (state.hasProperty(BlockStateProperties.SLAB_TYPE)
+                        && state.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.DOUBLE)) {
+            return false;
+        }
+        return state.is(EventBlockTags.SHATTERS) || flightStart(pos).isPresent();
     }
 
     /**
@@ -536,7 +570,7 @@ public final class Storm implements WorldEvent {
         if (EventsConfig.STORM_WIND_PUSH.get() <= 0.0) {
             return;
         }
-        double push = PLAYER_GUST * settings.strength();
+        double push = Math.min(MAX_PLAYER_GUST, PLAYER_GUST * settings.strength());
         for (ServerPlayer player : level.players()) {
             if (isInArea(player) && !player.isSpectator() && !player.isCreative() && !player.getAbilities().flying
                     && BlockRules.isReady(level, player.blockPosition()) && isUnderOpenSky(player)) {
@@ -587,9 +621,13 @@ public final class Storm implements WorldEvent {
         return eyes.getY() >= level.getHeight(Heightmap.Types.MOTION_BLOCKING, eyes.getX(), eyes.getZ());
     }
 
-    /** A lightning strike at a random column of the area, with the mean interval of the settings. */
+    /**
+     * A lightning strike at a random column of the area, with the mean interval of the settings. The strikes occur only
+     * while it rains in the level: the rain puts out a part of the fires of the strikes.
+     */
     private void lightning() {
-        if (settings.lightningTicks() <= 0 || random.nextInt(settings.lightningTicks()) != 0) {
+        if (settings.lightningTicks() <= 0 || !level.getLevelData().isRaining()
+                || random.nextInt(settings.lightningTicks()) != 0) {
             return;
         }
         double angle = random.nextDouble() * Math.PI * 2.0;
@@ -610,12 +648,14 @@ public final class Storm implements WorldEvent {
     }
 
     /**
-     * The position above the nearest lightning rod on the top of its column, near a target. The search occurs only
-     * when all the chunks in its range are loaded: the search of the points of interest can load chunks.
+     * The position above the nearest lightning rod on the top of its column, near a target. The search reads the points
+     * of interest of {@code floorDiv(range, 16) + 1} chunks around the chunk of the target. It occurs only when all
+     * these chunks are loaded: for a chunk that is not loaded, the search reads the points of interest from the disk.
      */
     private Optional<BlockPos> lightningRod(BlockPos target) {
         ChunkPos chunk = new ChunkPos(target);
-        int chunks = Mth.ceil(LIGHTNING_ROD_RANGE / 16.0);
+        // The search reads the points of interest of the same range of chunks (see PoiManager#getInSquare).
+        int chunks = Math.floorDiv(LIGHTNING_ROD_RANGE, 16) + 1;
         for (int dx = -chunks; dx <= chunks; dx++) {
             for (int dz = -chunks; dz <= chunks; dz++) {
                 if (!level.hasChunk(chunk.x + dx, chunk.z + dz)) {

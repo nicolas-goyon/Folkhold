@@ -49,6 +49,18 @@ public final class EventMath {
     }
 
     /**
+     * True if a natural event must start: the schedule has a time, and the game time is at this time or after it.
+     * After a start, and with no time, the schedule gets a new time (see {@link #nextDelayTicks}).
+     *
+     * @param nextTime the game time of the next event, or -1 with no time
+     * @param now      the game time
+     * @return true if the event must start
+     */
+    public static boolean isDue(long nextTime, long now) {
+        return nextTime >= 0L && now >= nextTime;
+    }
+
+    /**
      * A value between two limits.
      *
      * @param random a random number from 0 (included) to 1 (excluded)

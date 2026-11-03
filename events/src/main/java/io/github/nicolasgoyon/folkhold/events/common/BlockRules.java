@@ -25,10 +25,11 @@ public final class BlockRules {
     /**
      * True if an event can change a block, before the checks of its neighbors: a block with a collision box, no
      * fluid, not protected (see {@link EventBlockTags#isProtected}), not a part of a double block (a door, a tall
-     * plant), and not an attached block (a torch, a flower, a rail).
+     * plant), not an attached block (a torch, a flower, a rail), and not in the tag {@code folkhold_events:natural_tree}.
      */
     public static boolean isChangeable(ServerLevel level, BlockPos pos, BlockState state) {
         return !state.isAir() && state.getFluidState().isEmpty() && !EventBlockTags.isProtected(level, pos, state)
+                && !state.is(EventBlockTags.NATURAL_TREE)
                 && !state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)
                 && state.getPistonPushReaction() != PushReaction.DESTROY
                 && !state.getCollisionShape(level, pos).isEmpty();

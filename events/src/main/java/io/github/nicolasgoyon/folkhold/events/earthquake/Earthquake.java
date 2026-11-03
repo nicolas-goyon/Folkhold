@@ -288,7 +288,7 @@ public final class Earthquake implements WorldEvent {
                 continue;
             }
             Vec3 target = DefaultRandomPos.getPosAway(animal, 16, 7, epicenter);
-            if (target != null && isReady(BlockPos.containing(target))) {
+            if (target != null && BlockRules.isReady(level, BlockPos.containing(target))) {
                 animal.getNavigation().moveTo(target.x, target.y, target.z, FLEE_SPEED);
             }
         }
@@ -325,7 +325,7 @@ public final class Earthquake implements WorldEvent {
     }
 
     private void scanColumn(int x, int z) {
-        if (!isReady(new BlockPos(x, center.getY(), z))) {
+        if (!BlockRules.isReady(level, new BlockPos(x, center.getY(), z))) {
             return;
         }
         double intensity = intensity(x, z);
@@ -353,18 +353,18 @@ public final class Earthquake implements WorldEvent {
     private Optional<Change> damage(BlockPos pos, BlockState state) {
         if (state.is(EventBlockTags.SHATTERS)) {
             for (Direction direction : Direction.values()) {
-                if (isFree(pos.relative(direction))) {
+                if (BlockRules.isFree(level, pos.relative(direction))) {
                     return Optional.of(new Change(pos, state, Action.SHATTER, direction, state));
                 }
             }
             return Optional.empty();
         }
-        if (isFree(pos.below())) {
+        if (BlockRules.isFree(level, pos.below())) {
             return Optional.of(new Change(pos, state, Action.FALL, Direction.DOWN, state));
         }
         List<Direction> sides = new ArrayList<>(4);
         for (Direction direction : Direction.Plane.HORIZONTAL) {
-            if (isFree(pos.relative(direction))) {
+            if (BlockRules.isFree(level, pos.relative(direction))) {
                 sides.add(direction);
             }
         }
@@ -372,7 +372,7 @@ public final class Earthquake implements WorldEvent {
             return Optional.of(new Change(pos, state, Action.FALL, sides.get(random.nextInt(sides.size())), state));
         }
         Block cracked = CRACKED.get(state.getBlock());
-        if (cracked != null && isFree(pos.above())) {
+        if (cracked != null && BlockRules.isFree(level, pos.above())) {
             return Optional.of(new Change(pos, state, Action.CRACK, Direction.UP, cracked.withPropertiesOf(state)));
         }
         return Optional.empty();
@@ -397,7 +397,7 @@ public final class Earthquake implements WorldEvent {
             thickness++;
             y--;
         }
-        if (thickness < 2 || thickness > maxDepth || !isFree(new BlockPos(x, y - 1, z))) {
+        if (thickness < 2 || thickness > maxDepth || !BlockRules.isFree(level, new BlockPos(x, y - 1, z))) {
             return;
         }
         BlockPos roofBottom = new BlockPos(x, y + 1, z);
@@ -462,7 +462,7 @@ public final class Earthquake implements WorldEvent {
      * earthquake can move. It stops at the first other block.
      */
     private void openCrack(int x, int z, int depth) {
-        if (!isReady(new BlockPos(x, center.getY(), z))) {
+        if (!BlockRules.isReady(level, new BlockPos(x, center.getY(), z))) {
             return;
         }
         int height = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
@@ -478,7 +478,7 @@ public final class Earthquake implements WorldEvent {
             top--;
         }
         if (!level.getBlockState(new BlockPos(x, top, z)).is(EventBlockTags.CRACK_SURFACE)
-                || isFree(new BlockPos(x, top - 1, z))) {
+                || BlockRules.isFree(level, new BlockPos(x, top - 1, z))) {
             return;
         }
         for (int k = 0; k < depth; k++) {
@@ -509,7 +509,7 @@ public final class Earthquake implements WorldEvent {
     /** A block becomes a falling block, below its position or on one side. The block hurts the entities. */
     private boolean fall(BlockPos pos, BlockState state, Direction side) {
         BlockPos target = pos.relative(side);
-        if (!isReady(target) || !isFree(target)) {
+        if (!BlockRules.isReady(level, target) || !BlockRules.isFree(level, target)) {
             return false;
         }
         FallingBlockEntity falling = FallingBlockEntity.fall(level, pos, state);
@@ -535,14 +535,6 @@ public final class Earthquake implements WorldEvent {
         }
         return (!state.is(BlockTags.LOGS) || !BlockRules.isTreeTrunk(level, pos))
                 && !BlockRules.holdsABlock(level, pos);
-    }
-
-    private boolean isFree(BlockPos pos) {
-        return BlockRules.isFree(level, pos);
-    }
-
-    private boolean isReady(BlockPos pos) {
-        return BlockRules.isReady(level, pos);
     }
 
     private double intensity(int x, int z) {

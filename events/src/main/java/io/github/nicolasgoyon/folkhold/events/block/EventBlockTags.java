@@ -24,6 +24,9 @@ import net.minecraft.world.level.block.state.BlockState;
  *   <li>{@code folkhold_events:protected}: a block that no event moves or breaks, in addition to the blocks with a
  *       block entity and the blocks that a player cannot break. Examples: reinforced deepslate, respawn anchor,
  *       lodestone and the important blocks of the Folkhold villages.</li>
+ *   <li>{@code folkhold_events:natural_tree}: a part of a natural tree that no event moves, in addition to the trunks
+ *       below natural leaves. The entries are optional: the branches, the trunk shells, the roots and the rooty soil of
+ *       Dynamic Trees. A change to one of these blocks can break the full tree.</li>
  * </ul>
  */
 public final class EventBlockTags {
@@ -34,6 +37,7 @@ public final class EventBlockTags {
     public static final TagKey<Block> CRACK_SURFACE = tag("crack_surface");
     public static final TagKey<Block> CRACKABLE = tag("crackable");
     public static final TagKey<Block> PROTECTED = tag("protected");
+    public static final TagKey<Block> NATURAL_TREE = tag("natural_tree");
 
     private EventBlockTags() {
     }

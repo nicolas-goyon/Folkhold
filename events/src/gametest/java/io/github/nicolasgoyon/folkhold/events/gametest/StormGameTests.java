@@ -19,6 +19,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
@@ -30,14 +31,19 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameRules;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.WallSignBlock;
 import net.minecraft.world.level.block.WallTorchBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.SignBlockEntity;
+import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -168,6 +174,9 @@ public final class StormGameTests {
             chest.setItem(0, new ItemStack(Items.EMERALD));
         }
         BlockPos chestSupport = chestPos.west();
+        // A double slab is one block with two items: the wind does not tear it up.
+        BlockPos doubleSlab = new BlockPos(6, 3, 8);
+        helper.setBlock(doubleSlab, Blocks.OAK_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.DOUBLE));
         Storm storm = start(helper, new BlockPos(8, 1, 8), settings(helper, 8, 20.0, 60, 16, 200));
 
         helper.startSequence()
@@ -186,6 +195,8 @@ public final class StormGameTests {
                             && sign.getFrontText().getMessage(0, false).getString().equals("Folkhold"),
                             "The sign must keep its text");
                     helper.assertTrue(helper.getBlockState(torchPos).is(Blocks.WALL_TORCH), "The torch must stay");
+                    helper.assertTrue(helper.getBlockState(doubleSlab).is(Blocks.OAK_SLAB),
+                            "The double slab must stay");
                     helper.assertTrue(frame.isAlive() && frame.getItem().is(Items.DIAMOND),
                             "The item frame must stay with its item");
                     helper.assertTrue(helper.getBlockEntity(chestPos) instanceof ChestBlockEntity chest
@@ -347,10 +358,14 @@ public final class StormGameTests {
                 .thenSucceed();
     }
 
-    /** Lightning strikes in the area of a storm during the wind. */
+    /**
+     * Lightning strikes in the area of a storm during the wind, while it rains. The test starts the rain itself: the
+     * storm of the test does not set the weather.
+     */
     @GameTest(template = "quake_small", timeoutTicks = 300, batch = "storm_lightning", skyAccess = true)
     public static void lightningStrikesInTheArea(GameTestHelper helper) {
         prepare(helper, 16, 16);
+        helper.getLevel().setWeatherParameters(0, 400, true, false);
         Storm storm = start(helper, new BlockPos(8, 1, 8),
                 new StormSettings(6, 1.0, windAngle(helper), 0, 100, 4, 0, 10, false));
         List<LightningBolt> bolts = new ArrayList<>();
@@ -360,6 +375,7 @@ public final class StormGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(storm.isDone(), "The storm must end"))
                 .thenExecute(() -> {
+                    helper.getLevel().setWeatherParameters(12_000, 0, false, false);
                     clearFire(helper);
                     helper.assertTrue(storm.lightningStrikes() > 0, "Lightning must strike during the storm");
                     helper.assertTrue(!bolts.isEmpty(), "The lightning must strike in the area");
@@ -381,6 +397,107 @@ public final class StormGameTests {
         }
     }
 
+    /** Sets the game rule {@code doWeatherCycle} and gives back its old value. */
+    private static boolean setWeatherCycle(GameTestHelper helper, boolean value) {
+        ServerLevel level = helper.getLevel();
+        GameRules.BooleanValue rule = level.getGameRules().getRule(GameRules.RULE_WEATHER_CYCLE);
+        boolean old = rule.get();
+        rule.set(value, level.getServer());
+        return old;
+    }
+
+    /**
+     * With the game rule {@code doWeatherCycle} false, the weather does not change by itself: the storm does not set
+     * the weather, and the wind, the damage and the lightning stay.
+     */
+    @GameTest(template = "quake_small", timeoutTicks = 200, batch = "storm_weather_rule")
+    public static void noWeatherWithoutTheWeatherCycle(GameTestHelper helper) {
+        prepare(helper, 16, 16);
+        ServerLevel level = helper.getLevel();
+        level.setWeatherParameters(12_000, 0, false, false);
+        boolean old = setWeatherCycle(helper, false);
+        Storm storm = start(helper, new BlockPos(8, 1, 8),
+                new StormSettings(6, 1.0, windAngle(helper), 10, 20, 4, 0, 0, true));
+        boolean[] rain = {false};
+        helper.onEachTick(() -> rain[0] |= level.getLevelData().isRaining() || level.getLevelData().isThundering());
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(storm.isDone(), "The storm must end"))
+                .thenExecute(() -> {
+                    setWeatherCycle(helper, old);
+                    helper.assertTrue(!rain[0], "The storm must not set the weather with doWeatherCycle false");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * When the rain of a storm stops before its end (a player sleeps, the command {@code /weather clear}), the storm
+     * ends, and no more lightning strikes.
+     */
+    @GameTest(template = "quake_small", timeoutTicks = 300, batch = "storm_weather_clear")
+    public static void clearWeatherEndsTheStorm(GameTestHelper helper) {
+        prepare(helper, 16, 16);
+        ServerLevel level = helper.getLevel();
+        boolean old = setWeatherCycle(helper, true);
+        Storm storm = start(helper, new BlockPos(8, 1, 8),
+                new StormSettings(6, 1.0, windAngle(helper), 0, 1000, 4, 0, 1000, true));
+        int[] strikesAtClear = {-1};
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(level.getLevelData().isThundering(), "The thunder must start"))
+                .thenExecute(() -> {
+                    level.setWeatherParameters(12_000, 0, false, false);
+                    strikesAtClear[0] = storm.lightningStrikes();
+                })
+                .thenWaitUntil(() -> helper.assertTrue(storm.isDone(), "The storm must end with its rain"))
+                .thenIdle(20)
+                .thenExecute(() -> {
+                    setWeatherCycle(helper, old);
+                    helper.assertTrue(storm.elapsedTicks() < 1000, "The storm must end before its planned end");
+                    helper.assertTrue(storm.lightningStrikes() == strikesAtClear[0],
+                            "No lightning must strike after the end of the rain");
+                    helper.assertTrue(!level.getLevelData().isRaining(), "The weather must stay clear");
+                })
+                .thenSucceed();
+    }
+
+    /** The stop of the server stops the storms before the save: the weather of the storm does not stay. */
+    @GameTest(template = "quake_small", timeoutTicks = 200, batch = "storm_server_stop")
+    public static void serverStopGivesBackTheWeather(GameTestHelper helper) {
+        prepare(helper, 16, 16);
+        ServerLevel level = helper.getLevel();
+        boolean old = setWeatherCycle(helper, true);
+        Storm storm = start(helper, new BlockPos(8, 1, 8),
+                new StormSettings(6, 1.0, windAngle(helper), 0, 1000, 4, 0, 0, true));
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(level.getLevelData().isThundering(), "The thunder must start"))
+                .thenExecute(() -> {
+                    Storms.onServerStopping(new ServerStoppingEvent(level.getServer()));
+                    setWeatherCycle(helper, old);
+                    helper.assertTrue(storm.isDone() && Storms.active(level).isEmpty(), "The storm must stop");
+                    helper.assertTrue(!level.getLevelData().isRaining() && !level.getLevelData().isThundering(),
+                            "The weather must be clear after the stop");
+                })
+                .thenSucceed();
+    }
+
+    /** The End and the dimensions with no sky light or with a ceiling have no storms. */
+    @GameTest(template = "quake_small", timeoutTicks = 20, batch = "storm_dimensions")
+    public static void noStormInTheEndOrTheNether(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        helper.assertTrue(Storms.allowsStorms(server.overworld()), "The overworld must allow storms");
+        for (ResourceKey<Level> key : List.of(Level.END, Level.NETHER)) {
+            ServerLevel level = server.getLevel(key);
+            if (level != null) {
+                helper.assertTrue(!Storms.allowsStorms(level), "No storm must start in " + key.location());
+                helper.assertTrue(Storms.start(level, BlockPos.ZERO, new StormSettings(8, 1.0, 0.0, 0, 20, 4, 0, 0,
+                        false)).isEmpty(), "A storm must not start in " + key.location());
+            }
+        }
+        helper.succeed();
+    }
+
     /**
      * A storm with the weather of the config: rain during the announce, thunder during the wind, clear weather after
      * the storm.
@@ -389,6 +506,7 @@ public final class StormGameTests {
     public static void stormSetsTheWeather(GameTestHelper helper) {
         prepare(helper, 16, 16);
         ServerLevel level = helper.getLevel();
+        boolean old = setWeatherCycle(helper, true);
         Storm storm = start(helper, new BlockPos(8, 1, 8), new StormSettings(6, 1.0, windAngle(helper), 20, 20, 4, 0, 0,
                 true));
         boolean[] rainBeforeWind = {false};
@@ -406,6 +524,7 @@ public final class StormGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(storm.isDone(), "The storm must end"))
                 .thenExecute(() -> {
+                    setWeatherCycle(helper, old);
                     boolean clear = !level.getLevelData().isRaining() && !level.getLevelData().isThundering();
                     helper.assertTrue(rainBeforeWind[0], "The rain must start during the announce");
                     helper.assertTrue(thunderDuringWind[0], "The thunder must start with the wind");

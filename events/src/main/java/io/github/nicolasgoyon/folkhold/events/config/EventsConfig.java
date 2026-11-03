@@ -10,6 +10,10 @@ import net.neoforged.neoforge.common.ModConfigSpec;
  */
 public final class EventsConfig {
     static final String KEY_PREFIX = "folkhold_events.configuration.";
+    /** The default shortest time between two natural events of one type, in game days. */
+    public static final int DEFAULT_MIN_DAYS = 15;
+    /** The default longest time between two natural events of one type, in game days. */
+    public static final int DEFAULT_MAX_DAYS = 30;
 
     public static final ModConfigSpec SPEC;
 
@@ -111,12 +115,12 @@ public final class EventsConfig {
                 .comment("Shortest time between two natural earthquakes in one dimension, in game days of 24,000",
                         "ticks of game time. The time of each interval is random between minDays and maxDays.")
                 .translation(KEY_PREFIX + "earthquakeMinDays")
-                .defineInRange("minDays", 15, 1, 1000);
+                .defineInRange("minDays", DEFAULT_MIN_DAYS, 1, 1000);
         EARTHQUAKE_MAX_DAYS = builder
                 .comment("Longest time between two natural earthquakes in one dimension, in game days. A value",
                         "below minDays counts as minDays.")
                 .translation(KEY_PREFIX + "earthquakeMaxDays")
-                .defineInRange("maxDays", 30, 1, 1000);
+                .defineInRange("maxDays", DEFAULT_MAX_DAYS, 1, 1000);
         EARTHQUAKE_MIN_STRENGTH = builder
                 .comment("Lowest strength of a natural earthquake. The strength multiplies the chances of damage.")
                 .translation(KEY_PREFIX + "earthquakeMinStrength")
@@ -209,7 +213,8 @@ public final class EventsConfig {
                 .translation(KEY_PREFIX + "storms")
                 .define("enabled", true);
         STORM_DIMENSIONS = builder
-                .comment("The dimensions with natural storms.")
+                .comment("The dimensions with natural storms. A dimension with no sky light, with a ceiling, or the",
+                        "End has no storms, also in this list.")
                 .translation(KEY_PREFIX + "stormDimensions")
                 .defineListAllowEmpty("dimensions", List.of("minecraft:overworld"), () -> "minecraft:overworld",
                         value -> value instanceof String);
@@ -217,12 +222,12 @@ public final class EventsConfig {
                 .comment("Shortest time between two natural storms in one dimension, in game days of 24,000 ticks",
                         "of game time. The time of each interval is random between minDays and maxDays.")
                 .translation(KEY_PREFIX + "stormMinDays")
-                .defineInRange("minDays", 15, 1, 1000);
+                .defineInRange("minDays", DEFAULT_MIN_DAYS, 1, 1000);
         STORM_MAX_DAYS = builder
                 .comment("Longest time between two natural storms in one dimension, in game days. A value below",
                         "minDays counts as minDays.")
                 .translation(KEY_PREFIX + "stormMaxDays")
-                .defineInRange("maxDays", 30, 1, 1000);
+                .defineInRange("maxDays", DEFAULT_MAX_DAYS, 1, 1000);
         STORM_MIN_STRENGTH = builder
                 .comment("Lowest strength of a natural storm. The strength multiplies the chances of damage, the",
                         "largest number of changed blocks and the push of the wind.")

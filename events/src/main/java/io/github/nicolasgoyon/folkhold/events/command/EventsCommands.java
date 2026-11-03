@@ -149,6 +149,10 @@ public final class EventsCommands {
             double strength) {
         CommandSourceStack source = context.getSource();
         ServerLevel level = source.getLevel();
+        if (!Storms.allowsStorms(level)) {
+            source.sendFailure(Component.translatable(STORM_KEY + "refused_dimension"));
+            return 0;
+        }
         double windAngle = level.getRandom().nextDouble() * 360.0;
         if (Storms.start(level, pos, StormSettings.fromConfig(radius, strength, windAngle)).isEmpty()) {
             source.sendFailure(Component.translatable(STORM_KEY + "refused"));

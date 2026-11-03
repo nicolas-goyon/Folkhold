@@ -55,15 +55,11 @@ public final class EventSchedule extends SavedData {
      */
     public boolean isDue(ServerLevel level, int minDays, int maxDays) {
         long now = level.getGameTime();
-        if (nextTime < 0L) {
+        boolean due = EventMath.isDue(nextTime, now);
+        if (nextTime < 0L || due) {
             setNextTime(now + EventMath.nextDelayTicks(level.getRandom().nextDouble(), minDays, maxDays));
-            return false;
         }
-        if (now < nextTime) {
-            return false;
-        }
-        setNextTime(now + EventMath.nextDelayTicks(level.getRandom().nextDouble(), minDays, maxDays));
-        return true;
+        return due;
     }
 
     private static EventSchedule load(CompoundTag tag, HolderLookup.Provider registries) {

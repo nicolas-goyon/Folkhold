@@ -30,6 +30,7 @@ public final class FolkholdEvents {
         modEventBus.addListener(ModNetwork::register);
         NeoForge.EVENT_BUS.addListener(Earthquakes::onLevelTick);
         NeoForge.EVENT_BUS.addListener(Storms::onLevelTick);
+        NeoForge.EVENT_BUS.addListener(Storms::onServerStopping);
         NeoForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> ActiveEvents.clearAll());
         NeoForge.EVENT_BUS.addListener(EventsCommands::onRegisterCommands);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());

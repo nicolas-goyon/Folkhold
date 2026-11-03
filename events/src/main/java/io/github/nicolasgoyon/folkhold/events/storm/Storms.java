@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /**
@@ -25,7 +27,9 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  *   <li>A new storm does not start when its area overlaps the area of an active storm, or when the server has
  *       {@link EventsConfig#STORM_MAX_ACTIVE} active storms or {@link EventsConfig#MAX_ACTIVE_EVENTS} active events
  *       (see {@link ActiveEvents}).</li>
- *   <li>The active storms are not saved: a storm stops when the server stops.</li>
+ *   <li>A level with no sky light, with a ceiling, or the End has no storms (see {@link #allowsStorms}).</li>
+ *   <li>The active storms are not saved: a storm stops when the server stops, and gives back the weather of the
+ *       level before the save.</li>
  * </ul>
  */
 public final class Storms {
@@ -63,6 +67,9 @@ public final class Storms {
      *         active storms or events
      */
     public static Optional<Storm> start(ServerLevel level, BlockPos center, StormSettings settings, long seed) {
+        if (!allowsStorms(level)) {
+            return Optional.empty();
+        }
         Optional<Storm> storm = ACTIVE.start(level, center, settings.radius(), EventsConfig.STORM_MAX_ACTIVE.get(),
                 () -> new Storm(level, center, settings, seed));
         storm.ifPresent(started -> FolkholdEvents.LOGGER.info(
@@ -87,16 +94,36 @@ public final class Storms {
         return ACTIVE.stop(level);
     }
 
+    /**
+     * True if a level can have storms: a dimension with sky light and no ceiling, not the End. Over the void of the
+     * End, a flying block falls out of the world and its item goes away.
+     */
+    public static boolean allowsStorms(ServerLevel level) {
+        return level.dimensionType().hasSkyLight() && !level.dimensionType().hasCeiling()
+                && level.dimension() != Level.END;
+    }
+
+    /**
+     * Stops the storms of all the levels before the save of the world: each storm gives back the weather of the level.
+     * Thus the world does not keep the rain and the thunder of a storm that does not exist any more.
+     */
+    public static void onServerStopping(ServerStoppingEvent event) {
+        for (ServerLevel level : event.getServer().getAllLevels()) {
+            stop(level);
+        }
+    }
+
     /** The schedule of the natural storms of a level. */
     public static EventSchedule schedule(ServerLevel level) {
         return EventSchedule.get(level, SCHEDULE_FILE);
     }
 
     /**
-     * True if the level has natural storms: the config turns them on, and the dimension is in the list of the config.
+     * True if the level has natural storms: the config turns them on, the dimension is in the list of the config, and
+     * the level allows storms (see {@link #allowsStorms}).
      */
     public static boolean hasNaturalStorms(ServerLevel level) {
-        return EventsConfig.STORMS.get()
+        return EventsConfig.STORMS.get() && allowsStorms(level)
                 && EventsConfig.STORM_DIMENSIONS.get().contains(level.dimension().location().toString());
     }
 
