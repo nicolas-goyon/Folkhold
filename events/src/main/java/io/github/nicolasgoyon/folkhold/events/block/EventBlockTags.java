@@ -17,8 +17,10 @@ import net.minecraft.world.level.block.state.BlockState;
  *       of a block (see {@link BlockClass}).</li>
  *   <li>{@code folkhold_events:shatters}: a block that breaks with no drop, in place of a fall. Examples: glass, ice
  *       and leaves.</li>
- *   <li>{@code folkhold_events:crackable}: natural ground that a crack in the surface can remove. Examples: dirt,
- *       sand, gravel and stone.</li>
+ *   <li>{@code folkhold_events:crack_surface}: the top block of a column where a crack can open: natural surface,
+ *       for example grass, dirt, sand and gravel.</li>
+ *   <li>{@code folkhold_events:crackable}: natural ground that a crack can remove below the surface block. Examples:
+ *       dirt, sand, gravel and stone.</li>
  *   <li>{@code folkhold_events:protected}: a block that no event moves or breaks, in addition to the blocks with a
  *       block entity and the blocks that a player cannot break. Examples: reinforced deepslate, respawn anchor,
  *       lodestone and the important blocks of the Folkhold villages.</li>
@@ -29,6 +31,7 @@ public final class EventBlockTags {
     public static final TagKey<Block> STURDY = tag("sturdy");
     public static final TagKey<Block> RESISTANT = tag("resistant");
     public static final TagKey<Block> SHATTERS = tag("shatters");
+    public static final TagKey<Block> CRACK_SURFACE = tag("crack_surface");
     public static final TagKey<Block> CRACKABLE = tag("crackable");
     public static final TagKey<Block> PROTECTED = tag("protected");
 

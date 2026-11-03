@@ -26,6 +26,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.ai.util.DefaultRandomPos;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.decoration.HangingEntity;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -56,13 +57,13 @@ import net.minecraft.world.phys.Vec3;
  *         <li>else, a block with a cracked variant (stone bricks, deepslate bricks) becomes this variant</li>
  *       </ul>
  *       The roof of a cavity below the surface can collapse into falling blocks. Some cracks open in the natural
- *       ground (tag {@code folkhold_events:crackable}). The falling blocks hurt the entities below them.</li>
+ *       ground (tags {@code folkhold_events:crack_surface} and {@code folkhold_events:crackable}). The falling blocks hurt the entities below them.</li>
  * </ol>
  *
  * <p>The earthquake never changes a protected block (see {@link EventBlockTags#isProtected}), the two parts of a door
  * or a tall plant, the attached blocks (torches, flowers), a fluid, and the natural trees (natural leaves and the
  * logs below them). It does not move the support of a protected block, of a block with a block entity or of an
- * attached block. It examines {@value #MAX_COLUMNS_PER_TICK} columns at most in one tick and changes
+ * attached block, and it does not move a block with an item frame or a painting on it. It examines {@value #MAX_COLUMNS_PER_TICK} columns at most in one tick and changes
  * {@link EarthquakeSettings#blocksPerTick()} blocks at most in one tick. The other columns and changes wait for the
  * next ticks. It does not load chunks: it ignores the columns of chunks that do not tick.
  */
@@ -85,6 +86,8 @@ public final class Earthquake {
     private static final int MAX_WAITING_BATCHES = 4;
     /** The largest number of columns that the earthquake examines in one tick. */
     private static final int MAX_COLUMNS_PER_TICK = 64;
+    /** An item frame or a painting at this distance from a block or nearer hangs on it, in blocks. */
+    private static final double HANGING_MARGIN = 0.1;
     /** The highest trunk of a natural tree, in blocks. */
     private static final int MAX_TRUNK = 32;
     /** Blocks that become a cracked variant. */
@@ -110,7 +113,7 @@ public final class Earthquake {
         SHATTER,
         /** The block becomes its cracked variant. */
         CRACK,
-        /** The block goes away with no drop: a crack in the surface. */
+        /** The block goes away with its drops: a crack in the surface. */
         REMOVE
     }
 
@@ -329,11 +332,12 @@ public final class Earthquake {
         for (int y = top; y >= bottom; y--) {
             BlockPos pos = new BlockPos(x, y, z);
             BlockState state = level.getBlockState(pos);
-            if (!isMovable(pos, state)) {
+            if (state.isAir()) {
                 continue;
             }
+            // The roll comes first: most blocks take no damage, and the check of a block reads its neighbors.
             double chance = EarthquakeMath.chance(classChance(BlockClass.of(state)), intensity, settings.strength());
-            if (random.nextDouble() < chance) {
+            if (random.nextDouble() < chance && isMovable(pos, state)) {
                 damage(pos, state).ifPresent(pending::add);
             }
         }
@@ -440,16 +444,36 @@ public final class Earthquake {
     }
 
     /**
-     * Opens a crack in one column: the top blocks of the ground go away, with no drop. Only the blocks of the tag
-     * {@code folkhold_events:crackable} (natural ground) that the earthquake can move go away. The crack stops at the
-     * first other block. A column with a free position below its top block (a roof) has no crack.
+     * Opens a crack in one column: the top blocks of the ground go away, with their drops. The crack opens only in
+     * the natural ground:
+     * <ul>
+     *   <li>The top block of the column is in the tag {@code folkhold_events:crack_surface}: grass, dirt, sand,
+     *       gravel. A layer of snow on it does not count.</li>
+     *   <li>The top of each horizontal neighbor column is 1 block higher or lower at most. A wall, a pillar or the edge
+     *       of a platform stops the crack.</li>
+     *   <li>The top block is on the ground: no free position below it.</li>
+     * </ul>
+     * Below the surface block, the crack removes the blocks of the tag {@code folkhold_events:crackable} that the
+     * earthquake can move. It stops at the first other block.
      */
     private void openCrack(int x, int z, int depth) {
         if (!isReady(new BlockPos(x, center.getY(), z))) {
             return;
         }
-        int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
-        if (isFree(new BlockPos(x, top - 1, z))) {
+        int height = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            BlockPos neighbor = new BlockPos(x + direction.getStepX(), center.getY(), z + direction.getStepZ());
+            if (!level.isLoaded(neighbor) || Math.abs(level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                    neighbor.getX(), neighbor.getZ()) - height) > 1) {
+                return;
+            }
+        }
+        int top = height - 1;
+        if (level.getBlockState(new BlockPos(x, top, z)).is(Blocks.SNOW)) {
+            top--;
+        }
+        if (!level.getBlockState(new BlockPos(x, top, z)).is(EventBlockTags.CRACK_SURFACE)
+                || isFree(new BlockPos(x, top - 1, z))) {
             return;
         }
         for (int k = 0; k < depth; k++) {
@@ -479,7 +503,9 @@ public final class Earthquake {
         BlockState state = change.expected();
         return switch (change.action()) {
             case FALL -> fall(pos, state, change.side());
-            case SHATTER, REMOVE -> level.destroyBlock(pos, false);
+            case SHATTER -> level.destroyBlock(pos, false);
+            // A crack gives back its blocks: an error of the tags does not destroy the blocks of a player.
+            case REMOVE -> level.destroyBlock(pos, true);
             case CRACK -> {
                 level.levelEvent(LevelEvent.PARTICLES_DESTROY_BLOCK, pos, Block.getId(state));
                 yield level.setBlock(pos, change.result(), Block.UPDATE_ALL);
@@ -523,10 +549,13 @@ public final class Earthquake {
 
     /**
      * True if a neighbor of a position can lose its support or its data when the block at the position goes away: a
-     * protected block, a block with a block entity (a sign, a bell, a banner), or an attached block (a torch, a
-     * lantern). The earthquake does not move such a support.
+     * protected block, a block with a block entity (a sign, a bell, a banner), an attached block (a torch, a
+     * lantern), or a hanging entity (an item frame, a painting). The earthquake does not move such a support.
      */
     private boolean holdsABlock(BlockPos pos) {
+        if (!level.getEntitiesOfClass(HangingEntity.class, new AABB(pos).inflate(HANGING_MARGIN)).isEmpty()) {
+            return true;
+        }
         for (Direction direction : Direction.values()) {
             BlockPos neighborPos = pos.relative(direction);
             if (!level.isLoaded(neighborPos)) {
