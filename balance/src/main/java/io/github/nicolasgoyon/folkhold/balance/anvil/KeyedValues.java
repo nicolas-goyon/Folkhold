@@ -11,14 +11,14 @@ import java.util.regex.Pattern;
  * Integer values for ids and tags, from config entries {@code "namespace:path=value"} or
  * {@code "#namespace:path=value"}. An id with no namespace has the namespace {@code minecraft}.
  *
- * @param ids  the values for the ids, as {@code namespace:path}
+ * @param ids  the values for the ids, as {@code namespace:path}, in the order of the entries
  * @param tags the values for the tags, as {@code namespace:path}, in the order of the entries
  */
 public record KeyedValues(Map<String, Integer> ids, Map<String, Integer> tags) {
     private static final Pattern ENTRY = Pattern.compile("(#?)((?:[a-z0-9_.-]+:)?[a-z0-9_./-]+)=(\\d{1,9})");
 
     public KeyedValues {
-        ids = Map.copyOf(ids);
+        ids = Collections.unmodifiableMap(new LinkedHashMap<>(ids));
         tags = Collections.unmodifiableMap(new LinkedHashMap<>(tags));
     }
 

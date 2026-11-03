@@ -20,6 +20,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.event.AnvilUpdateEvent;
 
 /**
@@ -29,7 +30,46 @@ import net.neoforged.neoforge.event.AnvilUpdateEvent;
  * <p>The listener runs on the server and on the client: the menu calculates its result on both sides.
  */
 public final class AnvilRules {
+    /** The parsed lists of the config, or null before the first use after a load of the config. */
+    @Nullable
+    private static volatile Tables tables;
+
     private AnvilRules() {
+    }
+
+    /**
+     * The parsed lists of the section {@code anvil}.
+     *
+     * @param weights the weights of the enchantments
+     * @param caps    the level caps
+     * @param bases   the base costs of a repair
+     */
+    private record Tables(KeyedValues weights, KeyedValues caps, KeyedValues bases) {
+    }
+
+    /** Parses the lists of the config again at the next use, after a load of the config. */
+    public static void onConfigLoad(ModConfigEvent.Loading event) {
+        if (event.getConfig().getSpec() == BalanceConfig.SPEC) {
+            tables = null;
+        }
+    }
+
+    /** Parses the lists of the config again at the next use, after a change of the config. */
+    public static void onConfigReload(ModConfigEvent.Reloading event) {
+        if (event.getConfig().getSpec() == BalanceConfig.SPEC) {
+            tables = null;
+        }
+    }
+
+    private static Tables tables() {
+        Tables current = tables;
+        if (current == null) {
+            current = new Tables(KeyedValues.parse(BalanceConfig.ANVIL_WEIGHTS.get()),
+                    KeyedValues.parse(BalanceConfig.ANVIL_LEVEL_CAPS.get()),
+                    KeyedValues.parse(BalanceConfig.ANVIL_REPAIR_BASE_COST.get()));
+            tables = current;
+        }
+        return current;
     }
 
     /** True if the server config is loaded and the anvil rules are on. */
@@ -38,9 +78,10 @@ public final class AnvilRules {
     }
 
     /**
-     * Calculates the result, the cost and the material count of the anvil. The listener does nothing when another
-     * listener has set an output. When the anvil has no valid operation, the listener cancels the event: the result
-     * slot is then empty.
+     * Calculates the result, the cost and the material count of the anvil. Register this listener with
+     * {@link net.neoforged.bus.api.EventPriority#LOWEST}: the anvil recipes of other mods set their output first, and
+     * the listener does nothing when an output is set. When the anvil has no valid operation, the listener cancels
+     * the event: the result slot is then empty.
      */
     public static void onAnvilUpdate(AnvilUpdateEvent event) {
         if (!isEnabled() || !event.getOutput().isEmpty()) {
@@ -63,7 +104,7 @@ public final class AnvilRules {
      * @param cost          the cost in levels
      * @param materialCount the number of right items that the operation uses; 0 uses the full right stack
      */
-    public record Operation(ItemStack result, int cost, int materialCount) {
+    private record Operation(ItemStack result, int cost, int materialCount) {
     }
 
     /**
@@ -76,7 +117,7 @@ public final class AnvilRules {
      * @return the operation, or null when the anvil has no valid operation
      */
     @Nullable
-    public static Operation calculate(ItemStack left, ItemStack right, @Nullable String name, Player player) {
+    private static Operation calculate(ItemStack left, ItemStack right, @Nullable String name, Player player) {
         if (left.isEmpty() || !EnchantmentHelper.canStoreEnchantments(left)) {
             return null;
         }
@@ -174,8 +215,8 @@ public final class AnvilRules {
     private static EnchantmentMerge mergeEnchantments(ItemStack left, ItemStack right,
             ItemEnchantments.Mutable enchantments, Player player) {
         MergeRule rule = BalanceConfig.ANVIL_MERGE_RULE.get();
-        KeyedValues caps = KeyedValues.parse(BalanceConfig.ANVIL_LEVEL_CAPS.get());
-        KeyedValues weights = KeyedValues.parse(BalanceConfig.ANVIL_WEIGHTS.get());
+        KeyedValues caps = tables().caps();
+        KeyedValues weights = tables().weights();
         int absoluteMax = BalanceConfig.ANVIL_ABSOLUTE_MAX_LEVEL.get();
         long increase = 0;
         long incompatible = 0;
@@ -218,7 +259,7 @@ public final class AnvilRules {
 
     /** The cost of a full repair of an item, with its current enchantments. */
     private static long fullRepairCost(ItemStack item) {
-        KeyedValues weights = KeyedValues.parse(BalanceConfig.ANVIL_WEIGHTS.get());
+        KeyedValues weights = tables().weights();
         long weightedLevels = 0;
         for (Object2IntMap.Entry<Holder<Enchantment>> entry
                 : EnchantmentHelper.getEnchantmentsForCrafting(item).entrySet()) {
@@ -237,7 +278,7 @@ public final class AnvilRules {
      * item, or {@code repairDefaultBaseCost}.
      */
     private static int repairBase(ItemStack item) {
-        KeyedValues bases = KeyedValues.parse(BalanceConfig.ANVIL_REPAIR_BASE_COST.get());
+        KeyedValues bases = tables().bases();
         for (Map.Entry<String, Integer> entry : bases.ids().entrySet()) {
             ResourceLocation id = ResourceLocation.tryParse(entry.getKey());
             if (id != null && BuiltInRegistries.ITEM.containsKey(id)

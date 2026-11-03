@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.balance.gametest;
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
+import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
@@ -18,12 +19,15 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.EnchantmentInstance;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.AnvilUpdateEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -230,6 +234,156 @@ public final class AnvilGameTests {
         Component five = Enchantment.getFullname(enchantment(helper, Enchantments.EFFICIENCY), 5);
         helper.assertTrue(five.getString().endsWith(" V"), "The name is " + five.getString());
         helper.succeed();
+    }
+
+    /** A book of Sharpness on a pickaxe gives no result: a pickaxe does not support Sharpness. */
+    @GameTest(template = "bench", batch = "balance_anvil")
+    public static void unsupportedBookGivesNoResult(GameTestHelper helper) {
+        ServerPlayer player = player(helper, 50);
+        AnvilMenu menu = anvil(helper, player);
+        menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
+        menu.getSlot(1).set(book(helper, Enchantments.SHARPNESS, 5));
+        helper.assertTrue(menu.getSlot(AnvilMenu.RESULT_SLOT).getItem().isEmpty(), "The anvil gives a result");
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * A book with Unbreaking III and Sharpness V on a pickaxe: the pickaxe gets Unbreaking III only, for 19 levels.
+     * An enchantment that the item does not support adds no cost.
+     */
+    @GameTest(template = "bench", batch = "balance_anvil")
+    public static void bookAppliesOnlyTheSupportedEnchantments(GameTestHelper helper) {
+        ServerPlayer player = player(helper, 50);
+        AnvilMenu menu = anvil(helper, player);
+        ItemStack book = book(helper, Enchantments.UNBREAKING, 3);
+        Holder<Enchantment> sharpness = enchantment(helper, Enchantments.SHARPNESS);
+        EnchantmentHelper.updateEnchantments(book, enchantments -> enchantments.set(sharpness, 5));
+        menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
+        menu.getSlot(1).set(book);
+        assertCost(helper, menu, 19);
+        ItemStack result = take(helper, menu, player);
+        helper.assertTrue(level(helper, result, Enchantments.UNBREAKING) == 3, "The pickaxe has no Unbreaking III");
+        helper.assertTrue(level(helper, result, Enchantments.SHARPNESS) == 0, "The pickaxe has Sharpness");
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * An iron pickaxe (250 durability) at a damage of 249 with 10 iron ingots: 4 units of 62 points leave 1 point of
+     * damage, so the vanilla loop uses a fifth ingot. The cost counts 4 units at most: a full repair, 3 levels.
+     */
+    @GameTest(template = "bench", batch = "balance_anvil")
+    public static void ironPickaxeUsesFiveIngots(GameTestHelper helper) {
+        ServerPlayer player = player(helper, 10);
+        AnvilMenu menu = anvil(helper, player);
+        ItemStack pickaxe = new ItemStack(Items.IRON_PICKAXE);
+        pickaxe.setDamageValue(249);
+        menu.getSlot(0).set(pickaxe);
+        menu.getSlot(1).set(new ItemStack(Items.IRON_INGOT, 10));
+        assertCost(helper, menu, 3);
+        ItemStack result = take(helper, menu, player);
+        helper.assertTrue(result.getDamageValue() == 0, "The damage after the repair is " + result.getDamageValue());
+        helper.assertTrue(menu.getSlot(1).getItem().getCount() == 5,
+                "The anvil leaves " + menu.getSlot(1).getItem().getCount() + " ingots, not 5");
+        helper.assertTrue(player.experienceLevel == 7, "The repair does not cost 3 levels");
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /** A shift-click on the result moves it to the inventory, takes the levels one time and empties the inputs. */
+    @GameTest(template = "bench", batch = "balance_anvil")
+    public static void shiftClickTakesTheResult(GameTestHelper helper) {
+        ServerPlayer player = player(helper, 30);
+        AnvilMenu menu = anvil(helper, player);
+        menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
+        menu.getSlot(1).set(book(helper, Enchantments.UNBREAKING, 3));
+        assertCost(helper, menu, 19);
+        menu.clicked(AnvilMenu.RESULT_SLOT, 0, ClickType.QUICK_MOVE, player);
+        int pickaxes = 0;
+        for (ItemStack stack : player.getInventory().items) {
+            if (stack.is(Items.DIAMOND_PICKAXE)) {
+                pickaxes++;
+                helper.assertTrue(level(helper, stack, Enchantments.UNBREAKING) == 3, "The pickaxe has no Unbreaking");
+            }
+        }
+        helper.assertTrue(pickaxes == 1, "The inventory has " + pickaxes + " pickaxes, not 1");
+        helper.assertTrue(player.experienceLevel == 11, "The player has " + player.experienceLevel + " levels");
+        helper.assertTrue(menu.getSlot(0).getItem().isEmpty() && menu.getSlot(1).getItem().isEmpty()
+                && menu.getSlot(AnvilMenu.RESULT_SLOT).getItem().isEmpty(), "The anvil keeps an item");
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * The anvil recipe of another mod (a test listener: dirt + stick gives a diamond for 3 levels) keeps its output:
+     * the listener of the balance mod runs last and does nothing when an output is set.
+     */
+    @GameTest(template = "bench", batch = "balance_anvil")
+    public static void recipeOfAnotherModStays(GameTestHelper helper) {
+        registerTestRecipe();
+        ServerPlayer player = player(helper, 5);
+        AnvilMenu menu = anvil(helper, player);
+        menu.getSlot(0).set(new ItemStack(Items.DIRT));
+        menu.getSlot(1).set(new ItemStack(Items.STICK, 4));
+        helper.assertTrue(menu.getSlot(AnvilMenu.RESULT_SLOT).getItem().is(Items.DIAMOND),
+                "The output of the other recipe is lost");
+        assertCost(helper, menu, 3);
+        take(helper, menu, player);
+        helper.assertTrue(menu.getSlot(1).getItem().getCount() == 3, "The recipe does not use 1 stick");
+        helper.assertTrue(player.experienceLevel == 2, "The recipe does not cost 3 levels");
+        remove(helper, player);
+        helper.succeed();
+    }
+
+    /**
+     * With {@code enabled = false}, the anvil is vanilla: a book costs half its anvil cost for each level, the result
+     * gets a work penalty, the level stays at the max level, and a level above X has no number.
+     */
+    @GameTest(template = "bench", batch = "balance_anvil_vanilla")
+    public static void disabledRulesGiveTheVanillaAnvil(GameTestHelper helper) {
+        BalanceConfig.ANVIL_ENABLED.set(false);
+        try {
+            ServerPlayer player = player(helper, 30);
+            AnvilMenu menu = anvil(helper, player);
+            menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
+            menu.getSlot(1).set(book(helper, Enchantments.UNBREAKING, 3));
+            // Vanilla: max(1, 2 / 2) × 3 = 3 levels.
+            assertCost(helper, menu, 3);
+            ItemStack result = take(helper, menu, player);
+            helper.assertTrue(result.getOrDefault(DataComponents.REPAIR_COST, 0) == 1, "The result has no penalty");
+
+            menu.getSlot(0).set(enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.EFFICIENCY, 5));
+            menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 10));
+            // Vanilla: the level stays at V, max(1, 1 / 2) × 5 = 5 levels.
+            assertCost(helper, menu, 5);
+            helper.assertTrue(level(helper, menu.getSlot(AnvilMenu.RESULT_SLOT).getItem(), Enchantments.EFFICIENCY) == 5,
+                    "The vanilla anvil goes above the max level");
+            String name = Enchantment.getFullname(enchantment(helper, Enchantments.EFFICIENCY), 20).getString();
+            helper.assertTrue(name.endsWith("enchantment.level.20"), "The name is " + name);
+            remove(helper, player);
+        } finally {
+            BalanceConfig.ANVIL_ENABLED.set(true);
+        }
+        helper.succeed();
+    }
+
+    private static boolean testRecipeRegistered;
+
+    /** Registers the test recipe one time, at normal priority, as a mod does. */
+    private static void registerTestRecipe() {
+        if (!testRecipeRegistered) {
+            NeoForge.EVENT_BUS.addListener(AnvilGameTests::testRecipe);
+            testRecipeRegistered = true;
+        }
+    }
+
+    private static void testRecipe(AnvilUpdateEvent event) {
+        if (event.getLeft().is(Items.DIRT) && event.getRight().is(Items.STICK)) {
+            event.setOutput(new ItemStack(Items.DIAMOND));
+            event.setCost(3);
+            event.setMaterialCost(1);
+        }
     }
 
     private static ServerPlayer player(GameTestHelper helper, int levels) {

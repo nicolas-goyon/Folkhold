@@ -32,6 +32,8 @@ public final class FolkholdBalance {
         ModLootModifiers.register(modEventBus);
         modEventBus.addListener(BlockedEnchantmentIds::onConfigLoad);
         modEventBus.addListener(BlockedEnchantmentIds::onConfigReload);
+        modEventBus.addListener(AnvilRules::onConfigLoad);
+        modEventBus.addListener(AnvilRules::onConfigReload);
         modEventBus.addListener(BalanceNetwork::register);
         NeoForge.EVENT_BUS.addListener(ChainUse::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(ChainUse::onLoggedOut);
@@ -49,7 +51,8 @@ public final class FolkholdBalance {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillagerOffers::onWandererTrades);
         NeoForge.EVENT_BUS.addListener(VillagerOffers::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(VillagerOffers::onConversion);
-        NeoForge.EVENT_BUS.addListener(AnvilRules::onAnvilUpdate);
+        // Lowest priority: the anvil recipes of other mods set their output first.
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, AnvilRules::onAnvilUpdate);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
 }

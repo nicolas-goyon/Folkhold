@@ -29,6 +29,12 @@ class KeyedValuesTest {
     }
 
     @Test
+    void idsKeepTheOrderOfTheEntries() {
+        KeyedValues values = KeyedValues.parse(List.of("b:x=1", "a:y=2", "c:z=3"));
+        assertEquals(List.of("b:x", "a:y", "c:z"), List.copyOf(values.ids().keySet()));
+    }
+
+    @Test
     void tagsKeepTheOrderOfTheEntries() {
         KeyedValues values = KeyedValues.parse(List.of("#b:x=1", "#a:y=2", "#c:z=3"));
         assertEquals(List.of("b:x", "a:y", "c:z"), List.copyOf(values.tags().keySet()));
