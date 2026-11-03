@@ -56,15 +56,20 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class TrainGameTests {
     /** The height of a minecart on a rail at y = 1. */
-    private static final double CART_Y = 1.0625;
+    static final double CART_Y = 1.0625;
     /** The row of the rails on the bench. */
-    private static final int BENCH_Z = 3;
+    static final int BENCH_Z = 3;
     /** The row of the straight part of the track. */
     private static final int TRACK_Z = 2;
     /** The column of the curve and of the second straight part of the track. */
     private static final int TRACK_TURN_X = 25;
     /** The row of the slope of the track, after the curve. The rails after the slope are at y = 2. */
     private static final int TRACK_SLOPE_Z = 10;
+    /** The largest X and Z of the loop. The smallest X and Z are 1. */
+    private static final int LOOP_HIGH = 30;
+    /** The rows of the slope up and of the slope down on the east side of the loop. */
+    private static final int LOOP_SLOPE_UP_Z = 10;
+    private static final int LOOP_SLOPE_DOWN_Z = 20;
     /** The shape of each rail that a test places, by absolute position. The tests run on the server thread. */
     private static final Map<BlockPos, RailShape> RAILS = new HashMap<>();
 
@@ -121,6 +126,74 @@ public final class TrainGameTests {
             helper.assertTrue(last.getZ() > finish, "The last wagon is at z " + last.getZ() + ", not after the slope");
             helper.assertTrue(largest.get() <= maxDistance + 0.5,
                     "The largest distance between two minecarts is " + largest.get());
+            clear(helper, train);
+        });
+    }
+
+    /**
+     * A furnace minecart pulls 3 chest minecarts for 100 blocks around a loop with 4 curves, a slope up and a slope
+     * down. No link breaks, and no minecart leaves the rails.
+     */
+    @GameTest(template = "track", timeoutTicks = 1200, batch = "balance_rails")
+    public static void furnacePullsThreeWagonsForAHundredBlocks(GameTestHelper helper) {
+        floor(helper, 32, 32);
+        int low = 1;
+        int high = LOOP_HIGH;
+        rail(helper, low, low, RailShape.SOUTH_EAST);
+        rail(helper, high, low, RailShape.SOUTH_WEST);
+        rail(helper, high, high, RailShape.NORTH_WEST);
+        rail(helper, low, high, RailShape.NORTH_EAST);
+        for (int i = low + 1; i < high; i++) {
+            rail(helper, i, low, RailShape.EAST_WEST);
+            rail(helper, i, high, RailShape.EAST_WEST);
+            rail(helper, low, i, RailShape.NORTH_SOUTH);
+            if (i < LOOP_SLOPE_UP_Z || i > LOOP_SLOPE_DOWN_Z) {
+                rail(helper, high, i, RailShape.NORTH_SOUTH);
+            }
+        }
+        // The east side goes up one block, then down again.
+        rail(helper, high, LOOP_SLOPE_UP_Z, RailShape.ASCENDING_SOUTH);
+        for (int z = LOOP_SLOPE_UP_Z + 1; z < LOOP_SLOPE_DOWN_Z; z++) {
+            helper.setBlock(new BlockPos(high, 1, z), Blocks.STONE);
+            rail(helper, high, 2, z, RailShape.NORTH_SOUTH);
+        }
+        rail(helper, high, LOOP_SLOPE_DOWN_Z, RailShape.ASCENDING_NORTH);
+        fixRails(helper);
+        double spacing = BalanceConfig.coupling().restDistance();
+        double z = low + 0.5;
+        MinecartFurnace furnace = helper.spawn(EntityType.FURNACE_MINECART, new Vec3(9.5, CART_Y, z));
+        List<AbstractMinecart> train = List.of(furnace,
+                helper.spawn(EntityType.CHEST_MINECART, new Vec3(9.5 - spacing, CART_Y, z)),
+                helper.spawn(EntityType.CHEST_MINECART, new Vec3(9.5 - 2 * spacing, CART_Y, z)),
+                helper.spawn(EntityType.CHEST_MINECART, new Vec3(9.5 - 3 * spacing, CART_Y, z)));
+        for (int i = 0; i + 1 < train.size(); i++) {
+            assertLinked(helper, train.get(i), train.get(i + 1));
+        }
+        fuel(helper, furnace, new Vec3(8.5, CART_Y, z));
+        AtomicReference<Vec3> last = new AtomicReference<>(furnace.position());
+        AtomicReference<Double> travel = new AtomicReference<>(0.0);
+        AtomicReference<Double> largest = new AtomicReference<>(0.0);
+        AtomicReference<Boolean> derailed = new AtomicReference<>(false);
+        helper.onEachTick(() -> {
+            travel.set(travel.get() + furnace.position().subtract(last.get()).horizontalDistance());
+            last.set(furnace.position());
+            for (int i = 0; i + 1 < train.size(); i++) {
+                largest.set(Math.max(largest.get(), train.get(i).distanceTo(train.get(i + 1))));
+            }
+            if (train.stream().anyMatch(cart -> !cart.isOnRails() && cart.tickCount > 2)) {
+                derailed.set(true);
+            }
+        });
+        double maxDistance = BalanceConfig.coupling().maxDistance();
+        helper.succeedWhen(() -> {
+            for (int i = 0; i + 1 < train.size(); i++) {
+                helper.assertTrue(CartLinks.get(train.get(i)).back().equals(Optional.of(train.get(i + 1).getUUID())),
+                        "The link " + i + " of the train is broken");
+            }
+            helper.assertTrue(!derailed.get(), "A minecart of the train leaves the rails");
+            helper.assertTrue(largest.get() <= maxDistance + 0.5,
+                    "The largest distance between two minecarts is " + largest.get());
+            helper.assertTrue(travel.get() >= 100.0, "The train travels " + travel.get() + " blocks");
             clear(helper, train);
         });
     }
@@ -280,7 +353,7 @@ public final class TrainGameTests {
         helper.succeed();
     }
 
-    private static void floor(GameTestHelper helper, int sizeX, int sizeZ) {
+    static void floor(GameTestHelper helper, int sizeX, int sizeZ) {
         for (int x = 0; x < sizeX; x++) {
             for (int z = 0; z < sizeZ; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
@@ -289,12 +362,12 @@ public final class TrainGameTests {
     }
 
     /** Places a rail at y = 1. {@link #fixRails(GameTestHelper)} gives it its shape again. */
-    private static void rail(GameTestHelper helper, int x, int z, RailShape shape) {
+    static void rail(GameTestHelper helper, int x, int z, RailShape shape) {
         rail(helper, x, 1, z, shape);
     }
 
     /** Places a rail. {@link #fixRails(GameTestHelper)} gives it its shape again. */
-    private static void rail(GameTestHelper helper, int x, int y, int z, RailShape shape) {
+    static void rail(GameTestHelper helper, int x, int y, int z, RailShape shape) {
         BlockPos pos = new BlockPos(x, y, z);
         helper.setBlock(pos, Blocks.RAIL.defaultBlockState().setValue(RailBlock.SHAPE, shape));
         RAILS.put(helper.absolutePos(pos), shape);
@@ -304,7 +377,7 @@ public final class TrainGameTests {
      * Sets the shape of each rail of the test again. A rail changes its shape when the test places a rail next to it.
      * A rail that gets the same block again keeps the given shape.
      */
-    private static void fixRails(GameTestHelper helper) {
+    static void fixRails(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         RAILS.forEach((pos, shape) -> {
             BlockState state = level.getBlockState(pos);
@@ -316,7 +389,7 @@ public final class TrainGameTests {
     }
 
     /** Links two minecarts with the default distance and fails the test when the link fails. */
-    private static void assertLinked(GameTestHelper helper, AbstractMinecart front, AbstractMinecart back) {
+    static void assertLinked(GameTestHelper helper, AbstractMinecart front, AbstractMinecart back) {
         LinkResult result = CartLinks.link(helper.getLevel(), front, back, BalanceConfig.coupling().maxDistance(),
                 BalanceConfig.TRAIN_MAX_CARTS.get());
         helper.assertTrue(result == LinkResult.LINKED, "The link fails: " + result);
@@ -327,7 +400,7 @@ public final class TrainGameTests {
      *
      * @param player the position of the player, relative to the test
      */
-    private static void fuel(GameTestHelper helper, MinecartFurnace furnace, Vec3 player) {
+    static void fuel(GameTestHelper helper, MinecartFurnace furnace, Vec3 player) {
         ServerPlayer mock = survivalPlayer(helper, player);
         mock.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COAL, 4));
         mock.interactOn(furnace, InteractionHand.MAIN_HAND);
@@ -335,7 +408,7 @@ public final class TrainGameTests {
     }
 
     /** A mock player in survival mode at a position relative to the test. Remove it at the end of the test. */
-    private static ServerPlayer survivalPlayer(GameTestHelper helper, Vec3 position) {
+    static ServerPlayer survivalPlayer(GameTestHelper helper, Vec3 position) {
         ServerLevel level = helper.getLevel();
         CommonListenerCookie cookie = CommonListenerCookie.createInitial(
                 new GameProfile(UUID.randomUUID(), "test-mock-player"), false);
@@ -352,13 +425,13 @@ public final class TrainGameTests {
     }
 
     /** The number of chains on the ground in the test area. */
-    private static int chains(GameTestHelper helper) {
+    static int chains(GameTestHelper helper) {
         return helper.getLevel().getEntitiesOfClass(ItemEntity.class, helper.getBounds().inflate(2.0),
                 item -> item.getItem().is(Items.CHAIN)).stream().mapToInt(item -> item.getItem().getCount()).sum();
     }
 
     /** Removes the minecarts without chains, and the chains on the ground. */
-    private static void clear(GameTestHelper helper, List<AbstractMinecart> carts) {
+    static void clear(GameTestHelper helper, List<AbstractMinecart> carts) {
         for (AbstractMinecart cart : carts) {
             cart.removeData(ModAttachments.CART_LINK);
             cart.discard();
