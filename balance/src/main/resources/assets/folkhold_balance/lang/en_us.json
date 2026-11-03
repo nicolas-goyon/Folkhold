@@ -1,3 +1,22 @@
 {
-  "fml.menu.mods.info.description.folkhold_balance": "Limits for farms and villagers, and chunk loading with a cost."
+  "fml.menu.mods.info.description.folkhold_balance": "Limits for farms and villagers, chunk loading with a cost, and trains of linked minecarts.",
+  "folkhold_balance.configuration.title": "Folkhold Balance configuration",
+  "folkhold_balance.configuration.rails": "Trains",
+  "folkhold_balance.configuration.bufferDistance": "Buffer distance of a chain",
+  "folkhold_balance.configuration.restDistance": "Rest distance of a chain",
+  "folkhold_balance.configuration.maxDistance": "Maximum distance of a chain",
+  "folkhold_balance.configuration.breakDistance": "Break distance of a chain",
+  "folkhold_balance.configuration.breakTicks": "Ticks before a chain breaks",
+  "folkhold_balance.configuration.stiffness": "Chain stiffness",
+  "folkhold_balance.configuration.damping": "Chain damping",
+  "folkhold_balance.configuration.maxCarts": "Maximum minecarts in a train",
+  "folkhold_balance.chain.first": "First minecart: %s. Use the chain on a second minecart.",
+  "folkhold_balance.chain.linked": "The minecarts are linked.",
+  "folkhold_balance.chain.same_cart": "Use the chain on a different minecart.",
+  "folkhold_balance.chain.too_far": "The minecarts are too far apart.",
+  "folkhold_balance.chain.no_free_end": "A minecart has no free end for a chain.",
+  "folkhold_balance.chain.loop": "The minecarts are already in the same train.",
+  "folkhold_balance.chain.too_long": "A train has a maximum of %s minecarts.",
+  "folkhold_balance.chain.not_loaded": "A minecart of the train is not loaded.",
+  "folkhold_balance.chain.unlinked": "The link is removed."
 }

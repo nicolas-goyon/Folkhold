@@ -1,3 +1,22 @@
 {
-  "fml.menu.mods.info.description.folkhold_balance": "Limites pour les fermes et les villageois, et chargement de chunks avec un coût."
+  "fml.menu.mods.info.description.folkhold_balance": "Limites pour les fermes et les villageois, chargement de chunks avec un coût, et trains de wagonnets liés.",
+  "folkhold_balance.configuration.title": "Configuration de Folkhold Balance",
+  "folkhold_balance.configuration.rails": "Trains",
+  "folkhold_balance.configuration.bufferDistance": "Distance tampon d'une chaîne",
+  "folkhold_balance.configuration.restDistance": "Distance de repos d'une chaîne",
+  "folkhold_balance.configuration.maxDistance": "Distance maximale d'une chaîne",
+  "folkhold_balance.configuration.breakDistance": "Distance de rupture d'une chaîne",
+  "folkhold_balance.configuration.breakTicks": "Ticks avant la rupture d'une chaîne",
+  "folkhold_balance.configuration.stiffness": "Raideur de la chaîne",
+  "folkhold_balance.configuration.damping": "Amortissement de la chaîne",
+  "folkhold_balance.configuration.maxCarts": "Nombre maximal de wagonnets dans un train",
+  "folkhold_balance.chain.first": "Premier wagonnet : %s. Utilisez la chaîne sur un second wagonnet.",
+  "folkhold_balance.chain.linked": "Les wagonnets sont liés.",
+  "folkhold_balance.chain.same_cart": "Utilisez la chaîne sur un autre wagonnet.",
+  "folkhold_balance.chain.too_far": "Les wagonnets sont trop éloignés.",
+  "folkhold_balance.chain.no_free_end": "Un wagonnet n'a pas d'extrémité libre pour une chaîne.",
+  "folkhold_balance.chain.loop": "Les wagonnets sont déjà dans le même train.",
+  "folkhold_balance.chain.too_long": "Un train a au maximum %s wagonnets.",
+  "folkhold_balance.chain.not_loaded": "Un wagonnet du train n'est pas chargé.",
+  "folkhold_balance.chain.unlinked": "Le lien est retiré."
 }
