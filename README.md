@@ -60,7 +60,7 @@ The project has two libraries and three mods. All mods share one version.
 | `core` | `folkhold_core` | Shared library: abstract simulation, regions, scheduler, UI framework |
 | `blocks` | `folkhold_blocks` | Library of the Folkhold blocks. The blocks act as similar vanilla blocks. The other mods add the game logic. |
 | `world` | `folkhold_world` | Factions, villages, economy, caravans, quests |
-| `balance` | `folkhold_balance` | Planned: farm limits, villager budgets, chunk loading. The mod is empty. |
+| `balance` | `folkhold_balance` | Trains of minecarts linked with a chain. Planned: farm limits, villager budgets, chunk loading. |
 | `events` | `folkhold_events` | Planned: earthquakes, collapses. The mod is empty. |
 
 The packwiz modpack (`modpack/`) adds existing mods for performance, nature and terrain.

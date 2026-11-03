@@ -8,7 +8,7 @@ Goal: a single-player Minecraft (NeoForge 1.21.1) where the world changes withou
 The project has a base modpack (existing mods) and three mods to develop:
 
 - **World**: factions, villages, economy, quests.
-- **Balance**: farms, villagers, chunk loading.
+- **Balance**: farms, villagers, chunk loading, trains.
 - **Events**: earthquakes, collapses.
 
 Design principles:
@@ -731,6 +731,46 @@ This mod does not need the world mod. It limits infinite farms with regional bud
 The catch-up is reliable only for our own blocks and some simple vanilla blocks (crops, furnaces). It does not cover redstone contraptions.
 
 All thresholds are in `balance-common.toml`, with a "soft" preset and a "strict" preset.
+
+## Balance mod: rails
+
+The rails stay vanilla. The player links minecarts with a chain to make a train. A vanilla furnace minecart at the front pulls the train.
+
+### Links
+
+- **Implemented** (`CartLinks`, `ChainUse`): the player uses the item "chain" on a first minecart, then on a second minecart. The action bar shows the first minecart. The link uses 1 chain. The chain does not start the vanilla interaction (ride, chest menu).
+- The first minecart goes in front of the second minecart. When the ends of the two minecarts do not permit this order, the second minecart goes in front.
+- A minecart has a maximum of one front link and one back link. A link cannot make a loop. The two minecarts must be at the maximum distance or nearer. All the minecarts of the two trains must be loaded.
+- Shears, or an empty main hand while the player sneaks, remove the front link of a minecart. A minecart with no front link loses its back link. The chain drops. An empty hand without sneak still lets the player ride.
+- Each minecart keeps its links in a data attachment: the UUID of the minecart in front and the UUID of the minecart behind. The links stay after a save and a reload of the world.
+
+### Train
+
+- **Implemented** (`Trains`, `Coupling`): the game ticks the entities in a random order. Thus the mod moves the trains after the entities, at the end of the tick of each level. It finds each train one time, then corrects the speed of each minecart in order from the front minecart. A long train has no delay of one tick for each minecart.
+- The front minecart pulls the back minecart. The mod changes only the speed of the back minecart, along its rail:
+  - below the buffer distance, the back minecart slows down. Two linked minecarts do not push each other as vanilla minecarts do;
+  - from the buffer distance to the rest distance, the chain is slack;
+  - from the rest distance to the maximum distance, a spring with damping pulls the back minecart;
+  - above the maximum distance, the chain acts as a rigid bar.
+- The motion of a minecart stays below the speed limit of its rail, so that a minecart does not leave a curve.
+- A link breaks when the distance stays above the break distance for some ticks. This tolerance keeps the train together after a lag of some ticks. The chain drops at the middle of the link.
+- A link breaks and drops the chain when a minecart is destroyed or goes through a portal. A link does not break when a minecart unloads: it waits until the two minecarts are loaded again. When a minecart breaks a link and the other minecart is not loaded, the other minecart forgets the link when it loads again.
+- The client draws a chain between the two minecarts of each link, as a leash. The server sends the links when a link changes and when a player starts to track a minecart: the data attachments do not go to the client.
+
+### Configuration
+
+File `folkhold_balance-server.toml`, section `rails`:
+
+| Value | Default | Meaning |
+| --- | --- | --- |
+| `bufferDistance` | 1.1 | Smallest distance between two linked minecarts, in blocks |
+| `restDistance` | 1.5 | Distance of a slack chain, in blocks |
+| `maxDistance` | 2.5 | Largest distance of a stretched chain, in blocks. Also the largest distance for a new link |
+| `breakDistance` | 4.0 | A link breaks above this distance, in blocks |
+| `breakTicks` | 40 | Ticks above `breakDistance` before a link breaks (2 seconds) |
+| `stiffness` | 0.15 | Speed change for each block of stretch, in blocks per tick |
+| `damping` | 0.3 | Part of the speed difference that the back minecart gets back each tick |
+| `maxCarts` | 16 | Largest number of minecarts in a train |
 
 ## Maps and journal
 
