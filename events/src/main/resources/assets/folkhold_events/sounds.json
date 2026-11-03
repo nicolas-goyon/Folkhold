@@ -5,5 +5,12 @@
       {"name": "minecraft:entity.lightning_bolt.thunder", "type": "event", "pitch": 0.5},
       {"name": "minecraft:entity.generic.explode", "type": "event", "pitch": 0.5, "volume": 0.6}
     ]
+  },
+  "event.storm.wind": {
+    "subtitle": "subtitles.folkhold_events.event.storm.wind",
+    "sounds": [
+      {"name": "minecraft:item.elytra.flying", "type": "event", "pitch": 0.6, "volume": 0.7},
+      {"name": "minecraft:entity.breeze.idle_air", "type": "event", "pitch": 0.5, "volume": 0.8}
+    ]
   }
 }

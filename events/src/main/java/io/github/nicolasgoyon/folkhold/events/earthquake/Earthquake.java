@@ -2,15 +2,17 @@ package io.github.nicolasgoyon.folkhold.events.earthquake;
 
 import io.github.nicolasgoyon.folkhold.events.block.BlockClass;
 import io.github.nicolasgoyon.folkhold.events.block.EventBlockTags;
+import io.github.nicolasgoyon.folkhold.events.common.BlockChanges;
+import io.github.nicolasgoyon.folkhold.events.common.BlockRules;
+import io.github.nicolasgoyon.folkhold.events.common.EventMath;
+import io.github.nicolasgoyon.folkhold.events.common.WorldEvent;
 import io.github.nicolasgoyon.folkhold.events.config.EventsConfig;
 import io.github.nicolasgoyon.folkhold.events.network.EarthquakeShakePayload;
 import io.github.nicolasgoyon.folkhold.events.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.events.registry.ModSounds;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,16 +28,13 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.ai.util.DefaultRandomPos;
 import net.minecraft.world.entity.animal.Animal;
-import net.minecraft.world.entity.decoration.HangingEntity;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.LevelEvent;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -67,7 +66,7 @@ import net.minecraft.world.phys.Vec3;
  * {@link EarthquakeSettings#blocksPerTick()} blocks at most in one tick. The other columns and changes wait for the
  * next ticks. It does not load chunks: it ignores the columns of chunks that do not tick.
  */
-public final class Earthquake {
+public final class Earthquake implements WorldEvent {
     /** Strength of the camera shake at the epicenter for a strength of 1, in degrees. */
     private static final float SHAKE_DEGREES = 1.5F;
     /** The largest camera shake, in degrees. */
@@ -86,10 +85,6 @@ public final class Earthquake {
     private static final int MAX_WAITING_BATCHES = 4;
     /** The largest number of columns that the earthquake examines in one tick. */
     private static final int MAX_COLUMNS_PER_TICK = 64;
-    /** An item frame or a painting at this distance from a block or nearer hangs on it, in blocks. */
-    private static final double HANGING_MARGIN = 0.1;
-    /** The highest trunk of a natural tree, in blocks. */
-    private static final int MAX_TRUNK = 32;
     /** Blocks that become a cracked variant. */
     private static final Map<Block, Block> CRACKED = Map.of(
             Blocks.STONE_BRICKS, Blocks.CRACKED_STONE_BRICKS,
@@ -123,14 +118,15 @@ public final class Earthquake {
      * @param side   for a fall: {@link Direction#DOWN}, or the horizontal side of the fall
      * @param result for a crack: the cracked block
      */
-    private record Change(BlockPos pos, BlockState expected, Action action, Direction side, BlockState result) {
+    private record Change(BlockPos pos, BlockState expected, Action action, Direction side, BlockState result)
+            implements BlockChanges.Change {
     }
 
     private final ServerLevel level;
     private final BlockPos center;
     private final EarthquakeSettings settings;
     private final RandomSource random;
-    private final Deque<Change> pending = new ArrayDeque<>();
+    private final BlockChanges<Change> pending = new BlockChanges<>();
     private Phase phase = Phase.ANNOUNCE;
     private int elapsed;
     private long[] columns = new long[0];
@@ -151,8 +147,14 @@ public final class Earthquake {
         this.random = RandomSource.create(seed);
     }
 
+    @Override
     public BlockPos center() {
         return center;
+    }
+
+    @Override
+    public int radius() {
+        return settings.radius();
     }
 
     public EarthquakeSettings settings() {
@@ -163,6 +165,7 @@ public final class Earthquake {
         return phase;
     }
 
+    @Override
     public boolean isDone() {
         return phase == Phase.DONE;
     }
@@ -178,12 +181,14 @@ public final class Earthquake {
     }
 
     /** Stops the earthquake. The changes that wait do not apply. */
+    @Override
     public void stop() {
         phase = Phase.DONE;
         pending.clear();
     }
 
     /** Runs one tick of the earthquake. */
+    @Override
     public void tick() {
         if (phase == Phase.DONE) {
             return;
@@ -201,7 +206,7 @@ public final class Earthquake {
         }
         if (phase == Phase.SHAKE) {
             scanColumns();
-            changedBlocks += applyChanges();
+            changedBlocks += pending.apply(level, settings.blocksPerTick(), this::apply);
             if (nextColumn >= columns.length && nextCrack >= crackColumns.length && pending.isEmpty()
                     && elapsed > settings.announceTicks() + settings.durationTicks()) {
                 phase = Phase.DONE;
@@ -336,7 +341,7 @@ public final class Earthquake {
                 continue;
             }
             // The roll comes first: most blocks take no damage, and the check of a block reads its neighbors.
-            double chance = EarthquakeMath.chance(classChance(BlockClass.of(state)), intensity, settings.strength());
+            double chance = EventMath.chance(classChance(BlockClass.of(state)), intensity, settings.strength());
             if (random.nextDouble() < chance && isMovable(pos, state)) {
                 damage(pos, state).ifPresent(pending::add);
             }
@@ -396,7 +401,7 @@ public final class Earthquake {
             return;
         }
         BlockPos roofBottom = new BlockPos(x, y + 1, z);
-        double chance = factor * EarthquakeMath.chance(classChance(BlockClass.of(level.getBlockState(roofBottom))),
+        double chance = factor * EventMath.chance(classChance(BlockClass.of(level.getBlockState(roofBottom))),
                 intensity, settings.strength());
         if (random.nextDouble() >= chance) {
             return;
@@ -486,18 +491,6 @@ public final class Earthquake {
         }
     }
 
-    /** Applies the changes that wait, up to the size of a batch. */
-    private int applyChanges() {
-        int applied = 0;
-        while (applied < settings.blocksPerTick() && !pending.isEmpty()) {
-            Change change = pending.poll();
-            if (isReady(change.pos()) && level.getBlockState(change.pos()) == change.expected() && apply(change)) {
-                applied++;
-            }
-        }
-        return applied;
-    }
-
     private boolean apply(Change change) {
         BlockPos pos = change.pos();
         BlockState state = change.expected();
@@ -531,79 +524,31 @@ public final class Earthquake {
     /**
      * True if the earthquake can change a block: a block with a collision box, no fluid, not protected, not a part
      * of a double block, not attached to another block, not a part of a natural tree, and not the support of a block
-     * that must stay (see {@link #holdsABlock(BlockPos)}).
+     * that must stay (see {@link BlockRules#holdsABlock}).
      */
     private boolean isMovable(BlockPos pos, BlockState state) {
-        if (state.isAir() || !state.getFluidState().isEmpty() || EventBlockTags.isProtected(level, pos, state)
-                || state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)
-                || state.getPistonPushReaction() == PushReaction.DESTROY
-                || state.getCollisionShape(level, pos).isEmpty()) {
+        if (!BlockRules.isChangeable(level, pos, state)) {
             return false;
         }
         if (state.is(BlockTags.LEAVES)) {
-            return !state.hasProperty(BlockStateProperties.PERSISTENT)
-                    || state.getValue(BlockStateProperties.PERSISTENT);
+            return !BlockRules.isNaturalLeaves(state);
         }
-        return (!state.is(BlockTags.LOGS) || !isTreeTrunk(pos)) && !holdsABlock(pos);
+        return (!state.is(BlockTags.LOGS) || !BlockRules.isTreeTrunk(level, pos))
+                && !BlockRules.holdsABlock(level, pos);
     }
 
-    /**
-     * True if a neighbor of a position can lose its support or its data when the block at the position goes away: a
-     * protected block, a block with a block entity (a sign, a bell, a banner), an attached block (a torch, a
-     * lantern), or a hanging entity (an item frame, a painting). The earthquake does not move such a support.
-     */
-    private boolean holdsABlock(BlockPos pos) {
-        if (!level.getEntitiesOfClass(HangingEntity.class, new AABB(pos).inflate(HANGING_MARGIN)).isEmpty()) {
-            return true;
-        }
-        for (Direction direction : Direction.values()) {
-            BlockPos neighborPos = pos.relative(direction);
-            if (!level.isLoaded(neighborPos)) {
-                continue;
-            }
-            BlockState neighbor = level.getBlockState(neighborPos);
-            if (neighbor.isAir() || neighbor.canBeReplaced()) {
-                continue;
-            }
-            if (EventBlockTags.isProtected(level, neighborPos, neighbor)
-                    || neighbor.getPistonPushReaction() == PushReaction.DESTROY) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** True if natural leaves are on the top of the column of logs of a position: a natural tree. */
-    private boolean isTreeTrunk(BlockPos pos) {
-        BlockPos.MutableBlockPos cursor = pos.mutable();
-        for (int i = 0; i < MAX_TRUNK; i++) {
-            cursor.move(Direction.UP);
-            BlockState state = level.getBlockState(cursor);
-            if (state.is(BlockTags.LEAVES)) {
-                return state.hasProperty(BlockStateProperties.PERSISTENT)
-                        && !state.getValue(BlockStateProperties.PERSISTENT);
-            }
-            if (!state.is(BlockTags.LOGS)) {
-                return false;
-            }
-        }
-        return false;
-    }
-
-    /** True if a block can fall into a position: air, fire, a fluid or a replaceable block. */
     private boolean isFree(BlockPos pos) {
-        return level.isLoaded(pos) && FallingBlock.isFree(level.getBlockState(pos));
+        return BlockRules.isFree(level, pos);
     }
 
-    /** True if the chunk of a position is loaded and ticks: the falling blocks move there. */
     private boolean isReady(BlockPos pos) {
-        return level.isLoaded(pos) && level.isPositionEntityTicking(pos);
+        return BlockRules.isReady(level, pos);
     }
 
     private double intensity(int x, int z) {
         double dx = x - center.getX();
         double dz = z - center.getZ();
-        return EarthquakeMath.intensity(dx * dx + dz * dz, settings.radius());
+        return EventMath.intensity(dx * dx + dz * dz, settings.radius());
     }
 
     private double horizontalDistanceSquared(BlockPos pos) {

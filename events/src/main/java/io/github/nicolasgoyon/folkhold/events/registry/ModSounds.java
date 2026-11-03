@@ -10,13 +10,15 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 
 /**
  * Sound events of the events mod. The file {@code assets/folkhold_events/sounds.json} gives their sounds and their
- * subtitles. The rumble of an earthquake is the vanilla thunder with a low pitch.
+ * subtitles. The rumble of an earthquake is the vanilla thunder with a low pitch. The wind of a storm is the vanilla
+ * sound of the elytra flight and the air of the breeze, with a low pitch.
  */
 public final class ModSounds {
     private static final DeferredRegister<SoundEvent> SOUND_EVENTS =
             DeferredRegister.create(Registries.SOUND_EVENT, FolkholdEvents.MOD_ID);
 
     public static final DeferredHolder<SoundEvent, SoundEvent> EARTHQUAKE_RUMBLE = register("event.earthquake.rumble");
+    public static final DeferredHolder<SoundEvent, SoundEvent> STORM_WIND = register("event.storm.wind");
 
     private ModSounds() {
     }

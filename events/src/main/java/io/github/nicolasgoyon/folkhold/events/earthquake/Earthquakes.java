@@ -1,21 +1,15 @@
 package io.github.nicolasgoyon.folkhold.events.earthquake;
 
 import io.github.nicolasgoyon.folkhold.events.FolkholdEvents;
+import io.github.nicolasgoyon.folkhold.events.common.ActiveEvents;
+import io.github.nicolasgoyon.folkhold.events.common.EventMath;
+import io.github.nicolasgoyon.folkhold.events.common.EventPlacement;
+import io.github.nicolasgoyon.folkhold.events.common.EventSchedule;
 import io.github.nicolasgoyon.folkhold.events.config.EventsConfig;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.levelgen.Heightmap;
-import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /**
@@ -24,22 +18,23 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  * <ul>
  *   <li>Clock: the game time of the level. The time between two natural earthquakes is random, between
  *       {@link EventsConfig#EARTHQUAKE_MIN_DAYS} and {@link EventsConfig#EARTHQUAKE_MAX_DAYS} game days. The level
- *       keeps the time of the next earthquake (see {@link EarthquakeData}).</li>
+ *       keeps the time of the next earthquake (see {@link EventSchedule}).</li>
  *   <li>At this time, the earthquake starts near a random player of the level, in a loaded chunk. With no player in
  *       the level, no earthquake occurs, and the next earthquake gets a new time. No chunk loads for an
  *       earthquake.</li>
  *   <li>A new earthquake does not start when its area overlaps the area of an active earthquake, or when the server
- *       has {@link EventsConfig#EARTHQUAKE_MAX_ACTIVE} active earthquakes.</li>
+ *       has {@link EventsConfig#EARTHQUAKE_MAX_ACTIVE} active earthquakes or {@link EventsConfig#MAX_ACTIVE_EVENTS}
+ *       active events (see {@link ActiveEvents}).</li>
  *   <li>The active earthquakes are not saved: an earthquake stops when the server stops.</li>
  * </ul>
  */
 public final class Earthquakes {
+    /** The name of the file of the schedule in the data of the level. */
+    public static final String SCHEDULE_FILE = "folkhold_earthquakes";
     /** The schedule examines the time at this interval, in ticks. */
     private static final int SCHEDULE_INTERVAL = 20;
-    /** Attempts to find an epicenter in a loaded chunk near the player. */
-    private static final int EPICENTER_ATTEMPTS = 8;
 
-    private static final Map<ResourceKey<Level>, List<Earthquake>> ACTIVE = new HashMap<>();
+    private static final ActiveEvents<Earthquake> ACTIVE = new ActiveEvents<>();
 
     private Earthquakes() {
     }
@@ -51,7 +46,7 @@ public final class Earthquakes {
      * @param center   the epicenter
      * @param settings the size, the strength and the timing
      * @return the earthquake, or empty when the area overlaps an active earthquake or the server has the largest
-     *         number of active earthquakes
+     *         number of active earthquakes or events
      */
     public static Optional<Earthquake> start(ServerLevel level, BlockPos center, EarthquakeSettings settings) {
         return start(level, center, settings, level.getRandom().nextLong());
@@ -65,37 +60,20 @@ public final class Earthquakes {
      * @param settings the size, the strength and the timing
      * @param seed     the seed of the random numbers
      * @return the earthquake, or empty when the area overlaps an active earthquake or the server has the largest
-     *         number of active earthquakes
+     *         number of active earthquakes or events
      */
     public static Optional<Earthquake> start(ServerLevel level, BlockPos center, EarthquakeSettings settings,
             long seed) {
-        int count = ACTIVE.values().stream().mapToInt(List::size).sum();
-        if (count >= EventsConfig.EARTHQUAKE_MAX_ACTIVE.get() || overlapsActive(level, center, settings.radius())) {
-            return Optional.empty();
-        }
-        Earthquake earthquake = new Earthquake(level, center, settings, seed);
-        ACTIVE.computeIfAbsent(level.dimension(), key -> new ArrayList<>()).add(earthquake);
-        FolkholdEvents.LOGGER.info("Earthquake at {} in {}: radius {}, strength {}", center.toShortString(),
-                level.dimension().location(), settings.radius(), settings.strength());
-        return Optional.of(earthquake);
-    }
-
-    /** True if a circle of a level overlaps the area of an active earthquake. */
-    private static boolean overlapsActive(ServerLevel level, BlockPos center, int radius) {
-        for (Earthquake active : ACTIVE.getOrDefault(level.dimension(), List.of())) {
-            double dx = center.getX() - active.center().getX();
-            double dz = center.getZ() - active.center().getZ();
-            double reach = radius + active.settings().radius();
-            if (dx * dx + dz * dz < reach * reach) {
-                return true;
-            }
-        }
-        return false;
+        Optional<Earthquake> earthquake = ACTIVE.start(level, center, settings.radius(),
+                EventsConfig.EARTHQUAKE_MAX_ACTIVE.get(), () -> new Earthquake(level, center, settings, seed));
+        earthquake.ifPresent(started -> FolkholdEvents.LOGGER.info("Earthquake at {} in {}: radius {}, strength {}",
+                center.toShortString(), level.dimension().location(), settings.radius(), settings.strength()));
+        return earthquake;
     }
 
     /** The active earthquakes of a level. */
     public static List<Earthquake> active(ServerLevel level) {
-        return List.copyOf(ACTIVE.getOrDefault(level.dimension(), List.of()));
+        return ACTIVE.active(level);
     }
 
     /**
@@ -105,12 +83,12 @@ public final class Earthquakes {
      * @return the number of stopped earthquakes
      */
     public static int stop(ServerLevel level) {
-        List<Earthquake> earthquakes = ACTIVE.remove(level.dimension());
-        if (earthquakes == null) {
-            return 0;
-        }
-        earthquakes.forEach(Earthquake::stop);
-        return earthquakes.size();
+        return ACTIVE.stop(level);
+    }
+
+    /** The schedule of the natural earthquakes of a level. */
+    public static EventSchedule schedule(ServerLevel level) {
+        return EventSchedule.get(level, SCHEDULE_FILE);
     }
 
     /**
@@ -126,49 +104,14 @@ public final class Earthquakes {
         if (!(event.getLevel() instanceof ServerLevel level)) {
             return;
         }
-        List<Earthquake> earthquakes = ACTIVE.get(level.dimension());
-        if (earthquakes != null) {
-            // A copy: the loop removes the earthquakes that end.
-            for (Earthquake earthquake : List.copyOf(earthquakes)) {
-                earthquake.tick();
-                if (earthquake.isDone()) {
-                    earthquakes.remove(earthquake);
-                    logEnd(level, earthquake);
-                }
-            }
-            if (earthquakes.isEmpty()) {
-                ACTIVE.remove(level.dimension());
-            }
-        }
-        if (level.getGameTime() % SCHEDULE_INTERVAL == 0 && hasNaturalEarthquakes(level)) {
-            schedule(level);
-        }
-    }
-
-    public static void onServerStopped(ServerStoppedEvent event) {
-        ACTIVE.clear();
-    }
-
-    private static void schedule(ServerLevel level) {
-        EarthquakeData data = EarthquakeData.get(level);
-        long now = level.getGameTime();
-        if (data.nextTime() < 0L) {
-            data.setNextTime(now + nextDelay(level.getRandom()));
-            return;
-        }
-        if (now < data.nextTime()) {
-            return;
-        }
-        data.setNextTime(now + nextDelay(level.getRandom()));
-        if (startNatural(level).isEmpty()) {
+        ACTIVE.tick(level, earthquake -> logEnd(level, earthquake));
+        if (level.getGameTime() % SCHEDULE_INTERVAL == 0 && hasNaturalEarthquakes(level)
+                && schedule(level).isDue(level, EventsConfig.EARTHQUAKE_MIN_DAYS.get(),
+                        EventsConfig.EARTHQUAKE_MAX_DAYS.get())
+                && startNatural(level).isEmpty()) {
             FolkholdEvents.LOGGER.debug("No earthquake in {}: no player near a loaded epicenter",
                     level.dimension().location());
         }
-    }
-
-    private static long nextDelay(RandomSource random) {
-        return EarthquakeMath.nextDelayTicks(random.nextDouble(), EventsConfig.EARTHQUAKE_MIN_DAYS.get(),
-                EventsConfig.EARTHQUAKE_MAX_DAYS.get());
     }
 
     /**
@@ -178,30 +121,13 @@ public final class Earthquakes {
      * @return the earthquake, or empty with no player or no loaded epicenter
      */
     public static Optional<Earthquake> startNatural(ServerLevel level) {
-        List<ServerPlayer> players = level.players().stream()
-                .filter(player -> player.isAlive() && !player.isSpectator()).toList();
-        if (players.isEmpty()) {
-            return Optional.empty();
-        }
-        RandomSource random = level.getRandom();
-        ServerPlayer player = players.get(random.nextInt(players.size()));
-        int distance = EventsConfig.EARTHQUAKE_EPICENTER_DISTANCE.get();
-        for (int attempt = 0; attempt < EPICENTER_ATTEMPTS; attempt++) {
-            double angle = random.nextDouble() * Math.PI * 2.0;
-            double length = random.nextDouble() * distance;
-            int x = Mth.floor(player.getX() + Math.cos(angle) * length);
-            int z = Mth.floor(player.getZ() + Math.sin(angle) * length);
-            BlockPos column = new BlockPos(x, player.getBlockY(), z);
-            if (!level.isLoaded(column) || !level.isPositionEntityTicking(column)) {
-                continue;
-            }
-            BlockPos center = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
-            double minStrength = EventsConfig.EARTHQUAKE_MIN_STRENGTH.get();
-            double maxStrength = Math.max(minStrength, EventsConfig.EARTHQUAKE_MAX_STRENGTH.get());
-            double strength = minStrength + random.nextDouble() * (maxStrength - minStrength);
-            return start(level, center, EarthquakeSettings.fromConfig(EventsConfig.EARTHQUAKE_RADIUS.get(), strength));
-        }
-        return Optional.empty();
+        return EventPlacement.nearRandomPlayer(level, EventsConfig.EARTHQUAKE_EPICENTER_DISTANCE.get())
+                .flatMap(center -> {
+                    double strength = EventMath.between(level.getRandom().nextDouble(),
+                            EventsConfig.EARTHQUAKE_MIN_STRENGTH.get(), EventsConfig.EARTHQUAKE_MAX_STRENGTH.get());
+                    return start(level, center,
+                            EarthquakeSettings.fromConfig(EventsConfig.EARTHQUAKE_RADIUS.get(), strength));
+                });
     }
 
     private static void logEnd(ServerLevel level, Earthquake earthquake) {
