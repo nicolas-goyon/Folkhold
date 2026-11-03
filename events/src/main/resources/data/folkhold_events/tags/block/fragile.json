@@ -1,0 +1,23 @@
+{
+  "values": [
+    "#minecraft:dirt",
+    "#minecraft:sand",
+    "minecraft:gravel",
+    "minecraft:clay",
+    "minecraft:dirt_path",
+    "minecraft:farmland",
+    "minecraft:snow_block",
+    "minecraft:hay_block",
+    "#minecraft:logs",
+    "#minecraft:planks",
+    "#minecraft:wooden_slabs",
+    "#minecraft:wooden_stairs",
+    "#minecraft:wooden_fences",
+    "#minecraft:wool",
+    "#minecraft:leaves",
+    "minecraft:glass",
+    "minecraft:glass_pane",
+    {"id": "#c:glass_blocks", "required": false},
+    {"id": "#c:glass_panes", "required": false}
+  ]
+}
