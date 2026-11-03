@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.events.gametest;
 import io.github.nicolasgoyon.folkhold.events.FolkholdEvents;
 import io.github.nicolasgoyon.folkhold.events.block.BlockClass;
 import io.github.nicolasgoyon.folkhold.events.block.EventBlockTags;
+import io.github.nicolasgoyon.folkhold.events.config.EventsConfig;
 import io.github.nicolasgoyon.folkhold.events.earthquake.Earthquake;
 import io.github.nicolasgoyon.folkhold.events.earthquake.EarthquakeSettings;
 import io.github.nicolasgoyon.folkhold.events.earthquake.Earthquakes;
@@ -60,9 +61,13 @@ public final class EarthquakeGameTests {
     private EarthquakeGameTests() {
     }
 
-    /** Stops the earthquakes of the earlier tests and fills the bottom layer of the arena with stone. */
+    /**
+     * Stops the earthquakes of the earlier tests, sets the default chance of the resistant blocks, and fills the bottom
+     * layer of the arena with stone. A test that fails or times out does not change the next tests.
+     */
     private static void prepare(GameTestHelper helper, int sizeX, int sizeZ) {
         Earthquakes.stop(helper.getLevel());
+        EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.set(EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.getDefault());
         for (int x = 0; x < sizeX; x++) {
             for (int z = 0; z < sizeZ; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
@@ -233,19 +238,29 @@ public final class EarthquakeGameTests {
                 .thenSucceed();
     }
 
-    /** An earthquake opens cracks in the natural ground: some blocks of a flat stone floor go away. */
+    /** Fills the bottom layer of the arena with grass blocks: natural ground where a crack can open. */
+    private static void grassFloor(GameTestHelper helper) {
+        for (int x = 0; x < 40; x++) {
+            for (int z = 0; z < 32; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.GRASS_BLOCK);
+            }
+        }
+    }
+
+    /** An earthquake opens cracks in the natural ground: some blocks of a flat grass floor go away. */
     @GameTest(template = "quake_arena", timeoutTicks = 400, batch = "earthquake_cracks", skyAccess = true)
     public static void cracksOpenInTheNaturalGround(GameTestHelper helper) {
         prepare(helper, 40, 32);
+        grassFloor(helper);
         Earthquake earthquake = start(helper, new BlockPos(20, 1, 16), new EarthquakeSettings(15, 4.0, 0, 20, 64));
 
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
-                    int holes = countOtherBlocks(helper, Blocks.STONE);
+                    int holes = countOtherBlocks(helper, Blocks.GRASS_BLOCK);
                     removeDebris(helper);
-                    helper.assertTrue(holes > 0, "The cracks must remove blocks of the stone floor");
+                    helper.assertTrue(holes > 0, "The cracks must remove blocks of the grass floor");
                     helper.assertTrue(holes < 40 * 32 / 4, "The cracks must be narrow lines, not " + holes
                             + " blocks");
                 })
@@ -274,6 +289,55 @@ public final class EarthquakeGameTests {
                     removeDebris(helper);
                     helper.assertTrue(holes == 0, "A crack must not remove a block outside the tag crackable: "
                             + holes + " gold blocks went away");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A crack does not cut a wall or a platform of stone: a wall of 3 blocks across the area through the epicenter and
+     * a platform of 7 × 7 × 2 blocks on a grass floor stay complete. The test sets the chance of the resistant blocks to
+     * 0, so only the cracks can remove the stone blocks.
+     */
+    @GameTest(template = "quake_arena", timeoutTicks = 400, batch = "earthquake_crack_walls", skyAccess = true)
+    public static void cracksDoNotCutWallsAndPlatforms(GameTestHelper helper) {
+        prepare(helper, 40, 32);
+        grassFloor(helper);
+        EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.set(0.0);
+        List<BlockPos> stone = new ArrayList<>();
+        for (int x = 2; x < 38; x++) {
+            for (int y = 1; y <= 3; y++) {
+                stone.add(new BlockPos(x, y, 16));
+            }
+        }
+        for (int x = 15; x < 22; x++) {
+            for (int z = 6; z < 13; z++) {
+                for (int y = 1; y <= 2; y++) {
+                    stone.add(new BlockPos(x, y, z));
+                }
+            }
+        }
+        stone.forEach(pos -> helper.setBlock(pos, Blocks.STONE));
+        Earthquake earthquake = start(helper, new BlockPos(20, 1, 14), new EarthquakeSettings(15, 4.0, 0, 20, 64));
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
+                .thenIdle(LANDING_TICKS)
+                .thenExecute(() -> {
+                    EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.set(EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.getDefault());
+                    // Air in the floor: a crack. A grass block below the stone can become dirt.
+                    int holes = 0;
+                    for (int x = 0; x < 40; x++) {
+                        for (int z = 0; z < 32; z++) {
+                            if (helper.getBlockState(new BlockPos(x, 0, z)).isAir()) {
+                                holes++;
+                            }
+                        }
+                    }
+                    long lost = stone.stream().filter(pos -> !helper.getBlockState(pos).is(Blocks.STONE)).count();
+                    removeDebris(helper);
+                    helper.assertTrue(holes > 0, "The cracks must open in the grass floor");
+                    helper.assertTrue(lost == 0, "A crack must not cut the wall or the platform: " + lost
+                            + " stone blocks went away");
                 })
                 .thenSucceed();
     }
