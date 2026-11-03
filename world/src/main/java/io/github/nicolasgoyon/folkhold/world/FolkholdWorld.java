@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world;
 
 import com.mojang.logging.LogUtils;
+import io.github.nicolasgoyon.folkhold.world.admin.AdminTeleports;
 import io.github.nicolasgoyon.folkhold.world.command.ConstructionCommands;
 import io.github.nicolasgoyon.folkhold.world.command.FolkholdCommands;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
@@ -147,6 +148,9 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onDeath);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onServerStopping);
         NeoForge.EVENT_BUS.addListener(GroupMaterializer::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(AdminTeleports::onServerTick);
+        NeoForge.EVENT_BUS.addListener(AdminTeleports::onLoggedOut);
+        NeoForge.EVENT_BUS.addListener(AdminTeleports::onServerStopping);
         NeoForge.EVENT_BUS.addListener(GroupBoats::onServerTick);
         NeoForge.EVENT_BUS.addListener(GroupBoats::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(GroupBoats::onAttack);

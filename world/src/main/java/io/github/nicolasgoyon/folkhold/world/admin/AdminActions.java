@@ -41,7 +41,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.levelgen.Heightmap;
 
 /**
  * The server side of the admin screen. An operator (permission level 2) sees all settlements of the world, also
@@ -51,7 +50,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  * <ul>
  *   <li>{@code refresh}: sends the list again.</li>
  *   <li>{@code details}: sends the details of the settlement.</li>
- *   <li>{@code teleport}: moves the player to the village heart.</li>
+ *   <li>{@code teleport}: moves the player to a safe position near the village heart ({@link #teleportTarget}). The
+ *       server does not wait for the chunks of the target (see {@link AdminTeleports}).</li>
  *   <li>{@code level_set}: sets the level to the value, with 0 experience.</li>
  *   <li>{@code experience_add}: adds the value to the experience. The level changes if necessary.</li>
  *   <li>{@code cycle}: runs one economic cycle of the settlement now.</li>
@@ -71,10 +71,10 @@ import net.minecraft.world.level.levelgen.Heightmap;
  *       The client shows them in a tabbed screen.</li>
  *   <li>{@code map}: sends the map of the admin screen (see {@link AdminMap}).</li>
  *   <li>{@code teleport_point}: teleports the player to the surface at a position. The settlement id is the position:
- *       "x z", in blocks.</li>
+ *       "x z", in blocks. The server does not wait for the chunk of the target (see {@link AdminTeleports}).</li>
  * </ul>
  * After an action, the server sends the result ({@link AdminResultPayload}), the list and the details of the
- * settlement again.
+ * settlement again. A teleport that waits for its chunks sends its result later, after the teleport.
  */
 public final class AdminActions {
     /** The permission level of the admin screen, its actions and the operator commands. */
@@ -145,21 +145,28 @@ public final class AdminActions {
             return;
         }
         if (payload.action().equals("teleport_point")) {
-            Optional<Result> result = teleportToPoint(player, payload.settlementId());
-            result.ifPresent(found -> ModNetwork.send(player, new AdminResultPayload(found.message(),
-                    found.success())));
+            sendResult(player, teleportToPoint(player, payload.settlementId()));
             return;
         }
-        perform(player.server, player, payload).ifPresent(result -> {
-            if (!ModNetwork.send(player, new AdminResultPayload(result.message(), result.success()))) {
-                player.sendSystemMessage(result.message());
-            }
-        });
+        perform(player.server, player, payload).ifPresent(result -> sendResult(player, result));
         if (!DETAILS_ONLY_ACTIONS.contains(payload.action())) {
             sendList(player);
         }
         if (!payload.settlementId().isEmpty()) {
             details(player.server, payload.settlementId()).ifPresent(details -> ModNetwork.send(player, details));
+        }
+    }
+
+    /**
+     * Sends a result to the player: to the admin screen if the client has the mod, else to the chat. The client shows
+     * a result in the chat when the admin screen is not open.
+     *
+     * @param player the player
+     * @param result the result
+     */
+    public static void sendResult(ServerPlayer player, Result result) {
+        if (!ModNetwork.send(player, new AdminResultPayload(result.message(), result.success()))) {
+            player.sendSystemMessage(result.message());
         }
     }
 
@@ -211,11 +218,8 @@ public final class AdminActions {
                 if (player == null) {
                     yield Optional.empty();
                 }
-                ServerLevel level = server.overworld();
-                BlockPos target = teleportTarget(level, settlement);
-                player.teleportTo(level, target.getX() + 0.5, target.getY(), target.getZ() + 0.5, player.getYRot(),
-                        player.getXRot());
-                yield Optional.of(Result.done("teleport", name));
+                yield Optional.of(AdminTeleports.request(player, server.overworld(), teleportArea(settlement),
+                        level -> teleportTarget(level, settlement), Result.done("teleport", name).message()));
             }
             case "level_set" -> {
                 int level = LevelTables.get().clamp(payload.value());
@@ -374,10 +378,10 @@ public final class AdminActions {
     }
 
     /** Teleports a player to the surface at a position "x z" of the Overworld, for example a caravan of the map. */
-    private static Optional<Result> teleportToPoint(ServerPlayer player, String position) {
+    private static Result teleportToPoint(ServerPlayer player, String position) {
         String[] parts = position.trim().split(" ", -1);
         if (parts.length != 2) {
-            return Optional.of(Result.refused("unknown"));
+            return Result.refused("unknown");
         }
         int x;
         int z;
@@ -385,21 +389,28 @@ public final class AdminActions {
             x = Integer.parseInt(parts[0]);
             z = Integer.parseInt(parts[1]);
         } catch (NumberFormatException e) {
-            return Optional.of(Result.refused("unknown"));
+            return Result.refused("unknown");
         }
-        ServerLevel level = player.server.overworld();
-        level.getChunk(x >> 4, z >> 4);
-        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        player.teleportTo(level, x + 0.5, y, z + 0.5, player.getYRot(), player.getXRot());
-        return Optional.of(Result.done("teleport_point", x, z));
+        return AdminTeleports.request(player, player.server.overworld(), new AdminTeleports.Area(x, z, x, z),
+                level -> AdminTeleports.surface(level, x, z), Result.done("teleport_point", x, z).message());
+    }
+
+    /**
+     * The area that {@link #teleportTarget} reads: the blocks at most {@link #TELEPORT_RADIUS} blocks from the heart.
+     *
+     * @param settlement the settlement
+     * @return the area
+     */
+    public static AdminTeleports.Area teleportArea(Settlement settlement) {
+        return AdminTeleports.Area.around(settlement.x(), settlement.z(), TELEPORT_RADIUS);
     }
 
     /**
      * A safe position near the village heart, for the teleport action.
      *
+     * <p>The chunks of {@link #teleportArea} must be ready (see {@link ReadyChunks}). The method does not load them.
+     *
      * <ul>
-     *   <li>The method loads the chunks first. The height of a chunk that is not loaded is the bottom of the
-     *       world.</li>
      *   <li>If the heart position is known, the method finds the nearest free position at the level of the heart:
      *       a solid floor and two free blocks above it, at most {@link #TELEPORT_RADIUS} blocks from the heart.</li>
      *   <li>If there is no such position, the target is the top of the terrain, 2 blocks from the heart.</li>
@@ -412,21 +423,13 @@ public final class AdminActions {
     public static BlockPos teleportTarget(ServerLevel level, Settlement settlement) {
         int x = settlement.x();
         int z = settlement.z();
-        for (int chunkX = (x - TELEPORT_RADIUS) >> 4; chunkX <= (x + TELEPORT_RADIUS) >> 4; chunkX++) {
-            for (int chunkZ = (z - TELEPORT_RADIUS) >> 4; chunkZ <= (z + TELEPORT_RADIUS) >> 4; chunkZ++) {
-                level.getChunk(chunkX, chunkZ);
-            }
-        }
         if (settlement.hasHeart()) {
             Optional<BlockPos> free = freePositionNear(level, new BlockPos(x, settlement.heartY(), z));
             if (free.isPresent()) {
                 return free.get();
             }
         }
-        int targetX = x + 2;
-        int targetZ = z + 2;
-        return new BlockPos(targetX, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, targetX, targetZ),
-                targetZ);
+        return AdminTeleports.surface(level, x + 2, z + 2);
     }
 
     /** The nearest free position around the heart, by rings of growing distance. */
