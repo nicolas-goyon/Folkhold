@@ -1,9 +1,17 @@
 package io.github.nicolasgoyon.folkhold.balance;
 
 import com.mojang.logging.LogUtils;
+import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
+import io.github.nicolasgoyon.folkhold.balance.network.BalanceNetwork;
+import io.github.nicolasgoyon.folkhold.balance.rail.ChainUse;
+import io.github.nicolasgoyon.folkhold.balance.rail.Trains;
+import io.github.nicolasgoyon.folkhold.balance.registry.ModAttachments;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
 
 /**
@@ -15,6 +23,20 @@ public final class FolkholdBalance {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public FolkholdBalance(IEventBus modEventBus, ModContainer modContainer) {
+        modContainer.registerConfig(ModConfig.Type.SERVER, BalanceConfig.SPEC);
+        ModAttachments.register(modEventBus);
+        modEventBus.addListener(BalanceNetwork::register);
+        NeoForge.EVENT_BUS.addListener(ChainUse::onEntityInteract);
+        NeoForge.EVENT_BUS.addListener(ChainUse::onLoggedOut);
+        NeoForge.EVENT_BUS.addListener(ChainUse::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(Trains::onLevelTick);
+        NeoForge.EVENT_BUS.addListener(Trains::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(Trains::onEntityLeave);
+        // Lowest priority: the links break only when no other listener cancels the travel.
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, Trains::onTravelToDimension);
+        NeoForge.EVENT_BUS.addListener(Trains::onStartTracking);
+        NeoForge.EVENT_BUS.addListener(Trains::onStopTracking);
+        NeoForge.EVENT_BUS.addListener(Trains::onServerStopped);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
 }
