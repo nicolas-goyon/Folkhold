@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.balance;
 
 import com.mojang.logging.LogUtils;
+import io.github.nicolasgoyon.folkhold.balance.anvil.AnvilRules;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
 import io.github.nicolasgoyon.folkhold.balance.enchantment.BlockedEnchantmentIds;
 import io.github.nicolasgoyon.folkhold.balance.enchantment.VillagerOffers;
@@ -48,6 +49,7 @@ public final class FolkholdBalance {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillagerOffers::onWandererTrades);
         NeoForge.EVENT_BUS.addListener(VillagerOffers::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(VillagerOffers::onConversion);
+        NeoForge.EVENT_BUS.addListener(AnvilRules::onAnvilUpdate);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
 }

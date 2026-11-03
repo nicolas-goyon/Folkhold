@@ -6,7 +6,11 @@
   "mixins": [
     "AbstractMinecartMixin",
     "AbstractVillagerAccessor",
+    "EnchantmentMixin",
     "MerchantOfferAccessor"
+  ],
+  "client": [
+    "AnvilScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1
