@@ -713,13 +713,54 @@ This mod does not need the world mod. It limits infinite farms with regional bud
 - The mod replaces the vanilla restock with a stock for each offer that refills slowly. If the world mod is present, the village stock is used.
 - **Clean reroll** of a master villager: an item or a paid village service gives a new list of offers. Cooldown: 5 game days.
 - Offers with too much value (rare enchanted books, valuable items) have a maximum number of purchases each week.
+- **Implemented** (`FilteredListing`, `VillagerOffers`, `BlockedEnchantmentsLootModifier`): villagers do not sell the
+  blocked enchantments. The default list has Mending only (constant `BlockedEnchantments.DEFAULT`, config key
+  `enchantments`).
+  - The result of a trade offer never has a blocked enchantment, as an enchantment or as a stored enchantment of a
+    book. The filter wraps each trade listing of the villagers and of the wandering trader, also the listings of
+    other mods. When an offer has a blocked enchantment, the listing makes the offer again, up to `rerollAttempts`
+    times. When all the attempts fail, the villager takes an offer from a different listing.
+  - When a villager or a wandering trader joins a level, each blocked enchantment in its offers changes to a random
+    enchantment of `#minecraft:tradeable`. The new enchantment is compatible with the other enchantments of the item,
+    and the item supports it (for an item that is not a book). The level stays the same, in the range of the new enchantment. A vanilla book offer
+    gets a new price from the vanilla formula. The uses and the other values of the offer stay the same.
+  - A cured zombie villager gets its offers after it joins the level. The mod cleans these offers after the
+    conversion.
+  - When the server loads its config, it logs a warning for each id or tag of `enchantments` that does not exist.
+  - Fishing: each blocked enchantment in the fishing loot changes to a random enchantment of
+    `#minecraft:on_random_loot`, with the same rules. The weights of the enchantments give the chance of each new
+    enchantment, as in the vanilla loot functions. The loot modifier reads the id of the table that the game rolls:
+    `minecraft:gameplay/fishing`, not its nested table `gameplay/fishing/treasure`.
+  - Chest loot does not change by default: Mending stays an exploration reward. The enchanting table never gives
+    Mending (tag `#minecraft:in_enchanting_table`).
+  - The trades of the experiment "Villager Trade Rebalance" do not go through the NeoForge trade events. The filter
+    does not see their new offers. The offers change when the villager joins a level again.
+
+| Source of Mending | Vanilla | Folkhold default |
+| --- | --- | --- |
+| Librarian, new offer | yes | no (new attempt) |
+| Librarian, existing offer | yes | no (enchantment replaced) |
+| Fishing | yes | no (enchantment replaced) |
+| Chests | yes | yes |
+| Enchanting table | no | no |
+
+Section `blockedEnchantments` of `folkhold_balance-server.toml`:
+
+| Value | Default | Meaning |
+| --- | --- | --- |
+| `enchantments` | `["minecraft:mending"]` | Enchantment ids or tags (`#namespace:path`) |
+| `inTrades` | true | Villagers and wandering traders make no new offers with a blocked enchantment |
+| `cleanExistingOffers` | true | Replace the blocked enchantments in the offers of a villager that joins a level. Needs `inTrades` |
+| `rerollAttempts` | 10 | New attempts for an offer with a blocked enchantment |
+| `inFishing` | true | Replace the blocked enchantments in the fishing loot |
+| `inChestLoot` | false | Replace the blocked enchantments in the chest loot (tables `chests/...`) |
 
 ### Anvil
 
 - No level cap and no "Too Expensive!" limit. An enchantment level such as Efficiency 20 is possible, but very expensive.
 - The **enchantment cost** increases quadratically with the levels of the result.
 - The **repair cost** is separate. It depends on the item and on its current enchantments, and it stays the same for each repair (no prior work penalty for a repair).
-- Mending is not in the villager offers. The repair cost is then an important choice.
+- Villagers do not sell Mending, and fishing does not give it (see "Fairer trades"). The repair cost is then an important choice.
 
 ### Chunk loading
 

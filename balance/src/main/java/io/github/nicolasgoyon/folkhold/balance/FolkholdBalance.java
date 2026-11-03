@@ -2,10 +2,13 @@ package io.github.nicolasgoyon.folkhold.balance;
 
 import com.mojang.logging.LogUtils;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
+import io.github.nicolasgoyon.folkhold.balance.enchantment.BlockedEnchantmentIds;
+import io.github.nicolasgoyon.folkhold.balance.enchantment.VillagerOffers;
 import io.github.nicolasgoyon.folkhold.balance.network.BalanceNetwork;
 import io.github.nicolasgoyon.folkhold.balance.rail.ChainUse;
 import io.github.nicolasgoyon.folkhold.balance.rail.Trains;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModAttachments;
+import io.github.nicolasgoyon.folkhold.balance.registry.ModLootModifiers;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -25,6 +28,9 @@ public final class FolkholdBalance {
     public FolkholdBalance(IEventBus modEventBus, ModContainer modContainer) {
         modContainer.registerConfig(ModConfig.Type.SERVER, BalanceConfig.SPEC);
         ModAttachments.register(modEventBus);
+        ModLootModifiers.register(modEventBus);
+        modEventBus.addListener(BlockedEnchantmentIds::onConfigLoad);
+        modEventBus.addListener(BlockedEnchantmentIds::onConfigReload);
         modEventBus.addListener(BalanceNetwork::register);
         NeoForge.EVENT_BUS.addListener(ChainUse::onEntityInteract);
         NeoForge.EVENT_BUS.addListener(ChainUse::onLoggedOut);
@@ -37,6 +43,11 @@ public final class FolkholdBalance {
         NeoForge.EVENT_BUS.addListener(Trains::onStartTracking);
         NeoForge.EVENT_BUS.addListener(Trains::onStopTracking);
         NeoForge.EVENT_BUS.addListener(Trains::onServerStopped);
+        // Lowest priority: the filter also wraps the trade listings that other mods add.
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillagerOffers::onVillagerTrades);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillagerOffers::onWandererTrades);
+        NeoForge.EVENT_BUS.addListener(VillagerOffers::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(VillagerOffers::onConversion);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }
 }
