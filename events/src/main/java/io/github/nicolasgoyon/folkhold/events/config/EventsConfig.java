@@ -21,6 +21,7 @@ public final class EventsConfig {
     public static final ModConfigSpec.IntValue EARTHQUAKE_MAX_DAYS;
     public static final ModConfigSpec.DoubleValue EARTHQUAKE_MIN_STRENGTH;
     public static final ModConfigSpec.DoubleValue EARTHQUAKE_MAX_STRENGTH;
+    public static final ModConfigSpec.IntValue EARTHQUAKE_MAX_ACTIVE;
     public static final ModConfigSpec.IntValue EARTHQUAKE_RADIUS;
     public static final ModConfigSpec.IntValue EARTHQUAKE_EPICENTER_DISTANCE;
     public static final ModConfigSpec.IntValue EARTHQUAKE_ANNOUNCE_SECONDS;
@@ -89,6 +90,11 @@ public final class EventsConfig {
                         "minStrength.")
                 .translation(KEY_PREFIX + "earthquakeMaxStrength")
                 .defineInRange("maxStrength", 1.5, 0.1, 10.0);
+        EARTHQUAKE_MAX_ACTIVE = builder
+                .comment("Largest number of active earthquakes on the server, for all the dimensions. The areas of",
+                        "two active earthquakes never overlap.")
+                .translation(KEY_PREFIX + "earthquakeMaxActive")
+                .defineInRange("maxActive", 2, 1, 16);
         EARTHQUAKE_RADIUS = builder
                 .comment("Radius in blocks of the area of a natural earthquake around its epicenter.")
                 .translation(KEY_PREFIX + "earthquakeRadius")

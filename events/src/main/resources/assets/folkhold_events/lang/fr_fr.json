@@ -10,7 +10,6 @@
   "commands.folkhold_events.earthquake.status.off": "Pas de séisme naturel dans cette dimension.",
   "commands.folkhold_events.earthquake.phase.announce": "annonce",
   "commands.folkhold_events.earthquake.phase.shake": "secousse",
-  "commands.folkhold_events.earthquake.phase.done": "terminé",
   "folkhold_events.configuration.title": "Configuration de Folkhold Events",
   "folkhold_events.configuration.blockClasses": "Classes de blocs",
   "folkhold_events.configuration.fragileBelow": "Fragile sous cette résistance aux explosions",
@@ -22,6 +21,7 @@
   "folkhold_events.configuration.earthquakeMaxDays": "Temps maximal entre deux séismes (jours de jeu)",
   "folkhold_events.configuration.earthquakeMinStrength": "Force minimale",
   "folkhold_events.configuration.earthquakeMaxStrength": "Force maximale",
+  "folkhold_events.configuration.earthquakeMaxActive": "Nombre maximal de séismes actifs",
   "folkhold_events.configuration.earthquakeRadius": "Rayon de la zone (blocs)",
   "folkhold_events.configuration.earthquakeEpicenterDistance": "Distance maximale entre un joueur et l'épicentre (blocs)",
   "folkhold_events.configuration.earthquakeAnnounceSeconds": "Durée de l'annonce (secondes)",
@@ -37,5 +37,6 @@
   "folkhold_events.configuration.earthquakeCrackDepth": "Profondeur d'une fissure (blocs)",
   "folkhold_events.configuration.earthquakeFallDamage": "Dégâts d'un bloc qui tombe, par bloc de chute",
   "folkhold_events.configuration.earthquakeMaxFallDamage": "Dégâts maximaux d'un bloc qui tombe",
-  "folkhold_events.configuration.cameraShake": "Tremblement de la caméra"
+  "folkhold_events.configuration.cameraShake": "Tremblement de la caméra",
+  "commands.folkhold_events.earthquake.refused": "Pas de séisme : sa zone recouvre un séisme actif, ou le serveur a le nombre maximal de séismes actifs."
 }

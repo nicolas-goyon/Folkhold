@@ -23,6 +23,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.ai.util.DefaultRandomPos;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.item.FallingBlockEntity;
@@ -54,14 +55,16 @@ import net.minecraft.world.phys.Vec3;
  *         <li>else, a block with a free position on one side falls to this side</li>
  *         <li>else, a block with a cracked variant (stone bricks, deepslate bricks) becomes this variant</li>
  *       </ul>
- *       The roof of a cavity below the surface can collapse into falling blocks. Some cracks open in the surface. The
- *       falling blocks hurt the entities below them.</li>
+ *       The roof of a cavity below the surface can collapse into falling blocks. Some cracks open in the natural
+ *       ground (tag {@code folkhold_events:crackable}). The falling blocks hurt the entities below them.</li>
  * </ol>
  *
  * <p>The earthquake never changes a protected block (see {@link EventBlockTags#isProtected}), the two parts of a door
  * or a tall plant, the attached blocks (torches, flowers), a fluid, and the natural trees (natural leaves and the
- * logs below them). It changes {@link EarthquakeSettings#blocksPerTick()} blocks at most in one tick. The other
- * changes wait for the next ticks. It does not load chunks: it ignores the columns of chunks that do not tick.
+ * logs below them). It does not move the support of a protected block, of a block with a block entity or of an
+ * attached block. It examines {@value #MAX_COLUMNS_PER_TICK} columns at most in one tick and changes
+ * {@link EarthquakeSettings#blocksPerTick()} blocks at most in one tick. The other columns and changes wait for the
+ * next ticks. It does not load chunks: it ignores the columns of chunks that do not tick.
  */
 public final class Earthquake {
     /** Strength of the camera shake at the epicenter for a strength of 1, in degrees. */
@@ -80,6 +83,8 @@ public final class Earthquake {
     private static final int RUMBLE_INTERVAL = 20;
     /** The scan of the columns stops while this number of batches waits. */
     private static final int MAX_WAITING_BATCHES = 4;
+    /** The largest number of columns that the earthquake examines in one tick. */
+    private static final int MAX_COLUMNS_PER_TICK = 64;
     /** The highest trunk of a natural tree, in blocks. */
     private static final int MAX_TRUNK = 32;
     /** Blocks that become a cracked variant. */
@@ -129,10 +134,12 @@ public final class Earthquake {
     private int nextColumn;
     private int columnsPerTick = 1;
 
+    /** The columns of the cracks in the surface, and the depth of the crack in each column. */
+    private long[] crackColumns = new long[0];
+    private int[] crackDepths = new int[0];
+    private int nextCrack;
+
     private int changedBlocks;
-    private int maxChangesInTick;
-    private long busyNanos;
-    private long maxTickNanos;
 
     Earthquake(ServerLevel level, BlockPos center, EarthquakeSettings settings, long seed) {
         this.level = level;
@@ -162,21 +169,6 @@ public final class Earthquake {
         return changedBlocks;
     }
 
-    /** The largest number of blocks that the earthquake changed in one tick. */
-    public int maxChangesInTick() {
-        return maxChangesInTick;
-    }
-
-    /** The time of the earthquake on the server thread, in nanoseconds, from its start. */
-    public long busyNanos() {
-        return busyNanos;
-    }
-
-    /** The longest time of the earthquake in one tick, in nanoseconds. */
-    public long maxTickNanos() {
-        return maxTickNanos;
-    }
-
     /** The number of ticks from the start. */
     public int elapsedTicks() {
         return elapsed;
@@ -193,7 +185,6 @@ public final class Earthquake {
         if (phase == Phase.DONE) {
             return;
         }
-        long start = System.nanoTime();
         elapsed++;
         if (elapsed == 1) {
             announce();
@@ -207,17 +198,12 @@ public final class Earthquake {
         }
         if (phase == Phase.SHAKE) {
             scanColumns();
-            int changes = applyChanges();
-            changedBlocks += changes;
-            maxChangesInTick = Math.max(maxChangesInTick, changes);
-            if (nextColumn >= columns.length && pending.isEmpty()
+            changedBlocks += applyChanges();
+            if (nextColumn >= columns.length && nextCrack >= crackColumns.length && pending.isEmpty()
                     && elapsed > settings.announceTicks() + settings.durationTicks()) {
                 phase = Phase.DONE;
             }
         }
-        long nanos = System.nanoTime() - start;
-        busyNanos += nanos;
-        maxTickNanos = Math.max(maxTickNanos, nanos);
     }
 
     private void announce() {
@@ -247,8 +233,9 @@ public final class Earthquake {
             columns[i] = columns[j];
             columns[j] = swap;
         }
-        columnsPerTick = Math.max(1, Mth.ceil(columns.length / (double) settings.durationTicks()));
-        openCracks();
+        columnsPerTick = Mth.clamp(Mth.ceil(columns.length / (double) settings.durationTicks()), 1,
+                MAX_COLUMNS_PER_TICK);
+        planCracks();
         sendShake(1.0F, settings.durationTicks());
     }
 
@@ -288,21 +275,43 @@ public final class Earthquake {
     private void fleeAnimals() {
         Vec3 epicenter = Vec3.atBottomCenterOf(center);
         AABB area = new AABB(center).inflate(settings.radius() + FLEE_MARGIN);
-        for (Animal animal : level.getEntitiesOfClass(Animal.class, area,
-                found -> found.isAlive() && !found.isNoAi() && !found.isLeashed() && !found.isPassenger())) {
+        for (Animal animal : level.getEntitiesOfClass(Animal.class, area, Earthquake::canFlee)) {
+            if (!level.isPositionEntityTicking(animal.blockPosition())) {
+                continue;
+            }
             Vec3 target = DefaultRandomPos.getPosAway(animal, 16, 7, epicenter);
-            if (target != null) {
+            if (target != null && isReady(BlockPos.containing(target))) {
                 animal.getNavigation().moveTo(target.x, target.y, target.z, FLEE_SPEED);
             }
         }
     }
 
+    /**
+     * True if an animal runs away: an animal with its AI, not leashed, not a passenger, and not a tamed animal that
+     * sits on the order of its owner.
+     */
+    private static boolean canFlee(Animal animal) {
+        return animal.isAlive() && !animal.isNoAi() && !animal.isLeashed() && !animal.isPassenger()
+                && !(animal instanceof TamableAnimal tamed && tamed.isOrderedToSit());
+    }
+
+    /**
+     * Examines the columns of the cracks first, then the other columns. The two share the budget of columns of the
+     * tick. The examination stops while too many changes wait.
+     */
     private void scanColumns() {
         int budget = columnsPerTick;
-        while (budget > 0 && nextColumn < columns.length
-                && pending.size() < settings.blocksPerTick() * MAX_WAITING_BATCHES) {
-            long column = columns[nextColumn++];
-            scanColumn(BlockPos.getX(column), BlockPos.getZ(column));
+        while (budget > 0 && pending.size() < settings.blocksPerTick() * MAX_WAITING_BATCHES) {
+            if (nextCrack < crackColumns.length) {
+                long column = crackColumns[nextCrack];
+                openCrack(BlockPos.getX(column), BlockPos.getZ(column), crackDepths[nextCrack]);
+                nextCrack++;
+            } else if (nextColumn < columns.length) {
+                long column = columns[nextColumn++];
+                scanColumn(BlockPos.getX(column), BlockPos.getZ(column));
+            } else {
+                return;
+            }
             budget--;
         }
     }
@@ -401,15 +410,16 @@ public final class Earthquake {
     }
 
     /**
-     * Opens the cracks in the surface: straight lines through random points near the epicenter. A crack removes the
-     * top blocks of the ground, with no drop. A column with a free position below its top block (a roof) has no
-     * crack.
+     * Plans the cracks in the surface: straight lines through random points near the epicenter. The method reads no
+     * block. {@link #scanColumns()} opens the cracks, column by column.
      */
-    private void openCracks() {
+    private void planCracks() {
         int count = (int) Math.round(EventsConfig.EARTHQUAKE_CRACKS.get() * settings.strength());
         int maxDepth = EventsConfig.EARTHQUAKE_CRACK_DEPTH.get();
         int radius = settings.radius();
         LongSet done = new LongOpenHashSet();
+        List<Long> found = new ArrayList<>();
+        List<Integer> depths = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double originX = center.getX() + (random.nextDouble() * 2.0 - 1.0) * radius / 3.0;
@@ -418,26 +428,37 @@ public final class Earthquake {
             for (double offset = -half; offset <= half; offset += 1.0) {
                 int x = Mth.floor(originX + Math.cos(angle) * offset);
                 int z = Mth.floor(originZ + Math.sin(angle) * offset);
-                if (intensity(x, z) <= 0.0 || !done.add(BlockPos.asLong(x, 0, z))
-                        || !isReady(new BlockPos(x, center.getY(), z))) {
-                    continue;
-                }
-                int depth = EarthquakeMath.crackDepth(offset, half, maxDepth);
-                int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
-                if (isFree(new BlockPos(x, top - 1, z))) {
-                    // The top block is not on the ground, for example the roof of a house.
-                    continue;
-                }
-                for (int k = 0; k < depth; k++) {
-                    BlockPos pos = new BlockPos(x, top - k, z);
-                    BlockState state = level.getBlockState(pos);
-                    if (FallingBlock.isFree(state) || !state.getFluidState().isEmpty()
-                            || EventBlockTags.isProtected(level, pos, state)) {
-                        break;
-                    }
-                    pending.add(new Change(pos, state, Action.REMOVE, Direction.UP, state));
+                long column = BlockPos.asLong(x, 0, z);
+                if (intensity(x, z) > 0.0 && done.add(column)) {
+                    found.add(column);
+                    depths.add(EarthquakeMath.crackDepth(offset, half, maxDepth));
                 }
             }
+        }
+        crackColumns = found.stream().mapToLong(Long::longValue).toArray();
+        crackDepths = depths.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    /**
+     * Opens a crack in one column: the top blocks of the ground go away, with no drop. Only the blocks of the tag
+     * {@code folkhold_events:crackable} (natural ground) that the earthquake can move go away. The crack stops at the
+     * first other block. A column with a free position below its top block (a roof) has no crack.
+     */
+    private void openCrack(int x, int z, int depth) {
+        if (!isReady(new BlockPos(x, center.getY(), z))) {
+            return;
+        }
+        int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) - 1;
+        if (isFree(new BlockPos(x, top - 1, z))) {
+            return;
+        }
+        for (int k = 0; k < depth; k++) {
+            BlockPos pos = new BlockPos(x, top - k, z);
+            BlockState state = level.getBlockState(pos);
+            if (!state.is(EventBlockTags.CRACKABLE) || !isMovable(pos, state)) {
+                return;
+            }
+            pending.add(new Change(pos, state, Action.REMOVE, Direction.UP, state));
         }
     }
 
@@ -469,7 +490,7 @@ public final class Earthquake {
     /** A block becomes a falling block, below its position or on one side. The block hurts the entities. */
     private boolean fall(BlockPos pos, BlockState state, Direction side) {
         BlockPos target = pos.relative(side);
-        if (!isFree(target)) {
+        if (!isReady(target) || !isFree(target)) {
             return false;
         }
         FallingBlockEntity falling = FallingBlockEntity.fall(level, pos, state);
@@ -483,7 +504,8 @@ public final class Earthquake {
 
     /**
      * True if the earthquake can change a block: a block with a collision box, no fluid, not protected, not a part
-     * of a double block, not attached to another block, and not a part of a natural tree.
+     * of a double block, not attached to another block, not a part of a natural tree, and not the support of a block
+     * that must stay (see {@link #holdsABlock(BlockPos)}).
      */
     private boolean isMovable(BlockPos pos, BlockState state) {
         if (state.isAir() || !state.getFluidState().isEmpty() || EventBlockTags.isProtected(level, pos, state)
@@ -496,7 +518,30 @@ public final class Earthquake {
             return !state.hasProperty(BlockStateProperties.PERSISTENT)
                     || state.getValue(BlockStateProperties.PERSISTENT);
         }
-        return !state.is(BlockTags.LOGS) || !isTreeTrunk(pos);
+        return (!state.is(BlockTags.LOGS) || !isTreeTrunk(pos)) && !holdsABlock(pos);
+    }
+
+    /**
+     * True if a neighbor of a position can lose its support or its data when the block at the position goes away: a
+     * protected block, a block with a block entity (a sign, a bell, a banner), or an attached block (a torch, a
+     * lantern). The earthquake does not move such a support.
+     */
+    private boolean holdsABlock(BlockPos pos) {
+        for (Direction direction : Direction.values()) {
+            BlockPos neighborPos = pos.relative(direction);
+            if (!level.isLoaded(neighborPos)) {
+                continue;
+            }
+            BlockState neighbor = level.getBlockState(neighborPos);
+            if (neighbor.isAir() || neighbor.canBeReplaced()) {
+                continue;
+            }
+            if (EventBlockTags.isProtected(level, neighborPos, neighbor)
+                    || neighbor.getPistonPushReaction() == PushReaction.DESTROY) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** True if natural leaves are on the top of the column of logs of a position: a natural tree. */

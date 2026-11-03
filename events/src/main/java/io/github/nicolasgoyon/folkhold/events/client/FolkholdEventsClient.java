@@ -25,5 +25,7 @@ public final class FolkholdEventsClient {
         NeoForge.EVENT_BUS.addListener(CameraShake::onClientTick);
         NeoForge.EVENT_BUS.addListener(CameraShake::onCameraAngles);
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> CameraShake.clear());
+        // A new player entity: a change of dimension or a respawn. The shake of the old place stops.
+        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.Clone event) -> CameraShake.clear());
     }
 }

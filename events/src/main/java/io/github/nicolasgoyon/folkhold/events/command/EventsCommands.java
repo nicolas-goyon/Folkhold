@@ -47,8 +47,8 @@ public final class EventsCommands {
                 .then(Commands.literal("earthquake")
                         .requires(source -> source.hasPermission(PERMISSION_LEVEL))
                         .then(Commands.literal("start")
-                                .executes(context -> start(context, BlockPos.containing(
-                                        context.getSource().getPosition()), defaultRadius(), 1.0))
+                                .executes(context -> start(context, sourcePos(context.getSource()),
+                                        defaultRadius(), 1.0))
                                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                         .executes(context -> start(context,
                                                 BlockPosArgument.getLoadedBlockPos(context, "pos"), defaultRadius(),
@@ -72,14 +72,22 @@ public final class EventsCommands {
         return EventsConfig.EARTHQUAKE_RADIUS.get();
     }
 
-    private static int start(CommandContext<CommandSourceStack> context, BlockPos pos, int radius, double strength)
-            throws CommandSyntaxException {
-        CommandSourceStack source = context.getSource();
-        ServerLevel level = source.getLevel();
-        if (!level.isLoaded(pos)) {
+    /** The position of a source. The arguments with a position check the load of their chunk themselves. */
+    private static BlockPos sourcePos(CommandSourceStack source) throws CommandSyntaxException {
+        BlockPos pos = BlockPos.containing(source.getPosition());
+        if (!source.getLevel().isLoaded(pos)) {
             throw BlockPosArgument.ERROR_NOT_LOADED.create();
         }
-        Earthquakes.start(level, pos, EarthquakeSettings.fromConfig(radius, strength));
+        return pos;
+    }
+
+    private static int start(CommandContext<CommandSourceStack> context, BlockPos pos, int radius, double strength) {
+        CommandSourceStack source = context.getSource();
+        ServerLevel level = source.getLevel();
+        if (Earthquakes.start(level, pos, EarthquakeSettings.fromConfig(radius, strength)).isEmpty()) {
+            source.sendFailure(Component.translatable(KEY + "refused"));
+            return 0;
+        }
         String shownStrength = String.format(Locale.ROOT, "%.2f", strength);
         source.sendSuccess(() -> Component.translatable(KEY + "started", pos.getX(), pos.getY(), pos.getZ(), radius,
                 shownStrength), true);

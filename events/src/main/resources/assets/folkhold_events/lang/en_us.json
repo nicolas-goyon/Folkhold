@@ -10,7 +10,6 @@
   "commands.folkhold_events.earthquake.status.off": "No natural earthquake in this dimension.",
   "commands.folkhold_events.earthquake.phase.announce": "announce",
   "commands.folkhold_events.earthquake.phase.shake": "shake",
-  "commands.folkhold_events.earthquake.phase.done": "ended",
   "folkhold_events.configuration.title": "Folkhold Events configuration",
   "folkhold_events.configuration.blockClasses": "Block classes",
   "folkhold_events.configuration.fragileBelow": "Fragile below this blast resistance",
@@ -22,6 +21,7 @@
   "folkhold_events.configuration.earthquakeMaxDays": "Longest time between two earthquakes (game days)",
   "folkhold_events.configuration.earthquakeMinStrength": "Lowest strength",
   "folkhold_events.configuration.earthquakeMaxStrength": "Highest strength",
+  "folkhold_events.configuration.earthquakeMaxActive": "Largest number of active earthquakes",
   "folkhold_events.configuration.earthquakeRadius": "Radius of the area (blocks)",
   "folkhold_events.configuration.earthquakeEpicenterDistance": "Largest distance from a player to the epicenter (blocks)",
   "folkhold_events.configuration.earthquakeAnnounceSeconds": "Time of the announce (seconds)",
@@ -37,5 +37,6 @@
   "folkhold_events.configuration.earthquakeCrackDepth": "Depth of a crack (blocks)",
   "folkhold_events.configuration.earthquakeFallDamage": "Damage of a falling block for each block of fall",
   "folkhold_events.configuration.earthquakeMaxFallDamage": "Largest damage of a falling block",
-  "folkhold_events.configuration.cameraShake": "Camera shake"
+  "folkhold_events.configuration.cameraShake": "Camera shake",
+  "commands.folkhold_events.earthquake.refused": "No earthquake: its area overlaps an active earthquake, or the server has the largest number of active earthquakes."
 }

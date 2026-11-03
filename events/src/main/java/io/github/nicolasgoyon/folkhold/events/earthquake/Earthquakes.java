@@ -5,7 +5,6 @@ import io.github.nicolasgoyon.folkhold.events.config.EventsConfig;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -29,6 +28,8 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  *   <li>At this time, the earthquake starts near a random player of the level, in a loaded chunk. With no player in
  *       the level, no earthquake occurs, and the next earthquake gets a new time. No chunk loads for an
  *       earthquake.</li>
+ *   <li>A new earthquake does not start when its area overlaps the area of an active earthquake, or when the server
+ *       has {@link EventsConfig#EARTHQUAKE_MAX_ACTIVE} active earthquakes.</li>
  *   <li>The active earthquakes are not saved: an earthquake stops when the server stops.</li>
  * </ul>
  */
@@ -49,9 +50,10 @@ public final class Earthquakes {
      * @param level    the level
      * @param center   the epicenter
      * @param settings the size, the strength and the timing
-     * @return the earthquake
+     * @return the earthquake, or empty when the area overlaps an active earthquake or the server has the largest
+     *         number of active earthquakes
      */
-    public static Earthquake start(ServerLevel level, BlockPos center, EarthquakeSettings settings) {
+    public static Optional<Earthquake> start(ServerLevel level, BlockPos center, EarthquakeSettings settings) {
         return start(level, center, settings, level.getRandom().nextLong());
     }
 
@@ -62,14 +64,33 @@ public final class Earthquakes {
      * @param center   the epicenter
      * @param settings the size, the strength and the timing
      * @param seed     the seed of the random numbers
-     * @return the earthquake
+     * @return the earthquake, or empty when the area overlaps an active earthquake or the server has the largest
+     *         number of active earthquakes
      */
-    public static Earthquake start(ServerLevel level, BlockPos center, EarthquakeSettings settings, long seed) {
+    public static Optional<Earthquake> start(ServerLevel level, BlockPos center, EarthquakeSettings settings,
+            long seed) {
+        int count = ACTIVE.values().stream().mapToInt(List::size).sum();
+        if (count >= EventsConfig.EARTHQUAKE_MAX_ACTIVE.get() || overlapsActive(level, center, settings.radius())) {
+            return Optional.empty();
+        }
         Earthquake earthquake = new Earthquake(level, center, settings, seed);
         ACTIVE.computeIfAbsent(level.dimension(), key -> new ArrayList<>()).add(earthquake);
         FolkholdEvents.LOGGER.info("Earthquake at {} in {}: radius {}, strength {}", center.toShortString(),
                 level.dimension().location(), settings.radius(), settings.strength());
-        return earthquake;
+        return Optional.of(earthquake);
+    }
+
+    /** True if a circle of a level overlaps the area of an active earthquake. */
+    private static boolean overlapsActive(ServerLevel level, BlockPos center, int radius) {
+        for (Earthquake active : ACTIVE.getOrDefault(level.dimension(), List.of())) {
+            double dx = center.getX() - active.center().getX();
+            double dz = center.getZ() - active.center().getZ();
+            double reach = radius + active.settings().radius();
+            if (dx * dx + dz * dz < reach * reach) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The active earthquakes of a level. */
@@ -178,18 +199,14 @@ public final class Earthquakes {
             double minStrength = EventsConfig.EARTHQUAKE_MIN_STRENGTH.get();
             double maxStrength = Math.max(minStrength, EventsConfig.EARTHQUAKE_MAX_STRENGTH.get());
             double strength = minStrength + random.nextDouble() * (maxStrength - minStrength);
-            return Optional.of(start(level, center,
-                    EarthquakeSettings.fromConfig(EventsConfig.EARTHQUAKE_RADIUS.get(), strength)));
+            return start(level, center, EarthquakeSettings.fromConfig(EventsConfig.EARTHQUAKE_RADIUS.get(), strength));
         }
         return Optional.empty();
     }
 
     private static void logEnd(ServerLevel level, Earthquake earthquake) {
-        int ticks = Math.max(1, earthquake.elapsedTicks());
-        FolkholdEvents.LOGGER.info("Earthquake at {} in {} ended: {} changed blocks in {} ticks, at most {} in one "
-                        + "tick, mean {} ms and max {} ms for each tick", earthquake.center().toShortString(),
-                level.dimension().location(), earthquake.changedBlocks(), ticks, earthquake.maxChangesInTick(),
-                String.format(Locale.ROOT, "%.3f", earthquake.busyNanos() / 1e6 / ticks),
-                String.format(Locale.ROOT, "%.3f", earthquake.maxTickNanos() / 1e6));
+        FolkholdEvents.LOGGER.debug("Earthquake at {} in {} ended: {} changed blocks in {} ticks",
+                earthquake.center().toShortString(), level.dimension().location(), earthquake.changedBlocks(),
+                earthquake.elapsedTicks());
     }
 }
