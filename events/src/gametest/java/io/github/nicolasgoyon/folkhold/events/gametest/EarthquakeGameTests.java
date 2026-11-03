@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.events.earthquake.Earthquakes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -20,12 +21,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.item.FallingBlockEntity;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -55,8 +54,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class EarthquakeGameTests {
     private static final long SEED = 130L;
-    /** Time for the last falling blocks to land, in ticks. */
-    private static final int LANDING_TICKS = 60;
+    private static final int LANDING_TICKS = EventTestSupport.LANDING_TICKS;
 
     private EarthquakeGameTests() {
     }
@@ -68,53 +66,7 @@ public final class EarthquakeGameTests {
     private static void prepare(GameTestHelper helper, int sizeX, int sizeZ) {
         Earthquakes.stop(helper.getLevel());
         EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.set(EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.getDefault());
-        for (int x = 0; x < sizeX; x++) {
-            for (int z = 0; z < sizeZ; z++) {
-                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
-            }
-        }
-    }
-
-    /**
-     * Builds a hollow house of one block: walls of 5 × 5 blocks from y = 1 to y = 3, and a flat roof at y = 4.
-     *
-     * @return the relative positions of the blocks of the house
-     */
-    private static List<BlockPos> buildHouse(GameTestHelper helper, int minX, int minZ, Block block) {
-        List<BlockPos> blocks = new ArrayList<>();
-        for (int x = minX; x < minX + 5; x++) {
-            for (int z = minZ; z < minZ + 5; z++) {
-                for (int y = 1; y <= 4; y++) {
-                    boolean wall = x == minX || x == minX + 4 || z == minZ || z == minZ + 4;
-                    if (wall || y == 4) {
-                        BlockPos pos = new BlockPos(x, y, z);
-                        helper.setBlock(pos, block);
-                        blocks.add(pos);
-                    }
-                }
-            }
-        }
-        return blocks;
-    }
-
-    /** The number of positions that do not have their block any more. */
-    private static int lost(GameTestHelper helper, List<BlockPos> blocks, Block block) {
-        int lost = 0;
-        for (BlockPos pos : blocks) {
-            if (!helper.getBlockState(pos).is(block)) {
-                lost++;
-            }
-        }
-        return lost;
-    }
-
-    /** Removes the falling blocks and the items that the earthquake leaves in the test area. */
-    private static void removeDebris(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        for (Entity entity : level.getEntitiesOfClass(Entity.class, helper.getBounds().inflate(8.0),
-                entity -> entity instanceof FallingBlockEntity || entity instanceof ItemEntity)) {
-            entity.discard();
-        }
+        EventTestSupport.stoneFloor(helper, sizeX, sizeZ);
     }
 
     private static Earthquake start(GameTestHelper helper, BlockPos relativeCenter, EarthquakeSettings settings) {
@@ -143,19 +95,19 @@ public final class EarthquakeGameTests {
     @GameTest(template = "quake_arena", timeoutTicks = 600, batch = "earthquake_houses", skyAccess = true)
     public static void woodHouseLosesMoreBlocksThanBrickHouse(GameTestHelper helper) {
         prepare(helper, 40, 32);
-        List<BlockPos> wood = buildHouse(helper, 7, 14, Blocks.OAK_PLANKS);
-        List<BlockPos> brick = buildHouse(helper, 29, 14, Blocks.BRICKS);
+        Map<BlockPos, Block> wood = EventTestSupport.buildHouse(helper, 7, 14, Blocks.OAK_PLANKS, Blocks.OAK_PLANKS);
+        Map<BlockPos, Block> brick = EventTestSupport.buildHouse(helper, 29, 14, Blocks.BRICKS, Blocks.BRICKS);
         Earthquake earthquake = start(helper, new BlockPos(20, 1, 16), new EarthquakeSettings(15, 3.0, 0, 60, 32));
 
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
-                    int woodLost = lost(helper, wood, Blocks.OAK_PLANKS);
-                    int brickLost = lost(helper, brick, Blocks.BRICKS);
+                    int woodLost = EventTestSupport.lost(helper, wood);
+                    int brickLost = EventTestSupport.lost(helper, brick);
                     FolkholdEvents.LOGGER.info("Earthquake test: the wood house lost {} of {} blocks, the brick house "
                             + "lost {} of {} blocks", woodLost, wood.size(), brickLost, brick.size());
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                     helper.assertTrue(woodLost > brickLost, "The wood house must lose more blocks than the brick "
                             + "house: " + woodLost + " and " + brickLost);
                     helper.assertTrue(woodLost > 0, "The wood house must take damage");
@@ -196,7 +148,7 @@ public final class EarthquakeGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                     helper.assertTrue(!helper.getBlockState(control).is(Blocks.OAK_PLANKS),
                             "The floating planks must fall: the earthquake must reach the blocks");
                     for (int i = 0; i < protectedBlocks.size(); i++) {
@@ -227,7 +179,7 @@ public final class EarthquakeGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                     helper.assertTrue(maxChanges[0] <= batch, "At most " + batch
                             + " changed blocks in one tick, not " + maxChanges[0]);
                     helper.assertTrue(earthquake.changedBlocks() >= 50, "The earthquake must change most of the "
@@ -259,7 +211,7 @@ public final class EarthquakeGameTests {
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
                     int holes = countOtherBlocks(helper, Blocks.GRASS_BLOCK);
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                     helper.assertTrue(holes > 0, "The cracks must remove blocks of the grass floor");
                     helper.assertTrue(holes < 40 * 32 / 4, "The cracks must be narrow lines, not " + holes
                             + " blocks");
@@ -286,7 +238,7 @@ public final class EarthquakeGameTests {
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
                     int holes = countOtherBlocks(helper, Blocks.GOLD_BLOCK);
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                     helper.assertTrue(holes == 0, "A crack must not remove a block outside the tag crackable: "
                             + holes + " gold blocks went away");
                 })
@@ -334,7 +286,7 @@ public final class EarthquakeGameTests {
                         }
                     }
                     long lost = stone.stream().filter(pos -> !helper.getBlockState(pos).is(Blocks.STONE)).count();
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                     helper.assertTrue(holes > 0, "The cracks must open in the grass floor");
                     helper.assertTrue(lost == 0, "A crack must not cut the wall or the platform: " + lost
                             + " stone blocks went away");
@@ -385,7 +337,7 @@ public final class EarthquakeGameTests {
                             }
                         }
                     }
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                     helper.assertTrue(wallLost > 0, "The earthquake must reach the wall");
                     helper.assertTrue(helper.getBlockState(support).is(Blocks.OAK_PLANKS),
                             "The support of the sign must stay");
@@ -413,7 +365,7 @@ public final class EarthquakeGameTests {
                         "The falling block must hurt the sheep"))
                 .thenExecute(() -> {
                     sheep.discard();
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                 })
                 .thenSucceed();
     }
@@ -517,17 +469,17 @@ public final class EarthquakeGameTests {
             {12, 23}, {22, 23}, {30, 23}};
         for (int i = 0; i < corners.length; i++) {
             Block block = i % 4 == 3 ? Blocks.BRICKS : Blocks.OAK_PLANKS;
-            houses.addAll(buildHouse(helper, corners[i][0], corners[i][1], block));
+            houses.addAll(EventTestSupport.buildHouse(helper, corners[i][0], corners[i][1], block, block).keySet());
         }
         int batch = 16;
         MinecraftServer server = helper.getLevel().getServer();
-        TickTimes before = new TickTimes();
-        TickTimes during = new TickTimes();
+        EventTestSupport.TickTimes before = new EventTestSupport.TickTimes();
+        EventTestSupport.TickTimes during = new EventTestSupport.TickTimes();
         Earthquake[] earthquake = new Earthquake[1];
         int[] peakFalling = {0};
         helper.onEachTick(() -> {
             // The time of the last complete tick of the server.
-            long nanos = server.getTickTimesNanos()[(server.getTickCount() - 1) % 100];
+            long nanos = EventTestSupport.lastTickNanos(server);
             if (earthquake[0] == null) {
                 before.add(nanos);
             } else {
@@ -550,30 +502,9 @@ public final class EarthquakeGameTests {
                             houses.size(), earthquake[0].changedBlocks(), earthquake[0].elapsedTicks(),
                             peakFalling[0], before.meanMillis(), before.maxMillis(), during.meanMillis(),
                             during.maxMillis()));
-                    removeDebris(helper);
+                    EventTestSupport.removeDebris(helper);
                     helper.assertTrue(earthquake[0].changedBlocks() > 0, "The earthquake must change blocks");
                 })
                 .thenSucceed();
-    }
-
-    /** The tick times of the server in a period. */
-    private static final class TickTimes {
-        private long total;
-        private long max;
-        private int count;
-
-        void add(long nanos) {
-            total += nanos;
-            max = Math.max(max, nanos);
-            count++;
-        }
-
-        double meanMillis() {
-            return count == 0 ? 0.0 : total / 1e6 / count;
-        }
-
-        double maxMillis() {
-            return max / 1e6;
-        }
     }
 }

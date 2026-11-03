@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.events.network;
 
 import io.github.nicolasgoyon.folkhold.events.client.CameraShake;
+import io.github.nicolasgoyon.folkhold.events.client.WindGust;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -12,7 +13,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  * to the client classes only in their bodies, so this class also loads on a dedicated server.
  */
 public final class ModNetwork {
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
 
     private ModNetwork() {
     }
@@ -37,5 +38,7 @@ public final class ModNetwork {
         PayloadRegistrar registrar = event.registrar(VERSION);
         registrar.playToClient(EarthquakeShakePayload.TYPE, EarthquakeShakePayload.STREAM_CODEC,
                 (payload, context) -> CameraShake.start(payload.amplitude(), payload.ticks()));
+        registrar.playToClient(WindGustPayload.TYPE, WindGustPayload.STREAM_CODEC,
+                (payload, context) -> WindGust.push(payload.x(), payload.y(), payload.z()));
     }
 }

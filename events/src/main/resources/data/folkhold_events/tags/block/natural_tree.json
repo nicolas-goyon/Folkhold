@@ -1,0 +1,11 @@
+{
+  "values": [
+    {"id": "#dynamictrees:branches", "required": false},
+    {"id": "#dynamictrees:stripped_branches", "required": false},
+    {"id": "#dynamictrees:rooty_soil", "required": false},
+    {"id": "#dynamictrees:roots", "required": false},
+    {"id": "dynamictrees:trunk_shell", "required": false},
+    {"id": "dynamictrees:dark_oak_root", "required": false},
+    {"id": "dynamictrees:jungle_root", "required": false}
+  ]
+}
