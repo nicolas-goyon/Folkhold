@@ -4,7 +4,9 @@
   "package": "io.github.nicolasgoyon.folkhold.balance.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "AbstractMinecartMixin"
+    "AbstractMinecartMixin",
+    "AbstractVillagerAccessor",
+    "MerchantOfferAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

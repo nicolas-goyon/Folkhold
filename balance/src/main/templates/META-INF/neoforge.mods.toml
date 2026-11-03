@@ -12,7 +12,7 @@ displayURL = "https://github.com/nicolas-goyon/Folkhold"
 # The mod list shows the translated description (key: fml.menu.mods.info.description.<mod_id>) when it exists.
 description = '''${mod_description}'''
 
-# Two linked minecarts do not push each other.
+# Two linked minecarts do not push each other. Access to the offers of villagers.
 [[mixins]]
 config = "folkhold_balance.mixins.json"
 
