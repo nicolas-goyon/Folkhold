@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.balance.registry.ModAttachments;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,12 +16,13 @@ import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
-import net.minecraft.world.entity.vehicle.MinecartFurnace;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseRailBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -49,8 +51,8 @@ public final class Trains {
     private static final Map<ResourceKey<Level>, Set<AbstractMinecart>> LINKED = new HashMap<>();
     /** The break counter of each back minecart whose chain is above the break distance. */
     private static final Map<UUID, Integer> STRETCH_TICKS = new HashMap<>();
-    /** The push of each furnace minecart of a train that waits. The push comes back when the train moves again. */
-    private static final Map<UUID, Vec3> PAUSED_PUSH = new HashMap<>();
+    /** The links that the last check found dead: the UUID of a minecart to the UUIDs of its missing partners. */
+    private static final Map<UUID, Set<UUID>> DEAD_LINKS = new HashMap<>();
     /** The players that track each minecart. */
     private static final Map<AbstractMinecart, Set<ServerPlayer>> TRACKERS = new HashMap<>();
     /** A horizontal distance below this value gives no direction to the chain, in blocks. */
@@ -59,10 +61,10 @@ public final class Trains {
     private static final double MIN_RAIL_ALIGNMENT = 0.2;
     /** The parts of a diagonal unit vector. */
     private static final double DIAGONAL = Math.sqrt(0.5);
-    /** The interval of the check of {@link StaleLinks}, in ticks. */
-    private static final int STALE_CHECK_TICKS = 20;
-    /** The interval of the removal of old entries of {@link StaleLinks}, in ticks. */
-    private static final int STALE_CLEANUP_TICKS = 1200;
+    /** The interval of the check of the dead links, in ticks. */
+    private static final int DEAD_LINK_CHECK_TICKS = 20;
+    /** The margin around the break distance for the check of the dead links, in blocks. */
+    private static final double DEAD_LINK_MARGIN = 2.0;
 
     private Trains() {
     }
@@ -80,7 +82,6 @@ public final class Trains {
             carts.remove(cart);
         }
         STRETCH_TICKS.remove(cart.getUUID());
-        PAUSED_PUSH.remove(cart.getUUID());
     }
 
     /** Forgets the break counter of the link between two minecarts. */
@@ -113,19 +114,10 @@ public final class Trains {
         }
         // A minecart that unloads while its chunk is not accessible does not leave the level again.
         carts.removeIf(Entity::isRemoved);
-        long time = level.getGameTime();
-        if (time % STALE_CHECK_TICKS == 0) {
-            StaleLinks stale = StaleLinks.get(level.getServer());
-            if (time % STALE_CLEANUP_TICKS == 0) {
-                stale.removeOld(level.getServer().overworld().getGameTime());
-            }
-            for (AbstractMinecart cart : List.copyOf(carts)) {
-                if (stale.has(cart.getUUID())) {
-                    forgetStaleLinks(level, cart);
-                }
-            }
-        }
         Coupling coupling = BalanceConfig.coupling();
+        if (level.getGameTime() % DEAD_LINK_CHECK_TICKS == 0) {
+            checkDeadLinks(level, carts, coupling.breakDistance() + DEAD_LINK_MARGIN);
+        }
         int maxCarts = BalanceConfig.TRAIN_MAX_CARTS.get();
         Set<AbstractMinecart> done = Collections.newSetFromMap(new IdentityHashMap<>());
         // A copy in a stable order: a link that breaks changes the set.
@@ -195,11 +187,8 @@ public final class Trains {
             current = back;
         }
         if (waiting || !train.stream().allMatch(cart -> isActive(level, cart))) {
-            stop(train);
+            stop(level, train);
             return;
-        }
-        for (AbstractMinecart cart : train) {
-            resume(cart);
         }
         for (int i = 0; i + 1 < train.size(); i++) {
             if (pull(level, coupling, train.get(i), train.get(i + 1))) {
@@ -210,38 +199,74 @@ public final class Trains {
     }
 
     /**
-     * Removes a link that the other minecart does not have, and drops its chain. A link that {@link StaleLinks}
-     * records has no chain: the chain dropped when the link broke.
+     * Removes a link that the other minecart does not have. No chain drops: each link drops its chain when it breaks,
+     * so a link that only one minecart has owns no chain.
      */
     private static void removeOneSided(ServerLevel level, AbstractMinecart cart, UUID partner) {
         CartLinks.set(cart, CartLinks.get(cart).without(partner));
         CartLinks.sync(level, cart);
-        if (!StaleLinks.get(level.getServer()).remove(cart.getUUID(), partner)) {
-            CartLinks.dropChain(level, cart.position());
-        }
     }
 
     /**
-     * Stops a train that waits: no motion, and no push for a furnace minecart. The break counters do not increase.
+     * Removes the dead links: links to a minecart that does not exist any more. Two linked minecarts are never
+     * farther apart than the break distance: a train that waits does not move. Thus a link is dead when its minecart
+     * ticks, all the chunks in this radius around it have their entities loaded and tick them, and the level does not
+     * give the other minecart. The entities of a chunk load after the chunk: a link must be dead in 2 checks in a
+     * row. No chain drops.
+     *
+     * @param radius the radius of the area to check, in blocks
      */
-    private static void stop(List<AbstractMinecart> train) {
-        for (AbstractMinecart cart : train) {
-            STRETCH_TICKS.remove(cart.getUUID());
-            cart.setDeltaMovement(Vec3.ZERO);
-            if (cart instanceof MinecartFurnace furnace && (furnace.xPush != 0.0 || furnace.zPush != 0.0)) {
-                PAUSED_PUSH.put(furnace.getUUID(), new Vec3(furnace.xPush, 0.0, furnace.zPush));
-                furnace.xPush = 0.0;
-                furnace.zPush = 0.0;
+    private static void checkDeadLinks(ServerLevel level, Set<AbstractMinecart> carts, double radius) {
+        Map<UUID, Set<UUID>> found = new HashMap<>();
+        for (AbstractMinecart cart : List.copyOf(carts)) {
+            if (!isActive(level, cart)) {
+                continue;
+            }
+            CartLink link = CartLinks.get(cart);
+            for (UUID partner : List.of(link.front(), link.back()).stream().flatMap(Optional::stream).toList()) {
+                if (level.getEntity(partner) != null || !isAreaLoaded(level, cart, radius)) {
+                    continue;
+                }
+                if (DEAD_LINKS.getOrDefault(cart.getUUID(), Set.of()).contains(partner)) {
+                    removeOneSided(level, cart, partner);
+                } else {
+                    found.computeIfAbsent(cart.getUUID(), id -> new HashSet<>()).add(partner);
+                }
             }
         }
+        DEAD_LINKS.clear();
+        DEAD_LINKS.putAll(found);
     }
 
-    /** Gives back its push to a furnace minecart of a train that moves again. */
-    private static void resume(AbstractMinecart cart) {
-        Vec3 push = PAUSED_PUSH.remove(cart.getUUID());
-        if (push != null && cart instanceof MinecartFurnace furnace) {
-            furnace.xPush = push.x;
-            furnace.zPush = push.z;
+    /** Tells if all the chunks in a radius around a minecart have their entities loaded and tick them. */
+    private static boolean isAreaLoaded(ServerLevel level, AbstractMinecart cart, double radius) {
+        int minX = SectionPos.blockToSectionCoord(cart.getX() - radius);
+        int maxX = SectionPos.blockToSectionCoord(cart.getX() + radius);
+        int minZ = SectionPos.blockToSectionCoord(cart.getZ() - radius);
+        int maxZ = SectionPos.blockToSectionCoord(cart.getZ() + radius);
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                if (!level.areEntitiesLoaded(ChunkPos.asLong(x, z))
+                        || !level.isPositionEntityTicking(new ChunkPos(x, z).getWorldPosition())) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Stops a train that waits. Each minecart that ticks goes back to its position before this tick, and its motion is
+     * zero: no slope, powered rail or rider moves it. The break counters do not increase. A furnace minecart keeps its
+     * push.
+     */
+    private static void stop(ServerLevel level, List<AbstractMinecart> train) {
+        for (AbstractMinecart cart : train) {
+            STRETCH_TICKS.remove(cart.getUUID());
+            if (isActive(level, cart)) {
+                cart.setPos(cart.xo, cart.yo, cart.zo);
+                cart.setDeltaMovement(Vec3.ZERO);
+            }
         }
     }
 
@@ -357,24 +382,12 @@ public final class Trains {
         };
     }
 
-    /** A minecart with a link loads: it forgets the links to destroyed minecarts, then the mod moves it. */
+    /** A minecart with a link loads: the mod moves it. */
     public static void onEntityJoin(EntityJoinLevelEvent event) {
-        if (event.getLevel() instanceof ServerLevel level && event.getEntity() instanceof AbstractMinecart cart
+        if (event.getLevel() instanceof ServerLevel && event.getEntity() instanceof AbstractMinecart cart
                 && cart.hasData(ModAttachments.CART_LINK)) {
-            forgetStaleLinks(level, cart);
+            track(cart);
         }
-    }
-
-    /**
-     * Removes the links of a minecart to the minecarts that broke the link while the first minecart was not in the
-     * level (see {@link StaleLinks}).
-     */
-    private static void forgetStaleLinks(ServerLevel level, AbstractMinecart cart) {
-        CartLink link = CartLinks.get(cart);
-        for (UUID gone : StaleLinks.get(level.getServer()).take(cart.getUUID())) {
-            link = link.without(gone);
-        }
-        CartLinks.set(cart, link);
     }
 
     /**
@@ -434,7 +447,7 @@ public final class Trains {
     public static void onServerStopped(ServerStoppedEvent event) {
         LINKED.clear();
         STRETCH_TICKS.clear();
-        PAUSED_PUSH.clear();
+        DEAD_LINKS.clear();
         TRACKERS.clear();
     }
 }

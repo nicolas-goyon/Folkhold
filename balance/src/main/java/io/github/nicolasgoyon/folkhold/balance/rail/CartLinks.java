@@ -176,8 +176,8 @@ public final class CartLinks {
     }
 
     /**
-     * Removes the link between a minecart and another minecart. When the other minecart is not loaded, it forgets
-     * the link when it loads again (see {@link StaleLinks}).
+     * Removes the link between a minecart and another minecart. When the level does not give the other minecart, the
+     * other minecart keeps the link until the check of the dead links (see {@link Trains}) removes it.
      *
      * @param level     the level of the minecart
      * @param cart      the minecart
@@ -194,8 +194,6 @@ public final class CartLinks {
             set(other.get(), get(other.get()).without(cart.getUUID()));
             drop = drop.add(other.get().position()).scale(0.5);
             sync(level, other.get());
-        } else {
-            StaleLinks.get(level.getServer()).add(partner, cart.getUUID(), level.getServer().overworld().getGameTime());
         }
         if (!cart.isRemoved()) {
             sync(level, cart);
