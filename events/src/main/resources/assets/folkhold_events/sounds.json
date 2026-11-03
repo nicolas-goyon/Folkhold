@@ -1,0 +1,9 @@
+{
+  "event.earthquake.rumble": {
+    "subtitle": "subtitles.folkhold_events.event.earthquake.rumble",
+    "sounds": [
+      {"name": "minecraft:entity.lightning_bolt.thunder", "type": "event", "pitch": 0.5},
+      {"name": "minecraft:entity.generic.explode", "type": "event", "pitch": 0.5, "volume": 0.6}
+    ]
+  }
+}
