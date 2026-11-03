@@ -774,8 +774,8 @@ This mod adds ground events and rare disasters. Players can protect their buildi
 
 | Event | Trigger | Effect | Technical cost |
 | --- | --- | --- | --- |
-| Earthquake | Random, more frequent near mountains | Camera shake, unstable blocks fall (sand, gravel, cracked stone), cracks in the surface | Medium |
-| Collapse | Cavity below the surface + earthquake or rain | An area of 5 to 15 blocks collapses into falling blocks | Medium |
+| Earthquake | Random and rare: one earthquake every 15 to 30 game days, with the same frequency in all places. A higher frequency near the mountains is planned (#550) | Rumble, camera shake, animals run away, blocks fall or break from their material, cracks in the natural ground, collapses above cavities | Medium |
+| Collapse | Earthquake: the roof of a cavity collapses into falling blocks, column by column (see "Earthquakes"). A collapse from the rain is planned | The columns above the cavity fall | Medium |
 | Storm | Random and rare: one storm every 15 to 30 game days on average | A strong wind tears up the fragile blocks, lightning, the wind throws and hurts the entities | Medium |
 | Landslide | Steep slope + long rain | Dirt and gravel slide down | Medium |
 | Wildfire | Summer (Serene Seasons, optional dependency) + lightning | Faster spread, ash, regrowth with Dynamic Trees | Low |
@@ -783,12 +783,62 @@ This mod adds ground events and rare disasters. Players can protect their buildi
 
 ### Rules
 
-- An event occurs only in loaded chunks (technical limit). But the mod announces it: rumble sounds, animals run away, NPCs give an alert.
-- A **stabilizer** block (reinforced foundations) protects a radius of 16 blocks.
+- An event occurs only in loaded chunks (technical limit). No chunk loads for an event. But the mod announces it: rumble sounds, animals run away, NPCs give an alert.
+- Planned (#548): a **stabilizer** block (reinforced foundations) protects a radius of 16 blocks.
 - Batch updates: maximum N changed blocks for each tick, to keep the TPS stable.
 - Link with the world mod: a village that an event hits produces less and starts reconstruction quests.
+- The events mod does not depend on the world mod or on the blocks mod. The block tags link them.
 
 The milestone J8 · Additional mods contains the earthquake with local collapses and the storm. The other events come later.
+
+### Block classes
+
+**Implemented.** All the events use the same block tags. A datapack can change them.
+
+- Class of a block: `folkhold_events:fragile`, `folkhold_events:sturdy` and `folkhold_events:resistant`. A fragile block takes much damage, a resistant block takes little damage.
+  - Fragile: dirt, grass, sand, gravel, logs, planks and the wooden slabs, stairs and fences, glass, wool, leaves.
+  - Sturdy: cobblestone, terracotta, mud bricks, packed mud, sandstone.
+  - Resistant: stone, stone bricks, bricks, deepslate, concrete, obsidian.
+  - A block in more than one class tag gets the strongest class.
+  - A block with no class tag gets its class from its blast resistance: below 3 it is fragile, from 6 it is resistant, else it is sturdy (config `blockClasses.fragileBelow` and `resistantFrom`). Examples: netherrack is fragile, an iron block is resistant.
+- `folkhold_events:shatters`: a block that breaks with no drop in place of a fall: glass, panes, ice and leaves.
+- `folkhold_events:crack_surface`: the top blocks where a crack can open: grass block, dirt, coarse dirt, podzol, mycelium, rooted dirt, dirt path, sand, red sand and gravel.
+- `folkhold_events:crackable`: the natural ground that a crack can remove below its top block: the dirt blocks, the sand blocks, gravel, clay, farmland, dirt path, the natural stones of the overworld (stone, granite, diorite, andesite, tuff, deepslate), calcite, dripstone block, netherrack, soul sand and soul soil.
+- Protected blocks: no event moves or breaks them.
+  - The block tag `folkhold_events:protected`: reinforced deepslate, respawn anchor and lodestone. Also the important blocks of the Folkhold villages: village heart, bank chest, bank wall, quest board, watch post, brazier and the building signs. These entries are optional: the tag loads with no Folkhold blocks mod.
+  - A block with a block entity: it keeps data (the items of a container, the text of a sign) that a fall can lose. Examples: the chests, the barrels, the shulker boxes, the spawners, the vaults, the beds, the bells, the signs, the beacons and the command blocks.
+  - A block that a player cannot break: bedrock, barrier, the portals and the end portal frames.
+
+### Earthquakes
+
+**Implemented**: the natural earthquakes, the announce, the damage from the material of the blocks, the collapses, the cracks and the command of the operators.
+
+- **Clock**: the game time of the level, not the time of the day. A night of sleep does not bring an earthquake nearer. The time between two natural earthquakes is random, from 15 to 30 game days (config `earthquake.minDays` and `maxDays`). Each level keeps the time of its next earthquake (`folkhold_earthquakes.dat`). Only the overworld has natural earthquakes (config `earthquake.dimensions`).
+- **Place**: at this time, the earthquake starts near a random player of the level, 32 blocks away or nearer (`epicenterDistance`), in a loaded chunk. With no player in the level, no earthquake occurs, and the next earthquake gets a new time. The area is a circle with a radius of 24 blocks around the epicenter (`radius`). The strength is random from 0.8 to 1.5 (`minStrength` and `maxStrength`).
+- **Announce**: 5 seconds before the damage (`announceSeconds`), the players near the area hear a rumble and get the message "The ground rumbles..." above the hotbar. Their camera shakes a little. The animals of the area run away from the epicenter. The leashed animals, the tamed animals that sit and the animals in chunks that do not tick stay. The rumble comes back each second until the end.
+- **Shake**: the shake lasts 12 seconds (`durationSeconds`). The camera shake is strongest at the epicenter. It becomes weaker with the distance, and it stops at 48 blocks from the edge of the area. Each player can scale or turn off the shake (client config `cameraShake`). The shake stops when the player changes dimension.
+- **Damage**: the earthquake examines each column of its area once, in a random order, over the time of the shake. It examines 64 columns at most in one tick: a large area makes a longer shake. In each column, it examines the blocks from the top block down to 24 blocks (`scanDepth`). An exposed block (a block with a free neighbor: air, a fluid or a replaceable block) takes damage with a chance:
+  - Chance = chance of the class × intensity × strength, with a maximum of 1. The chances of the classes at the epicenter are 0.3 (fragile), 0.1 (sturdy) and 0.03 (resistant) (`fragileChance`, `sturdyChance`, `resistantChance`). The intensity is 1 at the epicenter and 0 at the edge of the area: 1 − (distance / radius)².
+  - A block of the tag `shatters` breaks with no drop.
+  - A block with a free position below it falls.
+  - Else, a block with a free position on one side falls to this side: a wall loses blocks to the outside and to the inside.
+  - Else, a block with a cracked variant becomes this variant: stone bricks, deepslate bricks and tiles, nether bricks and polished blackstone bricks.
+  - A block inside a wall or below the ground is not exposed: it takes no damage. Thus an earthquake does not destroy a full building of strong materials, and no material makes a building fully safe.
+- **Blocks that do not move**: the protected blocks, the fluids, the two parts of a door or a tall plant, the attached blocks with no collision box (torches, flowers, rails). The natural trees stay: the natural leaves and the logs below them.
+- **Supports**: a block next to a protected block, a block with a block entity (a sign, a bell, a banner) or an attached block (a torch, a lantern) does not move. A block with an item frame or a painting on it does not move. Thus a sign keeps its support and its text. A block below such a support can move, and the support stays in place.
+- **Collapses**: in each column, the roof of a cavity can collapse. The roof is 2 to 8 blocks thick (`collapseDepth`), and the cavity is 2 blocks high or more. Chance = 0.5 (`collapseFactor`) × chance of the block at the bottom of the roof. All the blocks of the roof fall into the cavity. A roof of one block (the roof of a house) takes damage as an exposed block, not as a collapse. Each column above the cavity has its own chance, so a local area falls.
+- **Cracks**: 2 cracks for a strength of 1 (`cracks`). A crack is a straight line through a random point near the epicenter. It removes the top blocks of the natural ground: 3 blocks deep at its center (`crackDepth`) and 1 block at its ends. The removed blocks drop their items. A crack opens in a column only with these conditions:
+  - The top block is in the tag `crack_surface` (grass, dirt, sand, gravel). A layer of snow on it does not count. Thus a crack does not open in a stone floor, a wall or a terrace of a player.
+  - The top of each of the 4 neighbor columns is 1 block higher or lower at most. A wall, a pillar or the edge of a platform stops the crack.
+  - The top block has no free position below it (a roof has no crack).
+  - Below the top block, the crack removes the blocks of the tag `crackable` (for example stone). It stops at the first block outside the tag, or at a block that does not move. The columns of the cracks share the budget of 64 columns for each tick with the other columns.
+- **Entities**: the falling blocks hurt the entities below them: 2 damage for each block of fall after the first, 20 at most (`fallDamage`, `maxFallDamage`). An earthquake can kill animals. A falling block that cannot land drops its item, as in vanilla.
+- **Batch**: an earthquake changes 32 blocks at most in one tick (`blocksPerTick`). The other changes wait for the next ticks, and the shake lasts longer. A change applies only if the block did not change after the examination. The vanilla updates that follow (sand that falls, a torch that breaks) are not in the count.
+- **Loaded chunks**: the earthquake ignores the columns of the chunks that do not tick. A block falls to a side only into a chunk that ticks. The earthquake never loads a chunk. The active earthquakes are not saved: an earthquake stops when the server stops.
+- **Active earthquakes**: the server has 2 active earthquakes at most, for all the dimensions (`maxActive`). A new earthquake does not start when its area overlaps the area of an active earthquake. The command then shows an error.
+- **Cost** (GameTest, 12 houses of 876 blocks, strength 3, radius 20, a batch of 16 blocks, a shake of 3 seconds): about 420 to 430 changed blocks, about 60 falling blocks at most at one time. On a warm server, the mean tick time of the GameTest server during the earthquake and the fall of its blocks (0.8 ms) is not higher than before the earthquake (1.0 ms): the difference is below the noise of the measure. The first earthquake after the start of a server costs about 2 to 3 ms more for each tick (2.2 ms before, 4.2 ms during). A natural earthquake spreads less work over 12 seconds.
+- **Repairs of the villages**: the repairs of the faction villages (see "Construction") compare the blocks of the village with the blocks of its structure pieces. A block that fell, broke or cracked is a damaged block. A falling block that lands on a position of air of the reference is also a damaged block. A crack in a street is a hole of the street. The earthquake places no block for a player, so the repairs do not keep its blocks. The builders repair the damage as other damage. The village heart, the bank and the quest board are protected blocks.
+- **Command** (operators, permission level 2): `/folkhold earthquake start [pos] [radius] [strength]` starts an earthquake: at the position of the source by default, with the radius of the config and a strength of 1. `/folkhold earthquake stop` stops the earthquakes of the level. `/folkhold earthquake status` shows the active earthquakes and the time to the next natural earthquake.
 
 ## Assets and content for a non-artist
 

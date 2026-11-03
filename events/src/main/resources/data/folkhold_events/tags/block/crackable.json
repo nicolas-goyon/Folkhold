@@ -1,0 +1,16 @@
+{
+  "values": [
+    "#minecraft:dirt",
+    "#minecraft:sand",
+    "#minecraft:base_stone_overworld",
+    "minecraft:gravel",
+    "minecraft:clay",
+    "minecraft:dirt_path",
+    "minecraft:farmland",
+    "minecraft:calcite",
+    "minecraft:dripstone_block",
+    "minecraft:soul_sand",
+    "minecraft:soul_soil",
+    "minecraft:netherrack"
+  ]
+}

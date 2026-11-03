@@ -1,0 +1,10 @@
+{
+  "values": [
+    "minecraft:glass",
+    "minecraft:glass_pane",
+    {"id": "#c:glass_blocks", "required": false},
+    {"id": "#c:glass_panes", "required": false},
+    "#minecraft:ice",
+    "#minecraft:leaves"
+  ]
+}

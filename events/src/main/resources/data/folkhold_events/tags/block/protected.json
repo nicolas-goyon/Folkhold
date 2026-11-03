@@ -1,0 +1,21 @@
+{
+  "values": [
+    "minecraft:reinforced_deepslate",
+    "minecraft:respawn_anchor",
+    "minecraft:lodestone",
+    {"id": "folkhold_blocks:village_heart", "required": false},
+    {"id": "folkhold_blocks:bank_chest", "required": false},
+    {"id": "folkhold_blocks:bank_wall", "required": false},
+    {"id": "folkhold_blocks:quest_board", "required": false},
+    {"id": "folkhold_blocks:watch_post", "required": false},
+    {"id": "folkhold_blocks:brazier", "required": false},
+    {"id": "folkhold_blocks:building_sign_house", "required": false},
+    {"id": "folkhold_blocks:building_sign_barracks", "required": false},
+    {"id": "folkhold_blocks:building_sign_forge", "required": false},
+    {"id": "folkhold_blocks:building_sign_storehouse", "required": false},
+    {"id": "folkhold_blocks:building_sign_bank", "required": false},
+    {"id": "folkhold_blocks:building_sign_hall", "required": false},
+    {"id": "folkhold_blocks:building_sign_farm", "required": false},
+    {"id": "folkhold_blocks:building_sign_market", "required": false}
+  ]
+}

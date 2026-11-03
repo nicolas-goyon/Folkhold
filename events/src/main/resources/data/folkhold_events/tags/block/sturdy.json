@@ -1,0 +1,31 @@
+{
+  "values": [
+    "minecraft:cobblestone",
+    "minecraft:cobblestone_stairs",
+    "minecraft:cobblestone_slab",
+    "minecraft:cobblestone_wall",
+    "minecraft:mossy_cobblestone",
+    "minecraft:mossy_cobblestone_stairs",
+    "minecraft:mossy_cobblestone_slab",
+    "minecraft:mossy_cobblestone_wall",
+    "minecraft:cobbled_deepslate",
+    "minecraft:cobbled_deepslate_stairs",
+    "minecraft:cobbled_deepslate_slab",
+    "minecraft:cobbled_deepslate_wall",
+    "#minecraft:terracotta",
+    {"id": "#c:glazed_terracottas", "required": false},
+    "minecraft:mud_bricks",
+    "minecraft:mud_brick_stairs",
+    "minecraft:mud_brick_slab",
+    "minecraft:mud_brick_wall",
+    "minecraft:packed_mud",
+    "minecraft:sandstone",
+    "minecraft:sandstone_stairs",
+    "minecraft:sandstone_slab",
+    "minecraft:sandstone_wall",
+    "minecraft:red_sandstone",
+    "minecraft:red_sandstone_stairs",
+    "minecraft:red_sandstone_slab",
+    "minecraft:red_sandstone_wall"
+  ]
+}
