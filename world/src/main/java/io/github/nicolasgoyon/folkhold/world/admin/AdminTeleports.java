@@ -35,7 +35,7 @@ public final class AdminTeleports {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final String KEY = "screen.folkhold_world.admin.teleport.";
-    private static final AreaWaits WAITS = new AreaWaits("folkhold_world_admin_teleport", KEY);
+    private static final AreaWaits WAITS = AreaWaits.TELEPORTS;
 
     private AdminTeleports() {
     }

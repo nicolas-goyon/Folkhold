@@ -60,7 +60,7 @@ import net.minecraft.server.level.ServerPlayer;
  *   <li>{@code ruin}: destroys the settlement as in the game ({@link Settlements#ruin}), with no player as
  *       cause.</li>
  *   <li>{@code restore}: makes the settlement active again, with its heart and its bank
- *       ({@link Settlements#restore}). The server does not wait for the chunk of the heart (see
+ *       ({@link Settlements#restore}). The server does not wait for the chunks of the heart (see
  *       {@link AreaWaits}).</li>
  *   <li>{@code alert}: sets the alert state of the village heart to the {@link AlertState} with the ordinal of the
  *       value. The heart must be loaded.</li>
@@ -87,7 +87,7 @@ public final class AdminActions {
     private static final int DETAIL_STOCKS = 5;
     /** The maximum distance from the heart to the target of the teleport action, in blocks. */
     private static final int TELEPORT_RADIUS = 8;
-    private static final AreaWaits RESTORES = new AreaWaits("folkhold_world_admin_restore", KEY + "restore.");
+    private static final AreaWaits RESTORES = AreaWaits.RESTORES;
 
     private AdminActions() {
     }
@@ -369,7 +369,7 @@ public final class AdminActions {
     }
 
     /**
-     * Makes a settlement in ruins active again when the chunk of its heart is ready ({@link #restoreArea}). With a
+     * Makes a settlement in ruins active again when the chunks of {@link #restoreArea} are ready. With a
      * player, the request waits for the chunk with no wait on the server thread (see {@link AreaWaits}). With no
      * player, the chunk must be ready now.
      */
@@ -384,7 +384,7 @@ public final class AdminActions {
                 current -> restoreNow(server, id));
     }
 
-    /** Finds the settlement again by its id and restores it. The chunk of the heart must be ready. */
+    /** Finds the settlement again by its id and restores it. The chunks of {@link #restoreArea} must be ready. */
     private static Result restoreNow(MinecraftServer server, String id) {
         Optional<Settlement> found = SettlementData.get(server).registry().byId(id);
         if (found.isEmpty()) {
@@ -405,13 +405,14 @@ public final class AdminActions {
     }
 
     /**
-     * The area that {@link Settlements#restore} reads and changes: the chunk of the heart.
+     * The area that {@link Settlements#restore} reads and changes: the column of the heart and the columns next to it.
+     * The new heart updates its neighbors, and on the edge of a chunk a neighbor is in another chunk.
      *
      * @param settlement the settlement
      * @return the area
      */
     public static AdminTeleports.Area restoreArea(Settlement settlement) {
-        return new AdminTeleports.Area(settlement.x(), settlement.z(), settlement.x(), settlement.z());
+        return AdminTeleports.Area.around(settlement.x(), settlement.z(), 1);
     }
 
     /**

@@ -1,7 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.admin;
 
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions.Result;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +33,10 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *       time limit is in real time, not in ticks. The request checks the time limit before the area.</li>
  * </ol>
  *
+ * <p>Each action has one instance, with its own ticket and its own requests. All the instances are static fields of
+ * this class, and {@link #ALL} does not change after the initialization of the class: the listeners can read it at
+ * all times.
+ *
  * <p>A player has a maximum of one request for each instance. A new request of the player cancels the request
  * before it. A request releases its tickets in all cases: action, time limit, logout of the player, and stop of the
  * server. The tickets are released before the action.
@@ -46,7 +49,15 @@ public final class AreaWaits {
 
     /** The distance of the ticket: 0 gives the full status to the chunk of the ticket only. */
     private static final int TICKET_DISTANCE = 0;
-    private static final List<AreaWaits> ALL = new ArrayList<>();
+    private static final String KEY = "screen.folkhold_world.admin.";
+
+    /** The teleports of the admin screen and of the operator commands (see {@link AdminTeleports}). */
+    static final AreaWaits TELEPORTS = new AreaWaits("folkhold_world_admin_teleport", KEY + "teleport.");
+    /** The restore action of the admin screen (see {@link AdminActions}). */
+    static final AreaWaits RESTORES = new AreaWaits("folkhold_world_admin_restore", KEY + "restore.");
+    /** All the instances. The list does not change after the initialization of this class. */
+    private static final List<AreaWaits> ALL = List.of(TELEPORTS, RESTORES);
+
     private static long nextId;
 
     /** The ticket that keeps the chunks of a request at the full status. The value is the id of the request. */
@@ -60,15 +71,14 @@ public final class AreaWaits {
     }
 
     /**
-     * Makes the requests of one action. Make each instance one time, in a static field.
+     * Makes the requests of one action.
      *
      * @param ticketName the name of the chunk ticket
      * @param key        the prefix of the keys of the messages {@code loading} and {@code timeout}
      */
-    AreaWaits(String ticketName, String key) {
+    private AreaWaits(String ticketName, String key) {
         this.ticket = TicketType.create(ticketName, Long::compare);
         this.key = key;
-        ALL.add(this);
     }
 
     /**
