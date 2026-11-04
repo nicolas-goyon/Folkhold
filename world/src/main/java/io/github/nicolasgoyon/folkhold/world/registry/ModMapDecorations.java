@@ -16,7 +16,10 @@ public final class ModMapDecorations {
     private static final DeferredRegister<MapDecorationType> TYPES =
             DeferredRegister.create(Registries.MAP_DECORATION_TYPE, FolkholdWorld.MOD_ID);
 
-    /** The waypoint of a village on a vanilla map (see {@link io.github.nicolasgoyon.folkhold.world.journal.MapWaypoints}). */
+    /**
+     * The marker of a village on a survey map of Cartofold (see
+     * {@link io.github.nicolasgoyon.folkhold.world.village.VillageMapMarkers}).
+     */
     public static final DeferredHolder<MapDecorationType, MapDecorationType> VILLAGE = TYPES.register("village",
             () -> new MapDecorationType(ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village"), true,
                     -1, false, false));
