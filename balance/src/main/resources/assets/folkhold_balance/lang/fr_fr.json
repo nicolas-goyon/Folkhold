@@ -22,6 +22,9 @@
   "folkhold_balance.configuration.mass": "Masse",
   "folkhold_balance.configuration.fuelCapacity": "Capacité de combustible",
   "folkhold_balance.configuration.fuelPerBlock": "Combustible par bloc",
+  "folkhold_balance.configuration.heavyLocomotive": "Locomotive lourde",
+  "folkhold_balance.configuration.curveSpeed": "Vitesse dans les virages et les pentes",
+  "folkhold_balance.configuration.lookAhead": "Blocs examinés devant un train",
   "folkhold_balance.configuration.blockedEnchantments": "Enchantements bloqués",
   "folkhold_balance.configuration.enchantments": "Enchantements",
   "folkhold_balance.configuration.inTrades": "Les bloquer dans les nouvelles offres",
@@ -52,8 +55,12 @@
   "folkhold_balance.chain.unlinked": "Le lien est retiré.",
   "item.folkhold_balance.furnace_locomotive": "Locomotive à four",
   "entity.folkhold_balance.furnace_locomotive": "Locomotive à four",
+  "item.folkhold_balance.heavy_locomotive": "Locomotive lourde",
+  "entity.folkhold_balance.heavy_locomotive": "Locomotive lourde",
   "folkhold_balance.locomotive.running": "La locomotive roule. Combustible : %s blocs.",
   "folkhold_balance.locomotive.stopped": "La locomotive est arrêtée. Combustible : %s blocs.",
-  "folkhold_balance.locomotive.no_fuel": "La locomotive n'a pas de combustible. Ajoutez un combustible de four.",
+  "folkhold_balance.locomotive.no_fuel": "La locomotive n'a pas de combustible. Ajoutez %s.",
+  "folkhold_balance.locomotive.furnace_fuel": "un combustible de four",
+  "folkhold_balance.locomotive.heavy_fuel": "un bloc de charbon",
   "folkhold_balance.locomotive.full": "La locomotive est pleine de combustible."
 }

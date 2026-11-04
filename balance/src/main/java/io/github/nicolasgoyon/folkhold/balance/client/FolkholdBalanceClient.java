@@ -23,11 +23,17 @@ public final class FolkholdBalanceClient {
     public FolkholdBalanceClient(IEventBus modEventBus, ModContainer modContainer) {
         // Config screen in the mod list. Server values are editable only in a world.
         modContainer.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
-        modEventBus.addListener((EntityRenderersEvent.RegisterRenderers event) ->
-                event.registerEntityRenderer(ModEntities.FURNACE_LOCOMOTIVE.get(), LocomotiveRenderer::new));
-        // The copper color of the locomotive on the icon of the vanilla furnace minecart.
-        modEventBus.addListener((RegisterColorHandlersEvent.Item event) ->
-                event.register((stack, layer) -> LocomotiveRenderer.ITEM_COLOR, ModItems.FURNACE_LOCOMOTIVE.get()));
+        modEventBus.addListener((EntityRenderersEvent.RegisterRenderers event) -> {
+            event.registerEntityRenderer(ModEntities.FURNACE_LOCOMOTIVE.get(),
+                    context -> new LocomotiveRenderer<>(context, LocomotiveRenderer.FURNACE_COLOR));
+            event.registerEntityRenderer(ModEntities.HEAVY_LOCOMOTIVE.get(),
+                    context -> new LocomotiveRenderer<>(context, LocomotiveRenderer.HEAVY_COLOR));
+        });
+        // The color of each locomotive on the icon of the vanilla furnace minecart.
+        modEventBus.addListener((RegisterColorHandlersEvent.Item event) -> {
+            event.register((stack, layer) -> LocomotiveRenderer.FURNACE_COLOR, ModItems.FURNACE_LOCOMOTIVE.get());
+            event.register((stack, layer) -> LocomotiveRenderer.HEAVY_COLOR, ModItems.HEAVY_LOCOMOTIVE.get());
+        });
         NeoForge.EVENT_BUS.addListener(ChainRenderer::onRenderLevel);
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientCartLinks.clear());
     }

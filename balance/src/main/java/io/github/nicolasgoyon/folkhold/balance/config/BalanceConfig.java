@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.balance.anvil.MergeRule;
 import io.github.nicolasgoyon.folkhold.balance.enchantment.BlockedEnchantments;
 import io.github.nicolasgoyon.folkhold.balance.enchantment.EnchantmentFilter;
 import io.github.nicolasgoyon.folkhold.balance.rail.Coupling;
+import io.github.nicolasgoyon.folkhold.balance.rail.Locomotive;
 import io.github.nicolasgoyon.folkhold.balance.rail.LocomotiveStats;
 import io.github.nicolasgoyon.folkhold.balance.rail.Traction;
 import java.util.List;
@@ -33,11 +34,10 @@ public final class BalanceConfig {
     public static final ModConfigSpec.DoubleValue SLOPE_FORCE;
     public static final ModConfigSpec.DoubleValue POWERED_RAIL_FORCE;
     public static final ModConfigSpec.DoubleValue BRAKE_FORCE;
-    public static final ModConfigSpec.DoubleValue FURNACE_MAX_SPEED;
-    public static final ModConfigSpec.DoubleValue FURNACE_FORCE;
-    public static final ModConfigSpec.DoubleValue FURNACE_MASS;
-    public static final ModConfigSpec.IntValue FURNACE_FUEL_CAPACITY;
-    public static final ModConfigSpec.DoubleValue FURNACE_FUEL_PER_BLOCK;
+    public static final ModConfigSpec.DoubleValue CURVE_SPEED;
+    public static final ModConfigSpec.IntValue LOOK_AHEAD;
+    private static final LocomotiveValues FURNACE;
+    private static final LocomotiveValues HEAVY;
 
     public static final ModConfigSpec.ConfigValue<List<? extends String>> BLOCKED_ENCHANTMENTS;
     public static final ModConfigSpec.BooleanValue BLOCKED_IN_TRADES;
@@ -136,33 +136,22 @@ public final class BalanceConfig {
                 .translation(KEY_PREFIX + "brakeForce")
                 .defineInRange("brakeForce", traction.brakeForce(), 0.0, 10.0);
 
-        LocomotiveStats furnace = LocomotiveStats.FURNACE_DEFAULTS;
-        builder.comment("The furnace locomotive. It burns the fuels of the furnace.")
-                .translation(KEY_PREFIX + "furnaceLocomotive")
-                .push("furnaceLocomotive");
-        FURNACE_MAX_SPEED = builder
-                .comment("Largest speed in blocks per tick. The vanilla rails do not permit more than 0.4.")
-                .translation(KEY_PREFIX + "maxSpeed")
-                .defineInRange("maxSpeed", furnace.maxSpeed(), 0.01, 0.4);
-        FURNACE_FORCE = builder
-                .comment("Pulling force at speed 0. The force decreases in a line to 0 at maxSpeed. Speed change",
-                        "each tick = (force - resistance) / mass of the train.")
-                .translation(KEY_PREFIX + "pullingForce")
-                .defineInRange("pullingForce", furnace.force(), 0.0, 10.0);
-        FURNACE_MASS = builder
-                .comment("Mass of the locomotive.")
-                .translation(KEY_PREFIX + "mass")
-                .defineInRange("mass", furnace.mass(), 0.1, 100.0);
-        FURNACE_FUEL_CAPACITY = builder
-                .comment("Largest quantity of fuel, in ticks of furnace fuel (1 coal = 1600).")
-                .translation(KEY_PREFIX + "fuelCapacity")
-                .defineInRange("fuelCapacity", furnace.fuelCapacity(), 1, 1_000_000);
-        FURNACE_FUEL_PER_BLOCK = builder
-                .comment("Fuel that the locomotive burns for each block that it moves while it runs. 8 gives about",
-                        "200 blocks for 1 coal.")
-                .translation(KEY_PREFIX + "fuelPerBlock")
-                .defineInRange("fuelPerBlock", furnace.fuelPerBlock(), 0.0, 1000.0);
-        builder.pop();
+        CURVE_SPEED = builder
+                .comment("Speed cap in blocks per tick of a train with a locomotive in a curve, on a slope and at the",
+                        "end of the rails. The train slows down to this speed before it gets there. 0.4 is the speed",
+                        "cap of the vanilla rails: above it, a minecart can leave a curve.")
+                .translation(KEY_PREFIX + "curveSpeed")
+                .defineInRange("curveSpeed", Locomotive.RAIL_SPEED_CAP, 0.05, Locomotive.RAIL_SPEED_CAP);
+        LOOK_AHEAD = builder
+                .comment("Number of blocks that each minecart of a train with a locomotive examines on the rails in",
+                        "front of it. A curve, a slope or the end of the rails in this distance sets the speed cap",
+                        "of the train to curveSpeed.")
+                .translation(KEY_PREFIX + "lookAhead")
+                .defineInRange("lookAhead", 3, 2, 16);
+        FURNACE = locomotive(builder, "furnaceLocomotive", "The furnace locomotive. It burns the fuels of the furnace.",
+                LocomotiveStats.FURNACE_DEFAULTS, "200 blocks for 1 coal");
+        HEAVY = locomotive(builder, "heavyLocomotive", "The heavy locomotive. It burns blocks of coal.",
+                LocomotiveStats.HEAVY_DEFAULTS, "1000 blocks for 1 block of coal");
         builder.pop();
 
         builder.comment("Blocked enchantments: enchantments that villagers do not sell and that fishing does not give.")
@@ -285,8 +274,49 @@ public final class BalanceConfig {
 
     /** The stats of the furnace locomotive, from the section {@code rails.furnaceLocomotive}. */
     public static LocomotiveStats furnaceLocomotive() {
-        return new LocomotiveStats(FURNACE_MAX_SPEED.get(), FURNACE_FORCE.get(), FURNACE_MASS.get(),
-                FURNACE_FUEL_CAPACITY.get(), FURNACE_FUEL_PER_BLOCK.get());
+        return FURNACE.stats();
+    }
+
+    /** The stats of the heavy locomotive, from the section {@code rails.heavyLocomotive}. */
+    public static LocomotiveStats heavyLocomotive() {
+        return HEAVY.stats();
+    }
+
+    /** Defines the section of a type of locomotive in the section {@code rails}. */
+    private static LocomotiveValues locomotive(ModConfigSpec.Builder builder, String name, String comment,
+                                               LocomotiveStats defaults, String fuelUse) {
+        builder.comment(comment).translation(KEY_PREFIX + name).push(name);
+        LocomotiveValues values = new LocomotiveValues(
+                builder.comment("Largest speed in blocks per tick on straight and flat rails. The GameTests examine",
+                                "the speeds up to " + Locomotive.MAX_SPEED + ".")
+                        .translation(KEY_PREFIX + "maxSpeed")
+                        .defineInRange("maxSpeed", defaults.maxSpeed(), 0.01, Locomotive.MAX_SPEED),
+                builder.comment("Pulling force at speed 0. The force decreases in a line to 0 at maxSpeed. Speed",
+                                "change each tick = (force - resistance) / mass of the train.")
+                        .translation(KEY_PREFIX + "pullingForce")
+                        .defineInRange("pullingForce", defaults.force(), 0.0, 10.0),
+                builder.comment("Mass of the locomotive.")
+                        .translation(KEY_PREFIX + "mass")
+                        .defineInRange("mass", defaults.mass(), 0.1, 100.0),
+                builder.comment("Largest quantity of fuel, in ticks of furnace fuel (1 coal = 1600).")
+                        .translation(KEY_PREFIX + "fuelCapacity")
+                        .defineInRange("fuelCapacity", defaults.fuelCapacity(), 1, 1_000_000),
+                builder.comment("Fuel that the locomotive burns for each block that it moves while it runs. The",
+                                "default gives about " + fuelUse + ".")
+                        .translation(KEY_PREFIX + "fuelPerBlock")
+                        .defineInRange("fuelPerBlock", defaults.fuelPerBlock(), 0.0, 1000.0));
+        builder.pop();
+        return values;
+    }
+
+    /** The configuration values of a type of locomotive. */
+    private record LocomotiveValues(ModConfigSpec.DoubleValue maxSpeed, ModConfigSpec.DoubleValue force,
+                                    ModConfigSpec.DoubleValue mass, ModConfigSpec.IntValue fuelCapacity,
+                                    ModConfigSpec.DoubleValue fuelPerBlock) {
+        LocomotiveStats stats() {
+            return new LocomotiveStats(maxSpeed.get(), force.get(), mass.get(), fuelCapacity.get(),
+                    fuelPerBlock.get());
+        }
     }
 
     private BalanceConfig() {

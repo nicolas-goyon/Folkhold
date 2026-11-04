@@ -15,6 +15,8 @@ public final class ModItems {
 
     public static final DeferredItem<LocomotiveItem> FURNACE_LOCOMOTIVE = ITEMS.register("furnace_locomotive",
             () -> new LocomotiveItem(ModEntities.FURNACE_LOCOMOTIVE, new Item.Properties().stacksTo(1)));
+    public static final DeferredItem<LocomotiveItem> HEAVY_LOCOMOTIVE = ITEMS.register("heavy_locomotive",
+            () -> new LocomotiveItem(ModEntities.HEAVY_LOCOMOTIVE, new Item.Properties().stacksTo(1)));
 
     private ModItems() {
     }
@@ -27,6 +29,7 @@ public final class ModItems {
     private static void onBuildCreativeTab(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(FURNACE_LOCOMOTIVE);
+            event.accept(HEAVY_LOCOMOTIVE);
         }
     }
 }

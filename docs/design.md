@@ -848,9 +848,17 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
   - pull: the pulling force at speed 0, less in a line to 0 at the maximum speed. A locomotive that is stopped or has no fuel brakes with its pulling force;
   - mass: the mass of the locomotive plus the mass of each minecart behind it. The mass of a wagon is `wagonMass` plus `cargoMass` multiplied by the fill ratio of its slots (the count of each stack divided by its stack size). A wagon that still has a loot table counts as empty: a read of its slots generates the loot;
   - resistance: for each minecart, its mass multiplied by `friction`, plus `slopeForce` up a slope (minus down a slope), minus `poweredRailForce` on a powered rail with power, plus `brakeForce` on a powered rail with no power.
-- The speed is never less than 0: a train that is too heavy for a slope stops and does not slide back. The speed is never more than `maxSpeed` and 0.4 blocks per tick, the speed cap of the vanilla rails. The vanilla slope, powered rails and slowdown do not change the speed of the locomotive. The chains (see "Train") pull the minecarts behind it.
+- The speed is never less than 0: a train that is too heavy for a slope stops and does not slide back. The speed is never more than the speed cap of the train (see "Speed"). The vanilla slope, powered rails and slowdown do not change the speed of the locomotive. The chains (see "Train") pull the minecarts behind it.
 - A locomotive with a front link is a wagon of the train in front: it does not drive and burns no fuel.
 - The fuel burns for each block that the locomotive moves while it runs: 8 units for each block, thus about 200 blocks for 1 coal. A train that waits does not move, so its fuel does not burn. The fuel is never more than `fuelCapacity`. A broken locomotive drops its item. Its fuel is lost.
+- **Implemented** (`HeavyLocomotive`): the heavy locomotive is a second type of locomotive, with the same rules and its own stats in the configuration. It has more pulling force and a maximum speed of 0.6 blocks per tick. Recipe: blast furnace, minecart, 2 blocks of iron and 1 piston. Its only fuel is the block of coal (16000 units): 16 units for each block, thus about 1000 blocks for 1 block of coal. It looks like the vanilla minecart with a blast furnace in a steel color. The item has the icon of the furnace minecart in the same color.
+
+### Speed
+
+- **Implemented** (`TrainSpeed`, a mixin of `AbstractMinecart#getMaxSpeedWithRail`): the vanilla rails move a minecart in one straight step each tick, along the rail under it. The speed cap of the vanilla rails is 0.4 blocks per tick. Above this speed, a minecart can go past a curve or the top of a slope in one step and leave the rails.
+- Each tick, the locomotive gives a speed cap to all the minecarts of its train. The cap is `maxSpeed` of the locomotive (0.6 at most) when the rails are straight and flat in front of each minecart of the train, for `lookAhead` blocks. A curve, a slope, a junction in a curve position, the end of the rails or a chunk that is not loaded in this distance sets the cap to `curveSpeed` (0.4): all the minecarts of the train slow down to this speed in one tick, before the train gets there. Thus a train in a curve or on a slope always moves as vanilla minecarts do. The check does not load chunks.
+- The cap is half in water, as for the vanilla rails. A minecart keeps the cap of its train for one tick after the last tick of the locomotive.
+- A minecart that is not in a train with a locomotive keeps the vanilla speed cap. A vanilla furnace minecart at the front of a train does not give a cap.
 
 ### Configuration
 
@@ -872,13 +880,20 @@ File `folkhold_balance-server.toml`, section `rails`:
 | `slopeForce` | 0.0078125 | Force of a slope for each unit of mass on it |
 | `poweredRailForce` | 0.06 | Push of a powered rail with power, for each unit of mass on it |
 | `brakeForce` | 0.5 | Brake of a powered rail with no power, for each unit of mass on it |
-| `furnaceLocomotive.maxSpeed` | 0.4 | Largest speed, in blocks per tick (0.4 at most) |
+| `curveSpeed` | 0.4 | Speed cap of a train with a locomotive in a curve and on a slope, in blocks per tick (0.4 at most) |
+| `lookAhead` | 3 | Number of blocks that each minecart of a train with a locomotive examines in front of it |
+| `furnaceLocomotive.maxSpeed` | 0.4 | Largest speed on straight and flat rails, in blocks per tick (0.6 at most) |
 | `furnaceLocomotive.pullingForce` | 0.12 | Pulling force at speed 0 |
 | `furnaceLocomotive.mass` | 2.0 | Mass of the locomotive |
 | `furnaceLocomotive.fuelCapacity` | 32000 | Largest quantity of fuel (1 coal = 1600) |
 | `furnaceLocomotive.fuelPerBlock` | 8.0 | Fuel for each block that the locomotive moves |
+| `heavyLocomotive.maxSpeed` | 0.6 | Largest speed on straight and flat rails, in blocks per tick (0.6 at most) |
+| `heavyLocomotive.pullingForce` | 0.4 | Pulling force at speed 0 |
+| `heavyLocomotive.mass` | 4.0 | Mass of the locomotive |
+| `heavyLocomotive.fuelCapacity` | 160000 | Largest quantity of fuel (1 block of coal = 16000) |
+| `heavyLocomotive.fuelPerBlock` | 16.0 | Fuel for each block that the locomotive moves |
 
-With the default values, a furnace locomotive pulls 2 full wagons up a slope of 1 block in 1. With 12 full wagons, it stops on this slope. On flat rails, its top speed is about 0.37 blocks per tick with 8 empty wagons and 0.29 with 8 full wagons. These values can change with the balance of version 1.
+With the default values, a furnace locomotive pulls 2 full wagons up a slope of 1 block in 1. With 12 full wagons, it stops on this slope. On flat rails, its top speed is about 0.37 blocks per tick with 8 empty wagons and 0.29 with 8 full wagons. The top speed of a heavy locomotive is about 0.58 blocks per tick with 8 empty wagons and 0.55 with 8 full wagons. These values can change with the balance of version 1.
 
 ## Maps and journal
 

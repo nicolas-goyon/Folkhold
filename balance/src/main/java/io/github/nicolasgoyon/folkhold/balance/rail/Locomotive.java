@@ -32,15 +32,18 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>The locomotive sets its own speed at the end of its tick with {@link Traction}: the pull of the locomotive, the
  * mass of the train and the rails under each minecart. The vanilla slope, powered rail and slowdown do not change
- * its speed. The chains of {@link Trains} then pull the minecarts behind it. A train that waits does not move, so the
- * fuel does not burn: the fuel burns for each block that the locomotive moves.
+ * its speed. The chains of {@link Trains} then pull the minecarts behind it. {@link TrainSpeed} gives the speed cap
+ * of all the minecarts of the train. A train that waits does not move, so the fuel does not burn: the fuel burns for
+ * each block that the locomotive moves.
  *
  * <p>The player adds fuel with a right click. A right click with an empty hand starts or stops the locomotive. A
  * locomotive that is stopped or has no fuel brakes with its pulling force. It continues when the player adds fuel.
  */
 public abstract class Locomotive extends AbstractMinecart {
     /** The speed cap of the vanilla rails, in blocks per tick. */
-    public static final float RAIL_SPEED_CAP = 0.4F;
+    public static final double RAIL_SPEED_CAP = 0.4;
+    /** The largest {@link LocomotiveStats#maxSpeed()} of the configuration, in blocks per tick. */
+    public static final double MAX_SPEED = 0.6;
     private static final EntityDataAccessor<Boolean> DATA_BURNING =
             SynchedEntityData.defineId(Locomotive.class, EntityDataSerializers.BOOLEAN);
     /** A movement below this distance gives no direction, in blocks. */
@@ -64,6 +67,9 @@ public abstract class Locomotive extends AbstractMinecart {
 
     /** The fuel value of an item in ticks of furnace fuel, or 0 when the item is not a fuel of this locomotive. */
     protected abstract int fuelValue(ItemStack stack);
+
+    /** The name of the fuel of this locomotive, for the message "no fuel". */
+    protected abstract Component fuelName();
 
     public double fuel() {
         return fuel;
@@ -157,6 +163,8 @@ public abstract class Locomotive extends AbstractMinecart {
         double mass = 0.0;
         double resistance = 0.0;
         List<AbstractMinecart> carts = train.get();
+        boolean clear = true;
+        int lookAhead = BalanceConfig.LOOK_AHEAD.get();
         for (int i = 0; i < carts.size(); i++) {
             AbstractMinecart cart = carts.get(i);
             double cartMass = i == 0 ? stats.mass() : traction.wagonMass(fillRatio(cart));
@@ -174,10 +182,16 @@ public abstract class Locomotive extends AbstractMinecart {
             }
             mass += cartMass;
             resistance += cartMass * railResistance(level, cart, tx, tz, traction);
+            clear = clear && TrainSpeed.isStraightAhead(level, cart, tx, tz, lookAhead);
         }
+        double cap = Math.min(stats.maxSpeed(), MAX_SPEED);
+        if (!clear) {
+            cap = Math.min(cap, BalanceConfig.CURVE_SPEED.get());
+        }
+        TrainSpeed.setCap(level, carts, cap);
         // A locomotive that does not pull brakes with its pulling force.
         double pull = running && fuel > 0.0 ? stats.pull(speed) : -stats.force();
-        double next = Traction.nextSpeed(speed, pull, resistance, mass, Math.min(stats.maxSpeed(), RAIL_SPEED_CAP));
+        double next = Traction.nextSpeed(speed, pull, resistance, mass, cap);
         setDeltaMovement(dirX * next, 0.0, dirZ * next);
     }
 
@@ -257,9 +271,12 @@ public abstract class Locomotive extends AbstractMinecart {
         } else {
             setRunning(!running, player.position());
         }
-        String state = !running ? "stopped" : fuel > 0.0 ? "running" : "no_fuel";
-        player.displayClientMessage(Component.translatable("folkhold_balance.locomotive." + state,
-                (int) (fuel / Math.max(stats.fuelPerBlock(), 1.0E-3))), true);
+        if (running && fuel <= 0.0) {
+            player.displayClientMessage(Component.translatable("folkhold_balance.locomotive.no_fuel", fuelName()), true);
+        } else {
+            player.displayClientMessage(Component.translatable("folkhold_balance.locomotive."
+                    + (running ? "running" : "stopped"), (int) (fuel / Math.max(stats.fuelPerBlock(), 1.0E-3))), true);
+        }
         return InteractionResult.CONSUME;
     }
 

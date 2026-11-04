@@ -3,7 +3,7 @@ package io.github.nicolasgoyon.folkhold.balance.rail;
 /**
  * The stats of a type of locomotive. The configuration gives them. This class is pure Java: it has no game types.
  *
- * @param maxSpeed     the largest speed, in blocks per tick. The vanilla rails do not permit more than 0.4
+ * @param maxSpeed     the largest speed on straight and flat rails, in blocks per tick
  * @param force        the pulling force at speed 0. The force decreases in a line to 0 at the maximum speed
  * @param mass         the mass of the locomotive. A wagon with no cargo has a mass of {@code wagonMass} (see
  *                     {@link Traction})
@@ -14,6 +14,9 @@ public record LocomotiveStats(double maxSpeed, double force, double mass, int fu
 
     /** The default values of the furnace locomotive: about 1 coal for 200 blocks. */
     public static final LocomotiveStats FURNACE_DEFAULTS = new LocomotiveStats(0.4, 0.12, 2.0, 32000, 8.0);
+
+    /** The default values of the heavy locomotive: about 1000 blocks for 1 block of coal. */
+    public static final LocomotiveStats HEAVY_DEFAULTS = new LocomotiveStats(0.6, 0.4, 4.0, 160000, 16.0);
 
     /**
      * The pulling force at a speed.
