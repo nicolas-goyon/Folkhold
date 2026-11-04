@@ -1,0 +1,8 @@
+name = "Cartofold"
+filename = "cartofold-0.23.4.jar"
+side = "both"
+
+[download]
+url = "https://github.com/nicolas-goyon/Cartofold/releases/download/v0.23.4/cartofold-0.23.4.jar"
+hash-format = "sha256"
+hash = "7c1729e754016afb60e8d8aa3f15f6c53bd916dba48cf468a97fa0356aee0b2c"
