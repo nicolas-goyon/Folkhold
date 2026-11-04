@@ -44,6 +44,21 @@ class MergeTest(unittest.TestCase):
         self.assertEqual([v.text for v in root.findall("versioning/versions/version")], ["1.1.0"])
 
 
+    def test_metadata_with_a_namespace(self):
+        ns = "http://maven.apache.org/METADATA/1.1.0"
+        remote = REMOTE.replace(b"<metadata>", f'<metadata xmlns="{ns}">'.encode())
+        merged = maven_publish.merge_metadata(remote, LOCAL)
+        root = ET.fromstring(merged)
+        self.assertEqual(root.tag, f"{{{ns}}}metadata")
+        versions = [v.text for v in root.iter(f"{{{ns}}}version")]
+        self.assertEqual(versions, ["0.9.0", "1.0.0", "1.1.0"])
+        self.assertEqual(root.findtext(f"{{{ns}}}versioning/{{{ns}}}latest"), "1.1.0")
+        self.assertNotIn(b"ns0:", merged)
+        local = LOCAL.replace(b"<metadata>", f'<metadata xmlns="{ns}">'.encode())
+        root = ET.fromstring(maven_publish.merge_metadata(REMOTE, local))
+        self.assertEqual([v.text for v in root.iter("version")], ["0.9.0", "1.0.0", "1.1.0"])
+
+
 class PublishTest(unittest.TestCase):
     def test_files_first_then_merged_metadata(self):
         with tempfile.TemporaryDirectory() as folder:

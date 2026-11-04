@@ -21,33 +21,46 @@ import xml.etree.ElementTree as ET
 
 METADATA = "maven-metadata.xml"
 CHECKSUMS = ("md5", "sha1", "sha256", "sha512")
+# The time limit of each HTTP request, in seconds.
+TIMEOUT = 120
+
+
+def namespace(element):
+    """Returns the XML namespace of `element` as "{URI}", or "" when it has no namespace."""
+    return element.tag[:element.tag.index("}") + 1] if element.tag.startswith("{") else ""
 
 
 def merge_metadata(remote, local):
     """Returns the metadata of `remote` (bytes, or None when the remote file does not exist) with the versions,
-    latest, release and lastUpdated of `local` (bytes)."""
+    latest, release and lastUpdated of `local` (bytes). Each file can have an XML namespace. The result keeps the
+    namespace of `remote`."""
     if remote is None:
         return local
     root = ET.fromstring(remote)
-    new = ET.fromstring(local).find("versioning")
-    versioning = root.find("versioning")
-    if versioning is None:
-        versioning = ET.SubElement(root, "versioning")
-    versions = versioning.find("versions")
-    if versions is None:
-        versions = ET.SubElement(versioning, "versions")
-    known = {v.text for v in versions.findall("version")}
-    for version in new.findall("versions/version"):
-        if version.text not in known:
-            ET.SubElement(versions, "version").text = version.text
-    for name in ("latest", "release", "lastUpdated"):
-        value = new.findtext(name)
-        if value is None:
-            continue
-        element = versioning.find(name)
+    local_root = ET.fromstring(local)
+    ns, local_ns = namespace(root), namespace(local_root)
+    if ns:
+        ET.register_namespace("", ns[1:-1])
+
+    def child(parent, name):
+        element = parent.find(ns + name)
         if element is None:
-            element = ET.SubElement(versioning, name)
-        element.text = value
+            element = ET.SubElement(parent, ns + name)
+        return element
+
+    new = local_root.find(local_ns + "versioning")
+    if new is None:
+        return ET.tostring(root, encoding="UTF-8", xml_declaration=True)
+    versioning = child(root, "versioning")
+    versions = child(versioning, "versions")
+    known = {v.text for v in versions.findall(ns + "version")}
+    for version in new.findall(f"{local_ns}versions/{local_ns}version"):
+        if version.text not in known:
+            ET.SubElement(versions, ns + "version").text = version.text
+    for name in ("latest", "release", "lastUpdated"):
+        value = new.findtext(local_ns + name)
+        if value is not None:
+            child(versioning, name).text = value
     return ET.tostring(root, encoding="UTF-8", xml_declaration=True)
 
 
@@ -65,7 +78,7 @@ class Repository:
     def get(self, path):
         request = urllib.request.Request(f"{self.url}/{path}", headers=self.headers)
         try:
-            with urllib.request.urlopen(request) as response:
+            with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
                 return response.read()
         except urllib.error.HTTPError as error:
             if error.code == 404:
@@ -75,7 +88,7 @@ class Repository:
     def put(self, path, data):
         headers = {**self.headers, "Content-Type": "application/octet-stream"}
         request = urllib.request.Request(f"{self.url}/{path}", data=data, method="PUT", headers=headers)
-        with urllib.request.urlopen(request):
+        with urllib.request.urlopen(request, timeout=TIMEOUT):
             pass
         print(f"Uploaded {path}")
 

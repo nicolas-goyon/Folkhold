@@ -157,7 +157,7 @@ publishing {
     }
     repositories {
         // A local folder (build/maven of the root project). The workflow Build writes the Maven files of the mods to
-        // it, and the workflow Release uploads these files to GitHub Packages (see scripts/publish-maven.sh).
+        // it, and the workflow Release uploads these files to GitHub Packages (see scripts/maven_publish.py).
         maven {
             name = 'Staging'
             url = rootProject.file('build/maven').toURI()
