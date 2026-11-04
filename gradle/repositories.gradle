@@ -14,6 +14,28 @@ repositories {
             includeGroup 'maven.modrinth'
         }
     }
+    // Cartofold (maps, required by the world mod): the jar of its GitHub Release, with no token. The group is the
+    // group of Cartofold in GitHub Packages. The repository has no metadata: the jar is the artifact.
+    // The optional property cartofoldDir gives a local folder with the same layout (see scripts/fetch-cartofold.sh).
+    def cartofoldDir = providers.gradleProperty('cartofoldDir').getOrNull()
+    exclusiveContent {
+        forRepository {
+            ivy {
+                name = 'Cartofold releases'
+                url = cartofoldDir != null ? rootProject.file(cartofoldDir).toURI()
+                        : 'https://github.com/nicolas-goyon/Cartofold/releases/download'
+                patternLayout {
+                    artifact 'v[revision]/[module]-[revision].[ext]'
+                }
+                metadataSources {
+                    artifact()
+                }
+            }
+        }
+        filter {
+            includeGroup 'io.github.nicolasgoyon.cartofold'
+        }
+    }
     maven {
         name = 'GeckoLib'
         url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'

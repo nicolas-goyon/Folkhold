@@ -15,6 +15,11 @@ hash = "49cd0f00fe14d655a029724b564284169bcd10375d4048bb5e9a495552d19e38"
 metafile = true
 
 [[files]]
+file = "mods/cartofold.pw.toml"
+hash = "b33b5d865cf80ce5711daf6d8994a35118ace45aedf4ca03d69d57fd80869cc1"
+metafile = true
+
+[[files]]
 file = "mods/chunky.pw.toml"
 hash = "1d5cc2b6dcfd1fc3adba4566b1c29b57ff1175316678c1f22e63cbc3e28a5ba0"
 metafile = true

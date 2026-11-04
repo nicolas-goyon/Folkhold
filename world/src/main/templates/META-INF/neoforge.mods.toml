@@ -51,6 +51,14 @@ versionRange = "[${geckolib_version},)"
 ordering = "AFTER"
 side = "BOTH"
 
+# The survey maps of Cartofold: the moves and the updates at the cartography table.
+[[dependencies.${mod_id}]]
+modId = "cartofold"
+type = "required"
+versionRange = "[${cartofold_version},)"
+ordering = "NONE"
+side = "BOTH"
+
 # Optional: the territories and the villages on the maps of Xaero's mods.
 [[dependencies.${mod_id}]]
 modId = "xaerominimap"

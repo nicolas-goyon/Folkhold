@@ -49,7 +49,7 @@ The modpack is the simple way to play. It contains the Folkhold mods and a selec
 3. Start the game and create a new world.
 4. Optional: pre-generate the area around the spawn with Chunky. The game then generates fewer chunks during the play, for example with an elytra or a boat on ice. Use the commands `/chunky spawn`, `/chunky radius 2000` and `/chunky start` (cheats must be on). A radius of 2000 blocks is about 62,500 chunks: the generation takes time, and the world uses more disk space. Chunky continues after a restart of the game.
 
-To use the mods without the modpack, put `folkhold_core`, `folkhold_blocks` and `folkhold_world` from the release in the `mods` folder of a Minecraft 1.21.1 instance with NeoForge 21.1.259 or later and [GeckoLib](https://modrinth.com/mod/geckolib) 4.9.3 or later.
+To use the mods without the modpack, put `folkhold_core`, `folkhold_blocks` and `folkhold_world` from the release in the `mods` folder of a Minecraft 1.21.1 instance with NeoForge 21.1.259 or later, [GeckoLib](https://modrinth.com/mod/geckolib) 4.9.3 or later and [Cartofold](https://github.com/nicolas-goyon/Cartofold/releases) 0.23.4 or later.
 
 ## Modules
 

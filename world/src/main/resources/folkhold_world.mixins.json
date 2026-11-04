@@ -4,9 +4,7 @@
   "package": "io.github.nicolasgoyon.folkhold.world.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "CartographyTableMenuMixin",
-    "MapItemMixin",
-    "MapItemSavedDataAccessor"
+    "MapItemMixin"
   ],
   "injectors": {
     "defaultRequire": 1

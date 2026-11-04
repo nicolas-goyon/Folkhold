@@ -277,6 +277,21 @@ The workflow **Generated files** runs all the scripts of `tools/` and fails when
 
 To replace a generated house with a house built by hand: build it in creative mode, save it with a structure block (name `folkhold_world:village/house_<name>`), copy the file from the world folder (`generated/folkhold_world/structure/`) to the `village` folder, and add it to `worldgen/template_pool/village/houses.json`. The porch row (z = 0) must contain the jigsaw block (name `folkhold_world:house_front`, facing out).
 
+## Cartofold dependency
+
+The world mod requires Cartofold. Gradle downloads the jar of the GitHub Release of Cartofold (`cartofold_version` in `gradle.properties`) with no token. Before the compilation, the task `verifyCartofold` compares the sha256 of the jar with the hash in `modpack/mods/cartofold.pw.toml`.
+
+Gradle sends a HEAD request before the download. Behind some proxies, this request fails with an error 401. Then use a local folder:
+
+```bash
+scripts/fetch-cartofold.sh ~/cartofold    # downloads with GET and checks the sha256
+./gradlew build -PcartofoldDir=$HOME/cartofold
+```
+
+To use the folder for each build, put `cartofoldDir=/home/dev/cartofold` (an absolute path) in `~/.gradle/gradle.properties`. After a change of `cartofold_version`, run the script again.
+
+The published POM of `folkhold_world` (GitHub Packages) has a runtime dependency on `io.github.nicolasgoyon.cartofold:cartofold`. A project that uses `folkhold_world` must declare the ivy repository of `gradle/repositories.gradle`, or the GitHub Packages repository of Cartofold (token with `read:packages`).
+
 ## Modpack
 
 The modpack is in `modpack/` (packwiz). Use packwiz in the container:
@@ -366,6 +381,7 @@ If you use VS Code dev containers, also remove the container and the image `vsc-
 | The build stops with `OutOfMemoryError` | Not enough memory for Docker | Give Docker Desktop at least 8 GB. |
 | `port is already allocated` | A server already runs | Stop the other server (`docker compose down`). |
 | The client cannot connect: "mod mismatch" | Different jars on the client and on the server | Run `scripts/deploy-client.ps1` after each build. |
+| `Could not HEAD 'https://objects.githubusercontent.com/…'`, status 401 | The HEAD request to the Cartofold release fails behind a proxy | See [Cartofold dependency](#cartofold-dependency). |
 | The server stops: "You need to agree to the EULA" | No `dev/run/eula.txt` | See [Start the dev server](#3-start-the-dev-server). |
 
 ## Without a container (alternative)
