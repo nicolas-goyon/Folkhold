@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.phys.AABB;
 
 /**
  * A minecart with a double chest: 54 slots. It works as the vanilla chest minecart: hoppers, comparators on a
@@ -35,7 +36,7 @@ public class DoubleChestMinecart extends AbstractMinecartContainer {
 
     public DoubleChestMinecart(EntityType<? extends DoubleChestMinecart> type, Level level) {
         super(type, level);
-        // The list of the parent class has 36 slots. Make a list with SIZE slots.
+        // Replaces the list of the parent class with a list of SIZE slots.
         clearItemStacks();
     }
 
@@ -67,6 +68,12 @@ public class DoubleChestMinecart extends AbstractMinecartContainer {
     @Override
     public int getDefaultDisplayOffset() {
         return 8;
+    }
+
+    /** The client draws a second chest above the bounding box: the culling box is 1 block taller. */
+    @Override
+    public AABB getBoundingBoxForCulling() {
+        return getBoundingBox().expandTowards(0.0, 1.0, 0.0);
     }
 
     @Override

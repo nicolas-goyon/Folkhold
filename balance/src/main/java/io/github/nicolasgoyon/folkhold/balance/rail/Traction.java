@@ -32,6 +32,9 @@ public record Traction(double wagonMass, double cargoMass, double friction, doub
         UNPOWERED
     }
 
+    /** The number of slots of a chest minecart. */
+    public static final int CHEST_SLOTS = 27;
+
     /**
      * The mass of a wagon.
      *
@@ -39,8 +42,21 @@ public record Traction(double wagonMass, double cargoMass, double friction, doub
      * @return {@code wagonMass + cargoMass × fill}
      */
     public double wagonMass(double fill) {
+        return wagonMass(fill, CHEST_SLOTS);
+    }
+
+    /**
+     * The mass of a wagon with a number of slots. A wagon with more slots than a chest carries more cargo: its cargo
+     * mass increases with its slots. A wagon with fewer slots (for example a hopper minecart) has the cargo mass of
+     * a chest minecart.
+     *
+     * @param fill  the fill ratio of the slots of the wagon, from 0 (empty) to 1 (full)
+     * @param slots the number of slots of the wagon
+     * @return {@code wagonMass + cargoMass × fill × max(1, slots / 27)}
+     */
+    public double wagonMass(double fill, int slots) {
         double ratio = Double.isFinite(fill) ? Math.clamp(fill, 0.0, 1.0) : 0.0;
-        return wagonMass + cargoMass * ratio;
+        return wagonMass + cargoMass * ratio * Math.max(1.0, (double) slots / CHEST_SLOTS);
     }
 
     /**

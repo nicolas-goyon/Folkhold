@@ -849,7 +849,7 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - On start, the locomotive goes away from the minecart behind it, or away from the player when it has no minecart behind it. Then its direction follows the rails.
 - Each tick, the speed of the locomotive changes by (pull − resistance) / mass:
   - pull: the pulling force at speed 0, less in a line to 0 at the maximum speed. A locomotive that is stopped or has no fuel brakes with its pulling force;
-  - mass: the mass of the locomotive plus the mass of each minecart behind it. The mass of a wagon is `wagonMass` plus `cargoMass` multiplied by the fill ratio of its slots (the count of each stack divided by its stack size). A wagon that still has a loot table counts as empty: a read of its slots generates the loot;
+  - mass: the mass of the locomotive plus the mass of each minecart behind it. The mass of a wagon is `wagonMass` plus `cargoMass` multiplied by the fill ratio of its slots (the count of each stack divided by its stack size). A wagon with more than 27 slots multiplies its cargo mass by its slots divided by 27 (2 for the double chest minecart). A wagon with 27 slots or fewer (chest minecart, hopper minecart) has the full `cargoMass`. A wagon that still has a loot table counts as empty: a read of its slots generates the loot;
   - resistance: for each minecart, its mass multiplied by `friction`, plus `slopeForce` up a slope (minus down a slope), minus `poweredRailForce` on a powered rail with power, plus `brakeForce` on a powered rail with no power.
 - The speed is never less than 0: a train that is too heavy for a slope stops and does not slide back. The speed is never more than the speed cap of the train (see "Speed"). The vanilla slope, powered rails and slowdown do not change the speed of the locomotive. The chains (see "Train") pull the minecarts behind it.
 - A locomotive with a front link is a wagon of the train in front: it does not drive and burns no fuel.
@@ -862,7 +862,7 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - Hoppers and hopper minecarts fill it and empty it, as the vanilla chest minecart. It also gives the item handlers of NeoForge for other mods. On a detector rail, a comparator gives its fill level.
 - A destroyed minecart drops its item and all its stacks one time. A minecart removed with `/kill` drops its stacks but not its item, as the vanilla chest minecart.
 - It has no loot table. It ignores a loot table from a command or from saved data. Thus it never generates loot.
-- It is a wagon of a train as the other minecarts with a container. Its fill ratio uses its 54 slots: a full double chest minecart has the same mass as a full chest minecart (see "Locomotive").
+- It is a wagon of a train as the other minecarts with a container. It carries 2 times the cargo of a chest minecart, so its cargo mass is 2 times larger: a full double chest minecart has a mass of `wagonMass` + 2 × `cargoMass` (see "Locomotive").
 - It looks like the vanilla chest minecart with a second chest on the first chest. The item has the icon of the chest minecart in a darker color.
 
 ### Speed

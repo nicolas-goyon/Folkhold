@@ -69,20 +69,21 @@ public final class DoubleChestMinecartGameTests {
         });
     }
 
-    /** A hopper below the rail takes all the items of the minecart. The hopper points to stone and keeps them. */
+    /** A hopper below the rail takes all the items of the minecart and moves them to a chest. */
     @GameTest(template = "bench", timeoutTicks = 700, batch = "balance_rails")
     public static void hopperEmptiesTheMinecart(GameTestHelper helper) {
         TrainGameTests.floor(helper, 24, 8);
         BlockPos hopper = new BlockPos(4, 0, BENCH_Z);
-        helper.setBlock(hopper, Blocks.HOPPER.defaultBlockState().setValue(HopperBlock.FACING, Direction.EAST));
+        helper.setBlock(hopper, Blocks.HOPPER.defaultBlockState().setValue(HopperBlock.FACING, Direction.NORTH));
+        helper.setBlock(hopper.north(), Blocks.CHEST);
         DoubleChestMinecart cart = cartOnRail(helper);
         fill(cart, Items.COBBLESTONE, 1);
         helper.succeedWhen(() -> {
-            int inHopper = helper.getBlockEntity(hopper) instanceof Container block
-                    ? block.countItem(Items.COBBLESTONE) : -1;
+            int inChest = helper.getBlockEntity(hopper.north()) instanceof Container chest
+                    ? chest.countItem(Items.COBBLESTONE) : -1;
             helper.assertTrue(cart.isAlive(), "The minecart is removed");
-            helper.assertTrue(inHopper == SIZE && cart.isEmpty(),
-                    "The hopper has " + inHopper + " cobblestone, the minecart " + cart.countItem(Items.COBBLESTONE));
+            helper.assertTrue(inChest == SIZE && cart.isEmpty(),
+                    "The chest has " + inChest + " cobblestone, the minecart " + cart.countItem(Items.COBBLESTONE));
             cart.discard();
         });
     }
