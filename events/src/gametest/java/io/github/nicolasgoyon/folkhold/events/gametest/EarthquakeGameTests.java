@@ -370,12 +370,17 @@ public final class EarthquakeGameTests {
                 .thenSucceed();
     }
 
-    /** The animals near an earthquake run away from its epicenter during the announce. */
-    @GameTest(template = "quake_small", timeoutTicks = 200, batch = "earthquake_flee")
+    /**
+     * The animals near an earthquake run away from its epicenter during the announce. An animal runs only to a target
+     * in an entity-ticking chunk. The GameTest server keeps the chunks of the test area at this status, and not all the
+     * chunks around them. Thus the cow is at the center of the large template, on a stone floor: each target, at 16
+     * blocks or less from the cow, is in the test area.
+     */
+    @GameTest(template = "quake_arena", timeoutTicks = 200, batch = "earthquake_flee")
     public static void animalsRunAway(GameTestHelper helper) {
-        prepare(helper, 16, 16);
-        Cow cow = helper.spawn(EntityType.COW, new BlockPos(8, 1, 8));
-        BlockPos center = helper.absolutePos(new BlockPos(6, 1, 8));
+        prepare(helper, 40, 32);
+        Cow cow = helper.spawn(EntityType.COW, new BlockPos(20, 1, 16));
+        BlockPos center = helper.absolutePos(new BlockPos(18, 1, 16));
         Vec3 epicenter = Vec3.atBottomCenterOf(center);
         double start = cow.position().distanceTo(epicenter);
         Earthquakes.start(helper.getLevel(), center, new EarthquakeSettings(4, 0.1, 400, 20, 8), SEED);

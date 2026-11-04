@@ -92,7 +92,10 @@ public final class GroupCommandGameTests {
         helper.succeed();
     }
 
-    /** The quest commands give a delivery to a player and complete it. */
+    /**
+     * The quest commands give a delivery to a player and complete it. The command finds the player by its name: the
+     * player has a name that no other test uses.
+     */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "commands_quest")
     public static void questCommandsGiveAndComplete(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
@@ -106,7 +109,7 @@ public final class GroupCommandGameTests {
         village.economy().setInitialized(true);
         // With no stock, the village needs its items: it offers deliveries.
         TestSupport.emptyStock(village);
-        ServerPlayer player = TestSupport.mockPlayer(helper);
+        ServerPlayer player = TestSupport.mockPlayer(helper, UUID.randomUUID(), "quest-player");
         BlockPos pos = helper.absolutePos(HEART.east(2));
         player.teleportTo(pos.getX(), pos.getY(), pos.getZ());
         long treasury = SettlementData.get(server).treasury(village.factionId());

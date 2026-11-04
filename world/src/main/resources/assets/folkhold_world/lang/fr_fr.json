@@ -390,6 +390,7 @@
   "folkhold_world.cartography.move.east": "Déplacer la carte vers l'est (avec un papier). Encore : dézoomer",
   "folkhold_world.map.waypoint.added": "%s est sur la carte",
   "folkhold_world.map.waypoint.removed": "%s n'est plus sur la carte",
+  "folkhold_world.map.waypoint.out_of_map": "%s n'est pas dans la zone de cette carte",
   "message.folkhold_world.quest_board_no_village": "Ce tableau de quêtes n'est pas dans un village actif.",
   "message.folkhold_world.captain_refuses": "%s : Je n'ai pas de travail pour toi.",
   "message.folkhold_world.quest_accepted": "Quête acceptée : %s",

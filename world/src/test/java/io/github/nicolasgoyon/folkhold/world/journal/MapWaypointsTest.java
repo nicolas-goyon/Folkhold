@@ -22,4 +22,43 @@ class MapWaypointsTest {
         assertTrue(waypoints.waypoints(3).isEmpty());
         assertEquals(Map.of("ashfell", ASHFELL), waypoints.waypoints(4));
     }
+
+    /**
+     * A heart in the outer row of blocks of a map gets its decoration on the row next to it. The game shows this
+     * position. The other positions do not change.
+     */
+    @Test
+    void edgeOfTheMapMovesToTheNextRow() {
+        assertEquals(63.0, MapWaypoints.onMap(63.5, 0, 0));
+        assertEquals(-63.0, MapWaypoints.onMap(-63.5, 0, 0));
+        assertEquals(1024.0 + 252.0, MapWaypoints.onMap(1024.0 + 254.5, 1024, 2));
+        assertEquals(1024.0 - 252.0, MapWaypoints.onMap(1024.0 - 254.5, 1024, 2));
+        assertEquals(1024.0 - 252.0, MapWaypoints.onMap(1024.0 - 255.5, 1024, 2));
+        assertEquals(10.5, MapWaypoints.onMap(10.5, 0, 0));
+        assertEquals(-62.5, MapWaypoints.onMap(-62.5, 0, 0));
+        assertEquals(1024.0 - 251.5, MapWaypoints.onMap(1024.0 - 251.5, 1024, 2));
+    }
+
+    /** A position out of the area of the map does not change: the game removes its decoration. */
+    @Test
+    void positionOutOfTheMapDoesNotChange() {
+        assertEquals(64.5, MapWaypoints.onMap(64.5, 0, 0));
+        assertEquals(-64.5, MapWaypoints.onMap(-64.5, 0, 0));
+        assertEquals(200.5, MapWaypoints.onMap(200.5, 0, 0));
+        assertEquals(1024.0 + 256.5, MapWaypoints.onMap(1024.0 + 256.5, 1024, 2));
+        assertEquals(1024.0 - 256.5, MapWaypoints.onMap(1024.0 - 256.5, 1024, 2));
+    }
+
+    /** The map covers 64 map pixels on each side of its center: the last block in the map, then the first out. */
+    @Test
+    void areaOfTheMap() {
+        assertTrue(MapWaypoints.inMap(63.5, 0, 0));
+        assertTrue(MapWaypoints.inMap(-63.5, 0, 0));
+        assertFalse(MapWaypoints.inMap(64.5, 0, 0));
+        assertFalse(MapWaypoints.inMap(-64.5, 0, 0));
+        assertTrue(MapWaypoints.inMap(1024.0 + 255.5, 1024, 2));
+        assertTrue(MapWaypoints.inMap(1024.0 - 255.5, 1024, 2));
+        assertFalse(MapWaypoints.inMap(1024.0 + 256.5, 1024, 2));
+        assertFalse(MapWaypoints.inMap(1024.0 - 256.5, 1024, 2));
+    }
 }

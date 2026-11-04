@@ -390,6 +390,7 @@
   "folkhold_world.cartography.move.east": "Move the map east (with a paper). Again: zoom out",
   "folkhold_world.map.waypoint.added": "%s is on the map",
   "folkhold_world.map.waypoint.removed": "%s is not on the map any more",
+  "folkhold_world.map.waypoint.out_of_map": "%s is not in the area of this map",
   "message.folkhold_world.quest_board_no_village": "This quest board is not in an active village.",
   "message.folkhold_world.captain_refuses": "%s: I have no work for you.",
   "message.folkhold_world.quest_accepted": "Quest accepted: %s",
