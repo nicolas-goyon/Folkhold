@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.cartofold.paper.PaperWaypoints;
 import io.github.nicolasgoyon.cartofold.paper.SurveyMapData;
 import io.github.nicolasgoyon.cartofold.paper.SurveyMapItem;
 import io.github.nicolasgoyon.cartofold.paper.SurveyMarker;
@@ -69,7 +70,10 @@ public final class SurveyMapMarkerGameTests {
         helper.succeed();
     }
 
-    /** A survey map used on the heart of a ruin gets no marker. */
+    /**
+     * A survey map used on the heart of a ruin gets no marker and does not open the screen of the village. The action
+     * of the heart (the screen) gives a success: a click that passes shows that the action did not run.
+     */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "survey_map_markers")
     public static void ruinGivesNoMarker(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -78,9 +82,31 @@ public final class SurveyMapMarkerGameTests {
         ItemStack map = surveyMap(level, pos);
         ServerPlayer player = player(level, map);
 
-        use(player, pos);
+        InteractionResult result = use(player, pos);
 
         helper.assertTrue(markers(level, map).isEmpty(), "A ruin must give no marker: " + markers(level, map));
+        helper.assertTrue(result == InteractionResult.PASS, "A ruin must not open the screen of the village: " + result);
+        player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        helper.succeed();
+    }
+
+    /** A map loses the marker of a village that becomes a ruin, at the next check of its markers. */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "survey_map_markers")
+    public static void ruinLosesTheMarker(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Settlement settlement = Settlements.of(level.getServer(), heart(helper)).orElseThrow();
+        BlockPos pos = helper.absolutePos(HEART);
+        ItemStack map = surveyMap(level, pos);
+        ServerPlayer player = player(level, map);
+
+        use(player, pos);
+        List<SurveyMarker> added = markers(level, map);
+        settlement.setState(SettlementState.RUINS);
+        PaperWaypoints.check(level, SurveyMapData.get(level.getServer(), SurveyMapItem.id(map)));
+        List<SurveyMarker> checked = markers(level, map);
+
+        helper.assertTrue(added.size() == 1, "The map must have the marker of the village: " + added);
+        helper.assertTrue(checked.isEmpty(), "The map must lose the marker of a ruin: " + checked);
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
         helper.succeed();
     }
@@ -156,8 +182,8 @@ public final class SurveyMapMarkerGameTests {
     }
 
     /** A use of the item in the main hand on a block, as a right click of the player. */
-    private static void use(ServerPlayer player, BlockPos pos) {
-        player.gameMode.useItemOn(player, player.serverLevel(), player.getMainHandItem(), InteractionHand.MAIN_HAND,
+    private static InteractionResult use(ServerPlayer player, BlockPos pos) {
+        return player.gameMode.useItemOn(player, player.serverLevel(), player.getMainHandItem(), InteractionHand.MAIN_HAND,
                 hit(pos));
     }
 

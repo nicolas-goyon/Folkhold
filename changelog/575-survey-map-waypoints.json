@@ -1,5 +1,5 @@
 {
-  "category": "changed",
-  "en_us": "Use a survey map on a village heart to mark the village on the map. A second use removes the mark. The marks of villages on vanilla maps are gone: mark the villages again with a survey map.",
-  "fr_fr": "Utilisez une carte d'arpentage sur le cœur d'un village pour marquer le village sur la carte. Une deuxième utilisation enlève la marque. Les marques de villages sur les cartes vanilla disparaissent : marquez de nouveau les villages avec une carte d'arpentage."
+  "category": "new",
+  "en_us": "Use a survey map on a village heart to mark the village on the map. A second use removes the mark.",
+  "fr_fr": "Utilisez une carte d'arpentage sur le cœur d'un village pour marquer le village sur la carte. Une deuxième utilisation enlève la marque."
 }

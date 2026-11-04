@@ -120,7 +120,6 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(CartofoldMaps::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(CartofoldMaps::onServerStopped);
         NeoForge.EVENT_BUS.addListener(CartofoldMaps::onMarkerClick);
-        NeoForge.EVENT_BUS.addListener(VillageMapMarkers::onServerStarted);
         NeoForge.EVENT_BUS.addListener(Notices::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(Notices::onServerStopped);
         NeoForge.EVENT_BUS.addListener(VillageSpawnProtection::onPositionCheck);

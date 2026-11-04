@@ -8,9 +8,6 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModMapDecorations;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -18,8 +15,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.storage.LevelResource;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
 
 /**
  * The marker of a village on the survey maps of Cartofold.
@@ -38,8 +33,6 @@ public final class VillageMapMarkers {
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village_heart");
     /** The id of the survey map item of Cartofold. */
     static final ResourceLocation SURVEY_MAP = ResourceLocation.fromNamespaceAndPath("cartofold", "survey_map");
-    /** The file of the waypoints on the vanilla maps, in the {@code data} folder of the world. */
-    static final String OBSOLETE_FILE = "folkhold_map_waypoints.dat";
 
     private VillageMapMarkers() {
     }
@@ -75,22 +68,5 @@ public final class VillageMapMarkers {
      */
     public static boolean isSurveyMap(ItemStack stack) {
         return !stack.isEmpty() && BuiltInRegistries.ITEM.getKey(stack.getItem()).equals(SURVEY_MAP);
-    }
-
-    /**
-     * Deletes the file of the waypoints on the vanilla maps. Folkhold does not read this file: the players mark the
-     * villages again with a survey map.
-     *
-     * @param event the event
-     */
-    public static void onServerStarted(ServerStartedEvent event) {
-        Path file = event.getServer().getWorldPath(LevelResource.ROOT).resolve("data").resolve(OBSOLETE_FILE);
-        try {
-            if (Files.deleteIfExists(file)) {
-                FolkholdWorld.LOGGER.info("Deleted {}: the survey maps of Cartofold show the villages", file);
-            }
-        } catch (IOException e) {
-            FolkholdWorld.LOGGER.warn("Cannot delete {}", file, e);
-        }
     }
 }
