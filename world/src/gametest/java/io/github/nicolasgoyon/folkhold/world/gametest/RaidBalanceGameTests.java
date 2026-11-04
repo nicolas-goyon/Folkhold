@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.ArrayList;
@@ -40,14 +41,20 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  *
  * <p>The village of a trial is in the template {@code folkhold_world:arena_huge} (56 × 4 × 56 blocks of air): a heart
  * in the middle, the full garrison of the level, and {@link #VILLAGERS} vanilla villagers, each with a bed. The village
- * has no palisade: the trial measures the garrison against the raiders. The garrison does not refill during the trial.
+ * has no palisade: the trial measures the garrison against the raiders in the open. The garrison does not refill
+ * during the trial. A {@link Outcome#HOLDS} result with no walls is also a result for a village with its palisade. A
+ * {@link Outcome#FALLS} result is measured with no walls only: it does not prove that the village falls with its
+ * palisade.
+ *
+ * <p>The arena is a cell of the GameTest grid. The barrier cages of the tests that ran before stay in the world, and
+ * some of them are near the spawn positions of the raiders. A cage can block the path of a raider.
  *
  * <p>The raid level is the level of the Raid Omen (1 to 5). The GameTest world has the difficulty Normal: a raid has 5
  * waves, and a 6th wave when its level is 2 or more. The result of a trial:
  * <ul>
  *   <li>{@link Outcome#HOLDS}: the raid ends in a victory, all the raiders are dead.</li>
- *   <li>{@link Outcome#FALLS}: the raid ends in a loss (all the villagers are dead), or all the units of the garrison
- *       are dead.</li>
+ *   <li>{@link Outcome#FALLS}: all the units of the garrison are dead, or the raid ends in a loss. Vanilla sets the
+ *       loss when no village point of interest (a bed, a job site or a bell) is near the center of the raid.</li>
  *   <li>{@link Outcome#STALLED}: during {@link #STALL_TICKS} ticks, no raider and no unit dies, the raiders lose no
  *       health, and no wave spawns. For example, a raider is far from its target and does not move.</li>
  *   <li>{@link Outcome#UNDECIDED}: no result after {@link #TRIAL_SECONDS} seconds of real time.</li>
@@ -73,11 +80,8 @@ public final class RaidBalanceGameTests {
     private static final String TEMPLATE = FolkholdWorld.MOD_ID + ":arena_huge";
     private static final int HUGE = 56;
     private static final BlockPos HEART = new BlockPos(HUGE / 2, 1, HUGE / 2);
-    /**
-     * The chunks in this distance from the heart stay loaded and ticking during a trial, in blocks. The GameTest server
-     * ticks only the chunks of the test area, and the raiders spawn 40 to 56 blocks from the heart.
-     */
-    private static final int FORCED_RADIUS = 72;
+    /** The size of a chunk, in blocks. */
+    private static final int CHUNK = 16;
 
     /** The result of a trial. */
     enum Outcome {
@@ -203,8 +207,12 @@ public final class RaidBalanceGameTests {
                             villageLevel, result);
                     if (result.raiders() > 0 && result.outcome() != Outcome.FALLS) {
                         trial.raid.getAllRaiders().forEach(raider -> FolkholdWorld.LOGGER.info(
-                                "Raid trial: raider left: {} at {}, target {}, in water {}", raider.getType(),
-                                helper.relativePos(raider.blockPosition()), raider.getTarget(), raider.isInWater()));
+                                "Raid trial: raider left: {} at {}, {} blocks from the heart, ticking {}, target {}, "
+                                        + "in water {}",
+                                raider.getType(), helper.relativePos(raider.blockPosition()),
+                                (int) Math.sqrt(raider.blockPosition().distSqr(heartPos)),
+                                level.isPositionEntityTicking(raider.blockPosition()), raider.getTarget(),
+                                raider.isInWater()));
                     }
                     trial.remove();
                     beds.forEach(bed -> {
@@ -218,11 +226,22 @@ public final class RaidBalanceGameTests {
                 .thenSucceed();
     }
 
+    /**
+     * The chunks in this distance from the heart stay loaded and ticking during a trial, in blocks: the distance from
+     * the heart where the units can be ({@link MonsterTargeting#gateRadius()}), plus one chunk. The GameTest server
+     * ticks only the chunks of the test area. Vanilla removes a raider that is 112 blocks or more from the center of
+     * the raid: each raider of the raid is in a ticking chunk.
+     */
+    static int forcedRadius() {
+        return (int) Math.ceil(MonsterTargeting.gateRadius()) + CHUNK;
+    }
+
     /** Forces the chunks near the heart to stay loaded and ticking, or stops it. */
     private static void forceChunks(GameTestHelper helper, boolean forced) {
         BlockPos heart = helper.absolutePos(HEART);
-        for (int x = (heart.getX() - FORCED_RADIUS) >> 4; x <= (heart.getX() + FORCED_RADIUS) >> 4; x++) {
-            for (int z = (heart.getZ() - FORCED_RADIUS) >> 4; z <= (heart.getZ() + FORCED_RADIUS) >> 4; z++) {
+        int radius = forcedRadius();
+        for (int x = (heart.getX() - radius) >> 4; x <= (heart.getX() + radius) >> 4; x++) {
+            for (int z = (heart.getZ() - radius) >> 4; z <= (heart.getZ() + radius) >> 4; z++) {
                 helper.getLevel().setChunkForced(x, z, forced);
             }
         }
