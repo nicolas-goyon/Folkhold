@@ -7,7 +7,6 @@
 NPC factions trade, defend their villages and hold territory. Caravans travel between the villages.<br>
 The reputation of the player decides how each village receives them.
 
-[![Build on main](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/build.yml?branch=main&label=build%20%C2%B7%20main&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/build.yml?query=branch%3Amain)
 [![Build on develop](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/build.yml?branch=develop&label=build%20%C2%B7%20develop&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/build.yml?query=branch%3Adevelop)
 [![Release workflow](https://img.shields.io/github/actions/workflow/status/nicolas-goyon/Folkhold/release.yml?label=release&logo=github)](https://github.com/nicolas-goyon/Folkhold/actions/workflows/release.yml)
 [![Latest version](https://img.shields.io/endpoint?url=https%3A%2F%2Fnicolas-goyon.github.io%2FFolkhold%2Fversion.json)](https://github.com/nicolas-goyon/Folkhold/releases)
