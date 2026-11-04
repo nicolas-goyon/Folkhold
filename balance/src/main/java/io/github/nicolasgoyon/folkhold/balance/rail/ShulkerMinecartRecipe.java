@@ -15,7 +15,8 @@ import net.minecraft.world.level.block.ShulkerBoxBlock;
 
 /**
  * The recipe of the shulker box minecart: a minecart and a shulker box, with no shape. The result keeps the items and
- * the color of the shulker box. A shulker box with a loot table does not match: its loot would be lost.
+ * the color of the shulker box. A shulker box with a loot table or a lock does not match: the minecart cannot keep
+ * the loot or the lock.
  */
 public class ShulkerMinecartRecipe extends CustomRecipe {
     public ShulkerMinecartRecipe(CraftingBookCategory category) {
@@ -52,7 +53,7 @@ public class ShulkerMinecartRecipe extends CustomRecipe {
 
     private static boolean isBox(ItemStack stack) {
         return Block.byItem(stack.getItem()) instanceof ShulkerBoxBlock
-                && !stack.has(DataComponents.CONTAINER_LOOT);
+                && !stack.has(DataComponents.CONTAINER_LOOT) && !stack.has(DataComponents.LOCK);
     }
 
     @Override

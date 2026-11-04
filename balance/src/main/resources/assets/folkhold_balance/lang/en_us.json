@@ -63,6 +63,8 @@
   "entity.folkhold_balance.double_chest_minecart": "Double Chest Minecart",
   "item.folkhold_balance.shulker_box_minecart": "Shulker Box Minecart",
   "entity.folkhold_balance.shulker_box_minecart": "Shulker Box Minecart",
+  "item.folkhold_balance.ender_chest_minecart": "Ender Chest Minecart",
+  "entity.folkhold_balance.ender_chest_minecart": "Ender Chest Minecart",
   "folkhold_balance.locomotive.running": "The locomotive runs. Fuel: %s blocks.",
   "folkhold_balance.locomotive.stopped": "The locomotive is stopped. Fuel: %s blocks.",
   "folkhold_balance.locomotive.no_fuel": "The locomotive has no fuel. Add %s.",
