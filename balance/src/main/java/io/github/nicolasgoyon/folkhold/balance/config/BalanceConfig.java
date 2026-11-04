@@ -154,8 +154,10 @@ public final class BalanceConfig {
                 .comment("A locomotive that runs, has fuel and moves loads the chunks of its train and the chunks on",
                         "a straight line 32 blocks in front of it. These chunks tick their entities, so the train does",
                         "not stop at the edge of the loaded area. Around each of these chunks, a 3 x 3 area of chunks",
-                        "ticks its blocks (random ticks, crops, redstone). False: the train stops at the edge of the",
-                        "loaded area and waits.")
+                        "ticks its blocks (random ticks, crops, redstone). While it loads chunks, the locomotive burns",
+                        "its fuel as at its maximum speed, also when it does not move. A train that waits at the edge",
+                        "for more than 200 ticks (for example after a restart) continues when a player comes near.",
+                        "False: the train stops at the edge of the loaded area and waits.")
                 .translation(KEY_PREFIX + "loadChunks")
                 .define("loadChunks", false);
         TRAIN_MAX_LOADING = builder

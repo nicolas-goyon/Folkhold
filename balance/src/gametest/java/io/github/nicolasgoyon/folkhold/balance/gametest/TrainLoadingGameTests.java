@@ -180,7 +180,8 @@ public final class TrainLoadingGameTests {
         List<AbstractMinecart> carts = new ArrayList<>();
         List<Vec3> start = new ArrayList<>();
         List<ChunkPos> ahead = new ArrayList<>();
-        double fuel = 10000.0;
+        // The locomotive burns fuel in each tick while it loads chunks: it gets its full capacity.
+        double fuel = 32000.0;
         double limit = far.pos(-20, 0).getX();
         helper.startSequence()
                 .thenWaitUntil(far::assertEdgeReady)
@@ -211,12 +212,16 @@ public final class TrainLoadingGameTests {
                     far.assertLinked(carts.get(0), carts.get(1));
                     helper.assertTrue(far.chains() == 0, "A chain drops");
                     helper.assertTrue(((Locomotive) carts.get(0)).fuel() < fuel, "The locomotive burns no fuel");
-                    // A chunk that only the train loads: 32 blocks in front of the locomotive.
+                })
+                // A chunk that only the train loads: 32 blocks in front of the locomotive, where it is now. The
+                // chunks next to the rails generate during the test, so the chunk can tick only after some ticks.
+                .thenWaitUntil(() -> {
+                    ahead.clear();
                     ahead.add(new ChunkPos(BlockPos.containing(carts.get(0).getX() - TrainChunks.AHEAD, 0,
                             carts.get(0).getZ())));
+                    helper.assertTrue(isEntityTicking(far, ahead.get(0)),
+                            "The chunk in front of the locomotive does not tick its entities");
                 })
-                .thenWaitUntil(() -> helper.assertTrue(isEntityTicking(far, ahead.get(0)),
-                        "The chunk in front of the locomotive does not tick its entities"))
                 .thenExecute(() -> {
                     // The train is removed while it is loaded, so that it is not saved in the chunks.
                     far.clear(carts);

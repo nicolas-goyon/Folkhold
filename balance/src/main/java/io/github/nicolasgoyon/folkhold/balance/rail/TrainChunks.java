@@ -32,6 +32,9 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * last {@link #WAIT_GRACE} ticks. Thus a train that cannot move and has a wagon at the edge of the loaded area does
  * not keep its chunks loaded.
  *
+ * <p>While a locomotive gives tickets, it burns its fuel as at its maximum speed, also when it does not move (see
+ * {@link Locomotive#tick()}). Thus the chunk loading always costs fuel.
+ *
  * <p>Each ticket has a lifespan of {@link #LIFESPAN} ticks. The locomotive gives its tickets again each tick, and the
  * game removes a ticket that the locomotive does not give again. Thus the tickets go away when the locomotive stops
  * moving, stops, has no fuel, is removed or unloads, or when the option is off. The game does not save the tickets.

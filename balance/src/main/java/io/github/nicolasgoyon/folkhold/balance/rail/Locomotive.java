@@ -126,7 +126,9 @@ public abstract class Locomotive extends AbstractMinecart {
             // goes back to its position, so its fuel does not burn.
             double moved = Math.min(1.0, Math.sqrt(Math.pow(xo - startX, 2) + Math.pow(zo - startZ, 2)));
             if (running && !front && fuel > 0.0 && Double.isFinite(moved)) {
-                fuel = Math.max(0.0, fuel - moved * stats().fuelPerBlock());
+                // A locomotive that loads chunks burns its fuel as at its maximum speed, also when it does not move.
+                double burned = TrainChunks.isLoading(this) ? Math.max(moved, stats().maxSpeed()) : moved;
+                fuel = Math.max(0.0, fuel - burned * stats().fuelPerBlock());
             }
             startX = xo;
             startZ = zo;

@@ -20,7 +20,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
  * In-game tests for the rules of the optional chunk loading of the trains (config value {@code rails.loadChunks}):
- * the tickets need a movement, and the number of locomotives that load chunks has a limit.
+ * the tickets need a movement, they cost fuel, and the number of locomotives that load chunks has a limit.
  *
  * <p>Template {@code folkhold_balance:express}: 48 × 5 × 48 blocks of air. Each test changes the shared config values,
  * so each test has its own batch and sets the values again at its start and at its end.
@@ -49,17 +49,7 @@ public final class TrainChunkGameTests {
     public static void runningLocomotiveThatCannotMoveGivesNoTickets(GameTestHelper helper) {
         resetOptions();
         BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
-        TrainGameTests.floor(helper, SIZE, SIZE);
-        for (int x = 1; x < SIZE - 1; x++) {
-            if (x < BRAKE_X || x > BRAKE_X + 4) {
-                TrainGameTests.rail(helper, x, LINE_Z, RailShape.EAST_WEST);
-            }
-        }
-        TrainGameTests.fixRails(helper);
-        for (int x = BRAKE_X; x <= BRAKE_X + 4; x++) {
-            helper.setBlock(new BlockPos(x, 1, LINE_Z),
-                    Blocks.POWERED_RAIL.defaultBlockState().setValue(PoweredRailBlock.SHAPE, RailShape.EAST_WEST));
-        }
+        brakeTrack(helper);
         List<AbstractMinecart> train = LocomotiveGameTests.train(helper, ModEntities.FURNACE_LOCOMOTIVE.get(), 2.5,
                 LINE_Z, 0, false);
         Locomotive locomotive = (Locomotive) train.get(0);
@@ -68,9 +58,7 @@ public final class TrainChunkGameTests {
                 .thenExecute(() -> locomotive.setRunning(true, helper.absoluteVec(new Vec3(0.0, 1.0, LINE_Z + 0.5))))
                 .thenWaitUntil(() -> helper.assertTrue(TrainChunks.isLoading(locomotive),
                         "The moving locomotive gives no tickets"))
-                .thenWaitUntil(() -> helper.assertTrue(helper.getLevel().getBlockState(
-                                locomotive.getCurrentRailPosition()).is(Blocks.POWERED_RAIL)
-                                && locomotive.getDeltaMovement().lengthSqr() == 0.0,
+                .thenWaitUntil(() -> helper.assertTrue(stopped(helper, locomotive),
                         "The locomotive does not stop on the powered rail"))
                 .thenExecute(() -> stop.add(locomotive.position()))
                 .thenIdle(TrainChunks.MOVE_GRACE + 2)
@@ -87,6 +75,66 @@ public final class TrainChunkGameTests {
                     LocomotiveGameTests.clear(helper, train);
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * A running locomotive stops on an unpowered powered rail. While it still gives tickets, it burns its fuel in each
+     * tick as at its maximum speed. When the fuel ends, it gives no tickets.
+     */
+    @GameTest(template = "express", timeoutTicks = 400, batch = "balance_rails_chunks_fuel")
+    public static void locomotiveThatGivesTicketsBurnsFuelAtItsMaximumSpeed(GameTestHelper helper) {
+        resetOptions();
+        BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
+        brakeTrack(helper);
+        List<AbstractMinecart> train = LocomotiveGameTests.train(helper, ModEntities.FURNACE_LOCOMOTIVE.get(), 2.5,
+                LINE_Z, 0, false);
+        Locomotive locomotive = (Locomotive) train.get(0);
+        double perTick = locomotive.stats().maxSpeed() * locomotive.stats().fuelPerBlock();
+        double fuel = 5.5 * perTick;
+        helper.startSequence()
+                .thenExecute(() -> locomotive.setRunning(true, helper.absoluteVec(new Vec3(0.0, 1.0, LINE_Z + 0.5))))
+                .thenWaitUntil(() -> helper.assertTrue(stopped(helper, locomotive),
+                        "The locomotive does not stop on the powered rail"))
+                .thenIdle(1)
+                .thenExecute(() -> {
+                    helper.assertTrue(TrainChunks.isLoading(locomotive), "The locomotive gives no tickets");
+                    locomotive.setFuel(fuel);
+                })
+                .thenIdle(1)
+                .thenExecute(() -> {
+                    double burned = fuel - locomotive.fuel();
+                    helper.assertTrue(Math.abs(burned - perTick) < 1.0E-6, "The locomotive that does not move burns "
+                            + burned + " fuel in one tick, expected " + perTick);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(locomotive.fuel() == 0.0, "The fuel does not end"))
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    helper.assertTrue(!TrainChunks.isLoading(locomotive), "The locomotive with no fuel gives tickets");
+                    resetOptions();
+                    LocomotiveGameTests.clear(helper, train);
+                })
+                .thenSucceed();
+    }
+
+    /** True when the locomotive is on an unpowered powered rail and has no motion. */
+    private static boolean stopped(GameTestHelper helper, Locomotive locomotive) {
+        return helper.getLevel().getBlockState(locomotive.getCurrentRailPosition()).is(Blocks.POWERED_RAIL)
+                && locomotive.getDeltaMovement().lengthSqr() == 0.0;
+    }
+
+    /** A floor, a line of rails along X with 5 unpowered powered rails from {@link #BRAKE_X}. */
+    private static void brakeTrack(GameTestHelper helper) {
+        TrainGameTests.floor(helper, SIZE, SIZE);
+        for (int x = 1; x < SIZE - 1; x++) {
+            if (x < BRAKE_X || x > BRAKE_X + 4) {
+                TrainGameTests.rail(helper, x, LINE_Z, RailShape.EAST_WEST);
+            }
+        }
+        TrainGameTests.fixRails(helper);
+        for (int x = BRAKE_X; x <= BRAKE_X + 4; x++) {
+            helper.setBlock(new BlockPos(x, 1, LINE_Z),
+                    Blocks.POWERED_RAIL.defaultBlockState().setValue(PoweredRailBlock.SHAPE, RailShape.EAST_WEST));
+        }
     }
 
     /**
