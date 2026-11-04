@@ -258,7 +258,7 @@ public final class TrainLoadingGameTests {
      * is at the edge of the simulation distance. After {@link TrainChunks#WAIT_GRACE} ticks with no real movement,
      * the locomotive gives no tickets, and the chunk of the wagon does not tick its entities.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_load_chunks_wall")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_load_chunks_wall")
     public static void locomotiveAgainstAWallGivesNoTicketsAfterTheGracePeriod(GameTestHelper helper) {
         Far far = new Far(helper);
         BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
@@ -272,8 +272,7 @@ public final class TrainLoadingGameTests {
         far.fixRails();
         List<AbstractMinecart> carts = new ArrayList<>();
         List<Long> stopTick = new ArrayList<>();
-        helper.startSequence()
-                .thenWaitUntil(far::assertLoaded)
+        GameTestSequence sequence = thenWaitForChunks(helper.startSequence(), far::assertLoaded)
                 .thenExecute(() -> {
                     Locomotive locomotive = far.spawn(ModEntities.FURNACE_LOCOMOTIVE.get(), 15.9, 0);
                     locomotive.setFuel(10000.0);
@@ -281,11 +280,14 @@ public final class TrainLoadingGameTests {
                     carts.add(far.spawn(EntityType.CHEST_MINECART, 17.9, 0));
                     TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
                     locomotive.setRunning(true, locomotive.position());
-                })
-                .thenWaitUntil(() -> helper.assertTrue(TrainChunks.isLoading(carts.get(0)),
-                        "The moving locomotive gives no tickets"))
-                .thenWaitUntil(() -> helper.assertTrue(carts.get(0).getX() < far.pos(15, 0).getX() + 0.6
-                        && Math.abs(carts.get(0).getX() - carts.get(0).xo) < 1.0E-4, "The locomotive is not against the wall"))
+                });
+        // The train moves only when the chunk of the wagon ticks: the chunks around it load in real time.
+        thenWaitForChunks(sequence, () -> helper.assertTrue(TrainChunks.isLoading(carts.get(0)),
+                "The moving locomotive gives no tickets"))
+                .thenWaitUntil(withinTicks(helper, () -> helper.assertTrue(
+                        carts.get(0).getX() < far.pos(15, 0).getX() + 0.6
+                                && Math.abs(carts.get(0).getX() - carts.get(0).xo) < 1.0E-4,
+                        "The locomotive is not against the wall")))
                 .thenExecute(() -> {
                     far.removeTicket(far.east, 2);
                     stopTick.add(helper.getTick());
@@ -295,7 +297,7 @@ public final class TrainLoadingGameTests {
                 .thenExecuteFor(3 * TrainChunks.LIFESPAN, () -> helper.assertTrue(
                         !TrainChunks.isLoading(carts.get(0)), "The locomotive against the wall gives tickets "
                                 + (helper.getTick() - stopTick.get(0)) + " ticks after its last movement"))
-                .thenWaitUntil(() -> far.assertEdge(carts.get(1)))
+                .thenWaitUntil(withinTicks(helper, () -> far.assertEdge(carts.get(1))))
                 .thenExecute(() -> {
                     far.assertLinked(carts.get(0), carts.get(1));
                     helper.assertTrue(far.chains() == 0, "A chain drops");
@@ -311,6 +313,8 @@ public final class TrainLoadingGameTests {
     /**
      * Adds to a sequence a wait for the far chunks, with a real-time limit of {@link #CHUNK_SECONDS}. After this
      * limit, the assertion runs one more time and its failure stops the test.
+     *
+     * @see "TestSupport.thenWaitForWorker in the GameTests of the world module: the same wait for a worker thread"
      */
     private static GameTestSequence thenWaitForChunks(GameTestSequence sequence, Runnable assertion) {
         long[] deadline = {0L};
@@ -389,28 +393,27 @@ public final class TrainLoadingGameTests {
      * The chunk of the back minecart unloads, then loads again. The two minecarts keep the link, and the minecart that
      * loads again has its link from the saved data of the chunk.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_unload")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_unload")
     public static void linkStaysWhenAMinecartUnloadsAndLoadsAgain(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Far far = new Far(helper);
         far.ticket(far.west, 0);
         far.ticket(far.east, 0);
         List<AbstractMinecart> carts = new ArrayList<>();
-        helper.startSequence()
-                .thenWaitUntil(far::assertLoaded)
+        GameTestSequence sequence = thenWaitForChunks(helper.startSequence(), far::assertLoaded)
                 .thenExecute(() -> {
                     carts.add(far.spawn(EntityType.MINECART, FRONT_X, 0));
                     carts.add(far.spawn(EntityType.MINECART, BACK_X, 0));
                     TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
                     far.removeTicket(far.east, 0);
-                })
-                .thenWaitUntil(() -> assertUnloaded(helper, carts.get(1)))
+                });
+        sequence = thenWaitForChunks(sequence, () -> assertUnloaded(helper, carts.get(1)))
                 .thenExecute(() -> {
                     helper.assertTrue(CartLinks.get(carts.get(0)).back().equals(Optional.of(carts.get(1).getUUID())),
                             "The front minecart forgets the link when the back minecart unloads");
                     far.ticket(far.east, 0);
-                })
-                .thenWaitUntil(() -> assertLoadedAgain(helper, carts.get(1)))
+                });
+        thenWaitForChunks(sequence, () -> assertLoadedAgain(helper, carts.get(1)))
                 .thenIdle(WAIT_TICKS)
                 .thenExecute(() -> {
                     AbstractMinecart loaded = loaded(level, carts.get(1));
@@ -426,33 +429,33 @@ public final class TrainLoadingGameTests {
      * The chunk of the back minecart unloads, then the front minecart is destroyed: one chain drops. The back minecart
      * loads again in an area that ticks. The check of the dead links removes its link, and no other chain drops.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_dead_link")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_dead_link")
     public static void deadLinkGoesAwayWhenTheMinecartLoads(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Far far = new Far(helper);
         far.ticket(far.west, 0);
         far.ticket(far.east, 0);
         List<AbstractMinecart> carts = new ArrayList<>();
-        helper.startSequence()
-                .thenWaitUntil(far::assertLoaded)
+        GameTestSequence sequence = thenWaitForChunks(helper.startSequence(), far::assertLoaded)
                 .thenExecute(() -> {
                     carts.add(far.spawn(EntityType.MINECART, FRONT_X, 0));
                     carts.add(far.spawn(EntityType.MINECART, BACK_X, 0));
                     TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
                     far.removeTicket(far.east, 0);
-                })
-                .thenWaitUntil(() -> assertUnloaded(helper, carts.get(1)))
+                });
+        sequence = thenWaitForChunks(sequence, () -> assertUnloaded(helper, carts.get(1)))
                 .thenExecute(() -> {
                     carts.get(0).kill();
                     helper.assertTrue(far.chains() == 1, "The destroyed minecart drops " + far.chains() + " chains");
                     // The chunks next to east also tick their entities.
                     far.ticket(far.east, 3);
-                })
-                .thenWaitUntil(() -> assertLoadedAgain(helper, carts.get(1)))
+                });
+        sequence = thenWaitForChunks(sequence, () -> assertLoadedAgain(helper, carts.get(1)))
                 .thenExecute(() -> helper.assertTrue(CartLinks.get(loaded(level, carts.get(1))).front()
-                        .equals(Optional.of(carts.get(0).getUUID())), "The back minecart loads without its link"))
-                .thenWaitUntil(() -> helper.assertTrue(CartLinks.get(loaded(level, carts.get(1))).isEmpty(),
-                        "The back minecart keeps the link to the destroyed minecart"))
+                        .equals(Optional.of(carts.get(0).getUUID())), "The back minecart loads without its link"));
+        // The minecart ticks only when the chunks around east are loaded: this also takes real time.
+        thenWaitForChunks(sequence, () -> helper.assertTrue(CartLinks.get(loaded(level, carts.get(1))).isEmpty(),
+                "The back minecart keeps the link to the destroyed minecart"))
                 .thenExecute(() -> {
                     helper.assertTrue(far.chains() == 1, "Expected 1 chain in total, found " + far.chains());
                     far.clear(List.of(loaded(level, carts.get(1))));
