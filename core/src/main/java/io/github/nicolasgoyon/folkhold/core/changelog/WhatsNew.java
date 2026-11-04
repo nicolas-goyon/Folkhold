@@ -9,9 +9,10 @@ import javax.annotation.Nullable;
 /**
  * The rule of the "What's new" screen: the screen opens one time after an update.
  *
- * <p>A small file in the config folder keeps the version of the mod when the screen opened the last time. The screen
- * opens when the changelog has a version that is newer than this version. With no file (a new installation), the
- * screen opens when the changelog has a version.
+ * <p>A small file in the config folder keeps the newest version of the changelog when the screen opened the last
+ * time. The screen opens when the newest version of the changelog is not this version, or when there is no file (a
+ * new installation). The version of the mod has no effect: a development build of the same release does not open the
+ * screen again.
  */
 public final class WhatsNew {
     /** The name of the file in the config folder. */
@@ -21,17 +22,14 @@ public final class WhatsNew {
     }
 
     /**
-     * True when the screen must open.
+     * True when the screen must open: the changelog has a version, and the file has no version or another version
+     * than the newest version of the changelog.
      *
-     * @param lastVersion the version of the mod when the screen opened the last time, or null
-     * @param version     the version of the mod
+     * @param lastVersion the version in the file, or null
      * @param changelog   the changelog in the jar
      */
-    public static boolean shouldShow(@Nullable String lastVersion, String version, Changelog changelog) {
-        if (changelog.isEmpty() || version.equals(lastVersion)) {
-            return false;
-        }
-        return lastVersion == null || compare(changelog.versions().get(0).version(), lastVersion) > 0;
+    public static boolean shouldShow(@Nullable String lastVersion, Changelog changelog) {
+        return !changelog.isEmpty() && !changelog.versions().get(0).version().equals(lastVersion);
     }
 
     /** The version in the file, or null when there is no file or the file cannot be read. */
@@ -49,34 +47,5 @@ public final class WhatsNew {
     public static void write(Path file, String version) throws IOException {
         Files.createDirectories(file.toAbsolutePath().getParent());
         Files.writeString(file, version + "\n", StandardCharsets.UTF_8);
-    }
-
-    /**
-     * Compares two versions "major.minor.patch[-pre-release][+build]". A pre-release comes before the release with the
-     * same numbers. A part that is not a number counts as 0.
-     */
-    public static int compare(String a, String b) {
-        String[] left = a.split("\\+", 2)[0].split("-", 2);
-        String[] right = b.split("\\+", 2)[0].split("-", 2);
-        String[] numbersLeft = left[0].split("\\.");
-        String[] numbersRight = right[0].split("\\.");
-        for (int i = 0; i < 3; i++) {
-            int result = Integer.compare(number(numbersLeft, i), number(numbersRight, i));
-            if (result != 0) {
-                return result;
-            }
-        }
-        if (left.length == 1 || right.length == 1) {
-            return Integer.compare(right.length, left.length);
-        }
-        return left[1].compareTo(right[1]);
-    }
-
-    private static int number(String[] parts, int index) {
-        try {
-            return index < parts.length ? Integer.parseInt(parts[index]) : 0;
-        } catch (NumberFormatException e) {
-            return 0;
-        }
     }
 }

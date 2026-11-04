@@ -24,36 +24,31 @@ class WhatsNewTest {
 
     @Test
     void opensAfterAnUpdate() {
-        assertTrue(WhatsNew.shouldShow("0.5.0", "0.6.0", CHANGELOG));
-        assertTrue(WhatsNew.shouldShow("0.4.2", "0.6.0", CHANGELOG), "The player skipped a version");
+        assertTrue(WhatsNew.shouldShow("0.5.0", CHANGELOG));
+        assertTrue(WhatsNew.shouldShow("0.4.2", CHANGELOG), "The player skipped a version");
     }
 
     @Test
     void opensOnANewInstallation() {
-        assertTrue(WhatsNew.shouldShow(null, "0.6.0", CHANGELOG));
+        assertTrue(WhatsNew.shouldShow(null, CHANGELOG));
     }
 
     @Test
-    void doesNotOpenAgainForTheSameVersion() {
-        assertFalse(WhatsNew.shouldShow("0.6.0", "0.6.0", CHANGELOG));
+    void doesNotOpenAgainForTheSameNewestVersion() {
+        assertFalse(WhatsNew.shouldShow("0.6.0", CHANGELOG));
     }
 
     @Test
-    void doesNotOpenWithNoNewEntry() {
-        assertFalse(WhatsNew.shouldShow("0.6.0", "0.6.1", CHANGELOG), "The version 0.6.1 has no entry");
-        assertFalse(WhatsNew.shouldShow("0.7.0", "0.6.0", CHANGELOG), "A downgrade");
-        assertFalse(WhatsNew.shouldShow(null, "0.6.0", Changelog.EMPTY), "No changelog in the jar");
-        assertFalse(WhatsNew.shouldShow("0.5.0", "0.6.0", Changelog.EMPTY));
+    void doesNotOpenForADevelopmentBuildOfTheSameRelease() {
+        // The version of the mod is 0.33.0-dev.x: only the newest version of the changelog counts.
+        Changelog changelog = new Changelog(List.of(release("0.33.0")));
+        assertFalse(WhatsNew.shouldShow("0.33.0", changelog));
     }
 
     @Test
-    void comparesVersions() {
-        assertTrue(WhatsNew.compare("0.10.0", "0.9.9") > 0);
-        assertTrue(WhatsNew.compare("1.0.0", "1.0.0-alpha.1") > 0, "A pre-release comes before the release");
-        assertTrue(WhatsNew.compare("0.6.0-pr.12.abc", "0.6.0") < 0);
-        assertTrue(WhatsNew.compare("1.0.0-alpha.2", "1.0.0-alpha.1") > 0);
-        assertEquals(0, WhatsNew.compare("0.6.0+build.5", "0.6.0"));
-        assertEquals(0, WhatsNew.compare("x.y", "0.0.0"));
+    void doesNotOpenWithNoChangelog() {
+        assertFalse(WhatsNew.shouldShow(null, Changelog.EMPTY));
+        assertFalse(WhatsNew.shouldShow("0.5.0", Changelog.EMPTY));
     }
 
     @Test

@@ -30,12 +30,10 @@ public final class FolkholdCoreClient {
     private static final int VERSIONS = 5;
 
     private final Changelog changelog;
-    private final String version;
     private boolean checked;
 
     public FolkholdCoreClient(IEventBus modEventBus, ModContainer modContainer) {
         this.changelog = load(modContainer);
-        this.version = modContainer.getModInfo().getVersion().toString();
         modContainer.registerExtensionPoint(IConfigScreenFactory.class,
                 (container, parent) -> new WhatsNewScreen(changelog.newest(VERSIONS), parent));
         NeoForge.EVENT_BUS.addListener(this::onScreenOpening);
@@ -62,13 +60,17 @@ public final class FolkholdCoreClient {
         }
         checked = true;
         Path file = FMLPaths.CONFIGDIR.get().resolve(WhatsNew.FILE);
-        if (WhatsNew.shouldShow(WhatsNew.read(file), version, changelog)) {
-            event.setNewScreen(new WhatsNewScreen(changelog.newest(VERSIONS), title));
-            try {
-                WhatsNew.write(file, version);
-            } catch (IOException e) {
-                FolkholdCore.LOGGER.warn("Cannot write {}: {}", file, e.getMessage());
-            }
+        if (!WhatsNew.shouldShow(WhatsNew.read(file), changelog)) {
+            return;
         }
+        // The screen opens only when the file keeps the version: else it opens again at each start.
+        try {
+            WhatsNew.write(file, changelog.versions().get(0).version());
+        } catch (IOException e) {
+            FolkholdCore.LOGGER.warn("Cannot write {}: {}. The \"What's new\" screen does not open.", file,
+                    e.getMessage());
+            return;
+        }
+        event.setNewScreen(new WhatsNewScreen(changelog.newest(VERSIONS), title));
     }
 }

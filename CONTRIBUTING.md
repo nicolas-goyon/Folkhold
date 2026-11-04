@@ -106,9 +106,12 @@ changes, in English and in French. The CI and the release use `scripts/changelog
   this file as `assets/folkhold_core/changelog.json`. A local build has no such file, so its jar has no changelog
   and the screen does not open. To test the screen locally, run `mkdir -p build && python3 scripts/changelog.py
   build --json build/changelog.json` before the build. The script uses only the committed entries.
-- The screen opens one time in place of the title screen, when the changelog has a version that is newer than the
-  version in `config/folkhold_core-whats-new.txt`. The client then writes its version to this file.
-- The button "Config" of Folkhold Core in the list of mods opens the screen again.
+- The screen opens one time in place of the title screen, when the newest version of the changelog is not the
+  version in `config/folkhold_core-whats-new.txt`. The client first writes the newest version to this file. When the
+  write fails, the screen does not open. The version of the mod has no effect, so a development build of the same
+  release does not open the screen again.
+- The button "Config" of Folkhold Core in the list of mods opens the screen again. Core has no config. When core
+  gets a config, its config screen gets a button that opens this screen.
 - A file that is not valid gives a warning in the log and no screen. The game does not stop.
 
 ## Code checks

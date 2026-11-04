@@ -36,9 +36,11 @@ class ChangelogTest {
     @Test
     void englishWhenTheLanguageHasNoText() {
         Changelog changelog = parse("""
-                {"versions": [{"version": "1.0.0", "entries": [{"category": "new", "en_us": "Bells."}]}]}
+                {"versions": [{"version": "1.0.0", "entries": [
+                  {"category": "new", "en_us": "Bells.", "de_de": "Glocken."}]}]}
                 """);
-        assertEquals("Bells.", changelog.versions().get(0).entries().get(0).text("de_de"));
+        assertEquals("Bells.", changelog.versions().get(0).entries().get(0).text("de_de"),
+                "The changelog reads only en_us and fr_fr");
         assertEquals("Bells.", changelog.versions().get(0).entries().get(0).text("fr_fr"));
     }
 

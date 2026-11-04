@@ -27,6 +27,8 @@ public record Changelog(List<Release> versions) {
     public static final String RESOURCE = "assets/folkhold_core/changelog.json";
     /** The language of the texts when the language of the client has no text. */
     public static final String FALLBACK_LANGUAGE = "en_us";
+    /** The languages of the entries. */
+    public static final List<String> LANGUAGES = List.of(FALLBACK_LANGUAGE, "fr_fr");
     /** An empty changelog. */
     public static final Changelog EMPTY = new Changelog(List.of());
 
@@ -117,10 +119,10 @@ public record Changelog(List<Release> versions) {
         Category category = Arrays.stream(Category.values())
                 .filter(value -> value.id().equals(string(object, "category"))).findFirst().orElse(null);
         Map<String, String> texts = new TreeMap<>();
-        for (String key : object.keySet()) {
-            String text = string(object, key);
-            if (key.matches("[a-z]{2,3}_[a-z]{2,3}") && text != null && !text.isBlank()) {
-                texts.put(key, text);
+        for (String language : LANGUAGES) {
+            String text = string(object, language);
+            if (text != null && !text.isBlank()) {
+                texts.put(language, text);
             }
         }
         return category == null || !texts.containsKey(FALLBACK_LANGUAGE) ? null : new Entry(category, texts);
