@@ -47,7 +47,7 @@ public final class PerformanceGameTests {
     }
 
     /** A requested route comes from the worker thread some ticks later. The server thread does not wait. */
-    @GameTest(template = "empty", timeoutTicks = 400, batch = "performance_route")
+    @GameTest(template = "empty", timeoutTicks = TestSupport.WORKER_TICKS, batch = "performance_route")
     public static void routeComesFromTheWorkerThread(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement from = ruins(server, FAR_X, 0);
@@ -58,9 +58,8 @@ public final class PerformanceGameTests {
 
         helper.assertTrue(requested, "The request must go to the worker thread");
         helper.assertTrue(notYet, "The route must not be in the data in the tick of the request");
-        helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(CaravanRoutes.cached(server, from, to) != null,
-                        "The route must come from the worker thread"))
+        TestSupport.thenWaitForWorker(helper, helper.startSequence(),
+                        () -> CaravanRoutes.cached(server, from, to) != null, "The route must come from the worker thread")
                 .thenExecute(() -> {
                     Optional<Route> route = CaravanRoutes.cached(server, from, to);
                     helper.assertTrue(route != null && route.isPresent(), "The flat test world must have a route");

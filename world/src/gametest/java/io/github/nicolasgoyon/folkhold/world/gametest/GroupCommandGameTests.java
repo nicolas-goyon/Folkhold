@@ -118,12 +118,15 @@ public final class GroupCommandGameTests {
             run(server, "folkhold quest complete " + quest.id());
         }
 
+        String state = "village " + village.state() + ", offers " + QuestData.get(server).quests().offers(village.id())
+                + ", players " + server.getPlayerList().getPlayers().size();
         server.getPlayerList().remove(player);
         SettlementData settlements = SettlementData.get(server);
         settlements.addTreasury(village.factionId(), treasury - settlements.treasury(village.factionId()));
         QuestData.get(server).quests().removeFinished();
         helper.assertTrue(quest != null && quest.kind() == QuestKind.DELIVERY
-                && quest.settlementId().equals(village.id()), "The player must get a delivery of the village");
+                && quest.settlementId().equals(village.id()),
+                "The player must get a delivery of the village: " + quest + ", " + state);
         helper.assertTrue(quest.state() == QuestState.COMPLETED, "The complete command must complete the quest");
         helper.succeed();
     }
