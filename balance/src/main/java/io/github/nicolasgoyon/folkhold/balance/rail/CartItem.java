@@ -11,6 +11,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.vehicle.AbstractMinecart;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
@@ -22,13 +23,13 @@ import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * The item of a locomotive. The item and the dispenser place the locomotive on a rail with the same logic as the
- * vanilla minecart item.
+ * The item of a minecart of the mod. The item and the dispenser place the minecart on a rail with the same logic as
+ * the vanilla minecart item.
  */
-public class LocomotiveItem extends Item {
-    private final Supplier<? extends EntityType<? extends Locomotive>> type;
+public class CartItem extends Item {
+    private final Supplier<? extends EntityType<? extends AbstractMinecart>> type;
 
-    public LocomotiveItem(Supplier<? extends EntityType<? extends Locomotive>> type, Properties properties) {
+    public CartItem(Supplier<? extends EntityType<? extends AbstractMinecart>> type, Properties properties) {
         super(properties);
         this.type = type;
         DispenserBlock.registerBehavior(this, new Dispense());
@@ -61,19 +62,19 @@ public class LocomotiveItem extends Item {
                 && rail.getRailDirection(state, level, pos, null).isAscending();
     }
 
-    /** Places a new locomotive. */
+    /** Places a new minecart. */
     private boolean place(ServerLevel level, Vec3 pos, ItemStack stack, @Nullable Player player) {
-        Locomotive cart = type.get().create(level);
+        AbstractMinecart cart = type.get().create(level);
         if (cart == null) {
             return false;
         }
         cart.moveTo(pos.x, pos.y, pos.z);
-        EntityType.<Locomotive>createDefaultStackConfig(level, stack, player).accept(cart);
+        EntityType.<AbstractMinecart>createDefaultStackConfig(level, stack, player).accept(cart);
         level.addFreshEntity(cart);
         return true;
     }
 
-    /** The dispenser places the locomotive on the rail in front of it, as for a vanilla minecart. */
+    /** The dispenser places the minecart on the rail in front of it, as for a vanilla minecart. */
     private final class Dispense extends DefaultDispenseItemBehavior {
         @Override
         protected ItemStack execute(BlockSource source, ItemStack stack) {

@@ -1,7 +1,7 @@
 package io.github.nicolasgoyon.folkhold.balance.registry;
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
-import io.github.nicolasgoyon.folkhold.balance.rail.LocomotiveItem;
+import io.github.nicolasgoyon.folkhold.balance.rail.CartItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.IEventBus;
@@ -13,10 +13,12 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class ModItems {
     private static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(FolkholdBalance.MOD_ID);
 
-    public static final DeferredItem<LocomotiveItem> FURNACE_LOCOMOTIVE = ITEMS.register("furnace_locomotive",
-            () -> new LocomotiveItem(ModEntities.FURNACE_LOCOMOTIVE, new Item.Properties().stacksTo(1)));
-    public static final DeferredItem<LocomotiveItem> HEAVY_LOCOMOTIVE = ITEMS.register("heavy_locomotive",
-            () -> new LocomotiveItem(ModEntities.HEAVY_LOCOMOTIVE, new Item.Properties().stacksTo(1)));
+    public static final DeferredItem<CartItem> FURNACE_LOCOMOTIVE = ITEMS.register("furnace_locomotive",
+            () -> new CartItem(ModEntities.FURNACE_LOCOMOTIVE, new Item.Properties().stacksTo(1)));
+    public static final DeferredItem<CartItem> HEAVY_LOCOMOTIVE = ITEMS.register("heavy_locomotive",
+            () -> new CartItem(ModEntities.HEAVY_LOCOMOTIVE, new Item.Properties().stacksTo(1)));
+    public static final DeferredItem<CartItem> DOUBLE_CHEST_MINECART = ITEMS.register("double_chest_minecart",
+            () -> new CartItem(ModEntities.DOUBLE_CHEST_MINECART, new Item.Properties().stacksTo(1)));
 
     private ModItems() {
     }
@@ -30,6 +32,7 @@ public final class ModItems {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(FURNACE_LOCOMOTIVE);
             event.accept(HEAVY_LOCOMOTIVE);
+            event.accept(DOUBLE_CHEST_MINECART);
         }
     }
 }

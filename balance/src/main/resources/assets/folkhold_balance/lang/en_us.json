@@ -59,6 +59,8 @@
   "entity.folkhold_balance.furnace_locomotive": "Furnace Locomotive",
   "item.folkhold_balance.heavy_locomotive": "Heavy Locomotive",
   "entity.folkhold_balance.heavy_locomotive": "Heavy Locomotive",
+  "item.folkhold_balance.double_chest_minecart": "Double Chest Minecart",
+  "entity.folkhold_balance.double_chest_minecart": "Double Chest Minecart",
   "folkhold_balance.locomotive.running": "The locomotive runs. Fuel: %s blocks.",
   "folkhold_balance.locomotive.stopped": "The locomotive is stopped. Fuel: %s blocks.",
   "folkhold_balance.locomotive.no_fuel": "The locomotive has no fuel. Add %s.",

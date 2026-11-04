@@ -28,11 +28,14 @@ public final class FolkholdBalanceClient {
                     context -> new LocomotiveRenderer<>(context, LocomotiveRenderer.FURNACE_COLOR));
             event.registerEntityRenderer(ModEntities.HEAVY_LOCOMOTIVE.get(),
                     context -> new LocomotiveRenderer<>(context, LocomotiveRenderer.HEAVY_COLOR));
+            event.registerEntityRenderer(ModEntities.DOUBLE_CHEST_MINECART.get(), DoubleChestMinecartRenderer::new);
         });
-        // The color of each locomotive on the icon of the vanilla furnace minecart.
+        // The color of each locomotive on the icon of the vanilla furnace minecart, and of the double chest minecart.
         modEventBus.addListener((RegisterColorHandlersEvent.Item event) -> {
             event.register((stack, layer) -> LocomotiveRenderer.FURNACE_COLOR, ModItems.FURNACE_LOCOMOTIVE.get());
             event.register((stack, layer) -> LocomotiveRenderer.HEAVY_COLOR, ModItems.HEAVY_LOCOMOTIVE.get());
+            event.register((stack, layer) -> DoubleChestMinecartRenderer.ICON_COLOR,
+                    ModItems.DOUBLE_CHEST_MINECART.get());
         });
         NeoForge.EVENT_BUS.addListener(ChainRenderer::onRenderLevel);
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientCartLinks.clear());

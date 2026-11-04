@@ -844,7 +844,7 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 
 ### Locomotive
 
-- **Implemented** (`Locomotive`, `FurnaceLocomotive`, `LocomotiveItem`, `Traction`): the furnace locomotive is a minecart that pulls the minecarts behind it. Recipe: furnace minecart, 4 iron ingots and 1 piston. The item and the dispenser place it on a rail as a vanilla minecart. It looks like the vanilla furnace minecart with a copper color on the furnace. The item has the icon of the furnace minecart in a copper color. It has no screen, and no player rides it.
+- **Implemented** (`Locomotive`, `FurnaceLocomotive`, `CartItem`, `Traction`): the furnace locomotive is a minecart that pulls the minecarts behind it. Recipe: furnace minecart, 4 iron ingots and 1 piston. The item and the dispenser place it on a rail as a vanilla minecart. It looks like the vanilla furnace minecart with a copper color on the furnace. The item has the icon of the furnace minecart in a copper color. It has no screen, and no player rides it.
 - The player adds a furnace fuel with a right click (1 coal = 1600 units, a lava bucket gives back the bucket). A right click with an empty hand starts or stops the locomotive. The action bar shows the state and the fuel, in blocks.
 - On start, the locomotive goes away from the minecart behind it, or away from the player when it has no minecart behind it. Then its direction follows the rails.
 - Each tick, the speed of the locomotive changes by (pull − resistance) / mass:
@@ -855,6 +855,15 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - A locomotive with a front link is a wagon of the train in front: it does not drive and burns no fuel.
 - The fuel burns for each block that the locomotive moves while it runs: 8 units for each block, thus about 200 blocks for 1 coal. A train that waits does not move, so its fuel does not burn, except when the locomotive loads chunks (see "Loaded area"). The fuel is never more than `fuelCapacity`. A broken locomotive drops its item. Its fuel is lost.
 - **Implemented** (`HeavyLocomotive`): the heavy locomotive is a second type of locomotive, with the same rules and its own stats in the configuration. It has more pulling force and a maximum speed of 0.6 blocks per tick. Recipe: blast furnace, minecart, 2 blocks of iron and 1 piston. Its only fuel is the block of coal (16000 units): 16 units for each block, thus about 1000 blocks for 1 block of coal. It looks like the vanilla minecart with a blast furnace in a steel color. The item has the icon of the furnace minecart in the same color.
+
+### Double chest minecart
+
+- **Implemented** (`DoubleChestMinecart`, `CartItem`): a minecart with 54 slots. Recipe: chest minecart and chest, with no shape. The item and the dispenser place it on a rail as a vanilla minecart. A right click opens a screen of 6 rows. More than one player can open it at the same time, as the vanilla chest minecart.
+- Hoppers and hopper minecarts fill it and empty it, as the vanilla chest minecart. It also gives the item handlers of NeoForge for other mods. On a detector rail, a comparator gives its fill level.
+- A destroyed minecart drops its item and all its stacks one time. A minecart removed with `/kill` drops its stacks but not its item, as the vanilla chest minecart.
+- It has no loot table. It ignores a loot table from a command or from saved data. Thus it never generates loot.
+- It is a wagon of a train as the other minecarts with a container. Its fill ratio uses its 54 slots: a full double chest minecart has the same mass as a full chest minecart (see "Locomotive").
+- It looks like the vanilla chest minecart with a second chest on the first chest. The item has the icon of the chest minecart in a darker color.
 
 ### Speed
 

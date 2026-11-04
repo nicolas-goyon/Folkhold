@@ -59,6 +59,8 @@
   "entity.folkhold_balance.furnace_locomotive": "Locomotive à four",
   "item.folkhold_balance.heavy_locomotive": "Locomotive lourde",
   "entity.folkhold_balance.heavy_locomotive": "Locomotive lourde",
+  "item.folkhold_balance.double_chest_minecart": "Wagonnet à double coffre",
+  "entity.folkhold_balance.double_chest_minecart": "Wagonnet à double coffre",
   "folkhold_balance.locomotive.running": "La locomotive roule. Combustible : %s blocs.",
   "folkhold_balance.locomotive.stopped": "La locomotive est arrêtée. Combustible : %s blocs.",
   "folkhold_balance.locomotive.no_fuel": "La locomotive n'a pas de combustible. Ajoutez %s.",

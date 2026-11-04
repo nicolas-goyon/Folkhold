@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {"item": "minecraft:chest_minecart"},
+    {"item": "minecraft:chest"}
+  ],
+  "result": {"id": "folkhold_balance:double_chest_minecart", "count": 1}
+}

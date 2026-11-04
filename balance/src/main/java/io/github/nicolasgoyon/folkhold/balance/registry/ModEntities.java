@@ -1,12 +1,16 @@
 package io.github.nicolasgoyon.folkhold.balance.registry;
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
+import io.github.nicolasgoyon.folkhold.balance.rail.DoubleChestMinecart;
 import io.github.nicolasgoyon.folkhold.balance.rail.FurnaceLocomotive;
 import io.github.nicolasgoyon.folkhold.balance.rail.HeavyLocomotive;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.items.wrapper.InvWrapper;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
@@ -33,10 +37,28 @@ public final class ModEntities {
                     .clientTrackingRange(8)
                     .build("heavy_locomotive"));
 
+    /** The double chest minecart. Same size as a vanilla minecart. */
+    public static final DeferredHolder<EntityType<?>, EntityType<DoubleChestMinecart>> DOUBLE_CHEST_MINECART =
+            ENTITY_TYPES.register("double_chest_minecart", () -> EntityType.Builder
+                    .<DoubleChestMinecart>of(DoubleChestMinecart::new, MobCategory.MISC)
+                    .sized(0.98F, 0.7F)
+                    .passengerAttachments(0.1875F)
+                    .clientTrackingRange(8)
+                    .build("double_chest_minecart"));
+
     private ModEntities() {
     }
 
     public static void register(IEventBus modEventBus) {
         ENTITY_TYPES.register(modEventBus);
+        modEventBus.addListener(ModEntities::onRegisterCapabilities);
+    }
+
+    /** The item handlers of the double chest minecart, as NeoForge gives them to the vanilla chest minecart. */
+    private static void onRegisterCapabilities(RegisterCapabilitiesEvent event) {
+        event.registerEntity(Capabilities.ItemHandler.ENTITY, DOUBLE_CHEST_MINECART.get(),
+                (cart, context) -> new InvWrapper(cart));
+        event.registerEntity(Capabilities.ItemHandler.ENTITY_AUTOMATION, DOUBLE_CHEST_MINECART.get(),
+                (cart, side) -> new InvWrapper(cart));
     }
 }
