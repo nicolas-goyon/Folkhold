@@ -3,6 +3,8 @@
 # Use it when the HEAD request of Gradle to the release URL fails (for example behind a proxy). The script downloads
 # with GET and checks the sha256 of the jar against modpack/mods/cartofold.pw.toml.
 #
+# The script needs GNU tools (realpath -m, sha256sum): use Linux or the dev container.
+#
 # Usage: scripts/fetch-cartofold.sh [dir]   (default dir: build/cartofold)
 set -euo pipefail
 
