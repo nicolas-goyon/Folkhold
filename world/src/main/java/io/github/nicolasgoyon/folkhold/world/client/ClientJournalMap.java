@@ -8,8 +8,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * The map of the journal on the client: the relief that the server sends (see
- * {@link io.github.nicolasgoyon.folkhold.world.journal.TerritoryReliefs}), and the chunks of the discovered
- * territories (see {@link TerritoryRaster}).
+ * {@link io.github.nicolasgoyon.folkhold.world.journal.TerritoryReliefs}). The frame of the tab "Map" of the journal
+ * draws it below the explored chunks.
  *
  * <ul>
  *   <li>While the journal shows the map, the client asks for the relief when the territories change.</li>
@@ -27,7 +27,6 @@ public final class ClientJournalMap {
     /** The number of the view of the territories at the last request, or -1 before the first request. */
     private static int requestedVersion = -1;
     private static int pollTimer;
-    private static TerritoryRaster raster = TerritoryRaster.EMPTY;
 
     private ClientJournalMap() {
     }
@@ -53,15 +52,6 @@ public final class ClientJournalMap {
         return status == MapReliefPayload.Status.PENDING;
     }
 
-    /** The chunks of the current discovered territories. */
-    static TerritoryRaster raster() {
-        TerritoryMapView view = ClientTerritoryMap.get();
-        if (raster.version() != view.version()) {
-            raster = TerritoryRaster.of(view);
-        }
-        return raster;
-    }
-
     /** Asks for the relief when it is necessary. Called each tick while the journal shows the map. */
     static void tick() {
         int version = ClientTerritoryMap.get().version();
@@ -79,7 +69,6 @@ public final class ClientJournalMap {
         status = MapReliefPayload.Status.PENDING;
         requestedVersion = -1;
         pollTimer = 0;
-        raster = TerritoryRaster.EMPTY;
     }
 
     private static void request() {

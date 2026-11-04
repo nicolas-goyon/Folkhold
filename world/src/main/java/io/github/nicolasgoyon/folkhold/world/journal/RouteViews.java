@@ -51,6 +51,11 @@ public final class RouteViews {
      * @param recalculate true to calculate the route again first (see {@link #recalculate})
      */
     public static void request(ServerPlayer player, String fromId, String toId, boolean recalculate) {
+        if (fromId.isEmpty() && toId.isEmpty()) {
+            // The journal has no route now: the maps lose the route, and the client gets no answer.
+            CartofoldMaps.showRoute(player, Optional.empty(), false);
+            return;
+        }
         if (recalculate) {
             recalculate(player, fromId, toId);
         }

@@ -24,8 +24,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextColor;
@@ -43,12 +45,15 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * <ul>
  *   <li>{@link #TERRITORIES}: the territories of the discovered villages, in the color of their faction. The chunks
  *       come from the same claims as {@link TerritoryMapPayload}. The server keeps the chunks of each claim, and
- *       calculates them again only when the claim or a claim near it changes.</li>
+ *       calculates them again only when the claim or a claim near it changes. The server removes the chunks of a
+ *       settlement that claims no chunks.</li>
  *   <li>{@link #VILLAGES}: a marker for each village of the journal, in the color of its faction. The marker is a
  *       square for a visited village, a ring for a discovered village, and a cross for ruins. A click on the marker
  *       opens the journal at the village.</li>
  *   <li>{@link #ROUTE}: the last route that the player selected in the tab "Routes" of the journal, with a color for
  *       each surface.</li>
+ *   <li>The layers show also on the chunks that the player did not explore: the journal knows these villages, and
+ *       the map frames of the journal show them on the relief.</li>
  *   <li>The server sends a layer to a player only when its content changes. {@link TerritoryMaps} calls
  *       {@link #update} when it checks the map of the player.</li>
  * </ul>
@@ -111,7 +116,7 @@ public final class CartofoldMaps {
     }
 
     private static LayerInfo info(ResourceLocation id, int order) {
-        return LayerInfo.of(id, Component.translatable("folkhold_world.layer." + id.getPath()), order, true);
+        return LayerInfo.of(id, Component.translatable("folkhold_world.layer." + id.getPath()), order, false);
     }
 
     public static void onLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
@@ -137,7 +142,8 @@ public final class CartofoldMaps {
      * @param map    the discovered territories of the player
      */
     static void update(ServerPlayer player, TerritoryMapPayload map) {
-        send(player, TERRITORIES, map, () -> territories(map));
+        send(player, TERRITORIES, map, () -> territories(map, SettlementData.get(player.server).claimants().stream()
+                .map(Claimant::id).collect(Collectors.toSet())));
         List<Mark> marks = marks(player);
         send(player, VILLAGES, marks, () -> villages(marks));
     }
@@ -187,15 +193,17 @@ public final class CartofoldMaps {
     /**
      * The layer of the territories: one area for each discovered village with a territory.
      *
-     * @param map the discovered territories of a player
+     * @param map       the discovered territories of a player
+     * @param claimants the ids of all the settlements that claim chunks now. The cache keeps only these settlements.
      * @return the layer
      */
-    public static LayerContent territories(TerritoryMapPayload map) {
-        List<Claimant> claimants = new ArrayList<>(map.others());
-        map.villages().forEach(village -> claimants.add(village.claimant()));
+    public static LayerContent territories(TerritoryMapPayload map, Set<String> claimants) {
+        CHUNKS.keySet().retainAll(claimants);
+        List<Claimant> claims = new ArrayList<>(map.others());
+        map.villages().forEach(village -> claims.add(village.claimant()));
         List<ChunkArea> areas = new ArrayList<>();
         for (TerritoryMapPayload.Village village : map.villages()) {
-            List<ChunkPos> chunks = cachedChunks(village.claimant(), claimants);
+            List<ChunkPos> chunks = cachedChunks(village.claimant(), claims);
             if (chunks.isEmpty()) {
                 continue;
             }
@@ -206,6 +214,11 @@ public final class CartofoldMaps {
                     List.of(Component.translatable("folkhold_world.map.territory", village.name(), faction))));
         }
         return new LayerContent(info(TERRITORIES, 10), areas, List.of(), List.of());
+    }
+
+    /** The ids of the settlements in the cache of the chunks. */
+    static Set<String> cachedIds() {
+        return Set.copyOf(CHUNKS.keySet());
     }
 
     /** The chunks of a territory from the cache, or calculated when a claim near it changed. */

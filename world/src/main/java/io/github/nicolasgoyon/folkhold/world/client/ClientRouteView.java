@@ -16,7 +16,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * {@link io.github.nicolasgoyon.folkhold.world.journal.RouteViews}).
  *
  * <ul>
- *   <li>When the two villages change, the client asks the server for the route.</li>
+ *   <li>When the two villages change, the client asks the server for the route. When the player clears a village,
+ *       the client asks the server to remove the route from the maps ({@link #CLEAR}).</li>
  *   <li>While the server calculates the route or its relief, the client asks again every {@link #POLL_TICKS} ticks,
  *       also when the journal is closed.</li>
  *   <li>The player can show the route in the world ({@link ClientRouteOverlay}), as an approximate or a precise
@@ -27,6 +28,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public final class ClientRouteView {
     /** The interval between two requests while the server calculates the route, in ticks. */
     static final int POLL_TICKS = 20;
+    /** The request with no villages: the server removes the route from the maps. */
+    static final RouteRequestPayload CLEAR = new RouteRequestPayload("", "", false);
 
     @Nullable
     private static String fromId;
@@ -138,7 +141,26 @@ public final class ClientRouteView {
         shownDetailed = false;
         shownRelief = null;
         version++;
+        RouteRequestPayload request = request(from, to, false);
+        if (request == CLEAR && Minecraft.getInstance().getConnection() != null) {
+            PacketDistributor.sendToServer(CLEAR);
+        }
         refresh();
+    }
+
+    /**
+     * The request for the route of two villages.
+     *
+     * @param from        the settlement id of the start, or null
+     * @param to          the settlement id of the end, or null
+     * @param recalculate true to calculate the route again
+     * @return the request, or {@link #CLEAR} when the two villages are not two different villages
+     */
+    static RouteRequestPayload request(@Nullable String from, @Nullable String to, boolean recalculate) {
+        if (from == null || to == null || from.equals(to)) {
+            return CLEAR;
+        }
+        return new RouteRequestPayload(from, to, recalculate);
     }
 
     /** Asks the server for the route of the two villages again, if the two villages are set. */
@@ -156,11 +178,12 @@ public final class ClientRouteView {
     }
 
     private static void send(boolean recalculate) {
-        if (fromId == null || toId == null || fromId.equals(toId) || Minecraft.getInstance().getConnection() == null) {
+        RouteRequestPayload request = request(fromId, toId, recalculate);
+        if (request == CLEAR || Minecraft.getInstance().getConnection() == null) {
             return;
         }
         pollTimer = POLL_TICKS;
-        PacketDistributor.sendToServer(new RouteRequestPayload(fromId, toId, recalculate));
+        PacketDistributor.sendToServer(request);
     }
 
     /** Receives a route from the server. A route for other villages is dropped. Called by the network handler. */

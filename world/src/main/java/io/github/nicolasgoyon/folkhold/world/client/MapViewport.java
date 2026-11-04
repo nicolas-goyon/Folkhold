@@ -3,7 +3,8 @@ package io.github.nicolasgoyon.folkhold.world.client;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
 
 /**
- * The part of the world that the map of the journal shows: the block at the center of the map and the scale.
+ * The part of the world that the admin map ({@link AdminMapWidget}) shows: the block at the center of the map and the
+ * scale.
  *
  * <ul>
  *   <li>The scale is from {@link #MIN_SCALE} (one pixel for a chunk) to {@link #MAX_SCALE} pixels for a block.</li>

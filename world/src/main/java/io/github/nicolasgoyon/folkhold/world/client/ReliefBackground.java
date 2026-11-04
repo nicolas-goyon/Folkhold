@@ -1,11 +1,18 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
-import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
+import io.github.nicolasgoyon.cartofold.api.client.LayerRenderContext;
+import io.github.nicolasgoyon.cartofold.view.MapProjection;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import net.minecraft.client.gui.GuiGraphics;
 
-/** Drawing for the maps of the journal: the relief and the lines. */
-final class MapDrawing {
+/**
+ * The background of the map frames of the journal: the relief that the server calculates (see
+ * {@link io.github.nicolasgoyon.folkhold.world.journal.TerritoryReliefs} and
+ * {@link io.github.nicolasgoyon.folkhold.world.journal.RouteReliefs}). The frame draws the explored chunks above it.
+ */
+final class ReliefBackground {
     /** The grey of the lowest floor of the relief (0 to 255). */
     private static final int RELIEF_LOW = 250;
     /** The grey of the highest floor of the relief (0 to 255). */
@@ -15,7 +22,22 @@ final class MapDrawing {
     /** The color of the water on the map. */
     private static final int RELIEF_WATER = 0xFFD5E6F3;
 
-    private MapDrawing() {
+    private ReliefBackground() {
+    }
+
+    /**
+     * The background of a frame.
+     *
+     * @param relief gives the relief at each draw, or null when the client has no relief
+     * @return the function for {@code MapFrame.background}
+     */
+    static Consumer<LayerRenderContext> of(Supplier<RoutePayload.Relief> relief) {
+        return context -> {
+            RoutePayload.Relief current = relief.get();
+            if (current != null) {
+                draw(context.graphics(), context.projection(), current);
+            }
+        };
     }
 
     /**
@@ -24,10 +46,10 @@ final class MapDrawing {
      * the same color.
      *
      * @param graphics the graphics
-     * @param map      the projection of the map
+     * @param map      the projection of the frame, with the north at the top
      * @param relief   the relief
      */
-    static void relief(GuiGraphics graphics, MapProjection map, RoutePayload.Relief relief) {
+    static void draw(GuiGraphics graphics, MapProjection map, RoutePayload.Relief relief) {
         int low = Integer.MAX_VALUE;
         int high = Integer.MIN_VALUE;
         for (int j = 0; j < relief.height(); j++) {
@@ -41,22 +63,20 @@ final class MapDrawing {
         double range = Math.max(RELIEF_MIN_RANGE, high - low);
         int cell = relief.cell();
         int half = cell / 2;
-        UiRect area = map.area();
-        int firstI = Math.max(0, (int) Math.floor((map.blockX(area.x()) - relief.minX() + half) / cell));
-        int lastI = Math.min(relief.width() - 1,
-                (int) Math.floor((map.blockX(area.right()) - relief.minX() + half) / cell));
-        int firstJ = Math.max(0, (int) Math.floor((map.blockZ(area.y()) - relief.minZ() + half) / cell));
-        int lastJ = Math.min(relief.height() - 1,
-                (int) Math.floor((map.blockZ(area.bottom()) - relief.minZ() + half) / cell));
+        double[] bounds = map.blockBounds();
+        int firstI = Math.max(0, (int) Math.floor((bounds[0] - relief.minX() + half) / cell));
+        int lastI = Math.min(relief.width() - 1, (int) Math.floor((bounds[2] - relief.minX() + half) / cell));
+        int firstJ = Math.max(0, (int) Math.floor((bounds[1] - relief.minZ() + half) / cell));
+        int lastJ = Math.min(relief.height() - 1, (int) Math.floor((bounds[3] - relief.minZ() + half) / cell));
         for (int j = firstJ; j <= lastJ; j++) {
             int z = relief.minZ() + j * cell;
-            int y0 = map.y(z - half);
-            int y1 = Math.max(y0 + 1, map.y(z - half + cell));
+            int y0 = y(map, z - half);
+            int y1 = Math.max(y0 + 1, y(map, z - half + cell));
             int runStart = 0;
             int runColor = 0;
             for (int i = firstI; i <= lastI; i++) {
                 int x = relief.minX() + i * cell;
-                int x0 = map.x(x - half);
+                int x0 = x(map, x - half);
                 int color = color(relief, i, j, low, range);
                 if (i == firstI) {
                     runStart = x0;
@@ -67,7 +87,7 @@ final class MapDrawing {
                     runColor = color;
                 }
                 if (i == lastI) {
-                    graphics.fill(runStart, y0, Math.max(runStart + 1, map.x(x - half + cell)), y1, runColor);
+                    graphics.fill(runStart, y0, Math.max(runStart + 1, x(map, x - half + cell)), y1, runColor);
                 }
             }
         }
@@ -83,17 +103,13 @@ final class MapDrawing {
         return 0xFF000000 | grey << 16 | grey << 8 | grey;
     }
 
-    /** Draws a line of 2 pixels. */
-    static void line(GuiGraphics graphics, int x0, int y0, int x1, int y1, int color) {
-        int steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-        if (steps == 0) {
-            graphics.fill(x0, y0, x0 + 2, y0 + 2, color);
-            return;
-        }
-        for (int i = 0; i <= steps; i++) {
-            int x = x0 + Math.round((x1 - x0) * (float) i / steps);
-            int y = y0 + Math.round((y1 - y0) * (float) i / steps);
-            graphics.fill(x, y, x + 2, y + 2, color);
-        }
+    /** The screen X of a block X. */
+    private static int x(MapProjection map, double blockX) {
+        return (int) Math.round(map.screenCenterX() + (blockX - map.centerX()) * map.scale());
+    }
+
+    /** The screen Y of a block Z. */
+    private static int y(MapProjection map, double blockZ) {
+        return (int) Math.round(map.screenCenterY() + (blockZ - map.centerZ()) * map.scale());
     }
 }

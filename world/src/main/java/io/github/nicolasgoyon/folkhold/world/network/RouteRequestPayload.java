@@ -10,7 +10,8 @@ import net.minecraft.resources.ResourceLocation;
 /**
  * Client to server: the journal asks for the route of the caravans between two villages of the journal of the
  * player. The server answers with a {@link RoutePayload} (see
- * {@link io.github.nicolasgoyon.folkhold.world.journal.RouteViews}).
+ * {@link io.github.nicolasgoyon.folkhold.world.journal.RouteViews}). With two empty ids, the server removes the
+ * route from the maps of the player and sends no answer.
  *
  * @param fromId      the settlement id of the start
  * @param toId        the settlement id of the end

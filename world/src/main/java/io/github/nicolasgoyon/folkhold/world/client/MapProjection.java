@@ -3,7 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.client;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiRect;
 
 /**
- * The projection of the block coordinates on a map of the journal. North is up.
+ * The projection of the block coordinates on the admin map ({@link AdminMapWidget}). North is up.
  *
  * @param area    the area of the map on the screen
  * @param centerX the block X at the center of the area
