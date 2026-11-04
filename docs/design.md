@@ -870,7 +870,7 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - A train stops at the edge of the loaded area (see "Train"). This is the default.
 - **Implemented** (`TrainChunks`, option `loadChunks`, off by default): each tick, a locomotive that runs, has fuel and moves gives a chunk ticket to the chunk of each minecart of its train, and to the chunks on a straight line in front of it for 32 blocks. The line follows the direction of travel of the locomotive, not the rails: in a curve, some chunks of the line are not on the rails. A vanilla furnace minecart does not load chunks.
 - A ticket has a distance of 2. Its chunk ticks its entities. Around it, a 3 × 3 area of chunks ticks its blocks (random ticks, crops, redstone), but not its entities.
-- The locomotive gives tickets only while it moves: it must move in the last 20 ticks. A train that runs but cannot move (a wall, an unpowered powered rail, a slope that is too steep) does not keep its chunks loaded. A train that waits at the edge of the loaded area goes back to its position each tick: it counts as a train that moves when its locomotive gives it a speed, so it gets its tickets and continues.
+- The locomotive gives tickets only while it moves: it must move in the last 20 ticks. A train that runs but cannot move (a wall, an unpowered powered rail, a slope that is too steep) does not keep its chunks loaded. Only a real movement counts. A train that waits at the edge of the loaded area goes back to its position each tick: it gets its tickets when its locomotive gives it a speed and moved in the last 200 ticks. Thus a train that moved to the edge continues, and a train that cannot move (for example against a wall) with a wagon at the edge does not keep its chunks loaded.
 - Each ticket has a lifespan of 20 ticks, and the locomotive gives its tickets again each tick. Thus the tickets go away after 1 second when the locomotive stops moving, stops, has no fuel, is removed or unloads, or when the option is off. The game does not save the tickets.
 - Only `maxLoadingTrains` locomotives on the whole server (all the players and all the dimensions) load chunks at the same time, first come first served. Folkhold is first a single-player experience, so there is no limit for each player. A locomotive keeps its place until it gives no tickets for 20 ticks. Then the place is free for another locomotive.
 - The game does not tick the entities of a level that has no player and no forced chunk for 300 ticks. The tickets of the trains do not change this.
@@ -888,6 +888,7 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 | Code of the trains (sum of the two lines above) | 0.79 to 1.91 ms | 1.48 to 2.47 ms |
 | Ticks of the 300 wagons (vanilla movement with the speed cap of the train) | 2.05 to 3.86 ms | 2.67 to 3.44 ms |
 
+- With `loadChunks` false (the default), the code of the trains is below the target of 2 ms. With `loadChunks` true, it can be above the target (up to 2.47 ms).
 - The values contain vanilla work (the movement of the locomotives) and the other listeners of the event, so they are more than the cost of the code of the mod. The mod keeps no cache of the trains: the pass of the trains is less than 1 ms in all the runs.
 
 ### Configuration

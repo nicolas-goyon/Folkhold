@@ -27,8 +27,10 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *
  * <p>A locomotive gives tickets only while it moves: it must move in the last {@link #MOVE_GRACE} ticks. A train that
  * runs but cannot move (a wall, an unpowered powered rail, a slope that is too steep) does not keep its chunks loaded.
- * A train that waits at the edge of the loaded area goes back to its position each tick (see {@link Trains}): it
- * counts as a train that moves when the locomotive gives it a speed for the next tick, so it gets its tickets.
+ * Only a real movement counts. A train that waits at the edge of the loaded area goes back to its position each tick
+ * (see {@link Trains}): it gets its tickets when the locomotive gives it a speed for the next tick and moved in the
+ * last {@link #WAIT_GRACE} ticks. Thus a train that cannot move and has a wagon at the edge of the loaded area does
+ * not keep its chunks loaded.
  *
  * <p>Each ticket has a lifespan of {@link #LIFESPAN} ticks. The locomotive gives its tickets again each tick, and the
  * game removes a ticket that the locomotive does not give again. Thus the tickets go away when the locomotive stops
@@ -42,6 +44,8 @@ public final class TrainChunks {
     public static final int LIFESPAN = 20;
     /** The locomotive gives tickets when it moved in this number of ticks. */
     public static final int MOVE_GRACE = 20;
+    /** A train that waits at the edge of the loaded area gets tickets when it moved in this number of ticks. */
+    public static final int WAIT_GRACE = 200;
     /** The distance of the area in front of the locomotive, in blocks. */
     public static final int AHEAD = 32;
     /** The smallest movement in one tick that counts as a movement, in blocks. */
@@ -52,7 +56,7 @@ public final class TrainChunks {
     private static final int TICKET_DISTANCE = 2;
     private static final TicketType<ChunkPos> TICKET =
             TicketType.create("folkhold_balance_train", Comparator.comparingLong(ChunkPos::toLong), LIFESPAN);
-    /** The server tick of the last movement of each locomotive that runs. */
+    /** The server tick of the last real movement of each locomotive that runs. */
     private static final Map<UUID, Integer> MOVED = new HashMap<>();
     /** The locomotives that give tickets, with the server tick of their last tickets. */
     private static final Map<UUID, Integer> LOADING = new HashMap<>();
@@ -62,26 +66,28 @@ public final class TrainChunks {
 
     /**
      * Gives the tickets of a locomotive that runs and has fuel, when it moved in the last {@link #MOVE_GRACE} ticks
-     * and has a place.
+     * (in the last {@link #WAIT_GRACE} ticks when its train waits at the edge of the loaded area) and has a place.
      *
      * @param train the locomotive, then the minecarts behind it
-     * @param moved the movement of the locomotive in this tick, or its speed for the next tick when its train waits at
-     *              the edge of the loaded area, in blocks
-     * @param dirX  the X part of the direction of travel
-     * @param dirZ  the Z part of the direction of travel
+     * @param moved   the movement of the locomotive in this tick, in blocks
+     * @param waiting true when the train waits at the edge of the loaded area and the locomotive gives it a speed
+     * @param dirX    the X part of the direction of travel
+     * @param dirZ    the Z part of the direction of travel
      */
-    static void keepLoaded(ServerLevel level, List<AbstractMinecart> train, double moved, double dirX, double dirZ) {
+    static void keepLoaded(ServerLevel level, List<AbstractMinecart> train, double moved, boolean waiting, double dirX,
+                           double dirZ) {
         if (!BalanceConfig.TRAIN_LOAD_CHUNKS.get() || train.isEmpty()) {
             return;
         }
         int now = level.getServer().getTickCount();
-        MOVED.values().removeIf(tick -> now - tick > MOVE_GRACE);
+        MOVED.values().removeIf(tick -> now - tick > WAIT_GRACE);
         LOADING.values().removeIf(tick -> now - tick > LIFESPAN);
         UUID id = train.get(0).getUUID();
         if (moved > MIN_MOVE) {
             MOVED.put(id, now);
         }
-        if (!MOVED.containsKey(id)
+        Integer last = MOVED.get(id);
+        if (last == null || now - last > (waiting ? WAIT_GRACE : MOVE_GRACE)
                 || (!LOADING.containsKey(id) && LOADING.size() >= BalanceConfig.TRAIN_MAX_LOADING.get())) {
             return;
         }

@@ -194,10 +194,9 @@ public abstract class Locomotive extends AbstractMinecart {
         double next = Traction.nextSpeed(speed, pull, resistance, mass, cap);
         setDeltaMovement(dirX * next, 0.0, dirZ * next);
         if (running && fuel > 0.0) {
-            // A train that waits at the edge of the loaded area goes back to its position each tick (see Trains): it
-            // moves when it has a speed for the next tick.
+            // A train that waits at the edge of the loaded area goes back to its position each tick (see Trains).
             boolean waiting = next > 0.0 && !carts.stream().allMatch(cart -> Trains.isActive(level, cart));
-            TrainChunks.keepLoaded(level, carts, waiting ? next : moved, dirX, dirZ);
+            TrainChunks.keepLoaded(level, carts, moved, waiting, dirX, dirZ);
         }
     }
 
