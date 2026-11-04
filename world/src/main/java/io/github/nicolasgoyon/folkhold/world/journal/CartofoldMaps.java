@@ -44,9 +44,10 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *
  * <ul>
  *   <li>{@link #TERRITORIES}: the territories of the discovered villages, in the color of their faction. The chunks
- *       come from the same claims as {@link TerritoryMapPayload}. The server keeps the chunks of each claim, and
- *       calculates them again only when the claim or a claim near it changes. The server removes the chunks of a
- *       settlement that claims no chunks.</li>
+ *       come from the claims of all the settlements. The server keeps the chunks of each claim, and calculates them
+ *       again only when the claim or a claim near it changes. The server removes the chunks of a settlement that
+ *       claims no chunks. The admin map uses the same chunks (see
+ *       {@link io.github.nicolasgoyon.folkhold.world.admin.AdminMap}).</li>
  *   <li>{@link #VILLAGES}: a marker for each village of the journal, in the color of its faction. The marker is a
  *       square for a visited village, a ring for a discovered village, and a cross for ruins. A click on the marker
  *       opens the journal at the village.</li>
@@ -142,8 +143,8 @@ public final class CartofoldMaps {
      * @param map    the discovered territories of the player
      */
     static void update(ServerPlayer player, TerritoryMapPayload map) {
-        send(player, TERRITORIES, map, () -> territories(map, SettlementData.get(player.server).claimants().stream()
-                .map(Claimant::id).collect(Collectors.toSet())));
+        List<Claimant> claimants = SettlementData.get(player.server).claimants();
+        send(player, TERRITORIES, List.of(map, claimants), () -> territories(map, claimants));
         List<Mark> marks = marks(player);
         send(player, VILLAGES, marks, () -> villages(marks));
     }
@@ -194,16 +195,26 @@ public final class CartofoldMaps {
      * The layer of the territories: one area for each discovered village with a territory.
      *
      * @param map       the discovered territories of a player
-     * @param claimants the ids of all the settlements that claim chunks now. The cache keeps only these settlements.
+     * @param claimants the claims of all the settlements now
      * @return the layer
      */
-    public static LayerContent territories(TerritoryMapPayload map, Set<String> claimants) {
-        CHUNKS.keySet().retainAll(claimants);
-        List<Claimant> claims = new ArrayList<>(map.others());
-        map.villages().forEach(village -> claims.add(village.claimant()));
+    public static LayerContent territories(TerritoryMapPayload map, List<Claimant> claimants) {
+        return new LayerContent(info(TERRITORIES, 10), areas(map.villages(), claimants), List.of(), List.of());
+    }
+
+    /**
+     * The areas of the territories of some villages, in the color of their faction. The cache of the chunks keeps only
+     * the settlements of the claims.
+     *
+     * @param villages  the villages
+     * @param claimants the claims of all the settlements now. The borders of a territory depend on the claims near it.
+     * @return one area for each village with a territory
+     */
+    public static List<ChunkArea> areas(List<TerritoryMapPayload.Village> villages, List<Claimant> claimants) {
+        CHUNKS.keySet().retainAll(claimants.stream().map(Claimant::id).collect(Collectors.toSet()));
         List<ChunkArea> areas = new ArrayList<>();
-        for (TerritoryMapPayload.Village village : map.villages()) {
-            List<ChunkPos> chunks = cachedChunks(village.claimant(), claims);
+        for (TerritoryMapPayload.Village village : villages) {
+            List<ChunkPos> chunks = cachedChunks(village.claimant(), claimants);
             if (chunks.isEmpty()) {
                 continue;
             }
@@ -213,7 +224,7 @@ public final class CartofoldMaps {
                     0xCC000000 | village.color(), Component.literal(village.name()),
                     List.of(Component.translatable("folkhold_world.map.territory", village.name(), faction))));
         }
-        return new LayerContent(info(TERRITORIES, 10), areas, List.of(), List.of());
+        return areas;
     }
 
     /** The ids of the settlements in the cache of the chunks. */

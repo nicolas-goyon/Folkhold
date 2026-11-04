@@ -93,8 +93,6 @@ public final class JournalGameTests {
         helper.assertTrue(village.get().name().equals(settlement.name()) && village.get().color() == color
                 && village.get().claimant().radius() > 0, "The village must have its name, its color and its claim: "
                         + village.get());
-        helper.assertTrue(after.others().stream().noneMatch(other -> other.id().equals(settlement.id())),
-                "The discovered village is not in the other settlements");
         helper.succeed();
     }
 

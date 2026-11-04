@@ -54,7 +54,7 @@ class JournalMapViewsTest {
     @Test
     void territoryBoxHasTheTerritoriesAndTheVillages() {
         TerritoryMapPayload.Village territory =
-                new TerritoryMapPayload.Village(new Claimant("north", 0, 0, 1, 2), 64, "North", "Ash", 0xAA5500);
+                new TerritoryMapPayload.Village(new Claimant("north", 0, 0, 1, 2), "North", "Ash", 0xAA5500);
 
         double[] box = JournalMapViews.territoryBox(List.of(territory), List.of(village("far", 500, -10)))
                 .orElseThrow();

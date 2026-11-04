@@ -3,13 +3,15 @@ package io.github.nicolasgoyon.folkhold.world.client;
 import io.github.nicolasgoyon.folkhold.world.network.MapReliefPayload;
 import io.github.nicolasgoyon.folkhold.world.network.MapReliefRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
+import io.github.nicolasgoyon.folkhold.world.network.TerritoryMapPayload;
+import java.util.List;
 import javax.annotation.Nullable;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * The map of the journal on the client: the relief that the server sends (see
- * {@link io.github.nicolasgoyon.folkhold.world.journal.TerritoryReliefs}). The frame of the tab "Map" of the journal
- * draws it below the explored chunks.
+ * The map of the journal on the client: the discovered territories (see {@link TerritoryMapPayload}) and the relief
+ * that the server sends (see {@link io.github.nicolasgoyon.folkhold.world.journal.TerritoryReliefs}). The frame of the
+ * tab "Map" of the journal draws the relief below the explored chunks.
  *
  * <ul>
  *   <li>While the journal shows the map, the client asks for the relief when the territories change.</li>
@@ -21,6 +23,9 @@ public final class ClientJournalMap {
     /** The interval between two requests while the server calculates the relief, in ticks. */
     static final int POLL_TICKS = 100;
 
+    private static List<TerritoryMapPayload.Village> territories = List.of();
+    /** The number of the last territories: a new payload gives a new number. */
+    private static int version;
     @Nullable
     private static RoutePayload.Relief relief;
     private static MapReliefPayload.Status status = MapReliefPayload.Status.PENDING;
@@ -29,6 +34,17 @@ public final class ClientJournalMap {
     private static int pollTimer;
 
     private ClientJournalMap() {
+    }
+
+    /** Keeps the discovered territories of a payload. Called by the network handler. */
+    public static void setTerritories(TerritoryMapPayload payload) {
+        territories = payload.villages();
+        version++;
+    }
+
+    /** The discovered villages with a territory. */
+    static List<TerritoryMapPayload.Village> territories() {
+        return territories;
     }
 
     /** Keeps the relief of a payload. Called by the network handler. */
@@ -54,7 +70,6 @@ public final class ClientJournalMap {
 
     /** Asks for the relief when it is necessary. Called each tick while the journal shows the map. */
     static void tick() {
-        int version = ClientTerritoryMap.get().version();
         if (version != requestedVersion) {
             requestedVersion = version;
             request();
@@ -65,6 +80,8 @@ public final class ClientJournalMap {
 
     /** Forgets the map, for example when the player leaves the server. */
     public static void clear() {
+        territories = List.of();
+        version++;
         relief = null;
         status = MapReliefPayload.Status.PENDING;
         requestedVersion = -1;

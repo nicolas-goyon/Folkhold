@@ -26,8 +26,6 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  * <ul>
  *   <li>The maps show the territories of the villages of the journal of the player (see {@link Journals}), with the
  *       color of their faction. A ruin has no territory.</li>
- *   <li>The payload also has the other settlements that claim chunks near these villages: the client needs them to
- *       calculate the borders. The payload does not give their names.</li>
  *   <li>The server checks the map of each player every {@link #CHECK_TICKS} ticks, and after each discovery. It sends
  *       the payload only when the map changes.</li>
  * </ul>
@@ -35,8 +33,6 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 public final class TerritoryMaps {
     /** The server checks the map of each player every this number of ticks. */
     static final int CHECK_TICKS = 100;
-    /** The Y of a waypoint for a village with no heart. */
-    private static final int DEFAULT_Y = 64;
     private static final Map<UUID, TerritoryMapPayload> SENT = new HashMap<>();
 
     private TerritoryMaps() {
@@ -71,8 +67,7 @@ public final class TerritoryMaps {
     }
 
     /**
-     * The map of a player: the discovered villages with a territory, and the other settlements whose territory can
-     * touch them.
+     * The map of a player: the discovered villages with a territory.
      *
      * @param player the player
      * @return the payload
@@ -94,11 +89,11 @@ public final class TerritoryMaps {
             }
             villages.add(village(claimant, settlement.get(), factions));
         }
-        return new TerritoryMapPayload(villages, neighbors(settlements.claimants(), villages));
+        return new TerritoryMapPayload(villages);
     }
 
     /**
-     * A village of the maps: its claim, the Y of its heart, its name, and the name and the color of its faction.
+     * A village of the maps: its claim, its name, and the name and the color of its faction.
      *
      * @param claimant   the claim of the settlement
      * @param settlement the settlement
@@ -108,24 +103,9 @@ public final class TerritoryMaps {
     public static TerritoryMapPayload.Village village(Claimant claimant, Settlement settlement,
             FactionData factions) {
         Optional<FactionSpec> faction = factions.byId(settlement.factionId());
-        return new TerritoryMapPayload.Village(claimant, settlement.hasHeart() ? settlement.heartY() : DEFAULT_Y,
-                settlement.name(), faction.map(FactionSpec::name).orElse(settlement.factionId()),
+        return new TerritoryMapPayload.Village(claimant, settlement.name(),
+                faction.map(FactionSpec::name).orElse(settlement.factionId()),
                 faction.map(FactionSpec::color).orElse(0xFFFFFF));
-    }
-
-    /**
-     * The settlements that are not in a list of villages, and whose territory can touch the territory of one of these
-     * villages: the discs of the two claims can have a chunk in common.
-     */
-    static List<Claimant> neighbors(List<Claimant> claimants, List<TerritoryMapPayload.Village> villages) {
-        List<Claimant> neighbors = new ArrayList<>();
-        for (Claimant claimant : claimants) {
-            boolean village = villages.stream().anyMatch(known -> known.id().equals(claimant.id()));
-            if (!village && villages.stream().anyMatch(known -> touches(known.claimant(), claimant))) {
-                neighbors.add(claimant);
-            }
-        }
-        return neighbors;
     }
 
     /** True if the discs of two claims can have a chunk in common, with a margin of one chunk. */

@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world;
 
 import com.mojang.logging.LogUtils;
+import io.github.nicolasgoyon.folkhold.world.admin.AdminMap;
 import io.github.nicolasgoyon.folkhold.world.admin.AreaWaits;
 import io.github.nicolasgoyon.folkhold.world.command.ConstructionCommands;
 import io.github.nicolasgoyon.folkhold.world.command.FolkholdCommands;
@@ -120,6 +121,9 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(CartofoldMaps::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(CartofoldMaps::onServerStopped);
         NeoForge.EVENT_BUS.addListener(CartofoldMaps::onMarkerClick);
+        NeoForge.EVENT_BUS.addListener(AdminMap::onServerTick);
+        NeoForge.EVENT_BUS.addListener(AdminMap::onLoggedOut);
+        NeoForge.EVENT_BUS.addListener(AdminMap::onServerStopped);
         NeoForge.EVENT_BUS.addListener(Notices::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(Notices::onServerStopped);
         NeoForge.EVENT_BUS.addListener(VillageSpawnProtection::onPositionCheck);

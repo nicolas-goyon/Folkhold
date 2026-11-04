@@ -1,7 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
-import io.github.nicolasgoyon.folkhold.world.client.map.XaeroMaps;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.AnimatedVillagerRenderer;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionGolemModel;
 import io.github.nicolasgoyon.folkhold.world.client.renderer.FactionGolemRenderer;
@@ -51,17 +50,16 @@ public final class FolkholdWorldClient {
         NeoForge.EVENT_BUS.addListener(ClientRouteOverlay::onRenderLevel);
         NeoForge.EVENT_BUS.addListener(ConstructionGhost::onClientTick);
         NeoForge.EVENT_BUS.addListener(ConstructionGhostRenderer::onRenderLevel);
-        NeoForge.EVENT_BUS.addListener(XaeroMaps::onClientTick);
     }
 
     /** The player leaves a world or a server: the client forgets what it knows about the world. */
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         ClientTerritory.clear();
-        ClientTerritoryMap.clear();
         ClientJournalMap.clear();
         ClientQuestLog.clear();
         TerritoryTitleHud.clear();
         AdminScreen.clear();
+        AdminMapScreen.clear();
         JournalScreen.clear();
         ClientRouteView.clear();
         ClientRouteOverlay.clear();

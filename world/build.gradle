@@ -16,9 +16,6 @@ dependencies {
     implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
     // Required: the survey maps of Cartofold, with the moves and the updates at the cartography table.
     implementation "io.github.nicolasgoyon.cartofold:cartofold:${cartofold_version}"
-    // Optional: the territories on the maps of Xaero's mods (see XaeroMaps).
-    compileOnly "maven.modrinth:xaeros-minimap:${xaero_minimap_version}"
-    compileOnly "maven.modrinth:xaeros-world-map:${xaero_world_map_version}"
 }
 
 // The Cartofold jar must be the jar of the modpack: its sha256 must be the hash of modpack/mods/cartofold.pw.toml.

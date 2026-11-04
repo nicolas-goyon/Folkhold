@@ -36,8 +36,6 @@ add moonlight                   # required by Immersive Weathering: Renewed, not
 
 # Navigation
 add small-ships                 # beta
-add xaeros-minimap              # minimap
-add xaeros-world-map            # map of the explored world (key M)
 
 # Terrain shape: continents, oceans, mountain ranges
 add tectonic

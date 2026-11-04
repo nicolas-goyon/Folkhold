@@ -16,9 +16,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -91,10 +89,10 @@ public final class CartofoldGameTests {
         List<TerritoryMapPayload.Village> villages = new ArrayList<>();
         for (int i = 0; i < 64; i++) {
             Claimant claimant = new Claimant(prefix + i, (i % 8) * 300, (i / 8) * 300, 1, 12);
-            villages.add(new TerritoryMapPayload.Village(claimant, 64, "Village " + i, "Faction", 0x808080));
+            villages.add(new TerritoryMapPayload.Village(claimant, "Village " + i, "Faction", 0x808080));
         }
-        TerritoryMapPayload map = new TerritoryMapPayload(villages, List.of());
-        Set<String> claimants = villages.stream().map(TerritoryMapPayload.Village::id).collect(Collectors.toSet());
+        TerritoryMapPayload map = new TerritoryMapPayload(villages);
+        List<Claimant> claimants = villages.stream().map(TerritoryMapPayload.Village::claimant).toList();
 
         long start = System.nanoTime();
         LayerContent first = CartofoldMaps.territories(map, claimants);

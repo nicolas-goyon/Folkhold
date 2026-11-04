@@ -15,7 +15,6 @@ import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claima
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryMapPayload;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import org.junit.jupiter.api.Test;
@@ -23,7 +22,7 @@ import org.junit.jupiter.api.Test;
 class CartofoldMapsTest {
     private static final Claimant NORTHAM = new Claimant("northam", 0, 0, 2, 3);
     private static final Claimant SOUTHAM = new Claimant("southam", 16 * 5, 0, 1, 3);
-    private static final Set<String> CLAIMANTS = Set.of("northam", "southam");
+    private static final List<Claimant> CLAIMANTS = List.of(NORTHAM, SOUTHAM);
 
     /** With no neighbor, the territory is the disc of the claim. */
     @Test
@@ -54,8 +53,7 @@ class CartofoldMapsTest {
     @Test
     void territoriesLayer() {
         TerritoryMapPayload map = new TerritoryMapPayload(
-                List.of(new TerritoryMapPayload.Village(NORTHAM, 70, "Northam", "Ash", 0xAA5500)),
-                List.of(SOUTHAM));
+                List.of(new TerritoryMapPayload.Village(NORTHAM, "Northam", "Ash", 0xAA5500)));
 
         LayerContent layer = CartofoldMaps.territories(map, CLAIMANTS);
 
@@ -74,11 +72,11 @@ class CartofoldMapsTest {
     @Test
     void cacheForgetsTheRemovedSettlements() {
         TerritoryMapPayload map = new TerritoryMapPayload(
-                List.of(new TerritoryMapPayload.Village(NORTHAM, 70, "Northam", "Ash", 0xAA5500)), List.of());
+                List.of(new TerritoryMapPayload.Village(NORTHAM, "Northam", "Ash", 0xAA5500)));
         CartofoldMaps.territories(map, CLAIMANTS);
         assertTrue(CartofoldMaps.cachedIds().contains("northam"));
 
-        CartofoldMaps.territories(TerritoryMapPayload.EMPTY, Set.of("southam"));
+        CartofoldMaps.territories(TerritoryMapPayload.EMPTY, List.of(SOUTHAM));
 
         assertFalse(CartofoldMaps.cachedIds().contains("northam"), "A removed settlement leaves the cache");
     }
