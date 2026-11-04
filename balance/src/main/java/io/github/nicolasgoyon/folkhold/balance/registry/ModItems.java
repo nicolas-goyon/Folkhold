@@ -28,6 +28,8 @@ public final class ModItems {
             () -> new CartItem(ModEntities.HEAVY_LOCOMOTIVE, new Item.Properties().stacksTo(1)));
     public static final DeferredItem<CartItem> DOUBLE_CHEST_MINECART = ITEMS.register("double_chest_minecart",
             () -> new CartItem(ModEntities.DOUBLE_CHEST_MINECART, new Item.Properties().stacksTo(1)));
+    public static final DeferredItem<CartItem> ENDER_CHEST_MINECART = ITEMS.register("ender_chest_minecart",
+            () -> new CartItem(ModEntities.ENDER_CHEST_MINECART, new Item.Properties().stacksTo(1)));
     public static final DeferredItem<ShulkerMinecartItem> SHULKER_BOX_MINECART = ITEMS.register("shulker_box_minecart",
             () -> new ShulkerMinecartItem(ModEntities.SHULKER_BOX_MINECART, new Item.Properties().stacksTo(1)));
 
@@ -59,6 +61,7 @@ public final class ModItems {
                 stack.set(DataComponents.BASE_COLOR, color);
                 event.accept(stack);
             }
+            event.accept(ENDER_CHEST_MINECART);
         }
     }
 }

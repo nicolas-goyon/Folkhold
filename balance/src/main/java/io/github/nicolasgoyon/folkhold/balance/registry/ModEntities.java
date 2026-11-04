@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.balance.registry;
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
 import io.github.nicolasgoyon.folkhold.balance.rail.DoubleChestMinecart;
+import io.github.nicolasgoyon.folkhold.balance.rail.EnderChestMinecart;
 import io.github.nicolasgoyon.folkhold.balance.rail.FurnaceLocomotive;
 import io.github.nicolasgoyon.folkhold.balance.rail.HeavyLocomotive;
 import io.github.nicolasgoyon.folkhold.balance.rail.ShulkerMinecart;
@@ -56,6 +57,14 @@ public final class ModEntities {
                     .passengerAttachments(0.1875F)
                     .clientTrackingRange(8)
                     .build("shulker_box_minecart"));
+    /** The ender chest minecart. Same size as a vanilla minecart. It has no item handler: hoppers have no access. */
+    public static final DeferredHolder<EntityType<?>, EntityType<EnderChestMinecart>> ENDER_CHEST_MINECART =
+            ENTITY_TYPES.register("ender_chest_minecart", () -> EntityType.Builder
+                    .<EnderChestMinecart>of(EnderChestMinecart::new, MobCategory.MISC)
+                    .sized(0.98F, 0.7F)
+                    .passengerAttachments(0.1875F)
+                    .clientTrackingRange(8)
+                    .build("ender_chest_minecart"));
 
     private ModEntities() {
     }

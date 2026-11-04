@@ -27,6 +27,8 @@ import net.neoforged.neoforge.common.NeoForge;
 public final class FolkholdBalanceClient {
     /** The color of a shulker box with no dye, as RGB. */
     private static final int SHULKER_COLOR = 0x976997;
+    /** The color of the icon of the ender chest minecart, as ARGB: the dark green of an ender chest, with white. */
+    private static final int ENDER_CHEST_ICON_COLOR = 0xFF5E9C93;
 
     public FolkholdBalanceClient(IEventBus modEventBus, ModContainer modContainer) {
         // Config screen in the mod list. Server values are editable only in a world.
@@ -37,11 +39,14 @@ public final class FolkholdBalanceClient {
             event.registerEntityRenderer(ModEntities.HEAVY_LOCOMOTIVE.get(),
                     context -> new LocomotiveRenderer<>(context, LocomotiveRenderer.HEAVY_COLOR));
             event.registerEntityRenderer(ModEntities.DOUBLE_CHEST_MINECART.get(), DoubleChestMinecartRenderer::new);
-            // The block entity item renderer draws the shulker box of the display block state in its color.
+            // The block entity item renderer draws the block of the display block state: the shulker box in its
+            // color and the ender chest.
             event.registerEntityRenderer(ModEntities.SHULKER_BOX_MINECART.get(),
                     context -> new MinecartRenderer<>(context, ModelLayers.CHEST_MINECART));
+            event.registerEntityRenderer(ModEntities.ENDER_CHEST_MINECART.get(),
+                    context -> new MinecartRenderer<>(context, ModelLayers.CHEST_MINECART));
         });
-        // The color of each locomotive on the icon of the vanilla furnace minecart, and of the chest minecarts.
+        // The color of each locomotive on the icon of the vanilla furnace minecart, and of the storage minecarts.
         modEventBus.addListener((RegisterColorHandlersEvent.Item event) -> {
             event.register((stack, layer) -> LocomotiveRenderer.FURNACE_COLOR, ModItems.FURNACE_LOCOMOTIVE.get());
             event.register((stack, layer) -> LocomotiveRenderer.HEAVY_COLOR, ModItems.HEAVY_LOCOMOTIVE.get());
@@ -49,6 +54,7 @@ public final class FolkholdBalanceClient {
                     ModItems.DOUBLE_CHEST_MINECART.get());
             event.register((stack, layer) -> shulkerIconColor(stack.get(DataComponents.BASE_COLOR)),
                     ModItems.SHULKER_BOX_MINECART.get());
+            event.register((stack, layer) -> ENDER_CHEST_ICON_COLOR, ModItems.ENDER_CHEST_MINECART.get());
         });
         NeoForge.EVENT_BUS.addListener(ChainRenderer::onRenderLevel);
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientCartLinks.clear());

@@ -7,15 +7,11 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.piglin.PiglinAi;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.vehicle.AbstractMinecartContainer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.item.DyeColor;
@@ -26,8 +22,6 @@ import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.gameevent.GameEvent;
-import net.minecraft.world.level.storage.loot.LootTable;
 
 /**
  * A minecart with a shulker box: 27 slots, with no color or with one of the 16 dye colors.
@@ -37,9 +31,9 @@ import net.minecraft.world.level.storage.loot.LootTable;
  * Its stacks never drop one by one. An empty minecart drops its item only when it is broken and the game rule
  * {@code doEntityDrops} is true, as the other minecarts. A shulker box or a shulker box minecart cannot go into it.
  *
- * <p>It has no loot table, as the double chest minecart.
+ * <p>It has no loot table (see {@link StorageMinecart}).
  */
-public class ShulkerMinecart extends AbstractMinecartContainer {
+public class ShulkerMinecart extends StorageMinecart {
     /** The number of slots: 3 rows of 9 slots, as a shulker box. */
     public static final int SIZE = 27;
 
@@ -53,8 +47,6 @@ public class ShulkerMinecart extends AbstractMinecartContainer {
 
     public ShulkerMinecart(EntityType<? extends ShulkerMinecart> type, Level level) {
         super(type, level);
-        // Replaces the list of the parent class with a list of SIZE slots.
-        clearItemStacks();
     }
 
     @Override
@@ -115,18 +107,8 @@ public class ShulkerMinecart extends AbstractMinecartContainer {
     }
 
     @Override
-    public Type getMinecartType() {
-        return Type.CHEST;
-    }
-
-    @Override
     public BlockState getDefaultDisplayBlockState() {
         return ShulkerBoxBlock.getBlockByColor(getColor()).defaultBlockState();
-    }
-
-    @Override
-    public int getDefaultDisplayOffset() {
-        return 8;
     }
 
     /** Damage destroys the minecart: it drops only its item, with its items (see {@link #remove}). */
@@ -175,28 +157,4 @@ public class ShulkerMinecart extends AbstractMinecartContainer {
         return new ShulkerBoxMenu(id, inventory, this);
     }
 
-    @Override
-    public void stopOpen(Player player) {
-        level().gameEvent(GameEvent.CONTAINER_CLOSE, position(), GameEvent.Context.of(player));
-    }
-
-    @Override
-    public InteractionResult interact(Player player, InteractionHand hand) {
-        InteractionResult result = interactWithContainerVehicle(player);
-        if (result.consumesAction()) {
-            gameEvent(GameEvent.CONTAINER_OPEN, player);
-            PiglinAi.angerNearbyPiglins(player, true);
-        }
-        return result;
-    }
-
-    @Override
-    public void setLootTable(@Nullable ResourceKey<LootTable> lootTable) {
-        // No loot table: see the class comment.
-    }
-
-    @Override
-    public void setLootTable(ResourceKey<LootTable> lootTable, long seed) {
-        // No loot table: see the class comment.
-    }
 }

@@ -16,8 +16,10 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.LockCode;
 import net.minecraft.world.damagesource.DamageSources;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -26,6 +28,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.component.SeededContainerLoot;
@@ -131,6 +134,14 @@ public final class ShulkerMinecartGameTests {
         ItemStack lootBox = new ItemStack(Items.SHULKER_BOX);
         lootBox.set(DataComponents.CONTAINER_LOOT, new SeededContainerLoot(BuiltInLootTables.SIMPLE_DUNGEON, 1L));
         helper.assertTrue(craft(helper, lootBox).isEmpty(), "A shulker box with a loot table matches");
+        ItemStack lockedBox = new ItemStack(Items.SHULKER_BOX);
+        lockedBox.set(DataComponents.LOCK, new LockCode("key"));
+        helper.assertTrue(craft(helper, lockedBox).isEmpty(), "A shulker box with a lock matches");
+        // The tooltip shows the 2 stacks, as the shulker box item.
+        List<Component> tooltip = new ArrayList<>();
+        result.getItem().appendHoverText(result, Item.TooltipContext.EMPTY, tooltip, TooltipFlag.NORMAL);
+        helper.assertTrue(tooltip.size() == 2 && tooltip.get(0).getString().contains("7"),
+                "The tooltip is " + tooltip);
 
         BlockPos rail = new BlockPos(4, 1, BENCH_Z);
         TrainGameTests.rail(helper, 4, BENCH_Z, RailShape.EAST_WEST);
@@ -160,6 +171,7 @@ public final class ShulkerMinecartGameTests {
         ShulkerBoxBlockEntity box = new ShulkerBoxBlockEntity(BlockPos.ZERO, Blocks.SHULKER_BOX.defaultBlockState());
         helper.assertFalse(box.canPlaceItemThroughFace(0, item, Direction.UP), "A hopper puts it into a box");
         helper.assertFalse(new ShulkerBoxSlot(box, 0, 0, 0).mayPlace(item), "A player puts it into a box");
+        helper.assertFalse(canFitInsideContainerItems(item.getItem()), "The method with no argument gives true");
         helper.assertTrue(new BundleContents.Mutable(BundleContents.EMPTY).tryInsert(item) == 0,
                 "It goes into a bundle");
         ShulkerMinecart cart = helper.spawn(ModEntities.SHULKER_BOX_MINECART.get(), new Vec3(4.5, 2.0, 2.5));
@@ -216,6 +228,11 @@ public final class ShulkerMinecartGameTests {
                     "The chest has " + inChest + " cobblestone, the minecart " + cart.countItem(Items.COBBLESTONE));
             cart.discard();
         });
+    }
+
+    @SuppressWarnings("deprecation")
+    private static boolean canFitInsideContainerItems(Item item) {
+        return item.canFitInsideContainerItems();
     }
 
     /** The result of the crafting recipe for a minecart and a shulker box, or an empty stack. */

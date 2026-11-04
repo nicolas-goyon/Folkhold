@@ -878,11 +878,20 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 
 ### Shulker box minecart
 
-- **Implemented** (`ShulkerMinecart`, `ShulkerMinecartItem`, `ShulkerMinecartRecipe`): a minecart with a shulker box: 27 slots and the shulker box screen. It has no color or one of the 16 dye colors. Recipe: minecart and shulker box, with no shape. The result keeps the items and the color of the shulker box. A shulker box with a loot table does not match. The item and the dispenser place it on a rail as a vanilla minecart, with its items and its color.
+- **Implemented** (`ShulkerMinecart`, `ShulkerMinecartItem`, `ShulkerMinecartRecipe`): a minecart with a shulker box: 27 slots and the shulker box screen. It has no color or one of the 16 dye colors. Recipe: minecart and shulker box, with no shape. The result keeps the items and the color of the shulker box. A shulker box with a loot table or a lock does not match: the minecart cannot keep the loot table or the lock. The item and the dispenser place it on a rail as a vanilla minecart, with its items and its color.
 - The minecart keeps its items as a shulker box does. When it is removed (a player, a creative player, an explosion, lava, a cactus, `/kill`), it drops one item with its items, its color and its name. Its stacks never drop one by one. An empty minecart drops its item only when damage destroys it and the game rule `doEntityDrops` is true.
-- The item cannot go into a shulker box, a bundle or a shulker box minecart, as a shulker box. A shulker box cannot go into the minecart. A destroyed item entity (for example in lava) drops its items, as a shulker box item.
+- The item cannot go into a shulker box, a bundle or a shulker box minecart, as a shulker box. A shulker box cannot go into the minecart. A destroyed item entity (for example in lava) drops its items, as a shulker box item. The tooltip of the item shows the first 5 stacks and the number of the other stacks, as a shulker box item.
 - Hoppers, hopper minecarts and the item handlers of NeoForge fill it and empty it, with the same rule as a shulker box. It has no loot table, as the double chest minecart. It is a wagon of a train with the mass of a chest minecart.
 - It shows the vanilla shulker box in its color on the minecart. The item has the icon of the chest minecart in the color of the shulker box, mixed with white.
+
+### Ender chest minecart
+
+- **Implemented** (`EnderChestMinecart`): a minecart with an ender chest. Recipe: minecart and ender chest, with no shape. The item and the dispenser place it on a rail as a vanilla minecart.
+- A right click opens the ender chest of the player (3 rows), as the ender chest block. Two players see their own ender chests in the same minecart. The menu closes when the minecart is removed or when the player is too far from the minecart (the same distance as for the vanilla chest minecart).
+- The minecart holds no items: it is not a container. Hoppers, hopper minecarts, comparators and the item handlers of NeoForge have no access to it. Thus only the player can get the items of his ender chest.
+- A destroyed minecart drops only its item, not obsidian, when the game rule `doEntityDrops` is true. The ender chest of the player keeps its items.
+- It is a wagon of a train with no cargo: its mass is always `wagonMass`.
+- It shows the vanilla ender chest on the minecart. The item has the icon of the chest minecart in a dark green color.
 
 ### Speed
 
