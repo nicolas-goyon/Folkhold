@@ -189,7 +189,7 @@ public final class FactionGolemGameTests {
     /**
      * In a capital, each golem guards a gate. Its post is inside the gate, toward the heart, and the golem can walk
      * through the open gate. The golem attacks a monster that comes to the gate. The other units of the village go
-     * away first: the hit must come from a golem.
+     * away first: the hit must come from a golem. The monster has no AI, so that it stays in the test area.
      */
     @GameTest(template = "village/center", timeoutTicks = 400, batch = "golem_gates")
     public static void golemsGuardTheGates(GameTestHelper helper) {
@@ -236,6 +236,10 @@ public final class FactionGolemGameTests {
                     // the helper and the positions of the template blocks do not always agree.
                     husk[0] = EntityType.HUSK.spawn(helper.getLevel(), gate, MobSpawnType.COMMAND);
                     helper.assertTrue(husk[0] != null, "The husk must spawn at the gate");
+                    // The husk stays at the gate. The gate is one block from the edge of the template, and the
+                    // entities tick only in the chunks of the test area. A husk that walks out of the gate can go
+                    // into a chunk that does not tick: the husk and the golem that follows it stop there.
+                    husk[0].setNoAi(true);
                 })
                 .thenWaitUntil(() -> helper.assertTrue(husk[0].getLastHurtByMob() == golem || !husk[0].isAlive(),
                         "The golem must hit the husk at the gate"))
