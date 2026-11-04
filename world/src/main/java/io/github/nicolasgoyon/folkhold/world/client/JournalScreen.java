@@ -18,6 +18,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.client.map.XaeroMaps;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.journal.CartofoldMaps;
 import io.github.nicolasgoyon.folkhold.world.network.JournalPayload;
 import io.github.nicolasgoyon.folkhold.world.network.JournalPayload.Faction;
 import io.github.nicolasgoyon.folkhold.world.network.JournalPayload.Village;
@@ -165,6 +166,10 @@ public class JournalScreen extends UiScreen {
 
     /** Opens the journal, or updates the open journal. Called by the network handler. */
     public static void open(JournalPayload payload) {
+        if (known(payload, payload.focus())) {
+            lastTab = TAB_VILLAGES;
+            lastVillage = payload.focus();
+        }
         String from = ClientRouteView.fromId();
         String to = ClientRouteView.toId();
         ClientRouteView.select(known(payload, from) ? from : null, known(payload, to) ? to : null);
@@ -1021,12 +1026,7 @@ public class JournalScreen extends UiScreen {
         if (!detailed) {
             return UiTheme.INK_MUTED;
         }
-        return switch (surface) {
-            case ROAD -> 0xFF8A5A1E;
-            case LAND -> 0xFF4E7D34;
-            case FORD -> 0xFF2E8FB0;
-            case WATER -> 0xFF2F4FA8;
-        };
+        return CartofoldMaps.surfaceColor(surface);
     }
 
     /** Draws the legend: for each surface on the route, its color, its name and its part of the length. */

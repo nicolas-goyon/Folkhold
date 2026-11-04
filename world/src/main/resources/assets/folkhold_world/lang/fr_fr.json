@@ -838,5 +838,9 @@
   "screen.folkhold_world.journal.map.selected": "%s — %s",
   "screen.folkhold_world.journal.map.territory": "Territoire de %s",
   "screen.folkhold_world.journal.map.empty": "Aucun village découvert. Entrez sur le territoire d'un village : la carte montre alors ce territoire.",
-  "folkhold_world.map.territory": "%s (%s)"
+  "folkhold_world.map.territory": "%s (%s)",
+  "folkhold_world.layer.territories": "Territoires",
+  "folkhold_world.layer.villages": "Villages",
+  "folkhold_world.layer.route": "Itinéraire du journal",
+  "folkhold_world.map.village": "%s · %s"
 }
