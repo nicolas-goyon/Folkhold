@@ -22,4 +22,17 @@ class MapWaypointsTest {
         assertTrue(waypoints.waypoints(3).isEmpty());
         assertEquals(Map.of("ashfell", ASHFELL), waypoints.waypoints(4));
     }
+
+    /**
+     * A heart in the outer row of blocks of a map gets its decoration on the row next to it. The game shows this
+     * position. The other positions do not change.
+     */
+    @Test
+    void edgeOfTheMapMovesToTheNextRow() {
+        assertEquals(63.0, MapWaypoints.onMap(63.5, 0, 0));
+        assertEquals(-63.0, MapWaypoints.onMap(-63.5, 0, 0));
+        assertEquals(1024.0 + 252.0, MapWaypoints.onMap(1024.0 + 254.5, 1024, 2));
+        assertEquals(10.5, MapWaypoints.onMap(10.5, 0, 0));
+        assertEquals(200.5, MapWaypoints.onMap(200.5, 0, 0));
+    }
 }

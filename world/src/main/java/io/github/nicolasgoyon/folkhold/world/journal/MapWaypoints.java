@@ -56,6 +56,11 @@ public final class MapWaypoints extends SavedData {
     static final double FRAME_DISTANCE = 32.0;
     /** The decoration of a waypoint points down, as a banner. */
     private static final double ROTATION = 180.0;
+    /**
+     * The map shows a decoration at this distance from its center or nearer, in map pixels. The map is 128 pixels
+     * wide, so the outer row of pixels on each side is out of this limit.
+     */
+    static final int DECORATION_LIMIT = 63;
 
     /**
      * A waypoint.
@@ -168,13 +173,35 @@ public final class MapWaypoints extends SavedData {
             boolean active = settlements.registry().byId(entry.getKey()).filter(Settlement::isActive).isPresent();
             if (active) {
                 Waypoint waypoint = entry.getValue();
-                data.addDecoration(ModMapDecorations.VILLAGE, level, decoration, waypoint.x() + 0.5,
-                        waypoint.z() + 0.5, ROTATION, Component.literal(waypoint.name()));
+                data.addDecoration(ModMapDecorations.VILLAGE, level, decoration,
+                        onMap(waypoint.x() + 0.5, data.centerX, data.scale),
+                        onMap(waypoint.z() + 0.5, data.centerZ, data.scale), ROTATION,
+                        Component.literal(waypoint.name()));
             } else {
                 data.removeDecoration(decoration);
                 waypoints.toggle(map, entry.getKey(), entry.getValue());
             }
         }
+    }
+
+    /**
+     * The position of a decoration on one axis of a map. The game removes a decoration in the outer row of pixels of
+     * the map (see {@link #DECORATION_LIMIT}). A position in this row moves to the row next to it: the waypoint of a
+     * heart at the edge of the map stays on the map. A position out of the map does not change.
+     *
+     * @param pos    the block position on the axis
+     * @param center the center of the map on the axis
+     * @param scale  the scale of the map
+     * @return the position of the decoration on the axis
+     */
+    static double onMap(double pos, int center, int scale) {
+        int pixel = 1 << scale;
+        double limit = (double) DECORATION_LIMIT * pixel;
+        double offset = pos - center;
+        if (Math.abs(offset) > limit + pixel) {
+            return pos;
+        }
+        return center + Math.max(-limit, Math.min(limit, offset));
     }
 
     /** The waypoints of a map, by id of settlement. */
