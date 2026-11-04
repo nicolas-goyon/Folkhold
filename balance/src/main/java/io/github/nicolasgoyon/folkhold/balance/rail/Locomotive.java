@@ -189,6 +189,9 @@ public abstract class Locomotive extends AbstractMinecart {
             cap = Math.min(cap, BalanceConfig.CURVE_SPEED.get());
         }
         TrainSpeed.setCap(level, carts, cap);
+        if (running && fuel > 0.0) {
+            TrainChunks.keepLoaded(level, carts, dirX, dirZ);
+        }
         // A locomotive that does not pull brakes with its pulling force.
         double pull = running && fuel > 0.0 ? stats.pull(speed) : -stats.force();
         double next = Traction.nextSpeed(speed, pull, resistance, mass, cap);

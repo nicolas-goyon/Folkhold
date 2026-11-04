@@ -864,6 +864,26 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - A vanilla furnace minecart that is a wagon gets the speed cap of its train, in place of its vanilla cap of 0.2.
 - A minecart that is not in a train with a locomotive keeps the vanilla speed cap, also a minecart after its link breaks. A vanilla furnace minecart at the front of a train does not give a cap.
 
+### Loaded area
+
+- A train stops at the edge of the loaded area (see "Train"). This is the default.
+- **Implemented** (`TrainChunks`, option `loadChunks`, off by default): each tick, a locomotive that runs and has fuel gives a chunk ticket to the chunk of each minecart of its train, and to the chunks on its direction of travel for 32 blocks. These chunks tick their entities, so the train does not stop at the edge of the loaded area. A vanilla furnace minecart does not load chunks.
+- Each ticket has a lifespan of 20 ticks, and the locomotive gives its tickets again each tick. Thus the tickets go away after 1 second when the locomotive stops, has no fuel, is removed or unloads, or when the option is off. The game does not save the tickets.
+- Only `maxLoadingTrains` locomotives in each dimension load chunks at the same time. A locomotive keeps its place until it stops loading chunks for 20 ticks.
+- The game does not tick the entities of a level that has no player and no forced chunk for 300 ticks. The tickets of the trains do not change this.
+
+### Server cost
+
+- The mod finds each train one time in each tick, from its front minecart. It keeps no cache of the trains.
+- Target: 2 ms for each tick for the code of the trains (the pass of the trains and the ticks of the locomotives).
+- Measured with `System.nanoTime` in the GameTest `TrainCostGameTests` (20 trains of 16 minecarts that move, 40 ticks, a test machine with 2 CPUs), for each tick:
+
+| Part | Time |
+| --- | --- |
+| Pass of the trains (`Trains`, at the end of the tick of the level, with the other listeners of this event) | 0.85 ms |
+| Ticks of the 20 locomotives (vanilla movement, forces, look-ahead, speed cap) | 1.06 ms |
+| Ticks of the 300 wagons (vanilla movement with the speed cap of the train) | 3.86 ms |
+
 ### Configuration
 
 File `folkhold_balance-server.toml`, section `rails`:
@@ -886,6 +906,8 @@ File `folkhold_balance-server.toml`, section `rails`:
 | `brakeForce` | 0.5 | Brake of a powered rail with no power, for each unit of mass on it |
 | `curveSpeed` | 0.4 | Speed cap of a train with a locomotive in a curve and on a slope, in blocks per tick (0.4 at most) |
 | `lookAhead` | 3 | Number of blocks that each minecart of a train with a locomotive examines in front of it |
+| `loadChunks` | false | A locomotive that runs and has fuel loads the chunks of its train and the chunks 32 blocks in front of it |
+| `maxLoadingTrains` | 8 | Largest number of locomotives in each dimension that load chunks at the same time |
 | `furnaceLocomotive.maxSpeed` | 0.4 | Largest speed on straight and flat rails, in blocks per tick (0.4 at most) |
 | `furnaceLocomotive.pullingForce` | 0.12 | Pulling force at speed 0 |
 | `furnaceLocomotive.mass` | 2.0 | Mass of the locomotive |

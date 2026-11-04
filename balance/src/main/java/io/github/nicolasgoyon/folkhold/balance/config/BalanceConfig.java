@@ -36,6 +36,8 @@ public final class BalanceConfig {
     public static final ModConfigSpec.DoubleValue BRAKE_FORCE;
     public static final ModConfigSpec.DoubleValue CURVE_SPEED;
     public static final ModConfigSpec.IntValue LOOK_AHEAD;
+    public static final ModConfigSpec.BooleanValue TRAIN_LOAD_CHUNKS;
+    public static final ModConfigSpec.IntValue TRAIN_MAX_LOADING;
     private static final LocomotiveValues FURNACE;
     private static final LocomotiveValues HEAVY;
 
@@ -148,6 +150,16 @@ public final class BalanceConfig {
                         "of the train to curveSpeed.")
                 .translation(KEY_PREFIX + "lookAhead")
                 .defineInRange("lookAhead", 3, 2, 16);
+        TRAIN_LOAD_CHUNKS = builder
+                .comment("A locomotive that runs and has fuel loads the chunks of its train and the chunks 32 blocks",
+                        "in front of it. These chunks tick their entities, so the train does not stop at the edge of",
+                        "the loaded area. False: the train stops at the edge of the loaded area and waits.")
+                .translation(KEY_PREFIX + "loadChunks")
+                .define("loadChunks", false);
+        TRAIN_MAX_LOADING = builder
+                .comment("Largest number of locomotives in each dimension that load chunks at the same time.")
+                .translation(KEY_PREFIX + "maxLoadingTrains")
+                .defineInRange("maxLoadingTrains", 8, 1, 64);
         FURNACE = locomotive(builder, "furnaceLocomotive", "The furnace locomotive. It burns the fuels of the furnace.",
                 LocomotiveStats.FURNACE_DEFAULTS, Locomotive.RAIL_SPEED_CAP, "200 blocks for 1 coal");
         HEAVY = locomotive(builder, "heavyLocomotive", "The heavy locomotive. It burns blocks of coal.",
