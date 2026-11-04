@@ -151,13 +151,16 @@ public final class BalanceConfig {
                 .translation(KEY_PREFIX + "lookAhead")
                 .defineInRange("lookAhead", 3, 2, 16);
         TRAIN_LOAD_CHUNKS = builder
-                .comment("A locomotive that runs and has fuel loads the chunks of its train and the chunks 32 blocks",
-                        "in front of it. These chunks tick their entities, so the train does not stop at the edge of",
-                        "the loaded area. False: the train stops at the edge of the loaded area and waits.")
+                .comment("A locomotive that runs, has fuel and moves loads the chunks of its train and the chunks on",
+                        "a straight line 32 blocks in front of it. These chunks tick their entities, so the train does",
+                        "not stop at the edge of the loaded area. Around each of these chunks, a 3 x 3 area of chunks",
+                        "ticks its blocks (random ticks, crops, redstone). False: the train stops at the edge of the",
+                        "loaded area and waits.")
                 .translation(KEY_PREFIX + "loadChunks")
                 .define("loadChunks", false);
         TRAIN_MAX_LOADING = builder
-                .comment("Largest number of locomotives in each dimension that load chunks at the same time.")
+                .comment("Largest number of locomotives on the server that load chunks at the same time, for all",
+                        "the players and all the dimensions. First come, first served.")
                 .translation(KEY_PREFIX + "maxLoadingTrains")
                 .defineInRange("maxLoadingTrains", 8, 1, 64);
         FURNACE = locomotive(builder, "furnaceLocomotive", "The furnace locomotive. It burns the fuels of the furnace.",

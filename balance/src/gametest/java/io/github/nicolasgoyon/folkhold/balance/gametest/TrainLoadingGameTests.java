@@ -161,17 +161,18 @@ public final class TrainLoadingGameTests {
     /**
      * Option {@code loadChunks}. Off: the back wagon is at the edge of the simulation distance and the train waits.
      * On: the locomotive loads the chunk of the wagon and the chunks in front of it, and the train goes 20 blocks
-     * west of {@code west}, into chunks that had no ticket. Off again: the tickets go away.
+     * west of {@code west}, into chunks that had no ticket. The tickets go away when the train is removed and the
+     * option is off.
      */
     @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_load_chunks")
     public static void locomotiveLoadsTheChunksInFrontOfItWhenTheOptionIsOn(GameTestHelper helper) {
-        BalanceConfig.TRAIN_LOAD_CHUNKS.set(false);
         Far far = new Far(helper);
-        for (int x = far.west.x - FREE_RADIUS; x < far.west.x; x++) {
+        // The rails go 7 chunks to the west of west.
+        for (int x = far.west.x - 2 * FREE_RADIUS; x < far.west.x; x++) {
             USED.add(ChunkPos.asLong(x, far.west.z));
         }
         far.ticket(far.west, 2);
-        for (int x = -40; x < 24; x++) {
+        for (int x = -100; x < 24; x++) {
             far.rail(x, 0, RailShape.EAST_WEST);
         }
         far.fixRails();
@@ -204,18 +205,19 @@ public final class TrainLoadingGameTests {
                     far.assertLinked(carts.get(0), carts.get(1));
                     helper.assertTrue(far.chains() == 0, "A chain drops");
                     helper.assertTrue(((Locomotive) carts.get(0)).fuel() < fuel, "The locomotive burns no fuel");
-                    // A chunk that only the locomotive loads: 32 blocks in front of it.
+                    // A chunk that only the train loads: 32 blocks in front of the locomotive.
                     ahead.add(new ChunkPos(BlockPos.containing(carts.get(0).getX() - TrainChunks.AHEAD, 0,
                             carts.get(0).getZ())));
-                    // The test keeps the train loaded after the option is off.
-                    far.ticket(carts.get(0).chunkPosition(), 3);
                 })
                 .thenWaitUntil(() -> helper.assertTrue(isEntityTicking(far, ahead.get(0)),
                         "The chunk in front of the locomotive does not tick its entities"))
-                .thenExecute(() -> BalanceConfig.TRAIN_LOAD_CHUNKS.set(false))
+                .thenExecute(() -> {
+                    // The train is removed while it is loaded, so that it is not saved in the chunks.
+                    far.clear(carts);
+                    BalanceConfig.TRAIN_LOAD_CHUNKS.set(false);
+                })
                 .thenWaitUntil(() -> helper.assertTrue(!isEntityTicking(far, ahead.get(0)),
-                        "Option off: the chunk in front of the locomotive keeps its ticket"))
-                .thenExecute(() -> far.clear(carts))
+                        "The chunk in front of the removed locomotive keeps its ticket"))
                 .thenSucceed();
     }
 
@@ -368,6 +370,8 @@ public final class TrainLoadingGameTests {
         private final Map<BlockPos, RailShape> shapes = new HashMap<>();
 
         Far(GameTestHelper helper) {
+            // A test that fails can leave the shared config values changed.
+            TrainChunkGameTests.resetOptions();
             this.helper = helper;
             this.level = helper.getLevel();
             this.west = freeChunk(level, new ChunkPos(helper.absolutePos(BlockPos.ZERO).offset(FAR_OFFSET, 0, 0)));

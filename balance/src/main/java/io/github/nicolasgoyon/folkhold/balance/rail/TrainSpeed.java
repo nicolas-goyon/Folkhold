@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
@@ -81,7 +82,7 @@ public final class TrainSpeed {
     /**
      * Tells if the rails in front of a minecart are straight and flat: the rail under the minecart and the rails in
      * the next blocks along the direction of travel are vanilla rails with the same straight shape. A curve, a slope,
-     * a block with no rail, a rail of another mod and a chunk that is not loaded give false. The check does not load
+     * a block with no rail, a rail of another mod and a chunk that is not loaded and complete give false. The check does not load
      * chunks.
      *
      * @param dirX   the X part of the direction of travel
@@ -99,7 +100,9 @@ public final class TrainSpeed {
         BlockPos start = cart.getCurrentRailPosition();
         for (int i = 0; i <= blocks; i++) {
             BlockPos pos = start.offset(stepX * i, 0, stepZ * i);
-            if (!level.isLoaded(pos)) {
+            // A chunk with a ticket can be loaded but not complete: a read in it waits for the generation.
+            if (level.getChunkSource().getChunkNow(SectionPos.blockToSectionCoord(pos.getX()),
+                    SectionPos.blockToSectionCoord(pos.getZ())) == null) {
                 return false;
             }
             BlockState state = level.getBlockState(pos);

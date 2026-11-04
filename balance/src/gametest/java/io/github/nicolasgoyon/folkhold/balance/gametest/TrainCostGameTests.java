@@ -1,8 +1,10 @@
 package io.github.nicolasgoyon.folkhold.balance.gametest;
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
+import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartLinks;
 import io.github.nicolasgoyon.folkhold.balance.rail.Locomotive;
+import io.github.nicolasgoyon.folkhold.balance.rail.TrainChunks;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModEntities;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,6 +38,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * The code of the trains is the pass of the trains and the ticks of the locomotives. Its target is 2 ms for each tick.
  * The test fails only above {@link #FAIL_MS}, because the speed of the test machines is not always the same.
  *
+ * <p>A second test makes the same measure with the option {@code loadChunks}.
+ *
  * <p>Template {@code folkhold_balance:express}: 48 × 5 × 48 blocks of air.
  */
 @GameTestHolder(FolkholdBalance.MOD_ID)
@@ -54,6 +58,20 @@ public final class TrainCostGameTests {
 
     @GameTest(template = "express", timeoutTicks = 200, batch = "balance_rails_cost")
     public static void twentyTrainsOfSixteenMinecarts(GameTestHelper helper) {
+        TrainChunkGameTests.resetOptions();
+        measure(helper, false);
+    }
+
+    /** The same measure with the option {@code loadChunks}: each locomotive gives its chunk tickets each tick. */
+    @GameTest(template = "express", timeoutTicks = 200, batch = "balance_rails_cost_chunks")
+    public static void twentyTrainsOfSixteenMinecartsThatLoadChunks(GameTestHelper helper) {
+        TrainChunkGameTests.resetOptions();
+        BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
+        BalanceConfig.TRAIN_MAX_LOADING.set(TRAINS);
+        measure(helper, true);
+    }
+
+    private static void measure(GameTestHelper helper, boolean loadChunks) {
         TrainGameTests.floor(helper, SIZE, SIZE);
         for (int i = 0; i < TRAINS; i++) {
             for (int x = 1; x < SIZE - 1; x++) {
@@ -111,9 +129,11 @@ public final class TrainCostGameTests {
                     double pass = millisPerTick(times[1]);
                     double drive = millisPerTick(times[2]);
                     double wagonTicks = millisPerTick(times[3]);
-                    FolkholdBalance.LOGGER.info("Train cost, {} trains of {} minecarts, {} ticks: pass of the trains"
-                                    + " {} ms, ticks of the locomotives {} ms, ticks of the wagons {} ms, for each tick",
-                            TRAINS, WAGONS + 1, MEASURED_TICKS, String.format("%.3f", pass),
+                    long loading = trains.stream().filter(train -> TrainChunks.isLoading(train.get(0))).count();
+                    FolkholdBalance.LOGGER.info("Train cost, {} trains of {} minecarts, loadChunks {} ({} give"
+                                    + " tickets), {} ticks: pass of the trains {} ms, ticks of the locomotives {} ms,"
+                                    + " ticks of the wagons {} ms, for each tick",
+                            TRAINS, WAGONS + 1, loadChunks, loading, MEASURED_TICKS, String.format("%.3f", pass),
                             String.format("%.3f", drive), String.format("%.3f", wagonTicks));
                     double moved = trains.get(0).get(0).position().distanceTo(start);
                     helper.assertTrue(moved > 4.0, "The first train moves only " + moved + " blocks");
@@ -124,6 +144,8 @@ public final class TrainCostGameTests {
                     }
                     helper.assertTrue(pass + drive < FAIL_MS, "The code of the trains uses " + (pass + drive)
                             + " ms for each tick");
+                    helper.assertTrue(loading == (loadChunks ? TRAINS : 0), loading + " locomotives give tickets");
+                    TrainChunkGameTests.resetOptions();
                     trains.forEach(train -> LocomotiveGameTests.clear(helper, train));
                 })
                 .thenSucceed();
