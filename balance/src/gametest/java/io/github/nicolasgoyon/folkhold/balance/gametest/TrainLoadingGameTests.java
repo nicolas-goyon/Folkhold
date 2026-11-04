@@ -17,6 +17,7 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestSequence;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
@@ -55,6 +56,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * <p>A ticket loads the chunks around its chunk. Each test has its own batch: the tests do not run at the same time,
  * and the tickets of a test do not load the chunks of another test. A test does not use the chunks of an earlier
  * test: the rails of the earlier test stay in the chunks after they unload.
+ *
+ * <p>The GameTest server does not wait between two ticks, but the load and the generation of the chunks take real
+ * time. Thus a wait for the far chunks has a real-time limit ({@link #CHUNK_SECONDS}), and the tick limit of such a
+ * test is a safety limit only. In such a test, a wait that does not depend on the chunks has its own tick limit
+ * ({@link #withinTicks}).
  */
 @GameTestHolder(FolkholdBalance.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -70,6 +76,14 @@ public final class TrainLoadingGameTests {
     private static final double BACK_X = 16.7;
     /** The number of ticks of a test: more than the break ticks and more than 2 checks of the dead links. */
     private static final int WAIT_TICKS = 80;
+    /** The real-time limit, in seconds, of a wait for the far chunks. */
+    private static final long CHUNK_SECONDS = 60;
+    /** The tick limit of a test that waits for the far chunks: a safety limit only (see {@link #CHUNK_SECONDS}). */
+    private static final int CHUNK_TEST_TICKS = 2_000_000;
+    /** The tick limit of a wait that does not depend on the chunks. */
+    private static final int STEP_TICKS = 2400;
+    /** The number of chunks to the west of {@code west} that the train of the chunk loading test uses. */
+    private static final int LOADING_WEST_CHUNKS = 11;
     /** The chunks that the earlier tests used, as {@link ChunkPos#toLong()}. Only for the server thread. */
     private static final Set<Long> USED = new HashSet<>();
 
@@ -80,7 +94,7 @@ public final class TrainLoadingGameTests {
      * The back minecart is at the edge of the simulation distance. The fueled furnace minecart in front does not
      * move, and the link does not break.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_edge")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_edge")
     public static void trainStopsAtTheEdgeOfTheSimulationDistance(GameTestHelper helper) {
         Far far = new Far(helper);
         far.ticket(far.west, 2);
@@ -90,8 +104,7 @@ public final class TrainLoadingGameTests {
         far.fixRails();
         List<AbstractMinecart> carts = new ArrayList<>();
         List<Vec3> start = new ArrayList<>();
-        helper.startSequence()
-                .thenWaitUntil(far::assertEdgeReady)
+        thenWaitForChunks(helper.startSequence(), far::assertEdgeReady)
                 .thenExecute(() -> {
                     MinecartFurnace furnace = far.spawn(EntityType.FURNACE_MINECART, FRONT_X, 0);
                     carts.add(furnace);
@@ -122,7 +135,7 @@ public final class TrainLoadingGameTests {
      * The back minecart is at the edge of the simulation distance. The running locomotive in front does not move and
      * burns no fuel.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_locomotive_edge")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_locomotive_edge")
     public static void waitingLocomotiveBurnsNoFuel(GameTestHelper helper) {
         Far far = new Far(helper);
         far.ticket(far.west, 2);
@@ -133,8 +146,7 @@ public final class TrainLoadingGameTests {
         List<AbstractMinecart> carts = new ArrayList<>();
         List<Vec3> start = new ArrayList<>();
         double fuel = 1000.0;
-        helper.startSequence()
-                .thenWaitUntil(far::assertEdgeReady)
+        thenWaitForChunks(helper.startSequence(), far::assertEdgeReady)
                 .thenExecute(() -> {
                     Locomotive locomotive = far.spawn(ModEntities.FURNACE_LOCOMOTIVE.get(), FRONT_X, 0);
                     locomotive.setFuel(fuel);
@@ -162,17 +174,21 @@ public final class TrainLoadingGameTests {
      * Option {@code loadChunks}. Off: the back wagon is at the edge of the simulation distance and the train waits.
      * On: the chunk of the wagon ticks for a short time, as when a player comes near, and the train moves. Then the
      * locomotive loads the chunk of the wagon and the chunks in front of it, and the train goes 20 blocks west of
-     * {@code west}, into chunks that had no ticket. The tickets go away when the train is removed and the
+     * {@code west}, into chunks that had no ticket that ticks. The tickets go away when the train is removed and the
      * option is off.
+     *
+     * <p>A chunk ticks its entities only when the chunks within 2 chunks of it are loaded. Before the train starts,
+     * the test loads all the chunks of the way of the train with tickets that do not tick. Thus the chunks of the
+     * train tick when the train gives its tickets, and the time of the generation does not change the test. Without
+     * this, the train can wait at the edge of the loaded area for more than {@link TrainChunks#WAIT_GRACE} ticks,
+     * and then it gives no more tickets.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_load_chunks")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_load_chunks")
     public static void locomotiveLoadsTheChunksInFrontOfItWhenTheOptionIsOn(GameTestHelper helper) {
         Far far = new Far(helper);
-        // The rails go 7 chunks to the west of west.
-        for (int x = far.west.x - 2 * FREE_RADIUS; x < far.west.x; x++) {
-            USED.add(ChunkPos.asLong(x, far.west.z));
-        }
         far.ticket(far.west, 2);
+        // The rails go 7 chunks to the west of west, and the train loads up to 2 chunks in front of the rails.
+        far.preload(far.west.x - LOADING_WEST_CHUNKS, far.east.x + 2);
         for (int x = -100; x < 24; x++) {
             far.rail(x, 0, RailShape.EAST_WEST);
         }
@@ -183,8 +199,10 @@ public final class TrainLoadingGameTests {
         // The locomotive burns fuel in each tick while it loads chunks: it gets its full capacity.
         double fuel = 32000.0;
         double limit = far.pos(-20, 0).getX();
-        helper.startSequence()
-                .thenWaitUntil(far::assertEdgeReady)
+        thenWaitForChunks(helper.startSequence(), () -> {
+            far.assertPreloaded();
+            far.assertEdgeReady();
+        })
                 .thenExecute(() -> {
                     Locomotive locomotive = far.spawn(ModEntities.FURNACE_LOCOMOTIVE.get(), FRONT_X, 0);
                     locomotive.setFuel(fuel);
@@ -203,32 +221,35 @@ public final class TrainLoadingGameTests {
                     // The locomotive did not move yet, so it gives no tickets: a player comes near.
                     far.ticket(far.east, 2);
                 })
-                .thenWaitUntil(() -> helper.assertTrue(carts.get(0).position().distanceTo(start.get(0)) > 1.0,
-                        "The train does not move when the chunk of the wagon ticks"))
+                .thenWaitUntil(withinTicks(helper, () -> helper.assertTrue(
+                        carts.get(0).position().distanceTo(start.get(0)) > 1.0,
+                        "The train does not move when the chunk of the wagon ticks")))
                 .thenExecute(() -> far.removeTicket(far.east, 2))
-                .thenWaitUntil(() -> helper.assertTrue(carts.get(0).getX() < limit,
-                        "The train does not go west: the locomotive is at " + carts.get(0).position()))
+                .thenWaitUntil(withinTicks(helper, () -> helper.assertTrue(carts.get(0).getX() < limit,
+                        "The train does not go west: the locomotive is at " + carts.get(0).position())))
                 .thenExecute(() -> {
                     far.assertLinked(carts.get(0), carts.get(1));
                     helper.assertTrue(far.chains() == 0, "A chain drops");
                     helper.assertTrue(((Locomotive) carts.get(0)).fuel() < fuel, "The locomotive burns no fuel");
                 })
-                // A chunk that only the train loads: 32 blocks in front of the locomotive, where it is now. The
-                // chunks next to the rails generate during the test, so the chunk can tick only after some ticks.
-                .thenWaitUntil(() -> {
+                // A chunk that only the train makes tick: 32 blocks in front of the locomotive, where it is now. The
+                // change of the chunk status occurs some ticks after the ticket.
+                .thenWaitUntil(withinTicks(helper, () -> {
                     ahead.clear();
                     ahead.add(new ChunkPos(BlockPos.containing(carts.get(0).getX() - TrainChunks.AHEAD, 0,
                             carts.get(0).getZ())));
                     helper.assertTrue(isEntityTicking(far, ahead.get(0)),
                             "The chunk in front of the locomotive does not tick its entities");
-                })
+                }))
                 .thenExecute(() -> {
-                    // The train is removed while it is loaded, so that it is not saved in the chunks.
-                    far.clear(carts);
+                    // The train is removed while it is loaded, so that it is not saved in the chunks. The tickets of
+                    // the test stay until the end of the check: only the tickets of the train go away.
+                    far.clearEntities(carts);
                     BalanceConfig.TRAIN_LOAD_CHUNKS.set(false);
                 })
-                .thenWaitUntil(() -> helper.assertTrue(!isEntityTicking(far, ahead.get(0)),
-                        "The chunk in front of the removed locomotive keeps its ticket"))
+                .thenWaitUntil(withinTicks(helper, () -> helper.assertTrue(!isEntityTicking(far, ahead.get(0)),
+                        "The chunk in front of the removed locomotive keeps its ticket")))
+                .thenExecute(far::removeTickets)
                 .thenSucceed();
     }
 
@@ -237,7 +258,7 @@ public final class TrainLoadingGameTests {
      * is at the edge of the simulation distance. After {@link TrainChunks#WAIT_GRACE} ticks with no real movement,
      * the locomotive gives no tickets, and the chunk of the wagon does not tick its entities.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_load_chunks_wall")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_load_chunks_wall")
     public static void locomotiveAgainstAWallGivesNoTicketsAfterTheGracePeriod(GameTestHelper helper) {
         Far far = new Far(helper);
         BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
@@ -251,8 +272,7 @@ public final class TrainLoadingGameTests {
         far.fixRails();
         List<AbstractMinecart> carts = new ArrayList<>();
         List<Long> stopTick = new ArrayList<>();
-        helper.startSequence()
-                .thenWaitUntil(far::assertLoaded)
+        GameTestSequence sequence = thenWaitForChunks(helper.startSequence(), far::assertLoaded)
                 .thenExecute(() -> {
                     Locomotive locomotive = far.spawn(ModEntities.FURNACE_LOCOMOTIVE.get(), 15.9, 0);
                     locomotive.setFuel(10000.0);
@@ -260,11 +280,14 @@ public final class TrainLoadingGameTests {
                     carts.add(far.spawn(EntityType.CHEST_MINECART, 17.9, 0));
                     TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
                     locomotive.setRunning(true, locomotive.position());
-                })
-                .thenWaitUntil(() -> helper.assertTrue(TrainChunks.isLoading(carts.get(0)),
-                        "The moving locomotive gives no tickets"))
-                .thenWaitUntil(() -> helper.assertTrue(carts.get(0).getX() < far.pos(15, 0).getX() + 0.6
-                        && Math.abs(carts.get(0).getX() - carts.get(0).xo) < 1.0E-4, "The locomotive is not against the wall"))
+                });
+        // The train moves only when the chunk of the wagon ticks: the chunks around it load in real time.
+        thenWaitForChunks(sequence, () -> helper.assertTrue(TrainChunks.isLoading(carts.get(0)),
+                "The moving locomotive gives no tickets"))
+                .thenWaitUntil(withinTicks(helper, () -> helper.assertTrue(
+                        carts.get(0).getX() < far.pos(15, 0).getX() + 0.6
+                                && Math.abs(carts.get(0).getX() - carts.get(0).xo) < 1.0E-4,
+                        "The locomotive is not against the wall")))
                 .thenExecute(() -> {
                     far.removeTicket(far.east, 2);
                     stopTick.add(helper.getTick());
@@ -274,7 +297,7 @@ public final class TrainLoadingGameTests {
                 .thenExecuteFor(3 * TrainChunks.LIFESPAN, () -> helper.assertTrue(
                         !TrainChunks.isLoading(carts.get(0)), "The locomotive against the wall gives tickets "
                                 + (helper.getTick() - stopTick.get(0)) + " ticks after its last movement"))
-                .thenWaitUntil(() -> far.assertEdge(carts.get(1)))
+                .thenWaitUntil(withinTicks(helper, () -> far.assertEdge(carts.get(1))))
                 .thenExecute(() -> {
                     far.assertLinked(carts.get(0), carts.get(1));
                     helper.assertTrue(far.chains() == 0, "A chain drops");
@@ -288,10 +311,50 @@ public final class TrainLoadingGameTests {
     }
 
     /**
+     * Adds to a sequence a wait for the far chunks, with a real-time limit of {@link #CHUNK_SECONDS}. After this
+     * limit, the assertion runs one more time and its failure stops the test.
+     *
+     * @see "TestSupport.thenWaitForWorker in the GameTests of the world module: the same wait for a worker thread"
+     */
+    private static GameTestSequence thenWaitForChunks(GameTestSequence sequence, Runnable assertion) {
+        long[] deadline = {0L};
+        return sequence.thenWaitUntil(() -> {
+            long now = System.nanoTime();
+            if (deadline[0] == 0L) {
+                deadline[0] = now + CHUNK_SECONDS * 1_000_000_000L;
+            }
+            if (now - deadline[0] < 0) {
+                assertion.run();
+            }
+        }).thenExecute(assertion);
+    }
+
+    /**
+     * A wait for {@link GameTestSequence#thenWaitUntil} with a limit of {@link #STEP_TICKS} ticks, for a test that
+     * has a safety tick limit only. The test fails when the assertion still fails at the limit.
+     */
+    private static Runnable withinTicks(GameTestHelper helper, Runnable assertion) {
+        boolean[] started = {false};
+        boolean[] done = {false};
+        return () -> {
+            if (!started[0]) {
+                started[0] = true;
+                helper.runAfterDelay(STEP_TICKS, () -> {
+                    if (!done[0]) {
+                        assertion.run();
+                    }
+                });
+            }
+            assertion.run();
+            done[0] = true;
+        };
+    }
+
+    /**
      * The front minecart is on a slope, and the back minecart is at the edge of the simulation distance. The front
      * minecart does not roll down the slope, and the link does not break.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_slope")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_slope")
     public static void trainOnASlopeStopsAtTheEdgeOfTheSimulationDistance(GameTestHelper helper) {
         Far far = new Far(helper);
         far.ticket(far.west, 2);
@@ -307,8 +370,7 @@ public final class TrainLoadingGameTests {
         far.fixRails();
         List<AbstractMinecart> carts = new ArrayList<>();
         List<Vec3> start = new ArrayList<>();
-        helper.startSequence()
-                .thenWaitUntil(far::assertEdgeReady)
+        thenWaitForChunks(helper.startSequence(), far::assertEdgeReady)
                 .thenExecute(() -> {
                     carts.add(far.spawn(EntityType.MINECART, 15.5, 0.5));
                     carts.add(far.spawn(EntityType.MINECART, BACK_X, 1));
@@ -331,28 +393,27 @@ public final class TrainLoadingGameTests {
      * The chunk of the back minecart unloads, then loads again. The two minecarts keep the link, and the minecart that
      * loads again has its link from the saved data of the chunk.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_unload")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_unload")
     public static void linkStaysWhenAMinecartUnloadsAndLoadsAgain(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Far far = new Far(helper);
         far.ticket(far.west, 0);
         far.ticket(far.east, 0);
         List<AbstractMinecart> carts = new ArrayList<>();
-        helper.startSequence()
-                .thenWaitUntil(far::assertLoaded)
+        GameTestSequence sequence = thenWaitForChunks(helper.startSequence(), far::assertLoaded)
                 .thenExecute(() -> {
                     carts.add(far.spawn(EntityType.MINECART, FRONT_X, 0));
                     carts.add(far.spawn(EntityType.MINECART, BACK_X, 0));
                     TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
                     far.removeTicket(far.east, 0);
-                })
-                .thenWaitUntil(() -> assertUnloaded(helper, carts.get(1)))
+                });
+        sequence = thenWaitForChunks(sequence, () -> assertUnloaded(helper, carts.get(1)))
                 .thenExecute(() -> {
                     helper.assertTrue(CartLinks.get(carts.get(0)).back().equals(Optional.of(carts.get(1).getUUID())),
                             "The front minecart forgets the link when the back minecart unloads");
                     far.ticket(far.east, 0);
-                })
-                .thenWaitUntil(() -> assertLoadedAgain(helper, carts.get(1)))
+                });
+        thenWaitForChunks(sequence, () -> assertLoadedAgain(helper, carts.get(1)))
                 .thenIdle(WAIT_TICKS)
                 .thenExecute(() -> {
                     AbstractMinecart loaded = loaded(level, carts.get(1));
@@ -368,33 +429,33 @@ public final class TrainLoadingGameTests {
      * The chunk of the back minecart unloads, then the front minecart is destroyed: one chain drops. The back minecart
      * loads again in an area that ticks. The check of the dead links removes its link, and no other chain drops.
      */
-    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_dead_link")
+    @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_dead_link")
     public static void deadLinkGoesAwayWhenTheMinecartLoads(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Far far = new Far(helper);
         far.ticket(far.west, 0);
         far.ticket(far.east, 0);
         List<AbstractMinecart> carts = new ArrayList<>();
-        helper.startSequence()
-                .thenWaitUntil(far::assertLoaded)
+        GameTestSequence sequence = thenWaitForChunks(helper.startSequence(), far::assertLoaded)
                 .thenExecute(() -> {
                     carts.add(far.spawn(EntityType.MINECART, FRONT_X, 0));
                     carts.add(far.spawn(EntityType.MINECART, BACK_X, 0));
                     TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
                     far.removeTicket(far.east, 0);
-                })
-                .thenWaitUntil(() -> assertUnloaded(helper, carts.get(1)))
+                });
+        sequence = thenWaitForChunks(sequence, () -> assertUnloaded(helper, carts.get(1)))
                 .thenExecute(() -> {
                     carts.get(0).kill();
                     helper.assertTrue(far.chains() == 1, "The destroyed minecart drops " + far.chains() + " chains");
                     // The chunks next to east also tick their entities.
                     far.ticket(far.east, 3);
-                })
-                .thenWaitUntil(() -> assertLoadedAgain(helper, carts.get(1)))
+                });
+        sequence = thenWaitForChunks(sequence, () -> assertLoadedAgain(helper, carts.get(1)))
                 .thenExecute(() -> helper.assertTrue(CartLinks.get(loaded(level, carts.get(1))).front()
-                        .equals(Optional.of(carts.get(0).getUUID())), "The back minecart loads without its link"))
-                .thenWaitUntil(() -> helper.assertTrue(CartLinks.get(loaded(level, carts.get(1))).isEmpty(),
-                        "The back minecart keeps the link to the destroyed minecart"))
+                        .equals(Optional.of(carts.get(0).getUUID())), "The back minecart loads without its link"));
+        // The minecart ticks only when the chunks around east are loaded: this also takes real time.
+        thenWaitForChunks(sequence, () -> helper.assertTrue(CartLinks.get(loaded(level, carts.get(1))).isEmpty(),
+                "The back minecart keeps the link to the destroyed minecart"))
                 .thenExecute(() -> {
                     helper.assertTrue(far.chains() == 1, "Expected 1 chain in total, found " + far.chains());
                     far.clear(List.of(loaded(level, carts.get(1))));
@@ -430,6 +491,7 @@ public final class TrainLoadingGameTests {
         final int z;
         private final List<int[]> tickets = new ArrayList<>();
         private final Map<BlockPos, RailShape> shapes = new HashMap<>();
+        private final List<ChunkPos> preloaded = new ArrayList<>();
 
         Far(GameTestHelper helper) {
             // A test that fails can leave the shared config values changed.
@@ -559,13 +621,47 @@ public final class TrainLoadingGameTests {
 
         /** Removes the minecarts and the chains, then the tickets. */
         void clear(List<AbstractMinecart> carts) {
+            clearEntities(carts);
+            removeTickets();
+        }
+
+        /** Removes the minecarts and the chains. */
+        void clearEntities(List<AbstractMinecart> carts) {
             TrainGameTests.clear(helper, carts);
             AABB area = new AABB(west.getMinBlockX(), level.getMinBuildHeight(), west.getMinBlockZ(),
                     east.getMaxBlockX() + 1, level.getMaxBuildHeight(), east.getMaxBlockZ() + 1);
             level.getEntitiesOfClass(ItemEntity.class, area, item -> item.getItem().is(Items.CHAIN))
                     .forEach(ItemEntity::discard);
+        }
+
+        /** Removes the tickets of the test. */
+        void removeTickets() {
             for (int[] t : List.copyOf(tickets)) {
                 removeTicket(new ChunkPos(t[0], t[1]), t[2]);
+            }
+        }
+
+        /**
+         * Loads the chunks from X {@code fromX} to X {@code toX}, within 2 chunks of the Z of the rails, with
+         * tickets of distance 0: the chunks do not tick. The load does not wait: see {@link #assertPreloaded()}.
+         */
+        void preload(int fromX, int toX) {
+            for (int x = fromX; x <= toX; x++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    ChunkPos chunk = new ChunkPos(x, west.z + dz);
+                    USED.add(chunk.toLong());
+                    level.getChunkSource().addRegionTicket(FAR_CHUNK, chunk, 0, chunk);
+                    tickets.add(new int[] {chunk.x, chunk.z, 0});
+                    preloaded.add(chunk);
+                }
+            }
+        }
+
+        /** Fails until the chunks of {@link #preload} are complete and have their entities loaded. */
+        void assertPreloaded() {
+            for (ChunkPos chunk : preloaded) {
+                helper.assertTrue(level.getChunkSource().getChunkNow(chunk.x, chunk.z) != null
+                        && level.areEntitiesLoaded(chunk.toLong()), "The chunk " + chunk + " is not loaded");
             }
         }
     }
