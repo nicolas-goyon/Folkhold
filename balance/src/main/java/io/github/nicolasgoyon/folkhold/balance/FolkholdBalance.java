@@ -9,6 +9,8 @@ import io.github.nicolasgoyon.folkhold.balance.network.BalanceNetwork;
 import io.github.nicolasgoyon.folkhold.balance.rail.ChainUse;
 import io.github.nicolasgoyon.folkhold.balance.rail.Trains;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModAttachments;
+import io.github.nicolasgoyon.folkhold.balance.registry.ModEntities;
+import io.github.nicolasgoyon.folkhold.balance.registry.ModItems;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModLootModifiers;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
@@ -29,6 +31,8 @@ public final class FolkholdBalance {
     public FolkholdBalance(IEventBus modEventBus, ModContainer modContainer) {
         modContainer.registerConfig(ModConfig.Type.SERVER, BalanceConfig.SPEC);
         ModAttachments.register(modEventBus);
+        ModEntities.register(modEventBus);
+        ModItems.register(modEventBus);
         ModLootModifiers.register(modEventBus);
         modEventBus.addListener(BlockedEnchantmentIds::onConfigLoad);
         modEventBus.addListener(BlockedEnchantmentIds::onConfigReload);

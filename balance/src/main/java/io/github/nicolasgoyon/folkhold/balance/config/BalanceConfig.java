@@ -5,6 +5,8 @@ import io.github.nicolasgoyon.folkhold.balance.anvil.MergeRule;
 import io.github.nicolasgoyon.folkhold.balance.enchantment.BlockedEnchantments;
 import io.github.nicolasgoyon.folkhold.balance.enchantment.EnchantmentFilter;
 import io.github.nicolasgoyon.folkhold.balance.rail.Coupling;
+import io.github.nicolasgoyon.folkhold.balance.rail.LocomotiveStats;
+import io.github.nicolasgoyon.folkhold.balance.rail.Traction;
 import java.util.List;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
@@ -25,6 +27,17 @@ public final class BalanceConfig {
     public static final ModConfigSpec.DoubleValue CHAIN_STIFFNESS;
     public static final ModConfigSpec.DoubleValue CHAIN_DAMPING;
     public static final ModConfigSpec.IntValue TRAIN_MAX_CARTS;
+    public static final ModConfigSpec.DoubleValue WAGON_MASS;
+    public static final ModConfigSpec.DoubleValue CARGO_MASS;
+    public static final ModConfigSpec.DoubleValue FRICTION;
+    public static final ModConfigSpec.DoubleValue SLOPE_FORCE;
+    public static final ModConfigSpec.DoubleValue POWERED_RAIL_FORCE;
+    public static final ModConfigSpec.DoubleValue BRAKE_FORCE;
+    public static final ModConfigSpec.DoubleValue FURNACE_MAX_SPEED;
+    public static final ModConfigSpec.DoubleValue FURNACE_FORCE;
+    public static final ModConfigSpec.DoubleValue FURNACE_MASS;
+    public static final ModConfigSpec.IntValue FURNACE_FUEL_CAPACITY;
+    public static final ModConfigSpec.DoubleValue FURNACE_FUEL_PER_BLOCK;
 
     public static final ModConfigSpec.ConfigValue<List<? extends String>> BLOCKED_ENCHANTMENTS;
     public static final ModConfigSpec.BooleanValue BLOCKED_IN_TRADES;
@@ -94,6 +107,62 @@ public final class BalanceConfig {
                 .comment("Largest number of minecarts in one train.")
                 .translation(KEY_PREFIX + "maxCarts")
                 .defineInRange("maxCarts", 16, 2, 256);
+        Traction traction = Traction.DEFAULTS;
+        WAGON_MASS = builder
+                .comment("Mass of a wagon with no cargo. A locomotive moves its mass and the mass of the minecarts",
+                        "behind it.")
+                .translation(KEY_PREFIX + "wagonMass")
+                .defineInRange("wagonMass", traction.wagonMass(), 0.1, 100.0);
+        CARGO_MASS = builder
+                .comment("Mass of the cargo of a full wagon. A wagon with half of its slots full has half of this",
+                        "mass. The stack size of each item gives its fill.")
+                .translation(KEY_PREFIX + "cargoMass")
+                .defineInRange("cargoMass", traction.cargoMass(), 0.0, 100.0);
+        FRICTION = builder
+                .comment("Friction force for each unit of mass of a train.")
+                .translation(KEY_PREFIX + "friction")
+                .defineInRange("friction", traction.friction(), 0.0, 1.0);
+        SLOPE_FORCE = builder
+                .comment("Force of a slope against a train for each unit of mass of a minecart on the slope. A",
+                        "slope down pushes the train with the same force.")
+                .translation(KEY_PREFIX + "slopeForce")
+                .defineInRange("slopeForce", traction.slopeForce(), 0.0, 1.0);
+        POWERED_RAIL_FORCE = builder
+                .comment("Push of a powered rail with power, for each unit of mass of the minecart on it.")
+                .translation(KEY_PREFIX + "poweredRailForce")
+                .defineInRange("poweredRailForce", traction.poweredRailForce(), 0.0, 1.0);
+        BRAKE_FORCE = builder
+                .comment("Brake of a powered rail with no power, for each unit of mass of the minecart on it.")
+                .translation(KEY_PREFIX + "brakeForce")
+                .defineInRange("brakeForce", traction.brakeForce(), 0.0, 10.0);
+
+        LocomotiveStats furnace = LocomotiveStats.FURNACE_DEFAULTS;
+        builder.comment("The furnace locomotive. It burns the fuels of the furnace.")
+                .translation(KEY_PREFIX + "furnaceLocomotive")
+                .push("furnaceLocomotive");
+        FURNACE_MAX_SPEED = builder
+                .comment("Largest speed in blocks per tick. The vanilla rails do not permit more than 0.4.")
+                .translation(KEY_PREFIX + "maxSpeed")
+                .defineInRange("maxSpeed", furnace.maxSpeed(), 0.01, 0.4);
+        FURNACE_FORCE = builder
+                .comment("Pulling force at speed 0. The force decreases in a line to 0 at maxSpeed. Speed change",
+                        "each tick = (force - resistance) / mass of the train.")
+                .translation(KEY_PREFIX + "pullingForce")
+                .defineInRange("pullingForce", furnace.force(), 0.0, 10.0);
+        FURNACE_MASS = builder
+                .comment("Mass of the locomotive.")
+                .translation(KEY_PREFIX + "mass")
+                .defineInRange("mass", furnace.mass(), 0.1, 100.0);
+        FURNACE_FUEL_CAPACITY = builder
+                .comment("Largest quantity of fuel, in ticks of furnace fuel (1 coal = 1600).")
+                .translation(KEY_PREFIX + "fuelCapacity")
+                .defineInRange("fuelCapacity", furnace.fuelCapacity(), 1, 1_000_000);
+        FURNACE_FUEL_PER_BLOCK = builder
+                .comment("Fuel that the locomotive burns for each block that it moves while it runs. 8 gives about",
+                        "200 blocks for 1 coal.")
+                .translation(KEY_PREFIX + "fuelPerBlock")
+                .defineInRange("fuelPerBlock", furnace.fuelPerBlock(), 0.0, 1000.0);
+        builder.pop();
         builder.pop();
 
         builder.comment("Blocked enchantments: enchantments that villagers do not sell and that fishing does not give.")
@@ -206,6 +275,18 @@ public final class BalanceConfig {
         double breakDistance = Math.max(max, CHAIN_BREAK_DISTANCE.get());
         return new Coupling(buffer, rest, max, breakDistance, CHAIN_BREAK_TICKS.get(), CHAIN_STIFFNESS.get(),
                 CHAIN_DAMPING.get());
+    }
+
+    /** The load of the trains, from the values of the section {@code rails}. */
+    public static Traction traction() {
+        return new Traction(WAGON_MASS.get(), CARGO_MASS.get(), FRICTION.get(), SLOPE_FORCE.get(),
+                POWERED_RAIL_FORCE.get(), BRAKE_FORCE.get());
+    }
+
+    /** The stats of the furnace locomotive, from the section {@code rails.furnaceLocomotive}. */
+    public static LocomotiveStats furnaceLocomotive() {
+        return new LocomotiveStats(FURNACE_MAX_SPEED.get(), FURNACE_FORCE.get(), FURNACE_MASS.get(),
+                FURNACE_FUEL_CAPACITY.get(), FURNACE_FUEL_PER_BLOCK.get());
     }
 
     private BalanceConfig() {

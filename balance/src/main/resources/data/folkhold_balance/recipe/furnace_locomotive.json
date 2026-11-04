@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["IPI", "IFI"],
+  "key": {
+    "I": {"item": "minecraft:iron_ingot"},
+    "P": {"item": "minecraft:piston"},
+    "F": {"item": "minecraft:furnace_minecart"}
+  },
+  "result": {"id": "folkhold_balance:furnace_locomotive", "count": 1}
+}
