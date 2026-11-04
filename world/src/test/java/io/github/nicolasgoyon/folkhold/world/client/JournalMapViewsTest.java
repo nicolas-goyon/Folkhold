@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.client;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
 import io.github.nicolasgoyon.folkhold.world.network.JournalPayload;
+import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
 import io.github.nicolasgoyon.folkhold.world.network.RouteRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryMapPayload;
 import java.util.List;
@@ -80,5 +82,33 @@ class JournalMapViewsTest {
         assertSame(ClientRouteView.CLEAR, ClientRouteView.request("a", "a", true));
         assertEquals(new RouteRequestPayload("", "", false), ClientRouteView.CLEAR);
         assertEquals(new RouteRequestPayload("a", "b", true), ClientRouteView.request("a", "b", true));
+    }
+
+    /**
+     * A new answer with only a new progress keeps the state: the tab "Routes" does not build its widgets again, and a
+     * drag of the frame continues. A new route or the end of the calculation changes the state.
+     */
+    @Test
+    void progressKeepsTheRouteState() {
+        Route route = new Route(List.of(new Route.Point(0, 0), new Route.Point(50, 300)),
+                List.of(Route.Surface.LAND));
+        RoutePayload pending = RoutePayload.empty("a", "b", RoutePayload.Status.PENDING);
+        JournalMapViews.RouteState first = JournalMapViews.routeState("a", "b",
+                pending.with(new RoutePayload.Progress(true, 0, 10, 100, 10), null, true), Optional.empty(), null);
+        JournalMapViews.RouteState next = JournalMapViews.routeState("a", "b",
+                pending.with(new RoutePayload.Progress(true, 0, 50, 100, 50), null, true), Optional.empty(), null);
+        assertEquals(first, next);
+
+        RoutePayload ready = RoutePayload.of("a", "b", RoutePayload.Status.READY, true, route);
+        JournalMapViews.RouteState done = JournalMapViews.routeState("a", "b", ready, Optional.of(route), null);
+        assertNotEquals(next, done);
+
+        Route other = new Route(List.of(new Route.Point(0, 0), new Route.Point(60, 300)),
+                List.of(Route.Surface.ROAD));
+        JournalMapViews.RouteState busy = JournalMapViews.routeState("a", "b", ready.with(null, null, true),
+                Optional.of(route), null);
+        assertEquals(done.fit(), busy.fit(), "The end of a calculation keeps the view");
+        assertNotEquals(done.fit(), JournalMapViews.routeState("a", "b", ready, Optional.of(other), null).fit(),
+                "A new route gives a new view");
     }
 }

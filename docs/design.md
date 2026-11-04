@@ -1000,7 +1000,7 @@ With the default values, a furnace locomotive pulls 2 full wagons up a slope of 
   - The routes go through the gates of the palisades (`RouteGates`): from the heart to a gate, through the gate, then to the route outside the village. The heart records the gates of its village in the settlement when a player is near. The selected gate gives the shortest route.
   - Above the map, a line gives the state of the calculation: the number of calculations before it, or the part of the distance that the search covered and the number of examined cells. A coarse route with no detailed route in the corridor is final.
   - The background of the frame is white, with the relief in a light grey gradient (darker for a higher floor) and the water in light blue (`RouteReliefs`). The explored chunks show above the relief. The worker thread of the routes calculates the relief from the chunk generator.
-  - The frame first shows all the route. The player moves and zooms the frame as the frame of the tab "Map". The frame keeps the view of the player until the route or its relief changes.
+  - The frame first shows all the route. The player moves and zooms the frame as the frame of the tab "Map". The frame keeps the view of the player until the route or its relief changes. The answers of the server during a calculation do not stop a drag or the keys of the frame.
 
 ## Events mod
 

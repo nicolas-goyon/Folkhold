@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
+import io.github.nicolasgoyon.folkhold.world.journal.CartofoldMaps;
 import io.github.nicolasgoyon.folkhold.world.journal.JournalData;
 import io.github.nicolasgoyon.folkhold.world.journal.RouteViews;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
@@ -132,6 +133,36 @@ public final class RouteViewGameTests {
                 .thenExecute(() -> {
                     server.getPlayerList().remove(player);
                     helper.assertFalse(second[0], "A second request right after the first must do nothing");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A request of the journal sends the route as a layer of the maps. A request with two empty ids (the button "✕")
+     * removes the layer.
+     */
+    @GameTest(template = "empty", timeoutTicks = 4000, batch = "route_view_layer")
+    public static void emptyRequestRemovesTheRouteLayer(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        List<Settlement> ends = settlements(server, 46_000);
+        Settlement from = ends.get(0);
+        Settlement to = ends.get(1);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        JournalData journal = JournalData.get(server);
+        journal.discover(player.getUUID(), from.id(), 0);
+        journal.discover(player.getUUID(), to.id(), 0);
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(RouteViews.answer(player, from.id(), to.id()).status()
+                        == Status.READY, "The route must be ready"))
+                .thenExecute(() -> {
+                    RouteViews.request(player, from.id(), to.id(), false);
+                    boolean shown = CartofoldMaps.sent(player, CartofoldMaps.ROUTE).isPresent();
+                    RouteViews.request(player, "", "", false);
+                    boolean removed = CartofoldMaps.sent(player, CartofoldMaps.ROUTE).isEmpty();
+                    server.getPlayerList().remove(player);
+                    helper.assertTrue(shown, "The request must send the route layer");
+                    helper.assertTrue(removed, "The empty request must remove the route layer");
                 })
                 .thenSucceed();
     }

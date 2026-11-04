@@ -10,8 +10,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The chunks of the discovered territories for the journal map: the village of each chunk, and the sides of the chunk
- * on a border. The raster of a view of the territories does not change (see {@link TerritoryMapView}).
+ * The chunks of the territories of a view for the admin map ({@link AdminMapWidget}): the village of each chunk, and
+ * the sides of the chunk on a border. The raster of a view of the territories does not change (see {@link TerritoryMapView}).
  *
  * <p>A side is on a border when the next chunk has another owner: another settlement, discovered or not, or no
  * owner.

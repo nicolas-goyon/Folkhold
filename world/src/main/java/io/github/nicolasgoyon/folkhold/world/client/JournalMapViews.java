@@ -19,6 +19,8 @@ import org.lwjgl.glfw.GLFW;
  *       Cartofold).</li>
  *   <li>The tab "Map" shows all the discovered territories and villages ({@link #territoryBox}). The tab "Routes"
  *       shows the two villages, the route and its relief ({@link #routeBox}).</li>
+ *   <li>The tab "Routes" builds its widgets again only when the state of the route changes ({@link #routeState}).
+ *       The progress of a calculation does not change the state.</li>
  * </ul>
  */
 final class JournalMapViews {
@@ -34,6 +36,43 @@ final class JournalMapViews {
     static final int ROUTE_MIN_SPAN = 64;
 
     private JournalMapViews() {
+    }
+
+    /**
+     * The state of the route that the widgets of the tab "Routes" use.
+     *
+     * @param fromId   the settlement id of the start, or null
+     * @param toId     the settlement id of the end, or null
+     * @param busy     true while the server calculates the route or its relief: no "Recalculate"
+     * @param points   the points of the route to show, or an empty list
+     * @param surfaces the surfaces of the route to show, or an empty list
+     * @param relief   the position and the size of the relief, or an empty list
+     */
+    record RouteState(@Nullable String fromId, @Nullable String toId, boolean busy, List<Route.Point> points,
+            List<Route.Surface> surfaces, List<Integer> relief) {
+
+        /** The part of the state that the view of the frame shows all of: a change gives a new view. */
+        RouteState fit() {
+            return new RouteState(fromId, toId, false, points, surfaces, relief);
+        }
+    }
+
+    /**
+     * The state of the route.
+     *
+     * @param fromId  the settlement id of the start, or null
+     * @param toId    the settlement id of the end, or null
+     * @param payload the last answer of the server, or null
+     * @param route   the route to show, or empty
+     * @param relief  the relief of the route, or null
+     * @return the state
+     */
+    static RouteState routeState(@Nullable String fromId, @Nullable String toId, @Nullable RoutePayload payload,
+            Optional<Route> route, @Nullable RoutePayload.Relief relief) {
+        return new RouteState(fromId, toId, payload == null || payload.more(),
+                route.map(Route::points).orElse(List.of()), route.map(Route::surfaces).orElse(List.of()),
+                relief == null ? List.of()
+                        : List.of(relief.minX(), relief.minZ(), relief.cell(), relief.width(), relief.height()));
     }
 
     /**

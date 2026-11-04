@@ -149,7 +149,7 @@ public class JournalScreen extends UiScreen {
     private static MapFrame.View routeView;
     /** The route and the relief that {@link #routeView} shows all of, or null. A change gives a new view. */
     @Nullable
-    private static String routeFit;
+    private static JournalMapViews.RouteState routeFit;
 
     private JournalPayload journal;
     private List<Village> visibleVillages = List.of();
@@ -172,6 +172,17 @@ public class JournalScreen extends UiScreen {
     /** The frame of the tab "Routes", or null. */
     @Nullable
     private MapFrame routeFrame;
+    /**
+     * The two frames stay across the rebuilds of the screen: a drag, the focus and the keys continue while the server
+     * sends a route or the journal.
+     */
+    @Nullable
+    private MapFrame keptMapFrame;
+    @Nullable
+    private MapFrame keptRouteFrame;
+    /** The state of the route at the last rebuild, or null. */
+    @Nullable
+    private JournalMapViews.RouteState routeState;
     /** The row above the map of the tab "Map". */
     private UiRect mapHeader = listArea;
     /** The legend of the factions, below the map of the tab "Map". */
@@ -214,9 +225,15 @@ public class JournalScreen extends UiScreen {
     /** The server sent a route: the open journal shows it. Called by {@link ClientRouteView}. */
     static void onRoute() {
         JournalScreen screen = current();
-        if (screen != null && lastTab == TAB_ROUTES) {
+        if (screen != null && lastTab == TAB_ROUTES && !currentRouteState().equals(screen.routeState)) {
             screen.rebuild();
         }
+    }
+
+    /** The state of the route that the buttons and the frame of the tab "Routes" use. */
+    private static JournalMapViews.RouteState currentRouteState() {
+        return JournalMapViews.routeState(ClientRouteView.fromId(), ClientRouteView.toId(), ClientRouteView.route(),
+                shownRoute(), ClientRouteView.relief());
     }
 
     /** The key of the journal asks the server for the journal of the player. */
@@ -252,9 +269,12 @@ public class JournalScreen extends UiScreen {
 
     private void rebuild() {
         boolean listFocused = list != null && getFocused() == list;
+        MapFrame focusedFrame = getFocused() instanceof MapFrame frame ? frame : null;
         rebuildWidgets();
         if (listFocused && list != null) {
             setFocused(list);
+        } else if (focusedFrame != null && children().contains(focusedFrame)) {
+            setFocused(focusedFrame);
         }
     }
 
@@ -327,6 +347,7 @@ public class JournalScreen extends UiScreen {
         UiRect content = body.belowTop(4 + UiTheme.CONTROL, 2);
         mapFrame = null;
         routeFrame = null;
+        routeState = currentRouteState();
         if (lastTab == TAB_MAP) {
             listArea = new UiRect(0, 0, 0, 0);
             detailsArea = listArea;
@@ -659,15 +680,16 @@ public class JournalScreen extends UiScreen {
         mapLegend = new UiRect(inner.x(), row.y() - UiTheme.GAP - LEGEND, inner.width(), LEGEND);
         int top = mapHeader.bottom() + UiTheme.GAP;
         mapArea = new UiRect(inner.x(), top, inner.width(), Math.max(0, mapLegend.y() - UiTheme.GAP - top));
-        MapFrame frame = frame(mapArea, layer -> layer.equals(CartofoldMaps.TERRITORIES)
+        MapFrame frame = frame(keptMapFrame, mapArea, layer -> layer.equals(CartofoldMaps.TERRITORIES)
                 || layer.equals(CartofoldMaps.VILLAGES), ClientJournalMap::relief);
         if (frame == null) {
             return;
         }
+        keptMapFrame = frame;
         frame.onMarkerClick(this::selectOnMap).onViewChange(view -> {
             mapView = view;
             mapFollow = false;
-        });
+        }).clearSelection();
         selectedVillage().ifPresent(village -> frame.select(CartofoldMaps.VILLAGES, village.id()));
         if (mapFollow) {
             frame.followPlayer(true);
@@ -703,22 +725,27 @@ public class JournalScreen extends UiScreen {
     }
 
     /**
-     * Adds a map frame of the Overworld in an area, with the relief below the explored chunks.
+     * Adds a map frame of the Overworld in an area, with the relief below the explored chunks. A kept frame gets the
+     * new area, and keeps its state.
      *
+     * @param kept   the frame of the last build, or null
      * @param area   the area of the frame, with its border
      * @param layers the layers of the frame
      * @param relief gives the relief, or null
      * @return the frame, or null when the area is too small
      */
     @Nullable
-    private MapFrame frame(UiRect area, Predicate<ResourceLocation> layers, Supplier<RoutePayload.Relief> relief) {
+    private MapFrame frame(@Nullable MapFrame kept, UiRect area, Predicate<ResourceLocation> layers,
+            Supplier<RoutePayload.Relief> relief) {
         if (area.width() <= 2 || area.height() <= 2) {
             return null;
         }
-        // The frame draws its border around its area.
-        return addRenderableWidget(new MapFrame(area.x() + 1, area.y() + 1, area.width() - 2, area.height() - 2)
+        MapFrame frame = kept != null ? kept : new MapFrame(area.x(), area.y(), area.width(), area.height())
                 .dimension(Level.OVERWORLD).layers(layers).showWaypoints(false).backgroundColor(MAP_BACKGROUND)
-                .background(ReliefBackground.of(relief)));
+                .background(ReliefBackground.of(relief));
+        // The frame draws its border around its area.
+        frame.setRectangle(area.width() - 2, area.height() - 2, area.x() + 1, area.y() + 1);
+        return addRenderableWidget(frame);
     }
 
     /** A click on a village of the frame of the tab "Map" selects it. */
@@ -947,18 +974,18 @@ public class JournalScreen extends UiScreen {
     private void initRouteFrame() {
         Optional<Village> from = routeEnd(ClientRouteView.fromId());
         Optional<Village> to = routeEnd(ClientRouteView.toId());
-        MapFrame frame = frame(mapArea, layer -> layer.equals(CartofoldMaps.ROUTE)
+        MapFrame frame = frame(keptRouteFrame, mapArea, layer -> layer.equals(CartofoldMaps.ROUTE)
                 || layer.equals(CartofoldMaps.VILLAGES), ClientRouteView::relief);
         if (frame == null || from.isEmpty() || to.isEmpty()) {
             return;
         }
+        keptRouteFrame = frame;
         frame.onViewChange(view -> routeView = view);
-        RoutePayload.Relief relief = ClientRouteView.relief();
-        String fit = from.get().id() + "|" + to.get().id() + "|" + shownRoute().isPresent() + "|" + (relief != null);
+        JournalMapViews.RouteState fit = routeState.fit();
         if (fit.equals(routeFit) && routeView != null) {
             frame.view(routeView);
         } else {
-            double[] box = JournalMapViews.routeBox(from.get(), to.get(), shownRoute(), relief);
+            double[] box = JournalMapViews.routeBox(from.get(), to.get(), shownRoute(), ClientRouteView.relief());
             frame.showBox(box[0], box[1], box[2], box[3]);
             routeFit = fit;
             routeView = frame.view();
