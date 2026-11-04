@@ -7,6 +7,11 @@ plugins {
 
 apply from: rootProject.file('gradle/mod-common.gradle')
 
+// The JUnit tests of core run with no game. Gson comes with the game, so the tests add the version of Minecraft 1.21.1.
+dependencies {
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+}
+
 // Code coverage of the JUnit tests. The HTML report is in build/reports/jacoco/test/html.
 tasks.named('test') {
     finalizedBy 'jacocoTestReport'
@@ -17,5 +22,14 @@ tasks.named('jacocoTestReport') {
     reports {
         xml.required = true
         html.required = true
+    }
+}
+
+// The changelog of the "What's new" screen: build/changelog.json of the root project, from
+// `scripts/changelog.py build --json`. The workflows Build and Release write this file before the Gradle build. A
+// build with no such file has no changelog in the jar, and the screen does not open.
+tasks.named('processResources', ProcessResources) {
+    from(rootProject.layout.projectDirectory.file('build/changelog.json')) {
+        into 'assets/folkhold_core'
     }
 }

@@ -10,5 +10,11 @@
   "ui.folkhold_core.hold_hint": "Hold the button for %s s. Cancel has the focus.",
   "ui.folkhold_core.separator": " · ",
   "ui.folkhold_core.type_name": "Type the name to confirm",
-  "ui.folkhold_core.back": "Back"
+  "ui.folkhold_core.back": "Back",
+  "screen.folkhold_core.whats_new.title": "What's new in Folkhold",
+  "screen.folkhold_core.whats_new.subtitle": "The changes of the last versions. Version %s is the newest.",
+  "screen.folkhold_core.whats_new.empty": "This version has no list of changes.",
+  "screen.folkhold_core.whats_new.category.new": "New",
+  "screen.folkhold_core.whats_new.category.changed": "Changed",
+  "screen.folkhold_core.whats_new.category.fixed": "Fixed"
 }

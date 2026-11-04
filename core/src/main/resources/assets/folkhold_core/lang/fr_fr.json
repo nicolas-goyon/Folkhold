@@ -10,5 +10,11 @@
   "ui.folkhold_core.hold_hint": "Maintenez le bouton %s s. Le focus est sur Annuler.",
   "ui.folkhold_core.separator": " · ",
   "ui.folkhold_core.type_name": "Tapez le nom pour confirmer",
-  "ui.folkhold_core.back": "Retour"
+  "ui.folkhold_core.back": "Retour",
+  "screen.folkhold_core.whats_new.title": "Nouveautés de Folkhold",
+  "screen.folkhold_core.whats_new.subtitle": "Les changements des dernières versions. La version %s est la plus récente.",
+  "screen.folkhold_core.whats_new.empty": "Cette version n'a pas de liste des changements.",
+  "screen.folkhold_core.whats_new.category.new": "Nouveau",
+  "screen.folkhold_core.whats_new.category.changed": "Modifié",
+  "screen.folkhold_core.whats_new.category.fixed": "Corrigé"
 }

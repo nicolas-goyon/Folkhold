@@ -88,7 +88,8 @@ jobs:
           fetch-depth: 0
 
       # The notes start with the player-facing changes of the version (see scripts/changelog.py). A version with no
-      # changelog entry has only the table of the versions. build/changelog.json has the entries of all the versions.
+      # changelog entry has only the table of the versions. build/changelog.json has the entries of all the versions:
+      # the build puts it into the jar of core, for the "What's new" screen.
       - name: Write the release notes
         run: |
           mkdir -p build

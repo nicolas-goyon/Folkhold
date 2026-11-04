@@ -100,6 +100,17 @@ changes, in English and in French. The CI and the release use `scripts/changelog
 - `python3 scripts/changelog.py check` checks the entries. `python3 scripts/changelog.py build --json <file>` writes
   the entries of all the versions to a JSON file.
 
+### The "What's new" screen
+
+- The workflows Build and Release write `build/changelog.json` before the Gradle build. The jar of core contains
+  this file as `assets/folkhold_core/changelog.json`. A local build has no such file, so its jar has no changelog
+  and the screen does not open. To test the screen locally, run `mkdir -p build && python3 scripts/changelog.py
+  build --json build/changelog.json` before the build. The script uses only the committed entries.
+- The screen opens one time in place of the title screen, when the changelog has a version that is newer than the
+  version in `config/folkhold_core-whats-new.txt`. The client then writes its version to this file.
+- The button "Config" of Folkhold Core in the list of mods opens the screen again.
+- A file that is not valid gives a warning in the log and no screen. The game does not stop.
+
 ## Code checks
 
 `./gradlew build` runs these checks. The CI runs them on each pull request.

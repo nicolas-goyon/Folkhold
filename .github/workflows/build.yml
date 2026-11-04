@@ -63,6 +63,11 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "Version of this build: \`${version}\`." >> "$GITHUB_STEP_SUMMARY"
 
+      # The changelog of the "What's new" screen goes into the jar of core (see core/build.gradle). The check "Title
+      # and version" reports the entries that are not valid, so this step does not stop the build.
+      - name: Write the changelog
+        run: python3 scripts/changelog.py build --json build/changelog.json || echo "::warning::No changelog in the jar."
+
       - name: Set up JDK 21
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
