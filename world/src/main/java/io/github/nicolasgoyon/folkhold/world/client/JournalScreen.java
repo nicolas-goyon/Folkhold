@@ -1,5 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.client;
 
+import io.github.nicolasgoyon.cartofold.api.client.CartofoldWorldMap;
+import io.github.nicolasgoyon.cartofold.api.client.MapFrame;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiButton;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiDraw;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiKeyValueList;
@@ -16,7 +18,6 @@ import io.github.nicolasgoyon.folkhold.core.client.ui.UiTheme;
 import io.github.nicolasgoyon.folkhold.core.client.ui.UiTone;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
-import io.github.nicolasgoyon.folkhold.world.client.map.XaeroMaps;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.journal.CartofoldMaps;
 import io.github.nicolasgoyon.folkhold.world.network.JournalPayload;
@@ -24,15 +25,18 @@ import io.github.nicolasgoyon.folkhold.world.network.JournalPayload.Faction;
 import io.github.nicolasgoyon.folkhold.world.network.JournalPayload.Village;
 import io.github.nicolasgoyon.folkhold.world.network.JournalRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.network.RoutePayload;
+import io.github.nicolasgoyon.folkhold.world.network.TerritoryMapPayload;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.IntSupplier;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -40,6 +44,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -56,11 +61,13 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li>Tab "Factions": the factions of the discovered villages, with their culture, their attitude and the
  *       reputation of the player.</li>
  *   <li>Tab "Routes": the player selects two discovered villages, and the screen shows the route of the caravans
- *       between them on a map (see {@link ClientRouteView}). The color of the route shows the surface. A button shows
- *       the route in the world ({@link ClientRouteOverlay}).</li>
- *   <li>Tab "Map": a map of the discovered territories and villages, with the relief ({@link TerritoryMapWidget}).
- *       A click on a village selects it. A button opens the world map of Xaero's World Map at the selected village,
- *       when this mod is present. The tab "Villages" shows a village on the map.</li>
+ *       between them on a map frame of Cartofold (see {@link ClientRouteView}). The color of the route shows the
+ *       surface. A button shows the route in the world ({@link ClientRouteOverlay}).</li>
+ *   <li>Tab "Map": a map frame of Cartofold with the discovered territories and villages on the relief
+ *       ({@link ClientJournalMap}). A click on a village selects it. A button opens the map of the world of Cartofold
+ *       at the selected village. The tab "Villages" shows a village on the map.</li>
+ *   <li>The frames keep their views between two openings. The arrow keys move a focused frame, and the keys + and -
+ *       zoom ({@link JournalMapViews}).</li>
  * </ul>
  * In the compact layout, the screen shows the list or the details, with a back button. The screen keeps the tab, the
  * filters and the selection for the next opening.
@@ -83,11 +90,10 @@ public class JournalScreen extends UiScreen {
     /** The preferred height of the journal on the tab of the map. */
     private static final int MAP_TAB_HEIGHT = 320;
     private static final int LEGEND = 12;
-    private static final int MAP_MARGIN = 8;
-    /** The smallest span of the map, in blocks. */
-    private static final int MAP_MIN_SPAN = 64;
-    /** The background of the map. */
+    /** The background of the frames where the relief and the explored chunks are not. */
     private static final int MAP_BACKGROUND = 0xFFFFFFFF;
+    /** The scale after the journal shows a village on the map, if the scale was smaller. */
+    private static final double FOCUS_SCALE = 0.5;
     /** The width of the progress bar, in pixels. */
     private static final int PROGRESS_BAR = 60;
 
@@ -133,6 +139,17 @@ public class JournalScreen extends UiScreen {
     @Nullable
     private static String lastFaction;
     private static RouteSlot lastSlot = RouteSlot.FROM;
+    /** The view of the frame of the tab "Map", or null before the first opening. */
+    @Nullable
+    private static MapFrame.View mapView;
+    /** True while the frame of the tab "Map" puts the player at the center. */
+    private static boolean mapFollow;
+    /** The view of the frame of the tab "Routes". */
+    @Nullable
+    private static MapFrame.View routeView;
+    /** The route and the relief that {@link #routeView} shows all of, or null. A change gives a new view. */
+    @Nullable
+    private static String routeFit;
 
     private JournalPayload journal;
     private List<Village> visibleVillages = List.of();
@@ -149,9 +166,12 @@ public class JournalScreen extends UiScreen {
     private UiRect lineInfo = listArea;
     /** The row of the state of the calculation, above the map. */
     private UiRect statusArea = listArea;
-    /** The map of the tab "Map", or null on the other tabs. */
+    /** The frame of the tab "Map", or null on the other tabs. */
     @Nullable
-    private TerritoryMapWidget territoryMap;
+    private MapFrame mapFrame;
+    /** The frame of the tab "Routes", or null. */
+    @Nullable
+    private MapFrame routeFrame;
     /** The row above the map of the tab "Map". */
     private UiRect mapHeader = listArea;
     /** The legend of the factions, below the map of the tab "Map". */
@@ -167,7 +187,10 @@ public class JournalScreen extends UiScreen {
     /** Opens the journal, or updates the open journal. Called by the network handler. */
     public static void open(JournalPayload payload) {
         if (known(payload, payload.focus())) {
-            lastTab = TAB_VILLAGES;
+            // A click on a village of a frame of the open journal selects the village and keeps the tab.
+            if (current() == null) {
+                lastTab = TAB_VILLAGES;
+            }
             lastVillage = payload.focus();
         }
         String from = ClientRouteView.fromId();
@@ -221,7 +244,10 @@ public class JournalScreen extends UiScreen {
         lastVillage = null;
         lastFaction = null;
         lastSlot = RouteSlot.FROM;
-        TerritoryMapWidget.forget();
+        mapView = null;
+        mapFollow = false;
+        routeView = null;
+        routeFit = null;
     }
 
     private void rebuild() {
@@ -299,7 +325,8 @@ public class JournalScreen extends UiScreen {
                 }));
         setSectionTabs(tabs);
         UiRect content = body.belowTop(4 + UiTheme.CONTROL, 2);
-        territoryMap = null;
+        mapFrame = null;
+        routeFrame = null;
         if (lastTab == TAB_MAP) {
             listArea = new UiRect(0, 0, 0, 0);
             detailsArea = listArea;
@@ -450,9 +477,7 @@ public class JournalScreen extends UiScreen {
                 villageRows(village.get()));
         int x = mapButton(row, row.x(), Component.translatable(KEY + "map.show"),
                 Component.translatable(KEY + "map.show_hint"), () -> showOnMap(village.get()));
-        if (XaeroMaps.hasWorldMap()) {
-            worldMapButton(row, x, village.get()::x, village.get()::z);
-        }
+        worldMapButton(row, x, village.get());
     }
 
     /** Opens the tab "Map" with a village at the center of the map. */
@@ -460,7 +485,9 @@ public class JournalScreen extends UiScreen {
         lastTab = TAB_MAP;
         lastVillage = village.id();
         compactDetails = false;
-        TerritoryMapWidget.focus(village.x() + 0.5, village.z() + 0.5);
+        mapView = new MapFrame.View(village.x() + 0.5, village.z() + 0.5,
+                Math.max(FOCUS_SCALE, mapView == null ? 0 : mapView.scale()));
+        mapFollow = false;
         rebuild();
     }
 
@@ -625,27 +652,42 @@ public class JournalScreen extends UiScreen {
 
     // ------------------------------------------------------------------ map
 
-    /** Adds the map, and the row of buttons below it. */
+    /** Adds the frame of the map, and the row of buttons below it. */
     private void initMap(UiRect inner) {
         mapHeader = inner.top(UiTheme.CONTROL);
         UiRect row = inner.bottomPart(UiTheme.CONTROL);
         mapLegend = new UiRect(inner.x(), row.y() - UiTheme.GAP - LEGEND, inner.width(), LEGEND);
         int top = mapHeader.bottom() + UiTheme.GAP;
-        UiRect rect = new UiRect(inner.x(), top, inner.width(), Math.max(0, mapLegend.y() - UiTheme.GAP - top));
-        TerritoryMapWidget map = addRenderableWidget(new TerritoryMapWidget(rect, font, mapVillages(), lastVillage,
-                village -> {
-                    lastVillage = village.id();
-                    rebuild();
-                }));
-        territoryMap = map;
+        mapArea = new UiRect(inner.x(), top, inner.width(), Math.max(0, mapLegend.y() - UiTheme.GAP - top));
+        MapFrame frame = frame(mapArea, layer -> layer.equals(CartofoldMaps.TERRITORIES)
+                || layer.equals(CartofoldMaps.VILLAGES), ClientJournalMap::relief);
+        if (frame == null) {
+            return;
+        }
+        frame.onMarkerClick(this::selectOnMap).onViewChange(view -> {
+            mapView = view;
+            mapFollow = false;
+        });
+        selectedVillage().ifPresent(village -> frame.select(CartofoldMaps.VILLAGES, village.id()));
+        if (mapFollow) {
+            frame.followPlayer(true);
+        } else if (mapView != null) {
+            frame.view(mapView);
+        } else {
+            showAll(frame);
+        }
+        mapFrame = frame;
         int x = mapButton(row, row.x(), Component.translatable(KEY + "map.show_all"),
-                Component.translatable(KEY + "map.show_all_hint"), map::showAll);
+                Component.translatable(KEY + "map.show_all_hint"), () -> showAll(frame));
         x = mapButton(row, x, Component.translatable(KEY + "map.center_player"),
-                Component.translatable(KEY + "map.center_player_hint"), map::centerOnPlayer);
+                Component.translatable(KEY + "map.center_player_hint"), () -> {
+                    frame.followPlayer(true);
+                    mapFollow = true;
+                });
         x = mapButton(row, x, Component.literal("−"), Component.translatable(KEY + "map.zoom_out"),
-                () -> map.zoom(-1));
+                () -> setView(frame, JournalMapViews.zoom(frame.view(), -1)));
         x = mapButton(row, x, Component.literal("+"), Component.translatable(KEY + "map.zoom_in"),
-                () -> map.zoom(1));
+                () -> setView(frame, JournalMapViews.zoom(frame.view(), 1)));
         Optional<Village> selected = selectedVillage();
         Component details = Component.translatable(KEY + "map.details");
         UiButton detailsButton = addRenderableWidget(UiButton.normal(buttonRect(row, x, details), details, b -> {
@@ -655,25 +697,59 @@ public class JournalScreen extends UiScreen {
         if (selected.isEmpty()) {
             detailsButton.setDisabled(Component.translatable(KEY + "map.no_selection"));
         }
-        if (XaeroMaps.hasWorldMap()) {
-            Component label = Component.translatable(KEY + "map.world_map");
-            int after = detailsButton.getX() + detailsButton.getWidth() + UiTheme.GAP;
-            worldMapButton(row, Math.max(after, row.right() - font.width(label) - 16),
-                    () -> selected.map(Village::x).orElseGet(TerritoryMapWidget::centerX),
-                    () -> selected.map(Village::z).orElseGet(TerritoryMapWidget::centerZ));
-        }
+        Component label = Component.translatable(KEY + "map.world_map");
+        int after = detailsButton.getX() + detailsButton.getWidth() + UiTheme.GAP;
+        worldMapButton(row, Math.max(after, row.right() - font.width(label) - 16), selected.orElse(null));
     }
 
     /**
-     * The villages of the map, in the order of their names: the active villages before the ruins, the highest level
-     * first, then the nearest first.
+     * Adds a map frame of the Overworld in an area, with the relief below the explored chunks.
+     *
+     * @param area   the area of the frame, with its border
+     * @param layers the layers of the frame
+     * @param relief gives the relief, or null
+     * @return the frame, or null when the area is too small
      */
-    private List<Village> mapVillages() {
-        return journal.villages().stream()
-                .sorted(Comparator.comparing((Village village) -> !village.active())
-                        .thenComparing(Comparator.comparingInt(Village::level).reversed())
-                        .thenComparingInt(Village::distance))
-                .toList();
+    @Nullable
+    private MapFrame frame(UiRect area, Predicate<ResourceLocation> layers, Supplier<RoutePayload.Relief> relief) {
+        if (area.width() <= 2 || area.height() <= 2) {
+            return null;
+        }
+        // The frame draws its border around its area.
+        return addRenderableWidget(new MapFrame(area.x() + 1, area.y() + 1, area.width() - 2, area.height() - 2)
+                .dimension(Level.OVERWORLD).layers(layers).showWaypoints(false).backgroundColor(MAP_BACKGROUND)
+                .background(ReliefBackground.of(relief)));
+    }
+
+    /** A click on a village of the frame of the tab "Map" selects it. */
+    private void selectOnMap(ResourceLocation layer, String marker) {
+        if (layer.equals(CartofoldMaps.VILLAGES) && !marker.equals(lastVillage)
+                && journal.villages().stream().anyMatch(village -> village.id().equals(marker))) {
+            lastVillage = marker;
+            rebuild();
+        }
+    }
+
+    /** Shows all the discovered territories and villages. With no village, the frame follows the player. */
+    private void showAll(MapFrame frame) {
+        Optional<double[]> box = JournalMapViews.territoryBox(ClientTerritoryMap.get().villages(), journal.villages());
+        if (box.isPresent()) {
+            frame.showBox(box.get()[0], box.get()[1], box.get()[2], box.get()[3]);
+        }
+        frame.followPlayer(box.isEmpty());
+        mapFollow = box.isEmpty();
+        mapView = frame.view();
+    }
+
+    /** Sets the view of a frame of the journal, and keeps it for the next opening. */
+    private void setView(MapFrame frame, MapFrame.View view) {
+        frame.view(view);
+        if (frame == mapFrame) {
+            mapView = view;
+            mapFollow = false;
+        } else {
+            routeView = view;
+        }
     }
 
     /** Adds a button of a row of buttons. Returns the X after the button. */
@@ -684,19 +760,19 @@ public class JournalScreen extends UiScreen {
     }
 
     /**
-     * Adds the button that opens the world map of Xaero's World Map at a block of the Overworld. The suppliers give
-     * the block at the click.
+     * Adds the button that opens the map of the world of Cartofold in the Overworld, at a village or else at the
+     * center of the frame. Escape shows the journal again.
      */
-    private void worldMapButton(UiRect row, int x, IntSupplier blockX, IntSupplier blockZ) {
+    private void worldMapButton(UiRect row, int x, @Nullable Village village) {
         Component label = Component.translatable(KEY + "map.world_map");
-        UiButton button = addRenderableWidget(UiButton.normal(buttonRect(row, x, label), label, b -> {
-            if (!XaeroMaps.openWorldMap(this, blockX.getAsInt(), blockZ.getAsInt())) {
-                showStatus(Component.translatable(KEY + "map.world_map_failed"), UiTone.BAD);
-            }
+        addRenderableWidget(UiButton.normal(buttonRect(row, x, label), label, b -> {
+            MapFrame.View view = mapFrame != null ? mapFrame.view() : mapView;
+            CartofoldWorldMap map = village != null ? CartofoldWorldMap.at(Level.OVERWORLD, village.x(), village.z())
+                    .select(CartofoldMaps.VILLAGES, village.id())
+                    : view != null ? CartofoldWorldMap.at(Level.OVERWORLD, view.centerX(), view.centerZ())
+                    : CartofoldWorldMap.at(Level.OVERWORLD, 0, 0);
+            map.parent(this).open();
         }).setDetails(Component.translatable(KEY + "map.world_map_hint")));
-        if (minecraft == null || minecraft.level == null || !Level.OVERWORLD.equals(minecraft.level.dimension())) {
-            button.setDisabled(Component.translatable(KEY + "map.world_map_overworld"));
-        }
     }
 
     /** Draws the row above the map: the selected village, or a hint, and the state of the relief. */
@@ -730,7 +806,11 @@ public class JournalScreen extends UiScreen {
     /** Draws the legend of the map: the color and the name of each faction with a discovered territory. */
     private void renderMapLegend(GuiGraphics graphics, UiRect legend) {
         int x = legend.x();
-        for (Map.Entry<String, Integer> faction : TerritoryMapWidget.factionColors().entrySet()) {
+        Map<String, Integer> colors = new LinkedHashMap<>();
+        for (TerritoryMapPayload.Village village : ClientTerritoryMap.get().villages()) {
+            colors.putIfAbsent(village.faction(), village.color() & 0xFFFFFF);
+        }
+        for (Map.Entry<String, Integer> faction : colors.entrySet()) {
             if (x >= legend.right() - 10) {
                 break;
             }
@@ -827,6 +907,7 @@ public class JournalScreen extends UiScreen {
         statusArea = area.top(LEGEND);
         int mapHeight = area.height() - UiTheme.CONTROL - 2 * LEGEND - 3 * UiTheme.GAP;
         mapArea = new UiRect(area.x(), area.y() + LEGEND + UiTheme.GAP, area.width(), Math.max(0, mapHeight));
+        initRouteFrame();
         UiRect row = area.bottomPart(UiTheme.CONTROL);
         int x = row.x();
         Component show = Component.translatable(KEY + (ClientRouteView.inWorld() ? "route.hide" : "route.show"));
@@ -857,6 +938,32 @@ public class JournalScreen extends UiScreen {
         }
         x = againButton.getX() + againButton.getWidth() + UiTheme.PADDING;
         lineInfo = new UiRect(x, row.y(), Math.max(0, row.right() - x), row.height());
+    }
+
+    /**
+     * Adds the frame of the route: the route layer and the villages on the relief of the route. The frame shows all of
+     * the route, and keeps the view of the player until the route or its relief changes.
+     */
+    private void initRouteFrame() {
+        Optional<Village> from = routeEnd(ClientRouteView.fromId());
+        Optional<Village> to = routeEnd(ClientRouteView.toId());
+        MapFrame frame = frame(mapArea, layer -> layer.equals(CartofoldMaps.ROUTE)
+                || layer.equals(CartofoldMaps.VILLAGES), ClientRouteView::relief);
+        if (frame == null || from.isEmpty() || to.isEmpty()) {
+            return;
+        }
+        frame.onViewChange(view -> routeView = view);
+        RoutePayload.Relief relief = ClientRouteView.relief();
+        String fit = from.get().id() + "|" + to.get().id() + "|" + shownRoute().isPresent() + "|" + (relief != null);
+        if (fit.equals(routeFit) && routeView != null) {
+            frame.view(routeView);
+        } else {
+            double[] box = JournalMapViews.routeBox(from.get(), to.get(), shownRoute(), relief);
+            frame.showBox(box[0], box[1], box[2], box[3]);
+            routeFit = fit;
+            routeView = frame.view();
+        }
+        routeFrame = frame;
     }
 
     /** The rectangle of a button of the bottom row of the routes, from a position, in the width of its label. */
@@ -902,78 +1009,6 @@ public class JournalScreen extends UiScreen {
         UiText.draw(graphics, font, line, header.x(), header.y() + 14, header.width(), UiTheme.TEXT_MUTED);
     }
 
-    /** Draws the map of the route: the route, the two ends, the other villages of the journal and the player. */
-    private void renderRouteMap(GuiGraphics graphics, UiRect rect, Village from, Village to) {
-        if (rect.width() < 2 * MAP_MARGIN || rect.height() < 2 * MAP_MARGIN) {
-            return;
-        }
-        UiDraw.box(graphics, rect, MAP_BACKGROUND, UiTheme.PARCHMENT_EDGE, false);
-        Optional<Route> route = shownRoute();
-        RoutePayload.Relief relief = ClientRouteView.relief();
-        int minX = Math.min(from.x(), to.x());
-        int maxX = Math.max(from.x(), to.x());
-        int minZ = Math.min(from.z(), to.z());
-        int maxZ = Math.max(from.z(), to.z());
-        if (relief != null) {
-            minX = Math.min(minX, relief.minX());
-            minZ = Math.min(minZ, relief.minZ());
-            maxX = Math.max(maxX, relief.minX() + (relief.width() - 1) * relief.cell());
-            maxZ = Math.max(maxZ, relief.minZ() + (relief.height() - 1) * relief.cell());
-        }
-        if (route.isPresent()) {
-            for (Route.Point point : route.get().points()) {
-                minX = Math.min(minX, point.x());
-                maxX = Math.max(maxX, point.x());
-                minZ = Math.min(minZ, point.z());
-                maxZ = Math.max(maxZ, point.z());
-            }
-        }
-        double spanX = Math.max(MAP_MIN_SPAN, maxX - minX);
-        double spanZ = Math.max(MAP_MIN_SPAN, maxZ - minZ);
-        UiRect inner = rect.inset(MAP_MARGIN);
-        MapProjection map = new MapProjection(inner, (minX + maxX) / 2.0, (minZ + maxZ) / 2.0,
-                Math.min(inner.width() / spanX, inner.height() / spanZ));
-        graphics.enableScissor(rect.x() + 1, rect.y() + 1, rect.right() - 1, rect.bottom() - 1);
-        if (relief != null) {
-            MapDrawing.relief(graphics, map, relief);
-        }
-        for (Village village : journal.villages()) {
-            if (!village.id().equals(from.id()) && !village.id().equals(to.id())) {
-                int x = map.x(village.x());
-                int y = map.y(village.z());
-                if (rect.contains(x, y)) {
-                    UiDraw.mark(graphics, x - 1, y - 1, 3, UiTheme.INK_FAINT);
-                }
-            }
-        }
-        RoutePayload payload = ClientRouteView.route();
-        if (route.isPresent()) {
-            List<Route.Point> points = route.get().points();
-            List<Route.Surface> surfaces = route.get().surfaces();
-            for (int i = 0; i < surfaces.size(); i++) {
-                int color = mapColor(surfaces.get(i), ClientRouteView.isDetailed());
-                Route.Point a = points.get(i);
-                Route.Point b = points.get(i + 1);
-                MapDrawing.line(graphics, map.x(a.x()), map.y(a.z()), map.x(b.x()), map.y(b.z()), color);
-            }
-        } else if (payload != null && payload.status() != RoutePayload.Status.PENDING) {
-            UiText.drawCentered(graphics, font, Component.translatable(KEY + (payload.status()
-                    == RoutePayload.Status.NONE ? "route.no_route" : "route.refused")), rect.inset(4), UiTheme.INK);
-        }
-        endMark(graphics, map, from, 0xFF2F6B2A);
-        endMark(graphics, map, to, UiTheme.WAX);
-        LocalPlayer player = Minecraft.getInstance().player;
-        if (player != null) {
-            int x = map.x(player.getX());
-            int y = map.y(player.getZ());
-            if (rect.contains(x, y)) {
-                graphics.fill(x - 2, y - 2, x + 3, y + 3, UiTheme.INK);
-                graphics.fill(x - 1, y - 1, x + 2, y + 2, 0xFF5F95C4);
-            }
-        }
-        graphics.disableScissor();
-    }
-
     /** Draws the state of the calculation of the route: the progress, or why the route is coarse. */
     private void renderRouteStatus(GuiGraphics graphics, UiRect rect) {
         RoutePayload payload = ClientRouteView.route();
@@ -1010,15 +1045,6 @@ public class JournalScreen extends UiScreen {
             textRight = bar.x() - UiTheme.PADDING;
         }
         UiText.draw(graphics, font, text, rect.x(), UiText.textY(rect), textRight - rect.x(), UiTheme.TEXT_MUTED);
-    }
-
-    /** Draws an end of the route: a square and the name of the village. */
-    private void endMark(GuiGraphics graphics, MapProjection map, Village village, int color) {
-        int x = map.x(village.x());
-        int y = map.y(village.z());
-        graphics.fill(x - 3, y - 3, x + 4, y + 4, UiTheme.INK);
-        graphics.fill(x - 2, y - 2, x + 3, y + 3, color);
-        graphics.drawString(font, village.name(), x + 6, y - 4, UiTheme.INK, false);
     }
 
     /** The color of a surface on the map. A coarse route is grey. */
@@ -1113,7 +1139,6 @@ public class JournalScreen extends UiScreen {
             }
             renderRouteHeader(graphics, header, from.get(), to.get());
             renderRouteStatus(graphics, statusArea);
-            renderRouteMap(graphics, mapArea, from.get(), to.get());
             renderRouteLegend(graphics, mapArea.x(), mapArea.bottom() + UiTheme.GAP + 2, mapArea.right());
             if (ClientRouteView.inWorld() && lineInfo.width() > 0) {
                 int blocks = ClientRouteOverlay.segmentCount();
@@ -1148,21 +1173,29 @@ public class JournalScreen extends UiScreen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // The focused map takes the arrow keys before the tabs.
-        if (territoryMap != null && getFocused() == territoryMap
-                && territoryMap.keyPressed(keyCode, scanCode, modifiers)) {
-            return true;
+        // The focused frame takes the arrow keys and the keys + and - before the tabs. The frames of Cartofold have
+        // no keys.
+        if (getFocused() instanceof MapFrame frame) {
+            Optional<MapFrame.View> view = JournalMapViews.onKey(frame.view(), keyCode);
+            if (view.isPresent()) {
+                setView(frame, view.get());
+                return true;
+            }
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
     protected void renderOverlay(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        if (territoryMap != null) {
-            List<Component> lines = territoryMap.tooltip(mouseX, mouseY);
-            if (!lines.isEmpty()) {
-                graphics.renderComponentTooltip(font, lines, mouseX, mouseY);
-            }
+        if (mapFrame != null && journal.villages().isEmpty()) {
+            UiText.drawWrapped(graphics, font, Component.translatable(KEY + "map.empty"),
+                    mapArea.inset(UiTheme.PADDING * 4, mapArea.height() / 3), UiTheme.INK_MUTED);
+        }
+        RoutePayload payload = ClientRouteView.route();
+        if (routeFrame != null && shownRoute().isEmpty() && payload != null
+                && payload.status() != RoutePayload.Status.PENDING) {
+            UiText.drawCentered(graphics, font, Component.translatable(KEY + (payload.status()
+                    == RoutePayload.Status.NONE ? "route.no_route" : "route.refused")), mapArea.inset(4), UiTheme.INK);
         }
     }
 

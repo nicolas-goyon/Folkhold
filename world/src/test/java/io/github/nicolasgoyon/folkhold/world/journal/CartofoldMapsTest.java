@@ -15,6 +15,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claima
 import io.github.nicolasgoyon.folkhold.world.network.TerritoryMapPayload;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 class CartofoldMapsTest {
     private static final Claimant NORTHAM = new Claimant("northam", 0, 0, 2, 3);
     private static final Claimant SOUTHAM = new Claimant("southam", 16 * 5, 0, 1, 3);
+    private static final Set<String> CLAIMANTS = Set.of("northam", "southam");
 
     /** With no neighbor, the territory is the disc of the claim. */
     @Test
@@ -55,7 +57,7 @@ class CartofoldMapsTest {
                 List.of(new TerritoryMapPayload.Village(NORTHAM, 70, "Northam", "Ash", 0xAA5500)),
                 List.of(SOUTHAM));
 
-        LayerContent layer = CartofoldMaps.territories(map);
+        LayerContent layer = CartofoldMaps.territories(map, CLAIMANTS);
 
         assertEquals(CartofoldMaps.TERRITORIES, layer.info().id());
         assertEquals(1, layer.areas().size());
@@ -65,7 +67,20 @@ class CartofoldMapsTest {
         assertEquals(0x40AA5500, area.fillColor());
         assertEquals(0xCCAA5500, area.borderColor());
         assertEquals(1, area.tooltip().size());
-        assertEquals(layer, CartofoldMaps.territories(map), "The same map gives the same layer");
+        assertEquals(layer, CartofoldMaps.territories(map, CLAIMANTS), "The same map gives the same layer");
+    }
+
+    /** The cache of the chunks keeps only the settlements that claim chunks now. */
+    @Test
+    void cacheForgetsTheRemovedSettlements() {
+        TerritoryMapPayload map = new TerritoryMapPayload(
+                List.of(new TerritoryMapPayload.Village(NORTHAM, 70, "Northam", "Ash", 0xAA5500)), List.of());
+        CartofoldMaps.territories(map, CLAIMANTS);
+        assertTrue(CartofoldMaps.cachedIds().contains("northam"));
+
+        CartofoldMaps.territories(TerritoryMapPayload.EMPTY, Set.of("southam"));
+
+        assertFalse(CartofoldMaps.cachedIds().contains("northam"), "A removed settlement leaves the cache");
     }
 
     /** A village marker has the color of its faction and the shape of its state, and opens the journal. */

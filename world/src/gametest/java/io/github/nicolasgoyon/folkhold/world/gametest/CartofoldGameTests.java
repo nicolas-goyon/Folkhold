@@ -16,7 +16,9 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -92,12 +94,13 @@ public final class CartofoldGameTests {
             villages.add(new TerritoryMapPayload.Village(claimant, 64, "Village " + i, "Faction", 0x808080));
         }
         TerritoryMapPayload map = new TerritoryMapPayload(villages, List.of());
+        Set<String> claimants = villages.stream().map(TerritoryMapPayload.Village::id).collect(Collectors.toSet());
 
         long start = System.nanoTime();
-        LayerContent first = CartofoldMaps.territories(map);
+        LayerContent first = CartofoldMaps.territories(map, claimants);
         long cold = System.nanoTime() - start;
         start = System.nanoTime();
-        LayerContent second = CartofoldMaps.territories(map);
+        LayerContent second = CartofoldMaps.territories(map, claimants);
         long warm = System.nanoTime() - start;
         int chunks = first.areas().stream().mapToInt(area -> area.chunks().size()).sum();
         FolkholdWorld.LOGGER.info("Cartofold territories: 64 villages, {} chunks, {} ms with no cache, {} ms with the "
