@@ -345,9 +345,17 @@ final class TestSupport {
 
     /** A mock server player with a given id. See {@link #mockPlayer(GameTestHelper)}. */
     static ServerPlayer mockPlayer(GameTestHelper helper, UUID id) {
+        return mockPlayer(helper, id, "test-mock-player");
+    }
+
+    /**
+     * A mock server player with a given id and a given name. Use a name that no other test uses when a command finds
+     * the player by its name: a mock player of an earlier test can stay online after a failure. See
+     * {@link #mockPlayer(GameTestHelper)}.
+     */
+    static ServerPlayer mockPlayer(GameTestHelper helper, UUID id, String name) {
         ServerLevel level = helper.getLevel();
-        CommonListenerCookie cookie = CommonListenerCookie.createInitial(
-                new GameProfile(id, "test-mock-player"), false);
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(new GameProfile(id, name), false);
         ServerPlayer player = new ServerPlayer(level.getServer(), level, cookie.gameProfile(),
                 cookie.clientInformation()) {
             @Override
