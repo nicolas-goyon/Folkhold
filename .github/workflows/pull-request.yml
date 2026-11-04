@@ -1,7 +1,8 @@
 # Checks the pull requests (see scripts/version.py and CONTRIBUTING.md).
-# - To develop, and in a stack on develop: the title has a bump marker, and the summary gives the version after the
-#   merge.
-# - To main: the source branch is develop, and the summary gives the version and the notes of the release.
+# - To develop, and in a stack on develop: the title has a bump marker, the changelog entries are valid (see
+#   scripts/changelog.py), and the summary gives the version after the merge.
+# - To main: the source branch is develop, and the summary gives the version and the notes of the release, with the
+#   player-facing changes of the version first.
 name: Pull request
 
 on:
@@ -39,6 +40,11 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: python3 scripts/version.py check-title "$TITLE"
+
+      # A pull request with no player-facing change has no entry file: the check passes. HEAD is the merge commit of
+      # the pull request, and its first parent is the base branch: the check refuses a rename of an entry file.
+      - name: Check the changelog entries
+        run: python3 scripts/changelog.py check --base HEAD^1
 
       # In a stack, the open pull requests below this pull request go into develop before it: their titles come
       # before its title.
@@ -114,6 +120,7 @@ jobs:
           mkdir -p build
           python3 scripts/version.py version --rev "$HEAD" --repo "$GITHUB_REPOSITORY" \
             --notes build/release-notes.md --github-output build/version.txt
+          python3 scripts/changelog.py build --rev "$HEAD" --notes build/release-notes.md
           version=$(sed -n 's/^version=//p' build/version.txt)
           exists=$(sed -n 's/^exists=//p' build/version.txt)
           {

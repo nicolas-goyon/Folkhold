@@ -87,10 +87,13 @@ jobs:
           # The history and the tags, for the release notes.
           fetch-depth: 0
 
+      # The notes start with the player-facing changes of the version (see scripts/changelog.py). A version with no
+      # changelog entry has only the table of the versions. build/changelog.json has the entries of all the versions.
       - name: Write the release notes
         run: |
           mkdir -p build
           python3 scripts/version.py version --rev "$COMMIT" --repo "$GITHUB_REPOSITORY" --notes build/release-notes.md
+          python3 scripts/changelog.py build --rev "$COMMIT" --notes build/release-notes.md --json build/changelog.json
 
       - name: Set up JDK 21
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0

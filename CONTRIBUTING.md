@@ -66,6 +66,40 @@ change needs the code of a pull request that is not merged. For an independent c
 - The site of the project has its texts in `site/lang/en_us.json` and `site/lang/fr_fr.json`. The tests of
   `scripts/pages.py` fail when a key is missing in one language. The CI runs these tests.
 
+## Changelog
+
+The changelog tells the players what changes in each version. The GitHub Release of a version starts with these
+changes, in English and in French. The CI and the release use `scripts/changelog.py`.
+
+- Add an entry when the player sees the change: a new feature, a gameplay change or a visible fix.
+- Do not add an entry for a change to the CI, the build, the tests, the documentation or the structure of the code. A
+  pull request with no player-facing change has no entry.
+- An entry is one file in `changelog/`. Give the file the issue number and the short name of the branch:
+  `changelog/412-night-gates.json`. Use lowercase letters, digits and hyphens. For two changes, add two files.
+
+```json
+{
+  "category": "fixed",
+  "en_us": "The gates of the village close at night.",
+  "fr_fr": "Les portes du village ferment la nuit."
+}
+```
+
+- `category`: `new` (a new feature), `changed` (a change to a feature) or `fixed` (a fix of a problem that the
+  player sees).
+- `en_us` and `fr_fr`: one sentence for the player, of 300 characters or less. Write what the player sees in the
+  game. Use simple words. Do not use the names of classes, files or settings. Do not refer to the issue or to the
+  pull request.
+- Do not use `<`, `>`, `@`, backticks or line breaks in the texts. Save the file in UTF-8.
+- Do not rename or remove an entry file. To correct a text, change the file. The check refuses a rename. The revert
+  of a pull request removes its entry files, and the check accepts this removal.
+- Do not put the version in the entry. The release gets the version from Git: the squash commit that adds the file
+  gives the pull request number, and the first release tag that contains this commit gives the version.
+- The check **Title and version** fails on an entry that is not valid or on a renamed entry, and gives the file and
+  the field.
+- `python3 scripts/changelog.py check` checks the entries. `python3 scripts/changelog.py build --json <file>` writes
+  the entries of all the versions to a JSON file.
+
 ## Code checks
 
 `./gradlew build` runs these checks. The CI runs them on each pull request.
@@ -89,7 +123,7 @@ change needs the code of a pull request that is not merged. For an independent c
 - To make a release, open a pull request from `develop` to `main`, then use "Create a merge commit". The check
   **Release preview** gives the version and the release notes. The workflow **Release** tags the commit of
   `develop`, creates a GitHub Release with the jars and the modpack (`.mrpack`), then publishes the jars to GitHub
-  Packages.
+  Packages. The release notes start with the player-facing changes of the version (see [Changelog](#changelog)).
 - All mods share one version. `mod_version` in `gradle.properties` is the version of a local build.
 - The workflow **Build** gives each build a version: the version of the commit with `-dev.<commit>` for `develop`,
   and the version after the merge with `-pr.<number>.<commit>` for a pull request.
