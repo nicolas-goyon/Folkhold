@@ -37,7 +37,8 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
  *
  * <ul>
  *   <li>A player uses a filled map of the Overworld on a village heart: the map gets a waypoint at the heart, with the
- *       name of the village. A second use removes the waypoint.</li>
+ *       name of the village. A second use removes the waypoint. A heart out of the area of the map gets no
+ *       waypoint.</li>
  *   <li>The server keeps the waypoints of each map (data {@code folkhold_map_waypoints}). Every {@link #CHECK_TICKS}
  *       ticks, it gives the decorations to the maps in the hands of each player and in the item frames at
  *       {@link #FRAME_DISTANCE} blocks or less: the game does not save them in the map.</li>
@@ -61,6 +62,8 @@ public final class MapWaypoints extends SavedData {
      * wide, so the outer row of pixels on each side is out of this limit.
      */
     static final int DECORATION_LIMIT = 63;
+    /** The map covers this distance from its center or nearer, in map pixels (half of the 128 pixels of the map). */
+    static final int MAP_HALF = 64;
 
     /**
      * A waypoint.
@@ -84,7 +87,8 @@ public final class MapWaypoints extends SavedData {
     }
 
     /**
-     * A player uses a filled map on a village heart: the waypoint of the village goes on the map, or goes away.
+     * A player uses a filled map on a village heart: the waypoint of the village goes on the map, or goes away. A
+     * heart out of the area of the map gets no waypoint: the player gets a message.
      *
      * @param event the event
      */
@@ -103,8 +107,17 @@ public final class MapWaypoints extends SavedData {
         }
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.SUCCESS);
-        boolean added = get(level).toggle(id.id(), settlement.get().id(),
-                new Waypoint(event.getPos().getX(), event.getPos().getZ(), settlement.get().name()));
+        MapWaypoints waypoints = get(level);
+        BlockPos pos = event.getPos();
+        if (!waypoints.waypoints(id.id()).containsKey(settlement.get().id())
+                && !(inMap(pos.getX() + 0.5, data.centerX, data.scale)
+                        && inMap(pos.getZ() + 0.5, data.centerZ, data.scale))) {
+            player.displayClientMessage(Component.translatable("folkhold_world.map.waypoint.out_of_map",
+                    settlement.get().name()), true);
+            return;
+        }
+        boolean added = waypoints.toggle(id.id(), settlement.get().id(),
+                new Waypoint(pos.getX(), pos.getZ(), settlement.get().name()));
         if (!added) {
             data.removeDecoration(DECORATION_PREFIX + settlement.get().id());
         }
@@ -195,13 +208,23 @@ public final class MapWaypoints extends SavedData {
      * @return the position of the decoration on the axis
      */
     static double onMap(double pos, int center, int scale) {
-        int pixel = 1 << scale;
-        double limit = (double) DECORATION_LIMIT * pixel;
-        double offset = pos - center;
-        if (Math.abs(offset) > limit + pixel) {
+        if (!inMap(pos, center, scale)) {
             return pos;
         }
-        return center + Math.max(-limit, Math.min(limit, offset));
+        double limit = (double) DECORATION_LIMIT * (1 << scale);
+        return center + Math.max(-limit, Math.min(limit, pos - center));
+    }
+
+    /**
+     * Tells if a position is in the area of a map on one axis (see {@link #MAP_HALF}).
+     *
+     * @param pos    the position on the axis, in blocks
+     * @param center the center of the map on the axis
+     * @param scale  the scale of the map
+     * @return true if the map covers the position on the axis
+     */
+    static boolean inMap(double pos, int center, int scale) {
+        return Math.abs(pos - center) <= MAP_HALF << scale;
     }
 
     /** The waypoints of a map, by id of settlement. */
