@@ -149,9 +149,9 @@ public final class BalanceConfig {
                 .translation(KEY_PREFIX + "lookAhead")
                 .defineInRange("lookAhead", 3, 2, 16);
         FURNACE = locomotive(builder, "furnaceLocomotive", "The furnace locomotive. It burns the fuels of the furnace.",
-                LocomotiveStats.FURNACE_DEFAULTS, "200 blocks for 1 coal");
+                LocomotiveStats.FURNACE_DEFAULTS, Locomotive.RAIL_SPEED_CAP, "200 blocks for 1 coal");
         HEAVY = locomotive(builder, "heavyLocomotive", "The heavy locomotive. It burns blocks of coal.",
-                LocomotiveStats.HEAVY_DEFAULTS, "1000 blocks for 1 block of coal");
+                LocomotiveStats.HEAVY_DEFAULTS, Locomotive.MAX_SPEED, "1000 blocks for 1 block of coal");
         builder.pop();
 
         builder.comment("Blocked enchantments: enchantments that villagers do not sell and that fishing does not give.")
@@ -284,13 +284,14 @@ public final class BalanceConfig {
 
     /** Defines the section of a type of locomotive in the section {@code rails}. */
     private static LocomotiveValues locomotive(ModConfigSpec.Builder builder, String name, String comment,
-                                               LocomotiveStats defaults, String fuelUse) {
+                                               LocomotiveStats defaults, double speedLimit, String fuelUse) {
         builder.comment(comment).translation(KEY_PREFIX + name).push(name);
         LocomotiveValues values = new LocomotiveValues(
-                builder.comment("Largest speed in blocks per tick on straight and flat rails. The GameTests examine",
-                                "the speeds up to " + Locomotive.MAX_SPEED + ".")
+                builder.comment("Largest speed in blocks per tick on straight and flat rails, " + speedLimit + " at most.",
+                                speedLimit < Locomotive.MAX_SPEED ? "The heavy locomotive is faster."
+                                        : "Above this speed, a minecart can leave the rails.")
                         .translation(KEY_PREFIX + "maxSpeed")
-                        .defineInRange("maxSpeed", defaults.maxSpeed(), 0.01, Locomotive.MAX_SPEED),
+                        .defineInRange("maxSpeed", defaults.maxSpeed(), 0.01, speedLimit),
                 builder.comment("Pulling force at speed 0. The force decreases in a line to 0 at maxSpeed. Speed",
                                 "change each tick = (force - resistance) / mass of the train.")
                         .translation(KEY_PREFIX + "pullingForce")

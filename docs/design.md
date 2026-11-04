@@ -858,7 +858,9 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - **Implemented** (`TrainSpeed`, a mixin of `AbstractMinecart#getMaxSpeedWithRail`): the vanilla rails move a minecart in one straight step each tick, along the rail under it. The speed cap of the vanilla rails is 0.4 blocks per tick. Above this speed, a minecart can go past a curve or the top of a slope in one step and leave the rails.
 - Each tick, the locomotive gives a speed cap to all the minecarts of its train. The cap is `maxSpeed` of the locomotive (0.6 at most) when the rails are straight and flat in front of each minecart of the train, for `lookAhead` blocks. A curve, a slope, a junction in a curve position, the end of the rails or a chunk that is not loaded in this distance sets the cap to `curveSpeed` (0.4): all the minecarts of the train slow down to this speed in one tick, before the train gets there. Thus a train in a curve or on a slope always moves as vanilla minecarts do. The check does not load chunks.
 - The cap is half in water, as for the vanilla rails. A minecart keeps the cap of its train for one tick after the last tick of the locomotive.
-- A minecart that is not in a train with a locomotive keeps the vanilla speed cap. A vanilla furnace minecart at the front of a train does not give a cap.
+- The train cap applies only on the vanilla rails. On a rail of another mod, the cap is the lower value of the cap of the train and the cap of the rail. Only vanilla rails count as straight and flat for the check. On a vanilla rail, a cap that a mod gives to a minecart stays a limit.
+- A vanilla furnace minecart that is a wagon gets the speed cap of its train, in place of its vanilla cap of 0.2.
+- A minecart that is not in a train with a locomotive keeps the vanilla speed cap, also a minecart after its link breaks. A vanilla furnace minecart at the front of a train does not give a cap.
 
 ### Configuration
 
@@ -882,7 +884,7 @@ File `folkhold_balance-server.toml`, section `rails`:
 | `brakeForce` | 0.5 | Brake of a powered rail with no power, for each unit of mass on it |
 | `curveSpeed` | 0.4 | Speed cap of a train with a locomotive in a curve and on a slope, in blocks per tick (0.4 at most) |
 | `lookAhead` | 3 | Number of blocks that each minecart of a train with a locomotive examines in front of it |
-| `furnaceLocomotive.maxSpeed` | 0.4 | Largest speed on straight and flat rails, in blocks per tick (0.6 at most) |
+| `furnaceLocomotive.maxSpeed` | 0.4 | Largest speed on straight and flat rails, in blocks per tick (0.4 at most) |
 | `furnaceLocomotive.pullingForce` | 0.12 | Pulling force at speed 0 |
 | `furnaceLocomotive.mass` | 2.0 | Mass of the locomotive |
 | `furnaceLocomotive.fuelCapacity` | 32000 | Largest quantity of fuel (1 coal = 1600) |
