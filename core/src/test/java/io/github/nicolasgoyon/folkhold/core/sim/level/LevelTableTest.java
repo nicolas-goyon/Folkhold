@@ -27,7 +27,10 @@ class LevelTableTest {
         assertEquals("capital", TABLE.tier(17).id());
     }
 
-    /** The garrison grows with the tier, and its equipment set has the id of the tier. */
+    /**
+     * The garrison grows with the tier. A village has the equipment set of a town, and a town the equipment set of a
+     * city (balance of the raids). The other tiers have the equipment set with the id of the tier.
+     */
     @Test
     void defaultGarrisonGrowsWithTheTier() {
         GarrisonTraits hamlet = TABLE.traits(1).garrison();
@@ -41,7 +44,8 @@ class LevelTableTest {
         assertEquals(1, TABLE.traits(5).garrison().count("healer"));
         assertEquals(2, TABLE.traits(17).garrison().count("healer"));
         assertEquals(0, hamlet.count("golem"));
-        assertEquals(0, TABLE.traits(12).garrison().count("golem"));
+        assertEquals(0, TABLE.traits(8).garrison().count("golem"));
+        assertEquals(1, TABLE.traits(9).garrison().count("golem"));
         assertEquals(1, TABLE.traits(13).garrison().count("golem"));
         assertEquals(2, capital.count("golem"));
         assertEquals(0, TABLE.traits(8).garrison().count("rider"));
@@ -52,8 +56,14 @@ class LevelTableTest {
         assertEquals(5, capital.count("archer"));
         assertEquals("capital", capital.equipment());
         assertEquals(0, capital.count("unknown"));
+        assertEquals(5, TABLE.traits(5).garrison().count("guard"));
+        assertEquals(3, TABLE.traits(5).garrison().count("archer"));
+        assertEquals(5, TABLE.traits(9).garrison().count("guard"));
+        assertEquals(4, TABLE.traits(9).garrison().count("archer"));
+        Map<String, String> sets = Map.of("hamlet", "hamlet", "village", "town", "town", "city", "city", "city",
+                "capital", "capital");
         for (int level = 1; level <= TABLE.maxLevel(); level++) {
-            assertEquals(TABLE.tier(level).id(), TABLE.traits(level).garrison().equipment(), "Level " + level);
+            assertEquals(sets.get(TABLE.tier(level).id()), TABLE.traits(level).garrison().equipment(), "Level " + level);
         }
     }
 
