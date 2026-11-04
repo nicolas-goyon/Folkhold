@@ -169,7 +169,8 @@ public abstract class Locomotive extends AbstractMinecart {
         int lookAhead = BalanceConfig.LOOK_AHEAD.get();
         for (int i = 0; i < carts.size(); i++) {
             AbstractMinecart cart = carts.get(i);
-            double cartMass = i == 0 ? stats.mass() : traction.wagonMass(fillRatio(cart));
+            double cartMass = i == 0 ? stats.mass() : traction.wagonMass(fillRatio(cart),
+                    cart instanceof Container container ? container.getContainerSize() : 0);
             double tx = dirX;
             double tz = dirZ;
             if (i > 0) {

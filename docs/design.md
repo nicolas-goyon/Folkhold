@@ -844,17 +844,26 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 
 ### Locomotive
 
-- **Implemented** (`Locomotive`, `FurnaceLocomotive`, `LocomotiveItem`, `Traction`): the furnace locomotive is a minecart that pulls the minecarts behind it. Recipe: furnace minecart, 4 iron ingots and 1 piston. The item and the dispenser place it on a rail as a vanilla minecart. It looks like the vanilla furnace minecart with a copper color on the furnace. The item has the icon of the furnace minecart in a copper color. It has no screen, and no player rides it.
+- **Implemented** (`Locomotive`, `FurnaceLocomotive`, `CartItem`, `Traction`): the furnace locomotive is a minecart that pulls the minecarts behind it. Recipe: furnace minecart, 4 iron ingots and 1 piston. The item and the dispenser place it on a rail as a vanilla minecart. It looks like the vanilla furnace minecart with a copper color on the furnace. The item has the icon of the furnace minecart in a copper color. It has no screen, and no player rides it.
 - The player adds a furnace fuel with a right click (1 coal = 1600 units, a lava bucket gives back the bucket). A right click with an empty hand starts or stops the locomotive. The action bar shows the state and the fuel, in blocks.
 - On start, the locomotive goes away from the minecart behind it, or away from the player when it has no minecart behind it. Then its direction follows the rails.
 - Each tick, the speed of the locomotive changes by (pull − resistance) / mass:
   - pull: the pulling force at speed 0, less in a line to 0 at the maximum speed. A locomotive that is stopped or has no fuel brakes with its pulling force;
-  - mass: the mass of the locomotive plus the mass of each minecart behind it. The mass of a wagon is `wagonMass` plus `cargoMass` multiplied by the fill ratio of its slots (the count of each stack divided by its stack size). A wagon that still has a loot table counts as empty: a read of its slots generates the loot;
+  - mass: the mass of the locomotive plus the mass of each minecart behind it. The mass of a wagon is `wagonMass` plus `cargoMass` multiplied by the fill ratio of its slots (the count of each stack divided by its stack size). A wagon with more than 27 slots multiplies its cargo mass by its slots divided by 27 (2 for the double chest minecart). A wagon with 27 slots or fewer (chest minecart, hopper minecart) has the full `cargoMass`. A wagon that still has a loot table counts as empty: a read of its slots generates the loot;
   - resistance: for each minecart, its mass multiplied by `friction`, plus `slopeForce` up a slope (minus down a slope), minus `poweredRailForce` on a powered rail with power, plus `brakeForce` on a powered rail with no power.
 - The speed is never less than 0: a train that is too heavy for a slope stops and does not slide back. The speed is never more than the speed cap of the train (see "Speed"). The vanilla slope, powered rails and slowdown do not change the speed of the locomotive. The chains (see "Train") pull the minecarts behind it.
 - A locomotive with a front link is a wagon of the train in front: it does not drive and burns no fuel.
 - The fuel burns for each block that the locomotive moves while it runs: 8 units for each block, thus about 200 blocks for 1 coal. A train that waits does not move, so its fuel does not burn, except when the locomotive loads chunks (see "Loaded area"). The fuel is never more than `fuelCapacity`. A broken locomotive drops its item. Its fuel is lost.
 - **Implemented** (`HeavyLocomotive`): the heavy locomotive is a second type of locomotive, with the same rules and its own stats in the configuration. It has more pulling force and a maximum speed of 0.6 blocks per tick. Recipe: blast furnace, minecart, 2 blocks of iron and 1 piston. Its only fuel is the block of coal (16000 units): 16 units for each block, thus about 1000 blocks for 1 block of coal. It looks like the vanilla minecart with a blast furnace in a steel color. The item has the icon of the furnace minecart in the same color.
+
+### Double chest minecart
+
+- **Implemented** (`DoubleChestMinecart`, `CartItem`): a minecart with 54 slots. Recipe: chest minecart and chest, with no shape. The item and the dispenser place it on a rail as a vanilla minecart. A right click opens a screen of 6 rows. More than one player can open it at the same time, as the vanilla chest minecart.
+- Hoppers and hopper minecarts fill it and empty it, as the vanilla chest minecart. It also gives the item handlers of NeoForge for other mods. On a detector rail, a comparator gives its fill level.
+- A destroyed minecart drops its item and all its stacks one time. A minecart removed with `/kill` drops its stacks but not its item, as the vanilla chest minecart.
+- It has no loot table. It ignores a loot table from a command or from saved data. Thus it never generates loot.
+- It is a wagon of a train as the other minecarts with a container. It carries 2 times the cargo of a chest minecart, so its cargo mass is 2 times larger: a full double chest minecart has a mass of `wagonMass` + 2 × `cargoMass` (see "Locomotive").
+- It looks like the vanilla chest minecart with a second chest on the first chest. The item has the icon of the chest minecart in a darker color.
 
 ### Speed
 

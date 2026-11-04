@@ -22,6 +22,18 @@ class TractionTest {
     }
 
     @Test
+    void doubleChestWagonCarriesTwoTimesTheCargo() {
+        double cargo = TRACTION.cargoMass();
+        assertEquals(EMPTY, TRACTION.wagonMass(0.0, 54), EPSILON);
+        assertEquals(TRACTION.wagonMass() + cargo, TRACTION.wagonMass(0.5, 54), EPSILON);
+        assertEquals(TRACTION.wagonMass() + 2.0 * cargo, TRACTION.wagonMass(1.0, 54), EPSILON);
+        // A chest minecart and a hopper minecart keep the cargo mass of a chest minecart.
+        assertEquals(FULL, TRACTION.wagonMass(1.0, 27), EPSILON);
+        assertEquals(FULL, TRACTION.wagonMass(1.0, 5), EPSILON);
+        assertEquals(EMPTY, TRACTION.wagonMass(0.0, 0), EPSILON);
+    }
+
+    @Test
     void pullDecreasesToZeroAtTheMaximumSpeed() {
         assertEquals(FURNACE.force(), FURNACE.pull(0.0), EPSILON);
         assertEquals(FURNACE.force() / 2.0, FURNACE.pull(FURNACE.maxSpeed() / 2.0), EPSILON);
