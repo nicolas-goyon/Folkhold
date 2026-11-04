@@ -15,6 +15,7 @@ import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.network.BankPillageRequestPayload;
 import io.github.nicolasgoyon.folkhold.world.network.ModNetwork;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
@@ -45,6 +46,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -509,16 +511,20 @@ public final class BankChests {
         data.setDirty();
     }
 
-    /** The bank chests in the village radius around a position, in the loaded chunks, sorted by position. */
+    /**
+     * The bank chests in the village radius around a position, in the ready chunks (see {@link ReadyChunks}), sorted
+     * by position.
+     */
     static List<BankChestBlockEntity> chestsNear(ServerLevel level, BlockPos center) {
         int radius = WorldConfig.VILLAGE_RADIUS.get();
         List<BankChestBlockEntity> chests = new ArrayList<>();
         for (int chunkX = (center.getX() - radius) >> 4; chunkX <= (center.getX() + radius) >> 4; chunkX++) {
             for (int chunkZ = (center.getZ() - radius) >> 4; chunkZ <= (center.getZ() + radius) >> 4; chunkZ++) {
-                if (!level.hasChunk(chunkX, chunkZ)) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+                if (chunk == null) {
                     continue;
                 }
-                for (BlockEntity entity : level.getChunk(chunkX, chunkZ).getBlockEntities().values()) {
+                for (BlockEntity entity : chunk.getBlockEntities().values()) {
                     BlockPos pos = entity.getBlockPos();
                     if (entity instanceof BankChestBlockEntity chest
                             && Math.abs(pos.getX() - center.getX()) <= radius

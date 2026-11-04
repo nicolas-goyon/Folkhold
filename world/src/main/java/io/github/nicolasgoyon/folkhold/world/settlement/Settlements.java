@@ -19,6 +19,7 @@ import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.journal.JournalData;
 import io.github.nicolasgoyon.folkhold.world.journal.RouteViewData;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -292,16 +293,18 @@ public final class Settlements {
      *       ({@link BankChests#recoverFromRuins}).</li>
      * </ul>
      * The garrison and the villagers come back when a player is near the heart, as in each village. The chunk of
-     * the heart loads first when it is not loaded.
+     * the heart must be ready (see {@link ReadyChunks}): this method does not load it. The bank chests in the chunks
+     * that are not ready keep their items.
      *
      * @param level      the level of the village
      * @param settlement the settlement
      * @return the position of the heart
+     * @throws IllegalStateException if the chunk of the heart is not ready
      */
     public static BlockPos restore(ServerLevel level, Settlement settlement) {
         BlockPos center = new BlockPos(settlement.x(), 0, settlement.z());
-        if (!level.isLoaded(center)) {
-            level.getChunk(center);
+        if (!ReadyChunks.isReady(level, center)) {
+            throw new IllegalStateException("The chunk of the heart of " + settlement + " is not ready");
         }
         BlockPos surface = new BlockPos(settlement.x(), level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 settlement.x(), settlement.z()), settlement.z());

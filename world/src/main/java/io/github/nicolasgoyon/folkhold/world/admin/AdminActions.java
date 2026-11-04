@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
@@ -59,7 +60,8 @@ import net.minecraft.server.level.ServerPlayer;
  *   <li>{@code ruin}: destroys the settlement as in the game ({@link Settlements#ruin}), with no player as
  *       cause.</li>
  *   <li>{@code restore}: makes the settlement active again, with its heart and its bank
- *       ({@link Settlements#restore}).</li>
+ *       ({@link Settlements#restore}). The server does not wait for the chunk of the heart (see
+ *       {@link AreaWaits}).</li>
  *   <li>{@code alert}: sets the alert state of the village heart to the {@link AlertState} with the ordinal of the
  *       value. The heart must be loaded.</li>
  *   <li>{@code bells}: rings the bells of the village. The heart must be loaded.</li>
@@ -74,7 +76,7 @@ import net.minecraft.server.level.ServerPlayer;
  *       "x z", in blocks. The server does not wait for the chunk of the target (see {@link AdminTeleports}).</li>
  * </ul>
  * After an action, the server sends the result ({@link AdminResultPayload}), the list and the details of the
- * settlement again. A teleport that waits for its chunks sends its result later, after the teleport.
+ * settlement again. A teleport or a restore that waits for its chunks sends only its result later, after the action.
  */
 public final class AdminActions {
     /** The permission level of the admin screen, its actions and the operator commands. */
@@ -85,6 +87,7 @@ public final class AdminActions {
     private static final int DETAIL_STOCKS = 5;
     /** The maximum distance from the heart to the target of the teleport action, in blocks. */
     private static final int TELEPORT_RADIUS = 8;
+    private static final AreaWaits RESTORES = new AreaWaits("folkhold_world_admin_restore", KEY + "restore.");
 
     private AdminActions() {
     }
@@ -258,8 +261,7 @@ public final class AdminActions {
                 if (settlement.isActive()) {
                     yield Optional.of(Result.refused("already_active", name));
                 }
-                Settlements.restore(server.overworld(), settlement);
-                yield Optional.of(Result.done("restore", name));
+                yield Optional.of(restore(server, player, settlement));
             }
             case "alert", "bells" -> {
                 Optional<VillageHeartBlockEntity> heart = loadedHeart(server, settlement);
@@ -364,6 +366,62 @@ public final class AdminActions {
                     sections, stocks.subList(0, Math.min(DETAIL_STOCKS, stocks.size())),
                     Math.max(0, stocks.size() - DETAIL_STOCKS));
         });
+    }
+
+    /**
+     * Makes a settlement in ruins active again when the chunk of its heart is ready ({@link #restoreArea}). With a
+     * player, the request waits for the chunk with no wait on the server thread (see {@link AreaWaits}). With no
+     * player, the chunk must be ready now.
+     */
+    private static Result restore(MinecraftServer server, @Nullable ServerPlayer player, Settlement settlement) {
+        String id = settlement.id();
+        AdminTeleports.Area area = restoreArea(settlement);
+        if (player == null) {
+            return area.isReady(server.overworld()) ? restoreNow(server, id)
+                    : Result.refused("heart_not_loaded", Component.literal(settlement.name()));
+        }
+        return RESTORES.request(player, server.overworld(), area, AreaWaits.TIMEOUT_SECONDS,
+                current -> restoreNow(server, id));
+    }
+
+    /** Finds the settlement again by its id and restores it. The chunk of the heart must be ready. */
+    private static Result restoreNow(MinecraftServer server, String id) {
+        Optional<Settlement> found = SettlementData.get(server).registry().byId(id);
+        if (found.isEmpty()) {
+            return Result.refused("unknown");
+        }
+        Settlement settlement = found.get();
+        Component name = Component.literal(settlement.name());
+        if (settlement.isActive()) {
+            return Result.refused("already_active", name);
+        }
+        try {
+            Settlements.restore(server.overworld(), settlement);
+            return Result.done("restore", name);
+        } catch (RuntimeException e) {
+            FolkholdWorld.LOGGER.error("The admin restore of {} failed", settlement, e);
+            return Result.refused("restore.error");
+        }
+    }
+
+    /**
+     * The area that {@link Settlements#restore} reads and changes: the chunk of the heart.
+     *
+     * @param settlement the settlement
+     * @return the area
+     */
+    public static AdminTeleports.Area restoreArea(Settlement settlement) {
+        return new AdminTeleports.Area(settlement.x(), settlement.z(), settlement.x(), settlement.z());
+    }
+
+    /**
+     * True if the player has a restore request that waits for its chunks.
+     *
+     * @param player the player
+     * @return true if a restore request of the player waits
+     */
+    public static boolean isRestorePending(ServerPlayer player) {
+        return RESTORES.isPending(player);
     }
 
     /** The village heart of the settlement, if its chunk is ready (see {@link ReadyChunks}). */

@@ -407,6 +407,46 @@ public final class AdminGameTests {
     }
 
     /**
+     * The restore of a settlement in chunks that are not generated does not wait for the chunks: the action gives the
+     * loading message at once and the settlement stays in ruins in the tick of the request. Some ticks later, the
+     * settlement is active and the request has released its tickets.
+     */
+    @GameTest(template = "empty", timeoutTicks = TELEPORT_TEST_TICKS, batch = "admin_restore_async")
+    public static void restoreDoesNotWaitForTheChunks(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel level = server.overworld();
+        ServerPlayer player = operator(helper);
+        Settlement settlement = farRuins(server, 24_000);
+        AdminTeleports.Area area = AdminActions.restoreArea(settlement);
+        boolean readyBefore = isAreaReady(level, area);
+
+        Optional<AdminActions.Result> result = AdminActions.perform(server, player,
+                new AdminActionPayload("restore", settlement.id(), 0));
+
+        boolean readyAfter = isAreaReady(level, area);
+
+        helper.assertTrue(!readyBefore, "The chunk of the far settlement must not be ready before the request");
+        helper.assertTrue(!readyAfter, "The request must not wait for the chunk of the heart");
+        helper.assertTrue(result.isPresent() && result.get().success()
+                && result.get().message().getContents() instanceof TranslatableContents contents
+                && contents.getKey().endsWith("restore.loading"), "The action must give the loading message at once");
+        helper.assertTrue(AdminActions.isRestorePending(player), "The request must wait for the chunk");
+        helper.assertTrue(!settlement.isActive(), "The settlement must stay in ruins in the tick of the request");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(!AdminActions.isRestorePending(player),
+                        "The request must end when the chunk is ready"))
+                .thenExecute(() -> {
+                    boolean active = settlement.isActive();
+                    logOut(server, player);
+                    retire(helper, settlement);
+                    helper.assertTrue(active, "The restore must make the settlement active when the chunk is ready");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(hasNoFullTicket(level, area),
+                        "The request must release its tickets"))
+                .thenSucceed();
+    }
+
+    /**
      * Waits for the end of the request, before its time limit, and checks that the player did not go to the
      * settlement. Then logs the player out.
      */
