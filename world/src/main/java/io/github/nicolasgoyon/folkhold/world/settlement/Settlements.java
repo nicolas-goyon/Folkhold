@@ -19,6 +19,7 @@ import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.journal.JournalData;
 import io.github.nicolasgoyon.folkhold.world.journal.RouteViewData;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -292,16 +293,19 @@ public final class Settlements {
      *       ({@link BankChests#recoverFromRuins}).</li>
      * </ul>
      * The garrison and the villagers come back when a player is near the heart, as in each village. The chunk of
-     * the heart loads first when it is not loaded.
+     * the heart and the chunks of the columns next to the heart must be ready (see {@link ReadyChunks}): the new heart
+     * updates its neighbors, and this method does not load chunks. The bank chests in the chunks that are not ready
+     * do not change: their items stay in the chests and do not go into the stock or the treasury.
      *
      * @param level      the level of the village
      * @param settlement the settlement
      * @return the position of the heart
+     * @throws IllegalStateException if a chunk of the heart or of a column next to the heart is not ready
      */
     public static BlockPos restore(ServerLevel level, Settlement settlement) {
-        BlockPos center = new BlockPos(settlement.x(), 0, settlement.z());
-        if (!level.isLoaded(center)) {
-            level.getChunk(center);
+        if (!ReadyChunks.isAreaReady(level, settlement.x() - 1, settlement.z() - 1, settlement.x() + 1,
+                settlement.z() + 1)) {
+            throw new IllegalStateException("The chunks around the heart of " + settlement + " are not ready");
         }
         BlockPos surface = new BlockPos(settlement.x(), level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 settlement.x(), settlement.z()), settlement.z());

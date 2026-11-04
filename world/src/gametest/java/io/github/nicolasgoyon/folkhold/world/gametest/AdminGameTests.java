@@ -24,6 +24,7 @@ import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -404,6 +405,107 @@ public final class AdminGameTests {
         helper.assertTrue(isLoadingMessage(result), "The action must give the loading message");
         helper.assertTrue(!AdminActions.isAllowed(player), "The player must not be an operator now");
         assertRefusedWhenReady(helper, server, player, settlement, Level.OVERWORLD);
+    }
+
+    /**
+     * The restore of a settlement in chunks that are not generated does not wait for the chunks: the action gives the
+     * loading message at once and the settlement stays in ruins in the tick of the request. Some ticks later, the
+     * settlement is active and the request has released its tickets. The heart is on the edge of a chunk: the area
+     * contains the chunks of all the neighbors of the heart, because the new heart updates its neighbors.
+     */
+    @GameTest(template = "empty", timeoutTicks = TELEPORT_TEST_TICKS, batch = "admin_restore_async")
+    public static void restoreDoesNotWaitForTheChunks(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel level = server.overworld();
+        ServerPlayer player = operator(helper);
+        Settlement settlement = farRuins(server, 24_000);
+        AdminTeleports.Area area = AdminActions.restoreArea(settlement);
+        boolean readyBefore = isAreaReady(level, area);
+        BlockPos heart = new BlockPos(settlement.x(), 0, settlement.z());
+        List<ChunkPos> chunks = area.chunks();
+        helper.assertTrue((heart.getX() & 15) == 0 && (heart.getZ() & 15) == 0,
+                "The heart must be on the edge of a chunk");
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            helper.assertTrue(chunks.contains(new ChunkPos(heart.relative(direction))),
+                    "The area must contain the chunk of the neighbor " + direction + " of the heart");
+        }
+
+        Optional<AdminActions.Result> result = AdminActions.perform(server, player,
+                new AdminActionPayload("restore", settlement.id(), 0));
+
+        boolean readyAfter = isAreaReady(level, area);
+
+        helper.assertTrue(!readyBefore, "The chunk of the far settlement must not be ready before the request");
+        helper.assertTrue(!readyAfter, "The request must not wait for the chunk of the heart");
+        helper.assertTrue(result.isPresent() && result.get().success()
+                && result.get().message().getContents() instanceof TranslatableContents contents
+                && contents.getKey().endsWith("restore.loading"), "The action must give the loading message at once");
+        helper.assertTrue(AdminActions.isRestorePending(player), "The request must wait for the chunk");
+        helper.assertTrue(!settlement.isActive(), "The settlement must stay in ruins in the tick of the request");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(!AdminActions.isRestorePending(player),
+                        "The request must end when the chunk is ready"))
+                .thenExecute(() -> {
+                    boolean active = settlement.isActive();
+                    logOut(server, player);
+                    retire(helper, settlement);
+                    helper.assertTrue(active, "The restore must make the settlement active when the chunk is ready");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(hasNoFullTicket(level, area),
+                        "The request must release its tickets"))
+                .thenSucceed();
+    }
+
+    /** The restore stops with no change when the settlement has a new id during the wait (message "unknown"). */
+    @GameTest(template = "empty", timeoutTicks = TELEPORT_TEST_TICKS, batch = "admin_restore_unknown")
+    public static void restoreStopsWhenTheSettlementIsGone(GameTestHelper helper) {
+        assertRestoreRefusedWhenReady(helper, 28_000, (player, settlement) -> Settlements.changeId(player.server,
+                settlement, UUID.randomUUID().toString()));
+    }
+
+    /** The restore stops with no new heart when the settlement is active during the wait ("already_active"). */
+    @GameTest(template = "empty", timeoutTicks = TELEPORT_TEST_TICKS, batch = "admin_restore_active")
+    public static void restoreStopsWhenTheSettlementIsActive(GameTestHelper helper) {
+        assertRestoreRefusedWhenReady(helper, 32_000,
+                (player, settlement) -> settlement.setState(SettlementState.ACTIVE));
+    }
+
+    /** The restore stops with no change when the player is not an operator now (message "denied"). */
+    @GameTest(template = "empty", timeoutTicks = TELEPORT_TEST_TICKS, batch = "admin_restore_permission")
+    public static void restoreStopsWhenThePlayerIsNotAnOperator(GameTestHelper helper) {
+        assertRestoreRefusedWhenReady(helper, 36_000,
+                (player, settlement) -> player.server.getPlayerList().getOps().remove(player.getGameProfile()));
+    }
+
+    /**
+     * Requests the restore of far ruins and does a change during the wait. The request must stop before its time
+     * limit, and the restore must not occur: the settlement gets no heart. Then logs the player out and puts the
+     * settlement in ruins.
+     */
+    private static void assertRestoreRefusedWhenReady(GameTestHelper helper, int z,
+            BiConsumer<ServerPlayer, Settlement> change) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = operator(helper);
+        Settlement settlement = farRuins(server, z);
+        long deadline = Util.getMillis() + AdminTeleports.TIMEOUT_SECONDS * 1000L;
+
+        AdminActions.perform(server, player, new AdminActionPayload("restore", settlement.id(), 0));
+        boolean pending = AdminActions.isRestorePending(player);
+        change.accept(player, settlement);
+
+        helper.assertTrue(pending, "The request must wait for the chunks");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(!AdminActions.isRestorePending(player),
+                        "The request must stop when the area is ready"))
+                .thenExecute(() -> {
+                    long now = Util.getMillis();
+                    boolean heart = settlement.hasHeart();
+                    logOut(server, player);
+                    retire(helper, settlement);
+                    helper.assertTrue(now < deadline, "The request must stop before the time limit");
+                    helper.assertTrue(!heart, "The restore must not occur");
+                })
+                .thenSucceed();
     }
 
     /**
