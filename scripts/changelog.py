@@ -12,23 +12,29 @@ add more than one file. An entry file has these fields, and no other field:
     }
 
 - category: "new", "changed" or "fixed".
-- en_us, fr_fr: the text for the player, one line of 1 to 300 characters.
+- en_us, fr_fr: the text for the player, one line of 1 to 300 characters, with no <, >, @, ` or control
+  character. The file is UTF-8.
+
+Do not rename an entry file: the version and the pull request number come from the commit that adds the file.
 
 The version of an entry comes from Git. The commit that adds the file is the squash commit of the pull request: its
 title gives the number of the pull request. The version of the entry is the first release tag that contains this
 commit. An entry with no release tag gets the version of REV (see scripts/version.py).
 
 Usage:
-    scripts/changelog.py check [--dir DIR]
+    scripts/changelog.py check [--dir DIR] [--base REV]
     scripts/changelog.py build [--rev REV] [--notes FILE] [--json FILE]
 
-check validates the entry files of DIR (default: changelog). build prepends the entries of the version of REV to the
+check validates the entry files of DIR (default: changelog). With --base, check also refuses a rename of an entry
+file between REV and HEAD. A removal is valid: the revert of a pull request removes its entries. build checks the
+entries of REV, prepends the entries of the version of REV to the
 release notes in FILE, and writes all the entries, grouped by version, to the JSON file.
 """
 import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 
 import version
@@ -39,6 +45,8 @@ LANGUAGES = ("en_us", "fr_fr")
 FIELDS = ("category",) + LANGUAGES
 MAX_LENGTH = 300
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]*\.json$")
+# Characters that change the Markdown or the HTML of the release notes: <, >, @, backticks and control characters.
+FORBIDDEN = re.compile(r"[<>@`\x00-\x1f\x7f-\x9f]")
 PULL_REQUEST = re.compile(r"\(#(\d+)\)\s*$")
 TITLES = {
     "en_us": {"heading": "What's new", "new": "New", "changed": "Changed", "fixed": "Fixed"},
@@ -46,12 +54,20 @@ TITLES = {
 }
 
 
-def check_entry(name, text):
-    """The errors of one entry file, as "field: reason" strings. An empty list for a valid entry."""
+class EntryError(Exception):
+    """An entry that is not valid. The message has one "file: field: reason" line for each error."""
+
+
+def check_entry(name, data):
+    """The errors of one entry file (bytes or text), as "field: reason" strings. An empty list for a valid entry."""
     errors = []
     if not NAME.match(name):
         errors.append("file name: use lowercase letters, digits and hyphens, then .json. "
                       "Example: 412-night-gates.json")
+    try:
+        text = data.decode("utf-8") if isinstance(data, bytes) else data
+    except UnicodeDecodeError:
+        return errors + ["encoding: use UTF-8"]
     try:
         entry = json.loads(text)
     except ValueError as error:
@@ -70,8 +86,10 @@ def check_entry(name, text):
             errors.append(f"{language}: missing field")
         elif not isinstance(value, str) or not value.strip():
             errors.append(f"{language}: the text must be a string that is not empty")
-        elif "\n" in value or len(value) > MAX_LENGTH:
-            errors.append(f"{language}: the text must be one line of {MAX_LENGTH} characters or less")
+        elif FORBIDDEN.search(value):
+            errors.append(f"{language}: do not use <, >, @, ` or a control character (for example a line break)")
+        elif len(value) > MAX_LENGTH:
+            errors.append(f"{language}: the text must have {MAX_LENGTH} characters or less")
     return errors
 
 
@@ -85,8 +103,20 @@ def check_dir(path):
         if os.path.isdir(file):
             errors.append(f"{file}: the directory {path} must contain only entry files")
             continue
-        with open(file, encoding="utf-8") as text:
-            errors += [f"{file}: {error}" for error in check_entry(name, text.read())]
+        with open(file, "rb") as data:
+            errors += [f"{file}: {error}" for error in check_entry(name, data.read())]
+    return errors
+
+
+def check_renames(base, path=DIR):
+    """The errors for the entry files that the changes from BASE to HEAD rename."""
+    diff = version.git("diff", "--name-status", "-M", base, "HEAD", "--", f"{path}/")
+    errors = []
+    for line in diff.splitlines():
+        fields = line.split("\t")
+        if fields[0].startswith("R"):
+            errors.append(f"{fields[2]}: file name: do not rename an entry file ({fields[1]}). "
+                          "The commit that adds the file gives the version and the pull request number")
     return errors
 
 
@@ -125,16 +155,24 @@ def entries(rev, path=DIR):
     order = {sha: index for index, sha in enumerate(
         version.git("rev-list", "--reverse", "--topo-order", rev).split())}
     groups = {}
+    errors = []
     for file in files:
         # A file that only a merge commit adds gets the version of REV.
         sha, title = added.get(file, (None, ""))
-        entry = json.loads(version.git("show", f"{rev}:{file}"))
+        data = subprocess.run(("git", "show", f"{rev}:{file}"), check=True, capture_output=True).stdout
+        problems = check_entry(os.path.basename(file), data)
+        if problems:
+            errors += [f"{file}: {problem}" for problem in problems]
+            continue
+        entry = json.loads(data.decode("utf-8"))
         number = PULL_REQUEST.search(title)
         item = {"category": entry["category"], "pull_request": int(number.group(1)) if number else None}
         item.update({language: entry[language] for language in LANGUAGES})
         name = (release_of(sha) if sha else None) or current
         key = (CATEGORIES.index(item["category"]), order.get(sha, len(order)), file)
         groups.setdefault(name, []).append((key, item))
+    if errors:
+        raise EntryError("\n".join(errors))
     result = []
     for name, items in groups.items():
         result.append({"version": name, "entries": [item for _, item in sorted(items, key=lambda i: i[0])]})
@@ -161,8 +199,8 @@ def notes(group):
     return "\n".join(lines) + "\n"
 
 
-def run_check(args):
-    errors = check_dir(args.dir)
+def report(errors):
+    """Prints the errors (as GitHub annotations in GitHub Actions). 1 when there are errors, else 0."""
     for error in errors:
         file, reason = error.split(": ", 1)
         print(f"::error file={file}::{reason}" if os.environ.get("GITHUB_ACTIONS") else error, file=sys.stderr)
@@ -170,13 +208,23 @@ def run_check(args):
         print(f"{len(errors)} error(s) in the changelog entries. See CONTRIBUTING.md, section Changelog.",
               file=sys.stderr)
         return 1
+    return 0
+
+
+def run_check(args):
+    errors = check_dir(args.dir) + (check_renames(args.base, args.dir) if args.base else [])
+    if report(errors):
+        return 1
     count = len(os.listdir(args.dir)) if os.path.isdir(args.dir) else 0
     print(f"OK: {count} changelog entr{'y' if count == 1 else 'ies'}.")
     return 0
 
 
 def run_build(args):
-    current, groups = entries(args.rev, args.dir)
+    try:
+        current, groups = entries(args.rev, args.dir)
+    except EntryError as error:
+        return report(str(error).splitlines())
     group = next((group for group in groups if group["version"] == current), None)
     if args.notes and group:
         with open(args.notes, encoding="utf-8") as text:
@@ -197,6 +245,7 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     check = commands.add_parser("check", help="check the entry files")
     check.add_argument("--dir", default=DIR, help=f"the directory of the entries (default: {DIR})")
+    check.add_argument("--base", help="refuse a rename of an entry file from this commit to HEAD")
     check.set_defaults(run=run_check)
     build = commands.add_parser("build", help="write the entries for the release notes and for the mod")
     build.add_argument("--rev", default="HEAD", help="the commit (default: HEAD)")

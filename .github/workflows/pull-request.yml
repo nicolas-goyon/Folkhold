@@ -41,9 +41,10 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: python3 scripts/version.py check-title "$TITLE"
 
-      # A pull request with no player-facing change has no entry file: the check passes.
+      # A pull request with no player-facing change has no entry file: the check passes. HEAD is the merge commit of
+      # the pull request, and its first parent is the base branch: the check refuses a rename of an entry file.
       - name: Check the changelog entries
-        run: python3 scripts/changelog.py check
+        run: python3 scripts/changelog.py check --base HEAD^1
 
       # In a stack, the open pull requests below this pull request go into develop before it: their titles come
       # before its title.

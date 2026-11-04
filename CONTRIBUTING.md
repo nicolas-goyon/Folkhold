@@ -90,9 +90,13 @@ changes, in English and in French. The CI and the release use `scripts/changelog
 - `en_us` and `fr_fr`: one sentence for the player, of 300 characters or less. Write what the player sees in the
   game. Use simple words. Do not use the names of classes, files or settings. Do not refer to the issue or to the
   pull request.
+- Do not use `<`, `>`, `@`, backticks or line breaks in the texts. Save the file in UTF-8.
+- Do not rename or remove an entry file. To correct a text, change the file. The check refuses a rename. The revert
+  of a pull request removes its entry files, and the check accepts this removal.
 - Do not put the version in the entry. The release gets the version from Git: the squash commit that adds the file
   gives the pull request number, and the first release tag that contains this commit gives the version.
-- The check **Title and version** fails on an entry that is not valid, and gives the file and the field.
+- The check **Title and version** fails on an entry that is not valid or on a renamed entry, and gives the file and
+  the field.
 - `python3 scripts/changelog.py check` checks the entries. `python3 scripts/changelog.py build --json <file>` writes
   the entries of all the versions to a JSON file.
 
