@@ -1,32 +1,69 @@
 name: Build
 
-# Builds the mods and the modpack, and runs the tests. Each build has a version from scripts/version.py:
-# - push on develop: the version of the commit, then "-dev." and the short commit. Example: 0.32.0-dev.13bcc38.
-# - pull request: the version after the merge, then "-pr.", the number and the short commit. Example:
-#   0.32.1-pr.472.abc1234. For a pull request from develop to main, the first part is the version of the release.
-# - push on main: the version of the release.
-# A build of develop also makes the dev pack (artifact folkhold-dev-pack): the packwiz pack with the Folkhold jars,
-# and a Prism Launcher instance that updates itself from this pack. The workflow Pages publishes it in dev/.
+# Builds the mods and the modpack, and runs the tests. Each job has one task:
+# - Version: calculates the version of the build (see .github/actions/version).
+# - Build: compiles the mods, runs the unit tests, the translation check and the format check. Uploads the jars.
+# - GameTests: runs the GameTest server. This job compiles the mods for its server, so it runs at the same time as
+#   the job Build.
+# - Modpack: makes the .mrpack file from the jars of the job Build.
+# - Dev pack: for a push on develop only. Makes the dev pack (artifact folkhold-dev-pack): the packwiz pack with the
+#   Folkhold jars, and a Prism Launcher instance that updates itself from this pack. The workflow Pages publishes it
+#   in dev/.
+# The workflow Release calls this workflow (workflow_call) with the input release: the version is the version of the
+# release, and the job Build also uploads the Maven files of the mods (artifact folkhold-maven).
 
 on:
   push:
-    branches: [main, develop]
+    branches: [develop]
   pull_request:
+  # "Run workflow" with the input release makes the files of a release, and publishes nothing.
   workflow_dispatch:
+    inputs:
+      release:
+        description: Build a release (see .github/actions/version).
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      release:
+        description: Build a release (see .github/actions/version).
+        type: boolean
+        default: false
+    outputs:
+      version:
+        description: The version of the build.
+        value: ${{ jobs.version.outputs.version }}
+      tag:
+        description: With release, the tag of the version.
+        value: ${{ jobs.version.outputs.tag }}
+      exists:
+        description: With release, 'true' when the tag exists.
+        value: ${{ jobs.version.outputs.exists }}
+      commit:
+        description: The commit of the version.
+        value: ${{ jobs.version.outputs.commit }}
 
 permissions:
   contents: read
 
-# A new push on a pull request cancels the run of the earlier push. A push on main or develop is never cancelled.
+# A new push on a pull request cancels the run of the earlier push. A push on develop is never cancelled.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  RELEASE: ${{ inputs.release && 'true' || 'false' }}
+
 jobs:
-  build:
-    name: Build and test
+  version:
+    name: Version
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      exists: ${{ steps.version.outputs.exists }}
+      commit: ${{ steps.version.outputs.commit }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -34,76 +71,69 @@ jobs:
           # The history and the tags, for the version.
           fetch-depth: 0
 
-      - name: Make the log folder
-        run: mkdir -p build
-
       - name: Calculate the version
         id: version
+        uses: ./.github/actions/version
+        with:
+          release: ${{ env.RELEASE }}
+
+      - name: Show the release
+        if: env.RELEASE == 'true'
         env:
-          EVENT: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          NUMBER: ${{ github.event.pull_request.number }}
-          TITLE: ${{ github.event.pull_request.title }}
-          AUTHOR: ${{ github.event.pull_request.user.login }}
+          TAG: ${{ steps.version.outputs.tag }}
+          EXISTS: ${{ steps.version.outputs.exists }}
         run: |
-          short=$(git rev-parse --short=7 "$HEAD_SHA")
-          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ]; then
-            # A release: the version of the commit of develop.
-            version="$(python3 scripts/version.py version --rev "$HEAD_SHA")-pr.${NUMBER}.${short}"
-          elif [ "$EVENT" = pull_request ]; then
-            base=$(python3 scripts/version.py version --rev "$BASE_SHA" --title "$TITLE" --author "$AUTHOR")
-            version="${base}-pr.${NUMBER}.${short}"
-          elif [ "$GITHUB_REF" = refs/heads/main ]; then
-            version=$(python3 scripts/version.py version --rev HEAD)
+          if [ "$EXISTS" = true ]; then
+            echo "The tag \`${TAG}\` exists: no release." >> "$GITHUB_STEP_SUMMARY"
           else
-            version="$(python3 scripts/version.py version --rev HEAD)-dev.${short}"
+            echo "Release: \`${TAG}\`." >> "$GITHUB_STEP_SUMMARY"
           fi
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "Version of this build: \`${version}\`." >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build
+    needs: version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      COMMIT: ${{ needs.version.outputs.commit }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The history and the tags, for the changelog.
+          fetch-depth: 0
 
       # The changelog of the "What's new" screen goes into the jar of core (see core/build.gradle). The check "Title
       # and version" reports the entries that are not valid, so this step does not stop the build.
       - name: Write the changelog
-        run: python3 scripts/changelog.py build --json build/changelog.json || echo "::warning::No changelog in the jar."
+        run: |
+          mkdir -p build
+          python3 scripts/changelog.py build --rev "$COMMIT" --json build/changelog.json \
+            || echo "::warning::No changelog in the jar."
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
-        with:
-          distribution: temurin
-          java-version: '21'
+      - name: Set up JDK 21 and Gradle
+        uses: ./.github/actions/setup-gradle
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
-
+      # The task publishAllPublicationsToStagingRepository writes the Maven files of the mods to build/maven. The
+      # workflow Release publishes these files to GitHub Packages.
       - name: Build, unit tests and translation check
         shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: ./gradlew build -Pmod_version="$VERSION" --stacktrace 2>&1 | tee build/ci-build.log; exit "${PIPESTATUS[0]}"
-
-      - name: GameTest server
-        shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          ./gradlew :dev:runGameTestServer -Pmod_version="$VERSION" --stacktrace 2>&1 | tee build/ci-gametest.log
+          ./gradlew build publishAllPublicationsToStagingRepository -Pmod_version="$VERSION" --stacktrace 2>&1 \
+            | tee build/ci-build.log
           exit "${PIPESTATUS[0]}"
 
       - name: Report the errors as annotations
         if: failure()
-        run: scripts/ci-annotate-errors.sh build/ci-build.log build/ci-gametest.log
+        run: scripts/ci-annotate-errors.sh build/ci-build.log
 
-      - name: Upload the logs of the GameTest server
+      - name: Upload the build log
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: folkhold-gametest-logs
-          path: |
-            build/ci-build.log
-            build/ci-gametest.log
-            dev/run-gametest/logs
+          name: folkhold-build-logs
+          path: build/ci-build.log
           if-no-files-found: ignore
 
       - name: Upload the coverage report of core
@@ -123,61 +153,111 @@ jobs:
             !*/build/libs/*-sources.jar
           if-no-files-found: error
 
-      - name: Check for a modpack
-        id: modpack
-        run: |
-          if [ -f modpack/pack.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
-
-      - name: Set up Go
-        if: steps.modpack.outputs.present == 'true'
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: Upload the Maven files
+        if: env.RELEASE == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          go-version: '1.27'
-          cache: false
+          name: folkhold-maven
+          path: build/maven
+          if-no-files-found: error
 
-      # packwiz has no releases: the commit is the same as in .devcontainer/Dockerfile. The download can fail on a
-      # network error, so the step tries 3 times.
-      - name: Install packwiz
-        if: steps.modpack.outputs.present == 'true'
+  gametests:
+    name: GameTests
+    needs: version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 21 and Gradle
+        uses: ./.github/actions/setup-gradle
+
+      - name: GameTest server
         shell: bash
         run: |
-          for attempt in 1 2 3; do
-            go install github.com/packwiz/packwiz@ef87d964f8cbd52b3b13ea42453ef322290e2b9e && exit 0
-            echo "Attempt $attempt failed. Next attempt in 15 seconds."
-            sleep 15
-          done
-          exit 1
+          mkdir -p build
+          ./gradlew :dev:runGameTestServer -Pmod_version="$VERSION" --stacktrace 2>&1 | tee build/ci-gametest.log
+          exit "${PIPESTATUS[0]}"
 
-      # A build of develop also keeps the packwiz pack with the Folkhold jars (folder build/dev-pack).
+      - name: Report the errors as annotations
+        if: failure()
+        run: scripts/ci-annotate-errors.sh build/ci-gametest.log
+
+      - name: Upload the logs of the GameTest server
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: folkhold-gametest-logs
+          path: |
+            build/ci-gametest.log
+            dev/run-gametest/logs
+          if-no-files-found: ignore
+
+  modpack:
+    name: Modpack
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the mod jars
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: folkhold-mods
+
+      - name: Set up packwiz
+        uses: ./.github/actions/setup-packwiz
+
       - name: Export the modpack
-        if: steps.modpack.outputs.present == 'true'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          DEV_PACK: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/develop' && 'build/dev-pack' || '' }}
         run: |
-          args=("build/folkhold-${VERSION}.mrpack" "$VERSION")
-          if [ -n "$DEV_PACK" ]; then
-            args+=("$DEV_PACK")
-          fi
-          scripts/export-modpack.sh "${args[@]}"
+          mkdir -p build
+          scripts/export-modpack.sh "build/folkhold-${VERSION}.mrpack" "$VERSION"
 
       - name: Upload the modpack
-        if: steps.modpack.outputs.present == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: folkhold-modpack
           path: build/folkhold-*.mrpack
           if-no-files-found: error
 
+  dev-pack:
+    name: Dev pack
+    needs: [version, gametests, modpack]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the mod jars
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: folkhold-mods
+
+      - name: Set up packwiz
+        uses: ./.github/actions/setup-packwiz
+
+      # The same packwiz pack as the .mrpack file of the job Modpack, in the folder build/dev-pack.
+      - name: Make the dev pack
+        run: scripts/export-modpack.sh "$RUNNER_TEMP/dev.mrpack" "$VERSION" build/dev-pack
+
       # The instance gets the URL of the dev pack on the site of the project (see pages.yml).
       - name: Make the dev instance
-        if: steps.modpack.outputs.present == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
         run: |
           url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/dev/pack.toml"
           scripts/dev-instance.sh build/dev-pack/folkhold-dev-instance.zip "$url"
 
       - name: Upload the dev pack
-        if: steps.modpack.outputs.present == 'true' && github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: folkhold-dev-pack

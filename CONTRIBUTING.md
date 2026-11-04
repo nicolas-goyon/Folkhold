@@ -24,7 +24,8 @@
    Conventional Commits and ends with a bump marker (see [Versions and releases](#versions-and-releases)):
    - `fix(world): close the gates at night [patch]`
 5. The CI must pass before the merge. The check **Title and version** refuses a title with no bump marker, and its
-   summary gives the version after the merge.
+   summary gives the version after the merge. The checks **Build** and **GameTests** of the workflow Build compile
+   and test the mods (see [Continuous integration](docs/getting-started.md#continuous-integration-and-releases)).
 6. Use "Squash and merge": the title of the pull request becomes the title of the commit on `develop`. Delete the
    branch after the merge.
 
@@ -109,10 +110,11 @@ changes, in English and in French. The CI and the release use `scripts/changelog
 
 ### The "What's new" screen
 
-- The workflows Build and Release write `build/changelog.json` before the Gradle build. The jar of core contains
-  this file as `assets/folkhold_core/changelog.json`. A local build has no such file, so its jar has no changelog
-  and the screen does not open. To test the screen locally, run `mkdir -p build && python3 scripts/changelog.py
-  build --json build/changelog.json` before the build. The script uses only the committed entries.
+- The job **Build** of the workflow Build writes `build/changelog.json` before the Gradle build. The jar of core
+  contains this file as `assets/folkhold_core/changelog.json`. A local build has no such file, so its jar has no
+  changelog and the screen does not open. To test the screen locally, run `mkdir -p build && python3
+  scripts/changelog.py build --json build/changelog.json` before the build. The script uses only the committed
+  entries.
 - The screen opens one time in place of the title screen, when the newest version of the changelog is not the
   version in `config/folkhold_core-whats-new.txt`. The client first writes the newest version to this file. When the
   write fails, the screen does not open. The version of the mod has no effect, so a development build of the same
@@ -142,9 +144,13 @@ changes, in English and in French. The CI and the release use `scripts/changelog
 - A commit with no marker keeps the version. A commit of Dependabot counts as `[patch]`.
 - `python3 scripts/version.py version --rev <commit>` gives the version of a commit.
 - To make a release, open a pull request from `develop` to `main`, then use "Create a merge commit". The check
-  **Release preview** gives the version and the release notes. The workflow **Release** tags the commit of
-  `develop`, creates a GitHub Release with the jars and the modpack (`.mrpack`), then publishes the jars to GitHub
-  Packages. The release notes start with the player-facing changes of the version (see [Changelog](#changelog)).
+  **Release preview** gives the version and the release notes. The workflow **Release** builds and tests the mods
+  with the workflow **Build**. Then it tags the commit of `develop`, creates a GitHub Release with the jars and the
+  modpack (`.mrpack`) of this build, then publishes the same jars to GitHub Packages. The release notes start with
+  the player-facing changes of the version (see [Changelog](#changelog)).
+- To test a release build with no publication, use "Run workflow" on the workflow **Build** with the input
+  `release`. The run makes the jars, the `.mrpack` file and the Maven files (artifact `folkhold-maven`) with the
+  version of the release.
 - All mods share one version. `mod_version` in `gradle.properties` is the version of a local build.
 - The workflow **Build** gives each build a version: the version of the commit with `-dev.<commit>` for `develop`,
   and the version after the merge with `-pr.<number>.<commit>` for a pull request.

@@ -116,24 +116,28 @@ jobs:
           # The history and the tags, for the version.
           fetch-depth: 0
 
+      - name: Calculate the version of the release
+        id: version
+        uses: ./.github/actions/version
+        with:
+          release: 'true'
+          rev: ${{ github.event.pull_request.head.sha }}
+          notes: ${{ runner.temp }}/release-notes.md
+
       - name: Show the release
         env:
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          VERSION: ${{ steps.version.outputs.version }}
+          EXISTS: ${{ steps.version.outputs.exists }}
+          NOTES: ${{ runner.temp }}/release-notes.md
         run: |
-          mkdir -p build
-          python3 scripts/version.py version --rev "$HEAD" --repo "$GITHUB_REPOSITORY" \
-            --notes build/release-notes.md --github-output build/version.txt
-          python3 scripts/changelog.py build --rev "$HEAD" --notes build/release-notes.md
-          version=$(sed -n 's/^version=//p' build/version.txt)
-          exists=$(sed -n 's/^exists=//p' build/version.txt)
           {
             echo "### Release"
             echo
-            if [ "$exists" = true ]; then
-              echo "The tag \`v${version}\` exists: the merge makes no release."
+            if [ "$EXISTS" = true ]; then
+              echo "The tag \`v${VERSION}\` exists: the merge makes no release."
             else
-              echo "The merge makes the release **v${version}**."
+              echo "The merge makes the release **v${VERSION}**."
             fi
             echo
-            cat build/release-notes.md
+            cat "$NOTES"
           } >> "$GITHUB_STEP_SUMMARY"

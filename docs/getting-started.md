@@ -351,16 +351,28 @@ To add a language, add `site/lang/<language>.json` with all the keys of `en_us.j
 
 ## Continuous integration and releases
 
-- Each push on `main` and on `develop` and each pull request runs the workflow **Build**: build, JUnit tests, translation check, GameTests. The jars, the `.mrpack` file and the coverage report of `core` are available as artifacts of the run. The workflow **Generated files** runs the tests of the scripts of `scripts/` and checks the output of the scripts of `tools/`.
+- Each push on `develop` and each pull request runs the workflow **Build**. Each job of the workflow has one task, and the checks of a pull request show the job that failed:
+
+  | Job | Needs | Task |
+  | --- | --- | --- |
+  | **Version** | | Calculates the version of the build. |
+  | **Build** | Version | Compiles the mods, runs the JUnit tests, the format check and the translation check. Uploads the jars (artifact `folkhold-mods`) and the coverage report of `core` (artifact `folkhold-core-coverage`). When the job fails, it uploads the Gradle log (artifact `folkhold-build-logs`). |
+  | **GameTests** | Version | Compiles the mods and runs the GameTest server. When the job fails, it uploads the logs (artifact `folkhold-gametest-logs`). |
+  | **Modpack** | Build | Makes the `.mrpack` file from the jars of the job **Build** (artifact `folkhold-modpack`). |
+  | **Dev pack** | GameTests, Modpack | For a push on `develop` only: makes the dev pack and the dev instance (artifact `folkhold-dev-pack`). |
+
+- "Run workflow" on the workflow **Build** has the input `release`. With this input, the run uses the version of the release and also makes the Maven files of the mods (artifact `folkhold-maven`). The run publishes nothing: use it to test a release build.
+- The shared steps of the workflows are composite actions in `.github/actions/`: `setup-gradle` (JDK 21 and Gradle), `setup-packwiz` (Go and packwiz) and `version` (the version of a build or of a release).
+- The workflow **Generated files** runs the tests of the scripts of `scripts/` and checks the output of the scripts of `tools/`.
 - Each build has a version from `scripts/version.py`:
   - A push on `develop`: the version of the commit, then `-dev.` and the short commit. Example: `0.32.0-dev.13bcc38`.
   - A pull request: the version after the merge, then `-pr.`, the number of the pull request and the short commit. Example: `0.32.1-pr.472.abc1234`. For a pull request from `develop` to `main`, the first part is the version of the release.
-  - A push on `main`: the version of the release.
+  - A release (push on `main`): the version of the release.
 - A build of a push on `develop` also makes the dev pack (artifact `folkhold-dev-pack`, see [Dev instance that updates itself](#dev-instance-that-updates-itself)).
 - The workflow **Pull request** checks the title of a pull request to `develop` or in a stack on `develop` (bump marker, see [CONTRIBUTING.md](../CONTRIBUTING.md#versions-and-releases)) and gives the version after the merge. For a pull request to `main`, it checks that the source branch is `develop` and gives the version and the notes of the release.
 - A change to `.devcontainer/` runs the workflow **Dev container**: it builds the image and checks the tools.
 - The workflow **Pages** publishes the site of the project to GitHub Pages from `develop` (see [Site of the project](#site-of-the-project)). The site also has `version.json` with the version of the latest release. The version badge of the README reads this file, with no call to the GitHub API by shields.io. The site also has the dev pack of the latest green build of a push on `develop`, in `dev/`. The workflow runs after each green build of a push on `develop`, and after each release. On a pull request that changes the site, the workflow builds the site and does not deploy it. The artifact `github-pages` of the run contains the site.
-- To make a release, merge `develop` into `main`: a pull request from `develop` to `main`, with "Create a merge commit". The workflow **Release** calculates the version from the bump markers of the commits, tags the commit of `develop`, creates a GitHub Release with the jars and the `.mrpack` file, then publishes the jars to GitHub Packages (Maven, `io.github.nicolasgoyon.folkhold:<mod_id>`). When the tag of the version exists, the workflow makes no release. The release uses the same packwiz commit as the CI, so two runs on the same commit give the same `.mrpack` content. After the release, the workflow starts the workflow **Pages**.
+- To make a release, merge `develop` into `main`: a pull request from `develop` to `main`, with "Create a merge commit". The workflow **Release** calls the workflow **Build** (`workflow_call`): the jobs of the build run with the version of the release, from the bump markers of the commits. The job **Build** also writes the Maven files of the mods (artifact `folkhold-maven`). When all the jobs of the build pass, the job **Publish** tags the commit of `develop`, creates a GitHub Release with the jars and the `.mrpack` file of the build, then uploads the Maven files to GitHub Packages (`io.github.nicolasgoyon.folkhold:<mod_id>`, see `scripts/maven_publish.py`). The release does not build the mods again, so the GitHub Release and GitHub Packages have the same jars. When the tag of the version exists, the workflow does not build and makes no release. All the builds use the same packwiz commit, so two runs on the same commit give the same `.mrpack` content. After the release, the workflow starts the workflow **Pages**.
 
 ## Clean up
 

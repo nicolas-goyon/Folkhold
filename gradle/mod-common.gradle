@@ -156,14 +156,11 @@ publishing {
         }
     }
     repositories {
-        // GitHub Packages. The release workflow sets GITHUB_ACTOR and GITHUB_TOKEN.
+        // A local folder (build/maven of the root project). The workflow Build writes the Maven files of the mods to
+        // it, and the workflow Release uploads these files to GitHub Packages (see scripts/maven_publish.py).
         maven {
-            name = 'GitHubPackages'
-            url = uri('https://maven.pkg.github.com/nicolas-goyon/folkhold')
-            credentials {
-                username = providers.environmentVariable('GITHUB_ACTOR').getOrElse('')
-                password = providers.environmentVariable('GITHUB_TOKEN').getOrElse('')
-            }
+            name = 'Staging'
+            url = rootProject.file('build/maven').toURI()
         }
     }
 }
