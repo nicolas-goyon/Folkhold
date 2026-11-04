@@ -25,7 +25,6 @@ import io.github.nicolasgoyon.folkhold.world.group.MobileGroupSystem;
 import io.github.nicolasgoyon.folkhold.world.group.RoadNetwork;
 import io.github.nicolasgoyon.folkhold.world.group.TravelingMerchants;
 import io.github.nicolasgoyon.folkhold.world.group.VillageTrade;
-import io.github.nicolasgoyon.folkhold.world.journal.MapUpdates;
 import io.github.nicolasgoyon.folkhold.world.journal.MapWaypoints;
 import io.github.nicolasgoyon.folkhold.world.journal.RouteReliefs;
 import io.github.nicolasgoyon.folkhold.world.journal.TerritoryMaps;
@@ -118,8 +117,6 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(TerritoryMaps::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(TerritoryMaps::onServerStopped);
         NeoForge.EVENT_BUS.addListener(MapWaypoints::onPlayerTick);
-        NeoForge.EVENT_BUS.addListener(MapUpdates::onServerTick);
-        NeoForge.EVENT_BUS.addListener(MapUpdates::onServerStopped);
         NeoForge.EVENT_BUS.addListener(Notices::onLoggedOut);
         NeoForge.EVENT_BUS.addListener(Notices::onServerStopped);
         NeoForge.EVENT_BUS.addListener(VillageSpawnProtection::onPositionCheck);
