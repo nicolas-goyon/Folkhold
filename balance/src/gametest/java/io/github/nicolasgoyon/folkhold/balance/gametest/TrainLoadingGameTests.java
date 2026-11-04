@@ -7,9 +7,11 @@ import io.github.nicolasgoyon.folkhold.balance.registry.ModEntities;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -49,7 +51,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * </ul>
  *
  * <p>A ticket loads the chunks around its chunk. Each test has its own batch: the tests do not run at the same time,
- * and the tickets of a test do not load the chunks of another test.
+ * and the tickets of a test do not load the chunks of another test. A test does not use the chunks of an earlier
+ * test: the rails of the earlier test stay in the chunks after they unload.
  */
 @GameTestHolder(FolkholdBalance.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -65,6 +68,8 @@ public final class TrainLoadingGameTests {
     private static final double BACK_X = 16.7;
     /** The number of ticks of a test: more than the break ticks and more than 2 checks of the dead links. */
     private static final int WAIT_TICKS = 80;
+    /** The chunks that the earlier tests used, as {@link ChunkPos#toLong()}. Only for the server thread. */
+    private static final Set<Long> USED = new HashSet<>();
 
     private TrainLoadingGameTests() {
     }
@@ -307,13 +312,18 @@ public final class TrainLoadingGameTests {
         }
 
         /**
-         * The first chunk from a start chunk, along Z, with no loaded chunk within {@link #FREE_RADIUS} chunks of it
-         * and of the chunk east of it. The other tests and systems do not change the state of these chunks.
+         * The first chunk from a start chunk, along Z, with no loaded chunk and no chunk of an earlier test within
+         * {@link #FREE_RADIUS} chunks of it and of the chunk east of it. The other tests and systems do not change the
+         * state of these chunks. The tests are near each other, so an earlier test can use a chunk near the start
+         * chunk. The server unloads the chunks of an earlier test after a time that is not always the same, so a check
+         * of the loaded chunks only does not find them.
          */
         private static ChunkPos freeChunk(ServerLevel level, ChunkPos start) {
             for (int step = 0; step < 64; step++) {
                 ChunkPos candidate = new ChunkPos(start.x, start.z + step * (2 * FREE_RADIUS + 1));
                 if (isFree(level, candidate)) {
+                    USED.add(candidate.toLong());
+                    USED.add(ChunkPos.asLong(candidate.x + 1, candidate.z));
                     return candidate;
                 }
             }
@@ -323,7 +333,7 @@ public final class TrainLoadingGameTests {
         private static boolean isFree(ServerLevel level, ChunkPos chunk) {
             for (int x = chunk.x - FREE_RADIUS; x <= chunk.x + 1 + FREE_RADIUS; x++) {
                 for (int z = chunk.z - FREE_RADIUS; z <= chunk.z + FREE_RADIUS; z++) {
-                    if (level.getChunkSource().hasChunk(x, z)) {
+                    if (level.getChunkSource().hasChunk(x, z) || USED.contains(ChunkPos.asLong(x, z))) {
                         return false;
                     }
                 }
