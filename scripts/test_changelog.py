@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 import changelog
 
@@ -90,7 +91,9 @@ class BuildTest(unittest.TestCase):
     def run_main(self, *args):
         """The exit code and the standard error of changelog.main()."""
         error = io.StringIO()
-        with contextlib.redirect_stderr(error):
+        # Plain errors, also in GitHub Actions, where the script prints annotations.
+        with mock.patch.dict(os.environ), contextlib.redirect_stderr(error):
+            os.environ.pop("GITHUB_ACTIONS", None)
             code = changelog.main(list(args))
         return code, error.getvalue()
 
