@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.balance.enchantment.BlockedEnchantmentIds
 import io.github.nicolasgoyon.folkhold.balance.enchantment.VillagerOffers;
 import io.github.nicolasgoyon.folkhold.balance.network.BalanceNetwork;
 import io.github.nicolasgoyon.folkhold.balance.rail.ChainUse;
+import io.github.nicolasgoyon.folkhold.balance.rail.TrainChunks;
 import io.github.nicolasgoyon.folkhold.balance.rail.Trains;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModAttachments;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModEntities;
@@ -50,6 +51,7 @@ public final class FolkholdBalance {
         NeoForge.EVENT_BUS.addListener(Trains::onStartTracking);
         NeoForge.EVENT_BUS.addListener(Trains::onStopTracking);
         NeoForge.EVENT_BUS.addListener(Trains::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(TrainChunks::onServerStopped);
         // Lowest priority: the filter also wraps the trade listings that other mods add.
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillagerOffers::onVillagerTrades);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VillagerOffers::onWandererTrades);

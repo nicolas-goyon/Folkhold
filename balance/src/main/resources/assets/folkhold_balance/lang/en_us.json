@@ -25,6 +25,8 @@
   "folkhold_balance.configuration.heavyLocomotive": "Heavy locomotive",
   "folkhold_balance.configuration.curveSpeed": "Speed in curves and on slopes",
   "folkhold_balance.configuration.lookAhead": "Blocks examined in front of a train",
+  "folkhold_balance.configuration.loadChunks": "Trains load the chunks in front of them",
+  "folkhold_balance.configuration.maxLoadingTrains": "Locomotives that load chunks",
   "folkhold_balance.configuration.blockedEnchantments": "Blocked enchantments",
   "folkhold_balance.configuration.enchantments": "Enchantments",
   "folkhold_balance.configuration.inTrades": "Block them in new offers",

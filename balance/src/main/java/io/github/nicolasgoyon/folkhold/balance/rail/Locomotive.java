@@ -126,7 +126,9 @@ public abstract class Locomotive extends AbstractMinecart {
             // goes back to its position, so its fuel does not burn.
             double moved = Math.min(1.0, Math.sqrt(Math.pow(xo - startX, 2) + Math.pow(zo - startZ, 2)));
             if (running && !front && fuel > 0.0 && Double.isFinite(moved)) {
-                fuel = Math.max(0.0, fuel - moved * stats().fuelPerBlock());
+                // A locomotive that loads chunks burns its fuel as at its maximum speed, also when it does not move.
+                double burned = TrainChunks.isLoading(this) ? Math.max(moved, stats().maxSpeed()) : moved;
+                fuel = Math.max(0.0, fuel - burned * stats().fuelPerBlock());
             }
             startX = xo;
             startZ = zo;
@@ -193,6 +195,11 @@ public abstract class Locomotive extends AbstractMinecart {
         double pull = running && fuel > 0.0 ? stats.pull(speed) : -stats.force();
         double next = Traction.nextSpeed(speed, pull, resistance, mass, cap);
         setDeltaMovement(dirX * next, 0.0, dirZ * next);
+        if (running && fuel > 0.0) {
+            // A train that waits at the edge of the loaded area goes back to its position each tick (see Trains).
+            boolean waiting = next > 0.0 && !carts.stream().allMatch(cart -> Trains.isActive(level, cart));
+            TrainChunks.keepLoaded(level, carts, moved, waiting, dirX, dirZ);
+        }
     }
 
     /** The resistance of the rail under a minecart for each unit of mass, for a travel along (tx, tz). */

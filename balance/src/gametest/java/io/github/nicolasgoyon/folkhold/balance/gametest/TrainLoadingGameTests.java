@@ -1,8 +1,10 @@
 package io.github.nicolasgoyon.folkhold.balance.gametest;
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
+import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartLinks;
 import io.github.nicolasgoyon.folkhold.balance.rail.Locomotive;
+import io.github.nicolasgoyon.folkhold.balance.rail.TrainChunks;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModEntities;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -157,6 +159,135 @@ public final class TrainLoadingGameTests {
     }
 
     /**
+     * Option {@code loadChunks}. Off: the back wagon is at the edge of the simulation distance and the train waits.
+     * On: the chunk of the wagon ticks for a short time, as when a player comes near, and the train moves. Then the
+     * locomotive loads the chunk of the wagon and the chunks in front of it, and the train goes 20 blocks west of
+     * {@code west}, into chunks that had no ticket. The tickets go away when the train is removed and the
+     * option is off.
+     */
+    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_load_chunks")
+    public static void locomotiveLoadsTheChunksInFrontOfItWhenTheOptionIsOn(GameTestHelper helper) {
+        Far far = new Far(helper);
+        // The rails go 7 chunks to the west of west.
+        for (int x = far.west.x - 2 * FREE_RADIUS; x < far.west.x; x++) {
+            USED.add(ChunkPos.asLong(x, far.west.z));
+        }
+        far.ticket(far.west, 2);
+        for (int x = -100; x < 24; x++) {
+            far.rail(x, 0, RailShape.EAST_WEST);
+        }
+        far.fixRails();
+        List<AbstractMinecart> carts = new ArrayList<>();
+        List<Vec3> start = new ArrayList<>();
+        List<ChunkPos> ahead = new ArrayList<>();
+        // The locomotive burns fuel in each tick while it loads chunks: it gets its full capacity.
+        double fuel = 32000.0;
+        double limit = far.pos(-20, 0).getX();
+        helper.startSequence()
+                .thenWaitUntil(far::assertEdgeReady)
+                .thenExecute(() -> {
+                    Locomotive locomotive = far.spawn(ModEntities.FURNACE_LOCOMOTIVE.get(), FRONT_X, 0);
+                    locomotive.setFuel(fuel);
+                    carts.add(locomotive);
+                    carts.add(far.spawn(EntityType.CHEST_MINECART, BACK_X, 0));
+                    TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
+                    // The locomotive goes away from the minecart behind it: toward the west.
+                    locomotive.setRunning(true, locomotive.position());
+                    start.add(locomotive.position());
+                })
+                .thenIdle(WAIT_TICKS)
+                .thenExecute(() -> {
+                    double moved = carts.get(0).position().distanceTo(start.get(0));
+                    helper.assertTrue(moved < 0.1, "Option off: the locomotive moves " + moved + " blocks");
+                    BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
+                    // The locomotive did not move yet, so it gives no tickets: a player comes near.
+                    far.ticket(far.east, 2);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(carts.get(0).position().distanceTo(start.get(0)) > 1.0,
+                        "The train does not move when the chunk of the wagon ticks"))
+                .thenExecute(() -> far.removeTicket(far.east, 2))
+                .thenWaitUntil(() -> helper.assertTrue(carts.get(0).getX() < limit,
+                        "The train does not go west: the locomotive is at " + carts.get(0).position()))
+                .thenExecute(() -> {
+                    far.assertLinked(carts.get(0), carts.get(1));
+                    helper.assertTrue(far.chains() == 0, "A chain drops");
+                    helper.assertTrue(((Locomotive) carts.get(0)).fuel() < fuel, "The locomotive burns no fuel");
+                })
+                // A chunk that only the train loads: 32 blocks in front of the locomotive, where it is now. The
+                // chunks next to the rails generate during the test, so the chunk can tick only after some ticks.
+                .thenWaitUntil(() -> {
+                    ahead.clear();
+                    ahead.add(new ChunkPos(BlockPos.containing(carts.get(0).getX() - TrainChunks.AHEAD, 0,
+                            carts.get(0).getZ())));
+                    helper.assertTrue(isEntityTicking(far, ahead.get(0)),
+                            "The chunk in front of the locomotive does not tick its entities");
+                })
+                .thenExecute(() -> {
+                    // The train is removed while it is loaded, so that it is not saved in the chunks.
+                    far.clear(carts);
+                    BalanceConfig.TRAIN_LOAD_CHUNKS.set(false);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(!isEntityTicking(far, ahead.get(0)),
+                        "The chunk in front of the removed locomotive keeps its ticket"))
+                .thenSucceed();
+    }
+
+    /**
+     * Option {@code loadChunks} on. A running locomotive goes against a wall at the end of the rails, and its wagon
+     * is at the edge of the simulation distance. After {@link TrainChunks#WAIT_GRACE} ticks with no real movement,
+     * the locomotive gives no tickets, and the chunk of the wagon does not tick its entities.
+     */
+    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_load_chunks_wall")
+    public static void locomotiveAgainstAWallGivesNoTicketsAfterTheGracePeriod(GameTestHelper helper) {
+        Far far = new Far(helper);
+        BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
+        far.ticket(far.west, 2);
+        // The chunk of the wagon ticks until the locomotive is against the wall.
+        far.ticket(far.east, 2);
+        far.level.setBlock(far.pos(14, 0), Blocks.STONE.defaultBlockState(), Block.UPDATE_CLIENTS);
+        for (int x = 15; x < 24; x++) {
+            far.rail(x, 0, RailShape.EAST_WEST);
+        }
+        far.fixRails();
+        List<AbstractMinecart> carts = new ArrayList<>();
+        List<Long> stopTick = new ArrayList<>();
+        helper.startSequence()
+                .thenWaitUntil(far::assertLoaded)
+                .thenExecute(() -> {
+                    Locomotive locomotive = far.spawn(ModEntities.FURNACE_LOCOMOTIVE.get(), 15.9, 0);
+                    locomotive.setFuel(10000.0);
+                    carts.add(locomotive);
+                    carts.add(far.spawn(EntityType.CHEST_MINECART, 17.9, 0));
+                    TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
+                    locomotive.setRunning(true, locomotive.position());
+                })
+                .thenWaitUntil(() -> helper.assertTrue(TrainChunks.isLoading(carts.get(0)),
+                        "The moving locomotive gives no tickets"))
+                .thenWaitUntil(() -> helper.assertTrue(carts.get(0).getX() < far.pos(15, 0).getX() + 0.6
+                        && Math.abs(carts.get(0).getX() - carts.get(0).xo) < 1.0E-4, "The locomotive is not against the wall"))
+                .thenExecute(() -> {
+                    far.removeTicket(far.east, 2);
+                    stopTick.add(helper.getTick());
+                })
+                // Until WAIT_GRACE ticks after the last movement, the train gets tickets when it waits.
+                .thenIdle(TrainChunks.WAIT_GRACE + TrainChunks.LIFESPAN)
+                .thenExecuteFor(3 * TrainChunks.LIFESPAN, () -> helper.assertTrue(
+                        !TrainChunks.isLoading(carts.get(0)), "The locomotive against the wall gives tickets "
+                                + (helper.getTick() - stopTick.get(0)) + " ticks after its last movement"))
+                .thenWaitUntil(() -> far.assertEdge(carts.get(1)))
+                .thenExecute(() -> {
+                    far.assertLinked(carts.get(0), carts.get(1));
+                    helper.assertTrue(far.chains() == 0, "A chain drops");
+                    far.clear(carts);
+                })
+                .thenSucceed();
+    }
+
+    private static boolean isEntityTicking(Far far, ChunkPos chunk) {
+        return far.level.isPositionEntityTicking(chunk.getMiddleBlockPosition(far.y));
+    }
+
+    /**
      * The front minecart is on a slope, and the back minecart is at the edge of the simulation distance. The front
      * minecart does not roll down the slope, and the link does not break.
      */
@@ -301,6 +432,8 @@ public final class TrainLoadingGameTests {
         private final Map<BlockPos, RailShape> shapes = new HashMap<>();
 
         Far(GameTestHelper helper) {
+            // A test that fails can leave the shared config values changed.
+            TrainChunkGameTests.resetOptions();
             this.helper = helper;
             this.level = helper.getLevel();
             this.west = freeChunk(level, new ChunkPos(helper.absolutePos(BlockPos.ZERO).offset(FAR_OFFSET, 0, 0)));
