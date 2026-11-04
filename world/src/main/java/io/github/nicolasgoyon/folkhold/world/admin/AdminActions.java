@@ -218,8 +218,11 @@ public final class AdminActions {
                 if (player == null) {
                     yield Optional.empty();
                 }
+                String id = settlement.id();
                 yield Optional.of(AdminTeleports.request(player, server.overworld(), teleportArea(settlement),
-                        level -> teleportTarget(level, settlement), Result.done("teleport", name).message()));
+                        level -> SettlementData.get(level.getServer()).registry().byId(id)
+                                .map(current -> teleportTarget(level, current)),
+                        Result.done("teleport", name).message()));
             }
             case "level_set" -> {
                 int level = LevelTables.get().clamp(payload.value());
@@ -392,7 +395,8 @@ public final class AdminActions {
             return Result.refused("unknown");
         }
         return AdminTeleports.request(player, player.server.overworld(), new AdminTeleports.Area(x, z, x, z),
-                level -> AdminTeleports.surface(level, x, z), Result.done("teleport_point", x, z).message());
+                level -> Optional.of(AdminTeleports.surface(level, x, z)),
+                Result.done("teleport_point", x, z).message());
     }
 
     /**

@@ -1,33 +1,31 @@
 package io.github.nicolasgoyon.folkhold.world.admin;
 
+import com.mojang.logging.LogUtils;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions.Result;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import net.minecraft.SharedConstants;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ChunkResult;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import org.slf4j.Logger;
 
 /**
  * The teleports of the admin screen and of the operator commands. The server thread does not wait for the chunks of
@@ -36,12 +34,16 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * <p>The target of a teleport comes from the blocks of an area, for example a safe position near a village heart.
  * When all the chunks of the area are ready ({@link ReadyChunks}), the teleport occurs at once. Else:
  * <ol>
- *   <li>The request adds a chunk ticket to each chunk of the area and asks for the futures of these chunks. The player
- *       gets the message {@code teleport.loading}. The server thread does not wait.</li>
- *   <li>When all the futures are complete, the server thread checks the player again: the player is online, is in the
- *       same dimension as at the request, and is an operator. Then the server finds the target in the ready chunks
- *       and teleports the player.</li>
- *   <li>If the futures are not complete after {@link #TIMEOUT_TICKS}, the request stops with a message.</li>
+ *   <li>The request adds a chunk ticket at the full status to each chunk of the area. The ticket alone starts the
+ *       load or the generation of the chunk. The player gets the message {@code teleport.loading}. The server thread
+ *       does not wait.</li>
+ *   <li>At the end of each server tick, {@link #onServerTick} checks the area of each request. When the area is
+ *       ready, the server checks the player again: the player is online, is an operator, and is in the same
+ *       dimension as at the request. Then the server finds the target in the ready chunks and teleports the player.
+ *       If the target is not in the world now (for example a removed settlement), the request stops with a
+ *       message.</li>
+ *   <li>If the area is not ready after {@link #TIMEOUT_SECONDS}, the request stops with a message. The time
+ *       limit is in real time, not in ticks.</li>
  * </ol>
  *
  * <p>A player has a maximum of one request. A new request of the player cancels the request before it. A request
@@ -50,9 +52,10 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * <p>All the methods run on the server thread.
  */
 public final class AdminTeleports {
-    /** The maximum time from the request to the teleport, in ticks. */
-    public static final int TIMEOUT_TICKS = 30 * SharedConstants.TICKS_PER_SECOND;
+    /** The maximum time from the request to the teleport, in seconds. */
+    public static final int TIMEOUT_SECONDS = 30;
 
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final String KEY = "screen.folkhold_world.admin.teleport.";
     /** The ticket that keeps the chunks of a request at the full status. The value is the id of the request. */
     private static final TicketType<Long> TICKET = TicketType.create("folkhold_world_admin_teleport", Long::compare);
@@ -106,8 +109,8 @@ public final class AdminTeleports {
 
     /** A request that waits for its chunks. */
     private record Request(long id, UUID player, ResourceKey<Level> dimension, ServerLevel level, Area area,
-            List<ChunkPos> chunks, Function<ServerLevel, BlockPos> target, Component done, int timeoutTicks,
-            int deadline) {
+            List<ChunkPos> chunks, Function<ServerLevel, Optional<BlockPos>> target, Component done,
+            int timeoutSeconds, long deadline) {
     }
 
     /**
@@ -115,8 +118,8 @@ public final class AdminTeleports {
      * ServerLevel, Area, Function, Component, int)}.
      */
     public static Result request(ServerPlayer player, ServerLevel level, Area area,
-            Function<ServerLevel, BlockPos> target, Component done) {
-        return request(player, level, area, target, done, TIMEOUT_TICKS);
+            Function<ServerLevel, Optional<BlockPos>> target, Component done) {
+        return request(player, level, area, target, done, TIMEOUT_SECONDS);
     }
 
     /**
@@ -124,39 +127,29 @@ public final class AdminTeleports {
      * Else the request waits for the chunks with no wait on the server thread, and the player gets the result later
      * (see {@link AdminActions#sendResult}). This request cancels the request of the player before it.
      *
-     * @param player       the player
-     * @param level        the level of the target
-     * @param area         the area with all the blocks that the target function reads
-     * @param target       finds the position of the feet of the player in the ready chunks of the area
-     * @param done         the message after the teleport
-     * @param timeoutTicks the maximum time from the request to the teleport, in ticks
+     * <p>The target function reads the current state of the target, for example the settlement by its id. It gives
+     * an empty result when the target is not in the world now.
+     *
+     * @param player         the player
+     * @param level          the level of the target
+     * @param area           the area with all the blocks that the target function reads
+     * @param target         finds the position of the feet of the player in the ready chunks of the area, or empty
+     * @param done           the message after the teleport
+     * @param timeoutSeconds the maximum time from the request to the teleport, in seconds
      * @return the result for the player now: the teleport, or the message {@code teleport.loading}
      */
     public static Result request(ServerPlayer player, ServerLevel level, Area area,
-            Function<ServerLevel, BlockPos> target, Component done, int timeoutTicks) {
+            Function<ServerLevel, Optional<BlockPos>> target, Component done, int timeoutSeconds) {
         cancel(player.getUUID());
         if (area.isReady(level)) {
-            teleport(player, level, target.apply(level));
-            return new Result(done, true);
+            return teleport(player, level, target, done);
         }
-        MinecraftServer server = level.getServer();
         Request request = new Request(nextId++, player.getUUID(), player.level().dimension(), level, area,
-                area.chunks(), target, done, timeoutTicks, server.getTickCount() + timeoutTicks);
+                area.chunks(), target, done, timeoutSeconds, Util.getMillis() + timeoutSeconds * 1000L);
         REQUESTS.put(request.player(), request);
-        List<CompletableFuture<ChunkResult<ChunkAccess>>> futures = new ArrayList<>();
         for (ChunkPos chunk : request.chunks()) {
             level.getChunkSource().addRegionTicket(TICKET, chunk, TICKET_DISTANCE, request.id());
-            futures.add(chunkFuture(level, chunk));
         }
-        // The completion reports its result to the server thread: the future is not needed.
-        var unused = CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-                .whenComplete((ignored, error) -> {
-                    if (!server.isStopped()) {
-                        server.execute(() -> complete(request, error == null && futures.stream()
-                                .map(future -> future.getNow(null))
-                                .allMatch(result -> result != null && result.isSuccess())));
-                    }
-                });
         return new Result(Component.translatable(KEY + "loading"), true);
     }
 
@@ -183,71 +176,33 @@ public final class AdminTeleports {
         return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
     }
 
-    /**
-     * The future of a chunk at the full status. {@code ServerChunkCache.getChunkFuture} waits for the chunk when
-     * the caller is the server thread. A background thread calls it, and the method gives the future at once.
-     */
-    private static CompletableFuture<ChunkResult<ChunkAccess>> chunkFuture(ServerLevel level, ChunkPos chunk) {
-        CompletableFuture<ChunkResult<ChunkAccess>> future = new CompletableFuture<>();
-        Util.backgroundExecutor().execute(() -> {
-            // The completion copies the result to the returned future: the future of whenComplete is not needed.
-            var unused = level.getChunkSource().getChunkFuture(chunk.x, chunk.z, ChunkStatus.FULL, true)
-                    .whenComplete((result, error) -> {
-                        if (error != null) {
-                            future.completeExceptionally(error);
-                        } else {
-                            future.complete(result);
-                        }
-                    });
-        });
-        return future;
-    }
-
-    /** Teleports the player when the futures of the request are complete. */
-    private static void complete(Request request, boolean loaded) {
-        MinecraftServer server = request.level().getServer();
-        if (!server.isSameThread() || REQUESTS.get(request.player()) != request) {
-            // The request stopped before: logout, time limit, new request or stop of the server.
-            return;
-        }
-        try {
-            ServerPlayer player = server.getPlayerList().getPlayer(request.player());
-            if (player == null) {
-                return;
-            }
-            if (server.getTickCount() >= request.deadline()) {
-                AdminActions.sendResult(player, timeout(request));
-            } else if (!loaded || !request.area().isReady(request.level())) {
-                AdminActions.sendResult(player, refused("error"));
-            } else if (!AdminActions.isAllowed(player)) {
-                AdminActions.sendResult(player, new Result(Component.translatable(
-                        "screen.folkhold_world.admin.denied"), false));
-            } else if (!player.level().dimension().equals(request.dimension())) {
-                AdminActions.sendResult(player, refused("dimension"));
-            } else {
-                teleport(player, request.level(), request.target().apply(request.level()));
-                AdminActions.sendResult(player, new Result(request.done(), true));
-            }
-        } finally {
-            release(request);
-        }
-    }
-
-    /** Stops the requests after their time limit. */
+    /** Completes the requests with a ready area, and stops the requests after their time limit. */
     public static void onServerTick(ServerTickEvent.Post event) {
         if (REQUESTS.isEmpty()) {
             return;
         }
         MinecraftServer server = event.getServer();
         for (Request request : List.copyOf(REQUESTS.values())) {
-            if (server.getTickCount() >= request.deadline()) {
+            boolean timeout = Util.getMillis() >= request.deadline();
+            if (timeout || request.area().isReady(request.level())) {
                 release(request);
                 ServerPlayer player = server.getPlayerList().getPlayer(request.player());
                 if (player != null) {
-                    AdminActions.sendResult(player, timeout(request));
+                    AdminActions.sendResult(player, timeout ? timeout(request) : complete(request, player));
                 }
             }
         }
+    }
+
+    /** The result of a request with a ready area: the teleport, or the reason of the refusal. */
+    private static Result complete(Request request, ServerPlayer player) {
+        if (!AdminActions.isAllowed(player)) {
+            return new Result(Component.translatable("screen.folkhold_world.admin.denied"), false);
+        }
+        if (!player.level().dimension().equals(request.dimension())) {
+            return refused("dimension");
+        }
+        return teleport(player, request.level(), request.target(), request.done());
     }
 
     /** Stops the request of a player who logs out. */
@@ -275,14 +230,27 @@ public final class AdminTeleports {
         }
     }
 
-    private static void teleport(ServerPlayer player, ServerLevel level, BlockPos feet) {
-        player.teleportTo(level, feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5, player.getYRot(),
-                player.getXRot());
+    /** Teleports the player to the target. The chunks of the area must be ready. */
+    private static Result teleport(ServerPlayer player, ServerLevel level,
+            Function<ServerLevel, Optional<BlockPos>> target, Component done) {
+        try {
+            Optional<BlockPos> feet = target.apply(level);
+            if (feet.isEmpty()) {
+                return refused("gone");
+            }
+            BlockPos pos = feet.get();
+            player.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, player.getYRot(),
+                    player.getXRot());
+            return new Result(done, true);
+        } catch (RuntimeException e) {
+            LOGGER.error("The admin teleport of {} failed", player.getGameProfile().getName(), e);
+            return refused("error");
+        }
     }
 
     private static Result timeout(Request request) {
         return new Result(Component.translatable(KEY + "timeout",
-                request.timeoutTicks() / SharedConstants.TICKS_PER_SECOND), false);
+                request.timeoutSeconds()), false);
     }
 
     private static Result refused(String key) {

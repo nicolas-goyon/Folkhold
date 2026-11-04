@@ -272,9 +272,11 @@ public final class GroupCommands {
         Route.Position position = found.get().position();
         int x = (int) Math.floor(position.x());
         int z = (int) Math.floor(position.z());
+        String id = found.get().id();
         AdminActions.Result result = AdminTeleports.request(player, source.getServer().overworld(),
-                new AdminTeleports.Area(x, z, x, z), level -> AdminTeleports.surface(level, x, z),
-                Component.translatable(KEY + "caravan.teleported", shortId(found.get().id())));
+                new AdminTeleports.Area(x, z, x, z), level -> MobileGroupData.get(level.getServer()).groups().byId(id)
+                        .map(group -> AdminTeleports.surface(level, x, z)),
+                Component.translatable(KEY + "caravan.teleported", shortId(id)));
         source.sendSuccess(result::message, false);
         return 1;
     }
