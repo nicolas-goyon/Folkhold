@@ -363,6 +363,17 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
 - When a raider has a target, it attacks. When it loses the target, it marches again. At 12 blocks from the heart, the raider arrives: the vanilla goals of the raid move it in the village. After its arrival, a raider marches again only when it is outside the palisade.
 - The raiders target the faction units, as the other monsters do. A garrison can stop a wave outside the palisade.
 
+**Balance targets** (targets of version 1, not a description of the current balance). The raid level is the level of the Raid Omen (1 to 5), at the difficulty Normal. The village holds when the raid ends in a victory. The village falls when all the units of its garrison die, or when the raid ends in a loss.
+
+| Raid level | Hamlet | Village | Town | City | Capital |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Falls | Holds | Holds | Holds | Holds |
+| 2 to 3 | Falls | Falls | Holds | Holds | Holds |
+| 4 to 5 | Falls | Falls | Falls | Holds | Holds |
+
+- The exit criterion of version 1 ("a large village resists a raid, a small village falls") is the GameTests of `RaidBalanceGameTests` for the decisive cells of the targets: a hamlet (level 1) falls to a raid of level 1, a village (level 5) holds against a raid of level 1, a town (level 9) holds against a raid of level 3, and a city (level 13) holds against a raid of level 5. The units and the raiders use random sources with no fixed seed: each of these tests runs up to 5 trials and checks the result of 3 trials.
+- The harness of these tests measures the garrison against the raiders: a heart, the full garrison of the level, 4 villagers with a bed, no palisade, and no refill of the garrison. A Holds result with no walls is also a Holds result with the palisade. A Falls result is measured with no walls only: part 2 of the balance measures the Falls cells again with the palisade of the level. The chunks in the gate radius of the heart (village radius and chase radius) plus one chunk stay loaded and ticking during a trial. The arena is a cell of the GameTest grid: the barrier cages of the tests that ran before stay near the spawn positions of the raiders. A trial stalls when no raider and no unit dies, the raiders lose no health and no wave spawns during 2 minutes of game time. The environment variable `FOLKHOLD_RAID_MATRIX=<runs>` adds the optional trials of the raid levels 1, 3 and 5 against the first level of each tier. Each trial writes a line `Raid trial:` in the log of the GameTest server.
+
 ### NPC types
 
 | NPC | Role | Key behavior |
