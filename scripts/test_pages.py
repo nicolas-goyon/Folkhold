@@ -50,6 +50,13 @@ DRAFT = {
     "assets": [],
 }
 REQUIREMENTS = {"minecraft": "1.21.1", "neoforge": "21.1.259", "geckolib": "4.9.3"}
+CHANGES = pages.changes_by_version([
+    {"version": "0.2.0", "entries": [
+        {"category": "new", "pull_request": 2, "en_us": "Caravans & mules.", "fr_fr": "Caravanes et mules."},
+        {"category": "fixed", "pull_request": 3, "en_us": "Gates close.", "fr_fr": "Les portes ferment."}]},
+    {"version": "0.3.0", "entries": [
+        {"category": "new", "pull_request": 4, "en_us": "Not released.", "fr_fr": "Pas publié."}]},
+])
 
 
 class LanguageTest(unittest.TestCase):
@@ -140,11 +147,15 @@ class NotesTest(unittest.TestCase):
 
 
 class BuildTest(unittest.TestCase):
-    def build(self, releases, latest, requirements):
+    def build(self, releases, latest, requirements, changes=None, images=None):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        out = Path(folder.name)
-        pages.build(out, "owner/repo", releases, latest, requirements)
+        out = Path(folder.name) / "site"
+        source = Path(folder.name) / "images"
+        source.mkdir()
+        for name in images or ():
+            (source / name).write_bytes(b"image")
+        pages.build(out, "owner/repo", releases, latest, requirements, changes, source)
         return out
 
     def test_site(self):
@@ -179,7 +190,46 @@ class BuildTest(unittest.TestCase):
         self.assertIn('<a href="../" lang="en" hreflang="en">English</a>', french)
         self.assertIn("1er octobre 2026", french)
         self.assertIn("1,3&nbsp;Mo", french)
-        self.assertIn('<p class="note">Les notes de version sont en anglais.</p>', french)
+        self.assertIn('<p class="note">Les détails techniques des versions sont en anglais.</p>', french)
+        # The presentation and the server card are in each language. No screenshot: the slots show the icons.
+        self.assertIn('id="features"', english)
+        self.assertIn("Fortified villages", english)
+        self.assertIn("Villages fortifiés", french)
+        self.assertIn("<h3>Serveur</h3>", french)
+        self.assertIn('<figure class="hero-shot"></figure>', english)
+        self.assertNotIn("<img", english)
+        self.assertFalse((out / "images").exists())
+        self.assertNotIn("Cartofold", english)
+
+    def test_changes_in_the_language_of_the_page(self):
+        out = self.build([LATEST, PRERELEASE], LATEST, REQUIREMENTS, CHANGES)
+        english = (out / "index.html").read_text(encoding="utf-8")
+        french = (out / "fr" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<div class="changes"><h4>New</h4><ul><li>Caravans &amp; mules.</li></ul>'
+                      '<h4>Fixed</h4><ul><li>Gates close.</li></ul></div>', english)
+        self.assertIn("<h4>Nouveau</h4><ul><li>Caravanes et mules.</li></ul>", french)
+        # The notes of GitHub go into a closed section. A release with no changes shows its notes.
+        self.assertIn('<details class="details"><summary>Technical details</summary><div class="notes">', english)
+        self.assertIn('<div class="notes"><p>First release</p></div>', english)
+        # A version with no release is not on the page.
+        self.assertNotIn("Not released.", english)
+
+    def test_changes_of_a_third_language_are_in_english(self):
+        html = pages.render_changes(CHANGES["0.2.0"], "de_de", {f"changes.{c}": c for c in ("new", "fixed")})
+        self.assertEqual("<h4>new</h4><ul><li>Caravans &amp; mules.</li></ul><h4>fixed</h4><ul><li>Gates close.</li>"
+                         "</ul>", html)
+
+    def test_screenshots(self):
+        out = self.build([LATEST], LATEST, REQUIREMENTS | {"cartofold": "0.23.4"},
+                         images=["villages.png", "villages.webp", "hero.jpg", "other.png", "quests.gif"])
+        self.assertEqual(["hero.jpg", "villages.webp"], sorted(path.name for path in (out / "images").iterdir()))
+        english = (out / "index.html").read_text(encoding="utf-8")
+        french = (out / "fr" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<figure class="hero-shot"><img src="images/hero.jpg" alt="A faction village with its wall and '
+                      'its towers" loading="eager" decoding="async"></figure>', english)
+        self.assertIn('<img src="../images/villages.webp" alt="La place', french)
+        self.assertEqual(2, english.count("<img"))
+        self.assertIn("Cartofold</a> 0.23.4 or later.", english)
 
     def test_site_with_no_release(self):
         out = self.build([], None, None)

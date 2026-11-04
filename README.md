@@ -18,6 +18,7 @@ The reputation of the player decides how each village receives them.
 [![Code license: MIT](https://img.shields.io/badge/code-MIT-2EA44F)](LICENSE)
 [![Assets license: CC BY 4.0](https://img.shields.io/badge/assets-CC%20BY%204.0-8A8A8A)](docs/ASSETS_LICENSES.md)
 
+[Website](https://nicolas-goyon.github.io/Folkhold/) ·
 [Download](https://github.com/nicolas-goyon/Folkhold/releases) ·
 [Release notes](https://nicolas-goyon.github.io/Folkhold/#release-notes) ·
 [Design](docs/design.md) ·

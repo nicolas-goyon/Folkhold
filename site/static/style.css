@@ -124,9 +124,46 @@ tt {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
     gap: 0.5rem 1rem;
     font-size: 0.95rem;
+}
+
+.sections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+}
+
+.hero-body {
+    display: grid;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+/* With no screenshot, the figure of the hero is empty and the text uses all the width. */
+.hero-shot {
+    margin: 0;
+}
+
+.hero-shot:empty {
+    display: none;
+}
+
+.hero-shot img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.18);
+}
+
+@media (min-width: 52rem) {
+    .hero-body:has(.hero-shot:not(:empty)) {
+        grid-template-columns: 1.1fr 1fr;
+    }
 }
 
 .languages {
@@ -249,6 +286,96 @@ h3 {
     line-height: 1.3;
 }
 
+/* Presentation */
+
+.lead {
+    max-width: 42rem;
+    margin: 0 0 1.5rem;
+    color: var(--muted);
+    font-size: 1.05rem;
+}
+
+.features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    gap: 1rem;
+}
+
+.feature {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+.feature h3,
+.feature p {
+    margin-left: 1.25rem;
+    margin-right: 1.25rem;
+}
+
+.feature h3 {
+    margin-top: 1rem;
+}
+
+.feature p {
+    margin-top: 0;
+    margin-bottom: 1.25rem;
+}
+
+/* A slot for a screenshot. With no screenshot, the slot shows the icon of the feature on a pattern. */
+.shot {
+    position: relative;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    aspect-ratio: 16 / 9;
+    border-bottom: 1px solid var(--border);
+    background:
+        repeating-linear-gradient(45deg, transparent 0 14px, rgb(127 110 85 / 0.07) 14px 28px),
+        var(--surface-alt);
+}
+
+.shot:not(:has(img)) {
+    aspect-ratio: auto;
+    height: 6.5rem;
+}
+
+.shot-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.8;
+}
+
+.shot:has(img) .shot-icon {
+    display: none;
+}
+
+.shot img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.also-title {
+    margin-top: 1.75rem;
+}
+
+.also {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: 0.5rem 1.5rem;
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
 /* Downloads */
 
 .latest {
@@ -285,6 +412,10 @@ h3 {
 .card ol {
     margin: 0;
     padding-left: 1.4rem;
+}
+
+.card ol + p {
+    margin-top: 1rem;
 }
 
 .card li + li {
@@ -459,6 +590,31 @@ h3 {
 .notes td:first-child,
 .notes td:last-child {
     white-space: nowrap;
+}
+
+.changes {
+    padding: 0.25rem 1.25rem 0.5rem;
+    border-top: 1px solid var(--border);
+}
+
+.changes h4 {
+    margin: 1rem 0 0.4rem;
+    font-size: 1rem;
+}
+
+.changes ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.changes li + li {
+    margin-top: 0.3rem;
+}
+
+.details > summary {
+    padding: 0.5rem 1.25rem;
+    color: var(--muted);
+    cursor: pointer;
 }
 
 .release-link {

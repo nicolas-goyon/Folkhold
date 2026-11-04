@@ -1,8 +1,9 @@
 name: Pages
 
-# Publishes the site of the project to GitHub Pages. scripts/pages.py builds the site from site/ and from the releases
-# of the GitHub API: the downloads of the latest release and the notes of all the releases, in each language of
-# site/lang/. The site also has these files:
+# Publishes the site of the project to GitHub Pages. scripts/pages.py builds the site from site/, from the changelog
+# entries of changelog/ and from the releases of the GitHub API: the presentation with the screenshots of site/images/,
+# the downloads of the latest release and the notes of all the releases, in each language of site/lang/. The site also
+# has these files:
 # - version.json: the version of the latest release, in the format of the endpoint badges of shields.io. The version
 #   badge of the README reads this file, so the badge does not need the GitHub API.
 # - dev/: the dev pack of the latest green build of a push on develop (artifact folkhold-dev-pack of the workflow
@@ -21,6 +22,7 @@ on:
     paths:
       - 'site/**'
       - 'scripts/pages.py'
+      - 'scripts/changelog.py'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -44,7 +46,8 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The tags, for gradle.properties at the tag of the latest release.
+          # The history and the tags, for gradle.properties at the tag of the latest release and for the versions of
+          # the changelog entries.
           fetch-depth: 0
 
       - name: Build the site
