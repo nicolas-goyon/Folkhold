@@ -4,8 +4,11 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.RenderShape;
@@ -40,6 +43,15 @@ public abstract class EntityFeatureBlock extends BaseEntityBlock {
     @Override
     protected RenderShape getRenderShape(BlockState state) {
         return RenderShape.MODEL;
+    }
+
+    @Override
+    protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
+            Player player, InteractionHand hand, BlockHitResult hitResult) {
+        ItemInteractionResult result = BlockFeatures.of(this).useItemOn(stack, state, level, pos, player, hand,
+                hitResult);
+        return result != ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION ? result
+                : super.useItemOn(stack, state, level, pos, player, hand, hitResult);
     }
 
     @Override
