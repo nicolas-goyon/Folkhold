@@ -3,6 +3,12 @@ package io.github.nicolasgoyon.folkhold.balance.client;
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModItems;
+import javax.annotation.Nullable;
+import net.minecraft.client.model.geom.ModelLayers;
+import net.minecraft.client.renderer.entity.MinecartRenderer;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.util.FastColor;
+import net.minecraft.world.item.DyeColor;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -19,6 +25,8 @@ import net.neoforged.neoforge.common.NeoForge;
  */
 @Mod(value = FolkholdBalance.MOD_ID, dist = Dist.CLIENT)
 public final class FolkholdBalanceClient {
+    /** The color of a shulker box with no dye, as RGB. */
+    private static final int SHULKER_COLOR = 0x976997;
 
     public FolkholdBalanceClient(IEventBus modEventBus, ModContainer modContainer) {
         // Config screen in the mod list. Server values are editable only in a world.
@@ -29,15 +37,30 @@ public final class FolkholdBalanceClient {
             event.registerEntityRenderer(ModEntities.HEAVY_LOCOMOTIVE.get(),
                     context -> new LocomotiveRenderer<>(context, LocomotiveRenderer.HEAVY_COLOR));
             event.registerEntityRenderer(ModEntities.DOUBLE_CHEST_MINECART.get(), DoubleChestMinecartRenderer::new);
+            // The block entity item renderer draws the shulker box of the display block state in its color.
+            event.registerEntityRenderer(ModEntities.SHULKER_BOX_MINECART.get(),
+                    context -> new MinecartRenderer<>(context, ModelLayers.CHEST_MINECART));
         });
-        // The color of each locomotive on the icon of the vanilla furnace minecart, and of the double chest minecart.
+        // The color of each locomotive on the icon of the vanilla furnace minecart, and of the chest minecarts.
         modEventBus.addListener((RegisterColorHandlersEvent.Item event) -> {
             event.register((stack, layer) -> LocomotiveRenderer.FURNACE_COLOR, ModItems.FURNACE_LOCOMOTIVE.get());
             event.register((stack, layer) -> LocomotiveRenderer.HEAVY_COLOR, ModItems.HEAVY_LOCOMOTIVE.get());
             event.register((stack, layer) -> DoubleChestMinecartRenderer.ICON_COLOR,
                     ModItems.DOUBLE_CHEST_MINECART.get());
+            event.register((stack, layer) -> shulkerIconColor(stack.get(DataComponents.BASE_COLOR)),
+                    ModItems.SHULKER_BOX_MINECART.get());
         });
         NeoForge.EVENT_BUS.addListener(ChainRenderer::onRenderLevel);
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientCartLinks.clear());
+    }
+
+    /**
+     * The color of the icon of the shulker box minecart: the color of the shulker box, half mixed with white. Thus a
+     * dark color does not hide the minecart on the icon.
+     */
+    static int shulkerIconColor(@Nullable DyeColor color) {
+        int rgb = color == null ? SHULKER_COLOR : color.getTextureDiffuseColor();
+        return FastColor.ARGB32.color(255, (FastColor.ARGB32.red(rgb) + 255) / 2,
+                (FastColor.ARGB32.green(rgb) + 255) / 2, (FastColor.ARGB32.blue(rgb) + 255) / 2);
     }
 }

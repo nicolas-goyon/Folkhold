@@ -865,6 +865,14 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - It is a wagon of a train as the other minecarts with a container. It carries 2 times the cargo of a chest minecart, so its cargo mass is 2 times larger: a full double chest minecart has a mass of `wagonMass` + 2 × `cargoMass` (see "Locomotive").
 - It looks like the vanilla chest minecart with a second chest on the first chest. The item has the icon of the chest minecart in a darker color.
 
+### Shulker box minecart
+
+- **Implemented** (`ShulkerMinecart`, `ShulkerMinecartItem`, `ShulkerMinecartRecipe`): a minecart with a shulker box: 27 slots and the shulker box screen. It has no color or one of the 16 dye colors. Recipe: minecart and shulker box, with no shape. The result keeps the items and the color of the shulker box. A shulker box with a loot table does not match. The item and the dispenser place it on a rail as a vanilla minecart, with its items and its color.
+- The minecart keeps its items as a shulker box does. When it is removed (a player, a creative player, an explosion, lava, a cactus, `/kill`), it drops one item with its items, its color and its name. Its stacks never drop one by one. An empty minecart drops its item only when damage destroys it and the game rule `doEntityDrops` is true.
+- The item cannot go into a shulker box, a bundle or a shulker box minecart, as a shulker box. A shulker box cannot go into the minecart. A destroyed item entity (for example in lava) drops its items, as a shulker box item.
+- Hoppers, hopper minecarts and the item handlers of NeoForge fill it and empty it, with the same rule as a shulker box. It has no loot table, as the double chest minecart. It is a wagon of a train with the mass of a chest minecart.
+- It shows the vanilla shulker box in its color on the minecart. The item has the icon of the chest minecart in the color of the shulker box, mixed with white.
+
 ### Speed
 
 - **Implemented** (`TrainSpeed`, a mixin of `AbstractMinecart#getMaxSpeedWithRail`): the vanilla rails move a minecart in one straight step each tick, along the rail under it. The speed cap of the vanilla rails is 0.4 blocks per tick. Above this speed, a minecart can go past a curve or the top of a slope in one step and leave the rails.

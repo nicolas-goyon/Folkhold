@@ -116,8 +116,8 @@ public final class BalanceConfig {
                 .translation(KEY_PREFIX + "wagonMass")
                 .defineInRange("wagonMass", traction.wagonMass(), 0.1, 100.0);
         CARGO_MASS = builder
-                .comment("Mass of the cargo of a full wagon. A wagon with half of its slots full has half of this",
-                        "mass. The stack size of each item gives its fill.")
+                .comment("Mass of the cargo of a full chest minecart. A wagon with half of its slots full has half of",
+                        "this mass. The stack size of each item gives its fill.")
                 .translation(KEY_PREFIX + "cargoMass")
                 .defineInRange("cargoMass", traction.cargoMass(), 0.0, 100.0);
         FRICTION = builder

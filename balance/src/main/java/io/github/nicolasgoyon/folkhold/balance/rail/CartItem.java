@@ -70,8 +70,13 @@ public class CartItem extends Item {
         }
         cart.moveTo(pos.x, pos.y, pos.z);
         EntityType.<AbstractMinecart>createDefaultStackConfig(level, stack, player).accept(cart);
+        configure(cart, stack);
         level.addFreshEntity(cart);
         return true;
+    }
+
+    /** Gives the data of the item to a new minecart before it goes into the level. */
+    protected void configure(AbstractMinecart cart, ItemStack stack) {
     }
 
     /** The dispenser places the minecart on the rail in front of it, as for a vanilla minecart. */
