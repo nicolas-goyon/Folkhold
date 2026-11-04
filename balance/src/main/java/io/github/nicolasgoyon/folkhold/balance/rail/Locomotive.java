@@ -17,6 +17,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
+import net.minecraft.world.entity.vehicle.ContainerEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUtils;
 import net.minecraft.world.level.Level;
@@ -111,11 +112,14 @@ public abstract class Locomotive extends AbstractMinecart {
 
     @Override
     public void tick() {
+        // A locomotive with a front link is a wagon of another train: it does not drive and burns no fuel.
+        boolean front = CartLinks.get(this).front().isPresent();
         if (level() instanceof ServerLevel) {
+            fuel = Math.min(fuel, stats().fuelCapacity());
             // The movement from the start of the last tick, with the corrections of the train: a train that waits
             // goes back to its position, so its fuel does not burn.
             double moved = Math.min(1.0, Math.sqrt(Math.pow(xo - startX, 2) + Math.pow(zo - startZ, 2)));
-            if (running && fuel > 0.0 && Double.isFinite(moved)) {
+            if (running && !front && fuel > 0.0 && Double.isFinite(moved)) {
                 fuel = Math.max(0.0, fuel - moved * stats().fuelPerBlock());
             }
             startX = xo;
@@ -123,7 +127,7 @@ public abstract class Locomotive extends AbstractMinecart {
             entityData.set(DATA_BURNING, running && fuel > 0.0);
         }
         super.tick();
-        if (level() instanceof ServerLevel level && !isRemoved() && isOnRails()) {
+        if (level() instanceof ServerLevel level && !front && !isRemoved() && isOnRails()) {
             drive(level);
         }
         if (level().isClientSide() && isBurning() && random.nextInt(4) == 0) {
@@ -200,8 +204,14 @@ public abstract class Locomotive extends AbstractMinecart {
         return traction.resistance(uphill, power);
     }
 
-    /** The fill ratio of the slots of a minecart with a container, from 0 to 1. Other minecarts give 0. */
+    /**
+     * The fill ratio of the slots of a minecart with a container, from 0 to 1. Other minecarts give 0. A minecart that
+     * still has a loot table counts as empty: a read of its slots generates the loot.
+     */
     static double fillRatio(AbstractMinecart cart) {
+        if (cart instanceof ContainerEntity loot && loot.getLootTable() != null) {
+            return 0.0;
+        }
         if (!(cart instanceof Container container) || container.getContainerSize() == 0) {
             return 0.0;
         }
@@ -251,11 +261,6 @@ public abstract class Locomotive extends AbstractMinecart {
         player.displayClientMessage(Component.translatable("folkhold_balance.locomotive." + state,
                 (int) (fuel / Math.max(stats.fuelPerBlock(), 1.0E-3))), true);
         return InteractionResult.CONSUME;
-    }
-
-    @Override
-    public float getMaxCartSpeedOnRail() {
-        return RAIL_SPEED_CAP;
     }
 
     /** The locomotive sets its own speed: no vanilla slope. */

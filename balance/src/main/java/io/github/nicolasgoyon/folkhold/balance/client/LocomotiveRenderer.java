@@ -24,6 +24,8 @@ public final class LocomotiveRenderer<T extends Locomotive> extends MinecartRend
     private static final float RED = 0.85F;
     private static final float GREEN = 0.55F;
     private static final float BLUE = 0.4F;
+    /** The same color for the item, as ARGB. */
+    static final int ITEM_COLOR = 0xFFD98C66;
     /** The sides of the block, and null for the quads that are not on a side. */
     private static final Direction[] SIDES = {null, Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH,
         Direction.WEST, Direction.EAST};

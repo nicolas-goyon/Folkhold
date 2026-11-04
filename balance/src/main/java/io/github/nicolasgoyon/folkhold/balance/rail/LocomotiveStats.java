@@ -22,9 +22,6 @@ public record LocomotiveStats(double maxSpeed, double force, double mass, int fu
      * @return the force, from 0 to {@link #force()}
      */
     public double pull(double speed) {
-        if (maxSpeed <= 0.0) {
-            return 0.0;
-        }
         return Math.max(0.0, force * (1.0 - Math.max(0.0, speed) / maxSpeed));
     }
 }

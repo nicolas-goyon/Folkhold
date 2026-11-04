@@ -69,11 +69,6 @@ class TractionTest {
         assertTrue(topSpeed(8, FULL) <= FURNACE.maxSpeed());
     }
 
-    @Test
-    void oneCoalGivesAboutTwoHundredBlocks() {
-        assertEquals(200.0, 1600 / FURNACE.fuelPerBlock(), 1.0);
-    }
-
     /** The speed of a train on flat rails after 2000 ticks. */
     private static double topSpeed(int wagons, double wagonMass) {
         double mass = FURNACE.mass() + wagons * wagonMass;

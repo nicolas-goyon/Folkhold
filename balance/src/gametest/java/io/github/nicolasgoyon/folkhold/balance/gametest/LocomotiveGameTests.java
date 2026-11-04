@@ -22,6 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.RailShape;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -116,6 +117,38 @@ public final class LocomotiveGameTests {
                         "The locomotive does not continue with coal"))
                 .thenExecute(() -> clear(helper, train))
                 .thenSucceed();
+    }
+
+    /**
+     * A lava bucket gives its fuel and the player gets the empty bucket. A chest minecart with a loot table behind
+     * the running locomotive keeps its loot table: the mass of the train does not generate the loot.
+     */
+    @GameTest(template = "bench", timeoutTicks = 100, batch = "balance_rails")
+    public static void lavaBucketAndLootWagon(GameTestHelper helper) {
+        TrainGameTests.floor(helper, 24, 8);
+        for (int x = 1; x < 23; x++) {
+            TrainGameTests.rail(helper, x, BENCH_Z, RailShape.EAST_WEST);
+        }
+        TrainGameTests.fixRails(helper);
+        List<AbstractMinecart> train = train(helper, 4.5, BENCH_Z, 1, false);
+        Locomotive locomotive = (Locomotive) train.get(0);
+        MinecartChest wagon = (MinecartChest) train.get(1);
+        wagon.setLootTable(BuiltInLootTables.ABANDONED_MINESHAFT);
+        locomotive.setFuel(0.0);
+        ServerPlayer player = TrainGameTests.survivalPlayer(helper, new Vec3(1.5, 1.0, BENCH_Z + 1.5));
+        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.LAVA_BUCKET));
+        player.interactOn(locomotive, InteractionHand.MAIN_HAND);
+        helper.assertTrue(player.getMainHandItem().is(Items.BUCKET), "The player does not get the empty bucket");
+        helper.assertTrue(locomotive.fuel() == 20000.0, "The lava bucket gives " + locomotive.fuel() + " fuel");
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        start(helper, locomotive);
+        helper.runAtTickTime(20, () -> {
+            helper.assertTrue(locomotive.getX() > 5.0 + helper.absoluteVec(Vec3.ZERO).x, "The locomotive does not move");
+            helper.assertTrue(wagon.getLootTable() != null, "The locomotive generates the loot of the wagon");
+            wagon.setLootTable(null);
+            clear(helper, train);
+            helper.succeed();
+        });
     }
 
     /** A locomotive with 8 empty wagons goes farther in 60 ticks than a locomotive with 8 full wagons. */
