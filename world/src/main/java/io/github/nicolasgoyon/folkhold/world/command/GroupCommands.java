@@ -16,6 +16,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
+import io.github.nicolasgoyon.folkhold.world.admin.AdminTeleports;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.group.CaravanRoutes;
@@ -41,9 +42,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.levelgen.Heightmap;
 
 /**
  * Commands of the caravans and the quests (operators only):
@@ -52,7 +51,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
  *   <li>{@code /folkhold caravan info <id>}: the members, the cargo and the payment of a group.</li>
  *   <li>{@code /folkhold caravan spawn <from> <to>}: a caravan that leaves now, with up to 32 items of the largest
  *       stock of the origin.</li>
- *   <li>{@code /folkhold caravan tp <id>}: moves the player to a group.</li>
+ *   <li>{@code /folkhold caravan tp <id>}: moves the player to the surface at the position of a group. The server
+ *       does not wait for the chunk of the group (see {@link AdminTeleports}).</li>
  *   <li>{@code /folkhold caravan remove <id>}: removes a group and its entities. Its escort fails.</li>
  *   <li>{@code /folkhold quest list [player]}: the active quests of a player.</li>
  *   <li>{@code /folkhold quest give <player> delivery|escort}: gives a quest of the nearest village to the
@@ -269,16 +269,15 @@ public final class GroupCommands {
             source.sendFailure(Component.translatable(KEY + "caravan.unknown"));
             return 0;
         }
-        ServerLevel level = source.getServer().overworld();
         Route.Position position = found.get().position();
         int x = (int) Math.floor(position.x());
         int z = (int) Math.floor(position.z());
-        level.getChunk(x >> 4, z >> 4);
-        BlockPos pos = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
-        player.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, player.getYRot(),
-                player.getXRot());
-        source.sendSuccess(() -> Component.translatable(KEY + "caravan.teleported", shortId(found.get().id())),
-                false);
+        String id = found.get().id();
+        AdminActions.Result result = AdminTeleports.request(player, source.getServer().overworld(),
+                new AdminTeleports.Area(x, z, x, z), level -> MobileGroupData.get(level.getServer()).groups().byId(id)
+                        .map(group -> AdminTeleports.surface(level, x, z)),
+                Component.translatable(KEY + "caravan.teleported", shortId(id)));
+        source.sendSuccess(result::message, false);
         return 1;
     }
 

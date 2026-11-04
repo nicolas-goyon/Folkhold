@@ -7,9 +7,11 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminActions;
 import io.github.nicolasgoyon.folkhold.world.admin.AdminMap;
+import io.github.nicolasgoyon.folkhold.world.admin.AdminTeleports;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
@@ -19,14 +21,27 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ChunkLevel;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.ServerOpListEntry;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -41,6 +56,13 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class AdminGameTests {
     private static final BlockPos HEART = new BlockPos(8, 1, 8);
+    /** Block X of the far settlements of the teleport tests. The chunks there are not generated. */
+    private static final int FAR_X = 27_000_000;
+    /**
+     * The time limit of the tests that wait for the generation of chunks, in ticks. The GameTest server does not wait
+     * between two ticks, but the generation takes real time.
+     */
+    private static final int TELEPORT_TEST_TICKS = 12_000;
 
     private AdminGameTests() {
     }
@@ -191,6 +213,220 @@ public final class AdminGameTests {
                 && helper.getLevel().getBlockState(target.above()).isAir(), "The target must be free, not " + target);
         retire(helper, settlement);
         helper.succeed();
+    }
+
+    /** A settlement with no heart in the state ruins, far from the test area, so the simulation ignores it. */
+    private static Settlement farRuins(MinecraftServer server, int z) {
+        Settlement settlement = new Settlement(UUID.randomUUID().toString(), FAR_X >> 4, z >> 4, "test_faction",
+                "Teleport target", FAR_X, z);
+        settlement.setState(SettlementState.RUINS);
+        SettlementData data = SettlementData.get(server);
+        data.registry().add(settlement);
+        data.setDirty();
+        return settlement;
+    }
+
+    /** A mock player who is an operator. {@link #logOut} removes the player and the operator entry. */
+    private static ServerPlayer operator(GameTestHelper helper) {
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        // The operator level of the GameTest server is 0: the entry gives the level of the admin screen.
+        helper.getLevel().getServer().getPlayerList().getOps().add(new ServerOpListEntry(player.getGameProfile(),
+                AdminActions.PERMISSION_LEVEL, false));
+        return player;
+    }
+
+    private static void logOut(MinecraftServer server, ServerPlayer player) {
+        server.getPlayerList().getOps().remove(player.getGameProfile());
+        server.getPlayerList().remove(player);
+    }
+
+    private static boolean isLoadingMessage(Optional<AdminActions.Result> result) {
+        return result.isPresent() && result.get().success()
+                && result.get().message().getContents() instanceof TranslatableContents contents
+                && contents.getKey().endsWith("teleport.loading");
+    }
+
+    private static boolean isAreaReady(ServerLevel level, AdminTeleports.Area area) {
+        return ReadyChunks.isAreaReady(level, area.minX(), area.minZ(), area.maxX(), area.maxZ());
+    }
+
+    /**
+     * True if no ticket keeps a chunk of the area at the full status. The first line of the debug data of a chunk is
+     * its ticket level, or "null" for a chunk with no holder. A level above the level of the full status means that no
+     * ticket gives the full status to the chunk.
+     */
+    private static boolean hasNoFullTicket(ServerLevel level, AdminTeleports.Area area) {
+        int fullLevel = ChunkLevel.byStatus(ChunkStatus.FULL);
+        for (ChunkPos chunk : area.chunks()) {
+            String data = level.getChunkSource().getChunkDebugData(chunk);
+            String first = data.lines().findFirst().orElse("null");
+            if (!first.equals("null") && Integer.parseInt(first) <= fullLevel) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The teleport to a settlement in chunks that are not generated does not wait for the chunks: the action gives
+     * the loading message at once and the player does not move in the tick of the request. Some ticks later, the
+     * player is at a safe position near the settlement: a solid floor and two free blocks.
+     */
+    @GameTest(template = "empty", timeoutTicks = TELEPORT_TEST_TICKS, batch = "admin_teleport_async")
+    public static void teleportDoesNotWaitForTheChunks(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel level = server.overworld();
+        ServerPlayer player = operator(helper);
+        Settlement settlement = farRuins(server, 0);
+        AdminTeleports.Area area = AdminActions.teleportArea(settlement);
+        boolean readyBefore = isAreaReady(level, area);
+        BlockPos start = player.blockPosition();
+
+        Optional<AdminActions.Result> result = AdminActions.perform(server, player,
+                new AdminActionPayload("teleport", settlement.id(), 0));
+
+        boolean readyAfter = isAreaReady(level, area);
+
+        helper.assertTrue(!readyBefore, "The chunks of the far settlement must not be ready before the request");
+        helper.assertTrue(!readyAfter, "The request must not wait for the chunks of the area");
+        helper.assertTrue(isLoadingMessage(result), "The action must give the loading message at once");
+        helper.assertTrue(AdminTeleports.isPending(player), "The request must wait for the chunks");
+        helper.assertTrue(player.blockPosition().equals(start), "The player must not move in the tick of the request");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(!AdminTeleports.isPending(player),
+                        "The request must end when the chunks are ready"))
+                .thenExecute(() -> {
+                    BlockPos feet = player.blockPosition();
+                    BlockPos below = feet.below();
+                    logOut(server, player);
+                    helper.assertTrue(Math.abs(feet.getX() - settlement.x()) <= 8
+                            && Math.abs(feet.getZ() - settlement.z()) <= 8,
+                            "The player must be near the settlement, not at " + feet);
+                    helper.assertTrue(level.getBlockState(below).isFaceSturdy(level, below, Direction.UP),
+                            "The player must stand on a solid floor at " + feet);
+                    helper.assertTrue(level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                            && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty(),
+                            "The player must have two free blocks at " + feet);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A request that is not complete after its time limit stops: the player does not move and the request releases
+     * its tickets.
+     */
+    @GameTest(template = "empty", timeoutTicks = 200, batch = "admin_teleport_timeout")
+    public static void teleportStopsAfterTheTimeLimit(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel level = server.overworld();
+        ServerPlayer player = operator(helper);
+        Settlement settlement = farRuins(server, 4000);
+        AdminTeleports.Area area = AdminActions.teleportArea(settlement);
+        BlockPos start = player.blockPosition();
+
+        AdminActions.Result result = AdminTeleports.request(player, level, area,
+                found -> Optional.of(AdminActions.teleportTarget(found, settlement)), Component.literal("done"), 0);
+
+        helper.assertTrue(isLoadingMessage(Optional.of(result)), "The request must give the loading message");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(!AdminTeleports.isPending(player),
+                        "The request must stop after the time limit"))
+                .thenExecute(() -> helper.assertTrue(player.blockPosition().equals(start),
+                        "The player must not move after the time limit, not to " + player.blockPosition()))
+                .thenWaitUntil(() -> helper.assertTrue(hasNoFullTicket(level, area),
+                        "The request must release its tickets after the time limit"))
+                .thenExecute(() -> logOut(server, player))
+                .thenSucceed();
+    }
+
+    /**
+     * A second request of a player replaces the first request, and the logout of the player stops the request. The
+     * two requests release their tickets.
+     */
+    @GameTest(template = "empty", timeoutTicks = 200, batch = "admin_teleport_logout")
+    public static void teleportStopsAtTheLogout(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel level = server.overworld();
+        ServerPlayer player = operator(helper);
+        List<Settlement> settlements = List.of(farRuins(server, 8000), farRuins(server, 12_000));
+        List<AdminTeleports.Area> areas = settlements.stream().map(AdminActions::teleportArea).toList();
+
+        Optional<AdminActions.Result> first = AdminActions.perform(server, player,
+                new AdminActionPayload("teleport", settlements.get(0).id(), 0));
+        Optional<AdminActions.Result> second = AdminActions.perform(server, player,
+                new AdminActionPayload("teleport", settlements.get(1).id(), 0));
+        boolean pending = AdminTeleports.isPending(player);
+        logOut(server, player);
+
+        helper.assertTrue(isLoadingMessage(first) && isLoadingMessage(second),
+                "The two requests must give the loading message");
+        helper.assertTrue(pending, "The second request must wait for its chunks");
+        helper.assertTrue(!AdminTeleports.isPending(player), "The logout must stop the request");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(hasNoFullTicket(level, areas.get(0)),
+                        "The second request must release the tickets of the first request"))
+                .thenWaitUntil(() -> helper.assertTrue(hasNoFullTicket(level, areas.get(1)),
+                        "The logout must release the tickets of the request"))
+                .thenSucceed();
+    }
+
+    /**
+     * A request stops with no teleport when the player goes to another dimension during the wait. The request ends
+     * when the area is ready, before the time limit.
+     */
+    @GameTest(template = "empty", timeoutTicks = TELEPORT_TEST_TICKS, batch = "admin_teleport_dimension")
+    public static void teleportStopsAfterADimensionChange(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerLevel nether = server.getLevel(Level.NETHER);
+        helper.assertTrue(nether != null, "The GameTest server must have the Nether");
+        ServerPlayer player = operator(helper);
+        Settlement settlement = farRuins(server, 16_000);
+
+        Optional<AdminActions.Result> result = AdminActions.perform(server, player,
+                new AdminActionPayload("teleport", settlement.id(), 0));
+        player.teleportTo(nether, 0.5, 130, 0.5, player.getYRot(), player.getXRot());
+
+        helper.assertTrue(isLoadingMessage(result), "The action must give the loading message");
+        assertRefusedWhenReady(helper, server, player, settlement, Level.NETHER);
+    }
+
+    /** A request stops with no teleport when the player is not an operator now. */
+    @GameTest(template = "empty", timeoutTicks = TELEPORT_TEST_TICKS, batch = "admin_teleport_permission")
+    public static void teleportStopsWhenThePlayerIsNotAnOperator(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = operator(helper);
+        Settlement settlement = farRuins(server, 20_000);
+
+        Optional<AdminActions.Result> result = AdminActions.perform(server, player,
+                new AdminActionPayload("teleport", settlement.id(), 0));
+        server.getPlayerList().getOps().remove(player.getGameProfile());
+
+        helper.assertTrue(isLoadingMessage(result), "The action must give the loading message");
+        helper.assertTrue(!AdminActions.isAllowed(player), "The player must not be an operator now");
+        assertRefusedWhenReady(helper, server, player, settlement, Level.OVERWORLD);
+    }
+
+    /**
+     * Waits for the end of the request, before its time limit, and checks that the player did not go to the
+     * settlement. Then logs the player out.
+     */
+    private static void assertRefusedWhenReady(GameTestHelper helper, MinecraftServer server, ServerPlayer player,
+            Settlement settlement, ResourceKey<Level> dimension) {
+        long deadline = Util.getMillis() + AdminTeleports.TIMEOUT_SECONDS * 1000L;
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(!AdminTeleports.isPending(player),
+                        "The request must stop when the area is ready"))
+                .thenExecute(() -> {
+                    long now = Util.getMillis();
+                    BlockPos feet = player.blockPosition();
+                    ResourceKey<Level> current = player.level().dimension();
+                    logOut(server, player);
+                    helper.assertTrue(now < deadline, "The request must stop before the time limit");
+                    helper.assertTrue(current.equals(dimension), "The player must stay in " + dimension.location());
+                    helper.assertTrue(Math.abs(feet.getX() - settlement.x()) > 8,
+                            "The player must not go to the settlement, not to " + feet);
+                })
+                .thenSucceed();
     }
 
     /** An action on an unknown settlement does nothing and gives a refusal. */
