@@ -60,10 +60,11 @@ public final class AdminGameTests {
     /** Block X of the far settlements of the teleport tests. The chunks there are not generated. */
     private static final int FAR_X = 27_000_000;
     /**
-     * The time limit of the tests that wait for the generation of chunks, in ticks. The GameTest server does not wait
-     * between two ticks, but the generation takes real time.
+     * The tick limit of the tests that wait for the generation of chunks. The GameTest server does not wait between
+     * two ticks, but the generation takes real time: these tests wait with a real-time limit
+     * ({@link TestSupport#thenWaitForWorker}), and this tick limit is a safety limit only.
      */
-    private static final int TELEPORT_TEST_TICKS = 12_000;
+    private static final int TELEPORT_TEST_TICKS = TestSupport.WORKER_TICKS;
 
     private AdminGameTests() {
     }
@@ -293,9 +294,8 @@ public final class AdminGameTests {
         helper.assertTrue(isLoadingMessage(result), "The action must give the loading message at once");
         helper.assertTrue(AdminTeleports.isPending(player), "The request must wait for the chunks");
         helper.assertTrue(player.blockPosition().equals(start), "The player must not move in the tick of the request");
-        helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(!AdminTeleports.isPending(player),
-                        "The request must end when the chunks are ready"))
+        TestSupport.thenWaitForWorker(helper, helper.startSequence(), () -> !AdminTeleports.isPending(player),
+                        "The request must end when the chunks are ready")
                 .thenExecute(() -> {
                     BlockPos feet = player.blockPosition();
                     BlockPos below = feet.below();
@@ -442,9 +442,8 @@ public final class AdminGameTests {
                 && contents.getKey().endsWith("restore.loading"), "The action must give the loading message at once");
         helper.assertTrue(AdminActions.isRestorePending(player), "The request must wait for the chunk");
         helper.assertTrue(!settlement.isActive(), "The settlement must stay in ruins in the tick of the request");
-        helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(!AdminActions.isRestorePending(player),
-                        "The request must end when the chunk is ready"))
+        TestSupport.thenWaitForWorker(helper, helper.startSequence(), () -> !AdminActions.isRestorePending(player),
+                        "The request must end when the chunk is ready")
                 .thenExecute(() -> {
                     boolean active = settlement.isActive();
                     logOut(server, player);
@@ -494,9 +493,8 @@ public final class AdminGameTests {
         change.accept(player, settlement);
 
         helper.assertTrue(pending, "The request must wait for the chunks");
-        helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(!AdminActions.isRestorePending(player),
-                        "The request must stop when the area is ready"))
+        TestSupport.thenWaitForWorker(helper, helper.startSequence(), () -> !AdminActions.isRestorePending(player),
+                        "The request must stop when the area is ready")
                 .thenExecute(() -> {
                     long now = Util.getMillis();
                     boolean heart = settlement.hasHeart();
@@ -515,9 +513,8 @@ public final class AdminGameTests {
     private static void assertRefusedWhenReady(GameTestHelper helper, MinecraftServer server, ServerPlayer player,
             Settlement settlement, ResourceKey<Level> dimension) {
         long deadline = Util.getMillis() + AdminTeleports.TIMEOUT_SECONDS * 1000L;
-        helper.startSequence()
-                .thenWaitUntil(() -> helper.assertTrue(!AdminTeleports.isPending(player),
-                        "The request must stop when the area is ready"))
+        TestSupport.thenWaitForWorker(helper, helper.startSequence(), () -> !AdminTeleports.isPending(player),
+                        "The request must stop when the area is ready")
                 .thenExecute(() -> {
                     long now = Util.getMillis();
                     BlockPos feet = player.blockPosition();
