@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
 import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
@@ -66,12 +67,22 @@ class PayloadCodecsTest {
     }
 
     @Test
+    void adminMap() {
+        AdminMapPayload payload = new AdminMapPayload(-300, -40, 512, 900);
+        assertEquals(payload, roundTrip(AdminMapPayload.STREAM_CODEC, payload));
+        assertTrue(AdminMapPayload.EMPTY.empty());
+        String marker = AdminMapPayload.Kind.CARAVAN.markerId("group:1");
+        assertEquals(Optional.of(AdminMapPayload.Kind.CARAVAN), AdminMapPayload.Kind.of(marker));
+        assertEquals("group:1", AdminMapPayload.Kind.id(marker));
+        assertEquals(Optional.empty(), AdminMapPayload.Kind.of("northam"));
+    }
+
+    @Test
     void territoryMap() {
         TerritoryMapPayload payload = new TerritoryMapPayload(List.of(
-                new TerritoryMapPayload.Village(new Claimant("id-1", 100, -200, 3, 4), 70, "Northam", "Ash", 0xAA5500),
-                new TerritoryMapPayload.Village(new Claimant("id-2", -900, 40, 1, 2), 64, "Ruinton", "Oak",
-                        0x00FF00)),
-                List.of(new Claimant("id-3", 180, -150, 2, 3)));
+                new TerritoryMapPayload.Village(new Claimant("id-1", 100, -200, 3, 4), "Northam", "Ash", 0xAA5500),
+                new TerritoryMapPayload.Village(new Claimant("id-2", -900, 40, 1, 2), "Ruinton", "Oak",
+                        0x00FF00)));
         assertEquals(payload, roundTrip(TerritoryMapPayload.STREAM_CODEC, payload));
         assertEquals(TerritoryMapPayload.EMPTY, roundTrip(TerritoryMapPayload.STREAM_CODEC, TerritoryMapPayload.EMPTY));
     }

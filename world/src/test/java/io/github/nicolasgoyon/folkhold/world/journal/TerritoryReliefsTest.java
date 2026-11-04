@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class TerritoryReliefsTest {
 
     private static TerritoryMapPayload.Village village(String id, int x, int z, int radius) {
-        return new TerritoryMapPayload.Village(new Claimant(id, x, z, 1, radius), 64, id, "Ash", 0xAA5500);
+        return new TerritoryMapPayload.Village(new Claimant(id, x, z, 1, radius), id, "Ash", 0xAA5500);
     }
 
     /** The area contains the claim and the margin, with its sides on multiples of the snap. */

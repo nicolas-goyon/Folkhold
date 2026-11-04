@@ -106,8 +106,6 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             mod_authors            : mod_authors,
             geckolib_version       : geckolib_version,
             cartofold_version      : cartofold_version,
-            xaero_minimap_min_version  : xaero_minimap_min_version,
-            xaero_world_map_min_version: xaero_world_map_min_version,
     ]
     inputs.properties replaceProperties
     expand replaceProperties

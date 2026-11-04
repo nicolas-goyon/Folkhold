@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.admin;
 
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
+import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.tick.TickScheduler.TickInfo;
@@ -9,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
+import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
@@ -71,9 +73,11 @@ import net.minecraft.server.level.ServerPlayer;
  *       direction around the player (see {@link SettlementDiscovery#discoverAround}).</li>
  *   <li>{@code groups}: sends the caravans, the traveling merchants and the quests (see {@link GroupOverview}).
  *       The client shows them in a tabbed screen.</li>
- *   <li>{@code map}: sends the map of the admin screen (see {@link AdminMap}).</li>
- *   <li>{@code teleport_point}: teleports the player to the surface at a position. The settlement id is the position:
- *       "x z", in blocks. The server does not wait for the chunk of the target (see {@link AdminTeleports}).</li>
+ *   <li>{@code map}: sends the layer of the admin map, and opens the map (see {@link AdminMap}).</li>
+ *   <li>{@code map_close}: removes the layer of the admin map. A player who is not an operator can also send it.</li>
+ *   <li>{@code teleport_group}: teleports the player to the surface at the position of a caravan or a traveling
+ *       merchant. The settlement id is the id of the group. The server does not wait for the chunk of the target
+ *       (see {@link AdminTeleports}).</li>
  * </ul>
  * After an action, the server sends the result ({@link AdminResultPayload}), the list and the details of the
  * settlement again. A teleport or a restore that waits for its chunks sends only its result later, after the action.
@@ -135,6 +139,10 @@ public final class AdminActions {
      * @param payload the action
      */
     public static void handle(ServerPlayer player, AdminActionPayload payload) {
+        if (payload.action().equals("map_close")) {
+            AdminMap.close(player);
+            return;
+        }
         if (!isAllowed(player)) {
             player.sendSystemMessage(Component.translatable(KEY + "denied"));
             return;
@@ -144,11 +152,11 @@ public final class AdminActions {
             return;
         }
         if (payload.action().equals("map")) {
-            ModNetwork.send(player, AdminMap.build(player.server));
+            AdminMap.open(player);
             return;
         }
-        if (payload.action().equals("teleport_point")) {
-            sendResult(player, teleportToPoint(player, payload.settlementId()));
+        if (payload.action().equals("teleport_group")) {
+            sendResult(player, teleportToGroup(player, payload.settlementId()));
             return;
         }
         perform(player.server, player, payload).ifPresent(result -> sendResult(player, result));
@@ -439,23 +447,16 @@ public final class AdminActions {
                 ? Optional.of(heart) : Optional.empty();
     }
 
-    /** Teleports a player to the surface at a position "x z" of the Overworld, for example a caravan of the map. */
-    private static Result teleportToPoint(ServerPlayer player, String position) {
-        String[] parts = position.trim().split(" ", -1);
-        if (parts.length != 2) {
-            return Result.refused("unknown");
+    /** Teleports a player to the surface at the position of a caravan or a traveling merchant of the admin map. */
+    static Result teleportToGroup(ServerPlayer player, String id) {
+        Optional<MobileGroup> group = MobileGroupData.get(player.server).groups().byId(id);
+        if (group.isEmpty()) {
+            return Result.refused("group_unknown");
         }
-        int x;
-        int z;
-        try {
-            x = Integer.parseInt(parts[0]);
-            z = Integer.parseInt(parts[1]);
-        } catch (NumberFormatException e) {
-            return Result.refused("unknown");
-        }
+        int x = (int) Math.floor(group.get().position().x());
+        int z = (int) Math.floor(group.get().position().z());
         return AdminTeleports.request(player, player.server.overworld(), new AdminTeleports.Area(x, z, x, z),
-                level -> Optional.of(AdminTeleports.surface(level, x, z)),
-                Result.done("teleport_point", x, z).message());
+                level -> Optional.of(AdminTeleports.surface(level, x, z)), Result.done("teleport_group", x, z).message());
     }
 
     /**

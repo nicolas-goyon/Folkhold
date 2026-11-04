@@ -759,7 +759,7 @@ public class JournalScreen extends UiScreen {
 
     /** Shows all the discovered territories and villages. With no village, the frame follows the player. */
     private void showAll(MapFrame frame) {
-        Optional<double[]> box = JournalMapViews.territoryBox(ClientTerritoryMap.get().villages(), journal.villages());
+        Optional<double[]> box = JournalMapViews.territoryBox(ClientJournalMap.territories(), journal.villages());
         if (box.isPresent()) {
             frame.showBox(box.get()[0], box.get()[1], box.get()[2], box.get()[3]);
         }
@@ -806,7 +806,7 @@ public class JournalScreen extends UiScreen {
     private void renderMapHeader(GuiGraphics graphics, UiRect header) {
         int right = header.right();
         int badgeY = header.y() + (header.height() - UiTheme.BADGE) / 2;
-        if (ClientJournalMap.pending() && !ClientTerritoryMap.get().villages().isEmpty()) {
+        if (ClientJournalMap.pending() && !ClientJournalMap.territories().isEmpty()) {
             Component state = Component.translatable(KEY + "map.relief_pending");
             right -= UiDraw.badgeWidth(font, state);
             UiDraw.badge(graphics, font, right, badgeY, state, UiTone.INFO);
@@ -834,7 +834,7 @@ public class JournalScreen extends UiScreen {
     private void renderMapLegend(GuiGraphics graphics, UiRect legend) {
         int x = legend.x();
         Map<String, Integer> colors = new LinkedHashMap<>();
-        for (TerritoryMapPayload.Village village : ClientTerritoryMap.get().villages()) {
+        for (TerritoryMapPayload.Village village : ClientJournalMap.territories()) {
             colors.putIfAbsent(village.faction(), village.color() & 0xFFFFFF);
         }
         for (Map.Entry<String, Integer> faction : colors.entrySet()) {
@@ -974,9 +974,13 @@ public class JournalScreen extends UiScreen {
     private void initRouteFrame() {
         Optional<Village> from = routeEnd(ClientRouteView.fromId());
         Optional<Village> to = routeEnd(ClientRouteView.toId());
+        // With no pair, the tab shows no frame.
+        if (from.isEmpty() || to.isEmpty()) {
+            return;
+        }
         MapFrame frame = frame(keptRouteFrame, mapArea, layer -> layer.equals(CartofoldMaps.ROUTE)
                 || layer.equals(CartofoldMaps.VILLAGES), ClientRouteView::relief);
-        if (frame == null || from.isEmpty() || to.isEmpty()) {
+        if (frame == null) {
             return;
         }
         keptRouteFrame = frame;

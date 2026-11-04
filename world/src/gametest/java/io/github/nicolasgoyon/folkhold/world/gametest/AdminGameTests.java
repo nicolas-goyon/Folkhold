@@ -1,5 +1,9 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.cartofold.api.LayerContent;
+import io.github.nicolasgoyon.cartofold.api.MapMarker;
+import io.github.nicolasgoyon.cartofold.api.MapViewKind;
+import io.github.nicolasgoyon.cartofold.server.LayerService;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.RegionPos;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -15,7 +19,7 @@ import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.network.AdminActionPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminDetailsPayload;
 import io.github.nicolasgoyon.folkhold.world.network.AdminListPayload;
-import io.github.nicolasgoyon.folkhold.world.network.AdminMapPayload;
+import io.github.nicolasgoyon.folkhold.world.network.AdminMapPayload.Kind;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
@@ -23,6 +27,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import net.minecraft.Util;
@@ -579,31 +584,75 @@ public final class AdminGameTests {
         helper.succeed();
     }
 
+    /** True if Cartofold keeps the admin layer for the player. */
+    private static boolean hasAdminLayer(ServerPlayer player) {
+        return LayerService.get().flatMap(service -> service.layer(player.getUUID(), AdminMap.LAYER)).isPresent();
+    }
+
     /**
-     * The map of the admin screen has the village with the color of its faction, its territory, and the ruin of a
-     * village as a ruin.
+     * The admin layer has the village with the color of its faction and its territory. After the ruin of the village,
+     * the next check gives a ruin marker and no territory. Only the map frames show the layer.
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "admin_map")
     public static void mapHasTheSettlementsAndTheirTerritories(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         Settlement settlement = settlementOf(helper, newHeart(helper));
+        ServerPlayer player = operator(helper);
 
-        AdminMapPayload active = AdminMap.build(server);
+        AdminActions.handle(player, new AdminActionPayload("map", "", 0));
+        LayerContent active = AdminMap.shown(player).orElseThrow();
         retire(helper, settlement);
-        AdminMapPayload ruined = AdminMap.build(server);
+        AdminMap.check(server);
+        LayerContent ruined = AdminMap.shown(player).orElseThrow();
+        logOut(server, player);
 
-        Optional<AdminMapPayload.Mark> mark = active.marks().stream()
-                .filter(entry -> entry.id().equals(settlement.id())).findFirst();
-        helper.assertTrue(mark.isPresent(), "The map must have the village");
-        helper.assertTrue(mark.get().kind() == AdminMapPayload.VILLAGE, "The village has a heart: " + mark.get());
-        helper.assertTrue(mark.get().x() == settlement.x() && mark.get().z() == settlement.z(),
-                "The mark is at the village");
-        helper.assertTrue(active.territories().villages().stream().anyMatch(village -> village.id()
-                .equals(settlement.id())), "The map must have the territory of the village");
-        helper.assertTrue(ruined.marks().stream().anyMatch(entry -> entry.id().equals(settlement.id())
-                && entry.kind() == AdminMapPayload.RUIN), "A ruin is a ruin on the map");
-        helper.assertTrue(ruined.territories().villages().stream().noneMatch(village -> village.id()
-                .equals(settlement.id())), "A ruin has no territory");
+        Optional<MapMarker> village = active.marker(Kind.VILLAGE.markerId(settlement.id()));
+        helper.assertTrue(village.isPresent(), "The layer must have the village");
+        helper.assertTrue(village.get().pos().getX() == settlement.x() && village.get().pos().getZ() == settlement.z(),
+                "The marker is at the village");
+        helper.assertTrue(active.info().views().equals(Set.of(MapViewKind.FRAME)), "Only the frames show the layer");
+        helper.assertTrue(active.areas().stream().anyMatch(area -> area.id().equals(settlement.id())),
+                "The layer must have the territory of the village");
+        helper.assertTrue(ruined.marker(Kind.RUIN.markerId(settlement.id())).isPresent(), "A ruin is a ruin on the map");
+        helper.assertTrue(ruined.areas().stream().noneMatch(area -> area.id().equals(settlement.id())),
+                "A ruin has no territory");
+        helper.succeed();
+    }
+
+    /**
+     * Only an operator gets the admin layer. The layer leaves the operator who closes the map, who is not an operator
+     * now, or who logs out.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "admin_map_access")
+    public static void mapLayerIsOnlyForAnOperator(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        AdminActionPayload open = new AdminActionPayload("map", "", 0);
+
+        AdminActions.handle(player, open);
+        boolean refused = AdminMap.shown(player).isEmpty() && !hasAdminLayer(player);
+        server.getPlayerList().getOps().add(new ServerOpListEntry(player.getGameProfile(),
+                AdminActions.PERMISSION_LEVEL, false));
+        AdminActions.handle(player, open);
+        boolean opened = AdminMap.shown(player).isPresent() && hasAdminLayer(player);
+        AdminActions.handle(player, new AdminActionPayload("map_close", "", 0));
+        boolean closed = AdminMap.shown(player).isEmpty() && !hasAdminLayer(player);
+        AdminActions.handle(player, open);
+        server.getPlayerList().getOps().remove(player.getGameProfile());
+        AdminMap.check(server);
+        boolean demoted = AdminMap.shown(player).isEmpty() && !hasAdminLayer(player);
+        server.getPlayerList().getOps().add(new ServerOpListEntry(player.getGameProfile(),
+                AdminActions.PERMISSION_LEVEL, false));
+        AdminActions.handle(player, open);
+        boolean reopened = hasAdminLayer(player);
+        logOut(server, player);
+
+        helper.assertTrue(refused, "A player who is not an operator must not get the layer");
+        helper.assertTrue(opened, "An operator gets the layer");
+        helper.assertTrue(closed, "The close of the map removes the layer");
+        helper.assertTrue(demoted, "A player who is not an operator now loses the layer");
+        helper.assertTrue(reopened, "The operator gets the layer again");
+        helper.assertTrue(AdminMap.shown(player).isEmpty() && !hasAdminLayer(player), "The logout removes the layer");
         helper.succeed();
     }
 }
