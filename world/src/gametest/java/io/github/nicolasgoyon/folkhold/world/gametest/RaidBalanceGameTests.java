@@ -173,10 +173,14 @@ public final class RaidBalanceGameTests {
         TestSupport.setLevel(helper, heart, villageLevel);
         ServerLevel level = helper.getLevel();
         BlockPos heartPos = helper.absolutePos(HEART);
+        // The trial keeps the relative positions of the beds. For a test with no rotation, GameTestHelper.relativePos
+        // gives the opposite x and z: it does not give back the relative position of an absolute position.
+        List<BlockPos> heads = new ArrayList<>();
         List<BlockPos> beds = new ArrayList<>();
         for (int i = 0; i < VILLAGERS; i++) {
             BlockPos foot = HEART.offset(-3 + 2 * i, 0, 4);
             TestSupport.placeBed(helper, foot, Direction.SOUTH);
+            heads.add(foot.south());
             beds.add(helper.absolutePos(foot.south()));
         }
         PoiManager pois = level.getPoiManager();
@@ -192,8 +196,9 @@ public final class RaidBalanceGameTests {
         }, "The heart must be loaded, the beds must be points of interest, and the heart must create its garrison");
         sequence
                 .thenExecute(() -> {
-                    for (BlockPos bed : beds) {
-                        Villager villager = helper.spawn(EntityType.VILLAGER, helper.relativePos(bed).north(2));
+                    for (int i = 0; i < VILLAGERS; i++) {
+                        BlockPos bed = beds.get(i);
+                        Villager villager = helper.spawn(EntityType.VILLAGER, heads.get(i).north(2));
                         pois.take(type -> type.is(PoiTypes.HOME), (type, pos) -> pos.equals(bed), bed, 1);
                         villager.getBrain().setMemory(MemoryModuleType.HOME, GlobalPos.of(level.dimension(), bed));
                         trial.villagers.add(villager);
@@ -207,17 +212,17 @@ public final class RaidBalanceGameTests {
                             villageLevel, result);
                     if (result.raiders() > 0 && result.outcome() != Outcome.FALLS) {
                         trial.raid.getAllRaiders().forEach(raider -> FolkholdWorld.LOGGER.info(
-                                "Raid trial: raider left: {} at {}, {} blocks from the heart, ticking {}, target {}, "
-                                        + "in water {}",
-                                raider.getType(), helper.relativePos(raider.blockPosition()),
+                                "Raid trial: raider left: {}, offset from the heart {}, distance {} blocks, ticking {}, "
+                                        + "target {}, in water {}",
+                                raider.getType(), raider.blockPosition().subtract(heartPos),
                                 (int) Math.sqrt(raider.blockPosition().distSqr(heartPos)),
                                 level.isPositionEntityTicking(raider.blockPosition()), raider.getTarget(),
                                 raider.isInWater()));
                     }
                     trial.remove();
-                    beds.forEach(bed -> {
-                        helper.setBlock(helper.relativePos(bed), Blocks.AIR);
-                        helper.setBlock(helper.relativePos(bed).north(), Blocks.AIR);
+                    heads.forEach(head -> {
+                        helper.setBlock(head, Blocks.AIR);
+                        helper.setBlock(head.north(), Blocks.AIR);
                     });
                     helper.setBlock(HEART, Blocks.AIR);
                     forceChunks(helper, false);
