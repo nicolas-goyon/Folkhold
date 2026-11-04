@@ -301,6 +301,7 @@ public final class BankGameTests {
     public static void brokenOpenChestKeepsTheStock(GameTestHelper helper) {
         Scene scene = scene(helper);
         BankChests.onConfirm(scene.player(), helper.absolutePos(CHEST));
+        boolean opened = scene.player().containerMenu instanceof ChestMenu;
         removeFromChest(scene.chest(), new ItemStack(Items.BREAD, 4));
 
         helper.setBlock(CHEST, Blocks.AIR);
@@ -308,6 +309,7 @@ public final class BankGameTests {
 
         int bread = scene.settlement().economy().stock().count("minecraft:bread");
         scene.remove(helper);
+        helper.assertTrue(opened, "The player must have the chest open before the break");
         helper.assertTrue(bread == 6, "Expected 6 bread in the stock, not " + bread);
         helper.assertItemEntityNotPresent(Items.BREAD, CHEST, 3.0);
         helper.succeed();

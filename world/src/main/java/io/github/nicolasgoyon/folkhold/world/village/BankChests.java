@@ -435,8 +435,10 @@ public final class BankChests {
 
     /**
      * The village becomes ruins: its share of the treasury and its stock go into its bank chests as real items,
-     * as many as the chests can hold. The items leave the treasury and the stock. Call this method before the
-     * settlement leaves the active state (the share of the treasury depends on the active villages).
+     * as many as the chests can hold. The items leave the treasury and the stock. First, each chest settles (see
+     * {@link #settle}): when a player has a chest open, the changes of this player apply, and the chest keeps no
+     * copy of the stocks. Call this method before the settlement leaves the active state (the share of the treasury
+     * depends on the active villages).
      *
      * @param level      the level
      * @param settlement the settlement
@@ -449,6 +451,9 @@ public final class BankChests {
             return 0;
         }
         MinecraftServer server = level.getServer();
+        for (BankChestBlockEntity chest : chests) {
+            settle(server, settlement, chest);
+        }
         SettlementData data = SettlementData.get(server);
         List<ItemStack> treasury = new ArrayList<>();
         addStacks(treasury, Items.EMERALD, emeraldShare(server, settlement));
