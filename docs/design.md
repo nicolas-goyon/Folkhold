@@ -757,10 +757,46 @@ Section `blockedEnchantments` of `folkhold_balance-server.toml`:
 
 ### Anvil
 
-- No level cap and no "Too Expensive!" limit. An enchantment level such as Efficiency 20 is possible, but very expensive.
-- The **enchantment cost** increases quadratically with the levels of the result.
-- The **repair cost** is separate. It depends on the item and on its current enchantments, and it stays the same for each repair (no prior work penalty for a repair).
+- **Implemented** (`AnvilRules`, `AnvilCost`): no level cap and no "Too Expensive!" limit. An enchantment level such as Efficiency 20 is possible, but very expensive. All costs are in levels.
+- **Merge**: the vanilla rule with no max level. Two equal levels give the level + 1, two different levels give the higher level. Efficiency 20 thus needs 2¹⁵ books of Efficiency V. The config key `levelCaps` can set a cap for each enchantment; by default there is no cap. The game stores a maximum level of 255.
+- The **enchantment cost** is quadratic in the level of the result: `operationCost + ceil(k × Σ w × (b² − a²))`. a is the level on the left item, b is the level of the result, w is the weight of the enchantment (its `anvil_cost`, or the config key `weights`). A book is not cheaper than an item. The cost does not depend on the path: a level built in steps costs one `operationCost` more for each additional step.
+- The **repair cost** is separate. A full repair costs `base + ceil(r × Σ w × level)` for the current enchantments of the item, curses excluded. The base comes from the repair material. A repair with n units of material costs `ceil(full × min(n, 4) / 4)`. The anvil uses the material units of the vanilla loop: each unit repairs a quarter of the maximum durability, rounded down. Thus an item with a maximum durability that is not a multiple of 4 can use a fifth unit (for example an iron pickaxe at 249 damage of 250). A repair with a second item of the same type counts the repaired durability in quarters, rounded up. The vanilla durability rule stays (sum of the two items + 12 %).
+- There is **no prior work penalty**: the result has a `repair_cost` of 0, and the anvil ignores the `repair_cost` of the inputs. A repair of the same item thus always has the same cost.
+- A rename adds 1 level. Each incompatible enchantment adds 1 level. A book with only incompatible enchantments gives no result. An operation that changes nothing gives no result. The anvil still takes damage.
+- The anvil does not enchant a stack of more than one item. A cost above 32,767 levels gives no result: the menu sends the cost to the client as a short.
+- The client shows the cost in place of "Too Expensive!" (red when the player has too few levels), and shows a level with no translation as a number, for example "Efficiency 20".
+- The anvil recipes of other mods have priority: the listener of the balance mod runs last, and does nothing when another mod sets an output.
+- With `enabled = false`, the anvil is vanilla, and the levels above X have no number.
 - Villagers do not sell Mending, and fishing does not give it (see "Fairer trades"). The repair cost is then an important choice.
+
+Example: diamond pickaxe, weights Efficiency 1, Unbreaking 2, Mending 4, default factors.
+
+| Action | Cost (levels) |
+| --- | --- |
+| Book Unbreaking III on a pickaxe with no enchantments | 19 |
+| Book Efficiency III / V on Efficiency II | 6 / 22 |
+| Book Efficiency X on Efficiency V / five steps V + V, VI + VI, ... | 76 / 80 |
+| Book Efficiency XX on Efficiency X / ten steps | 301 / 310 |
+| Book Unbreaking V on Unbreaking III | 33 |
+| Full repair: Eff II + Unb III + Mending / Eff II + Unb III | 16 / 12 |
+| Full repair: Eff V + Unb III / Eff X + Unb III / Eff XX + Unb III | 15 / 20 / 30 |
+| Iron pickaxe, full repair: Eff II / Eff II + Unb III | 5 / 11 |
+
+Section `anvil` of `folkhold_balance-server.toml`:
+
+| Value | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | true | Use these rules. False gives the vanilla anvil |
+| `mergeRule` | `VANILLA` | `VANILLA` or `SUM` (the levels add together) |
+| `enchantCostFactor` | 1.0 | Factor k of the enchantment cost |
+| `operationCost` | 1 | Fixed cost of an operation that raises a level |
+| `weights` | `[]` | `"id=weight"` or `"#tag=weight"`. Other enchantments use their `anvil_cost` |
+| `repairEnchantFactor` | 1.0 | Factor r of the repair cost |
+| `repairBaseCost` | planks 1, leather 1, stone tool materials 2, gold 2, iron 3, turtle scute 3, diamond 4, netherite 5 | `"material=cost"` or `"#tag=cost"`. Chainmail uses iron |
+| `repairDefaultBaseCost` | 3 | Base for an item with no material in `repairBaseCost` |
+| `priorWorkPenalty` | false | Add the vanilla prior work penalty |
+| `levelCaps` | `[]` | `"id=level"` or `"#tag=level"` |
+| `absoluteMaxLevel` | 255 | Largest level of all enchantments |
 
 ### Chunk loading
 
