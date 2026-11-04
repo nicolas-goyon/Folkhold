@@ -16,7 +16,13 @@ on:
   push:
     branches: [develop]
   pull_request:
+  # "Run workflow" with the input release makes the files of a release, and publishes nothing.
   workflow_dispatch:
+    inputs:
+      release:
+        description: Build a release (see .github/actions/version).
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       release:
