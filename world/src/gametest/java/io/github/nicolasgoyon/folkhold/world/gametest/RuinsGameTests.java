@@ -11,14 +11,18 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
+import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -118,6 +122,19 @@ public final class RuinsGameTests {
      * the chest before the bread.
      */
     private static RuinedBank ruinedVillageWithBank(GameTestHelper helper) {
+        RuinedBank bank = villageWithBank(helper);
+        ruin(helper, bank.village());
+        return bank;
+    }
+
+    /** The captain dies, then the heart breaks: the village becomes ruins. */
+    private static void ruin(GameTestHelper helper, Village village) {
+        village.captain().kill();
+        helper.setBlock(HEART, Blocks.AIR);
+    }
+
+    /** The village of {@link #ruinedVillageWithBank}, still active. */
+    private static RuinedBank villageWithBank(GameTestHelper helper) {
         TestSupport.removeEarlierBankChests(helper);
         Village village = village(helper);
         helper.setBlock(CHEST, ModBlocks.BANK_CHEST.get());
@@ -128,9 +145,56 @@ public final class RuinsGameTests {
         TestSupport.emptyStock(village.settlement());
         village.settlement().economy().stock().set("minecraft:bread", 10);
         int share = BankChests.emeraldShare(helper.getLevel().getServer(), village.settlement());
-        village.captain().kill();
-        helper.setBlock(HEART, Blocks.AIR);
         return new RuinedBank(village, share, before);
+    }
+
+    /**
+     * The village becomes ruins while a player has its bank chest open and took 4 bread. The chest holds each item
+     * one time: 6 bread and the share of the treasury. When the chest breaks, it drops the same items.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "ruins_bank_open")
+    public static void ruinsWithAnOpenChestKeepEachItemOnce(GameTestHelper helper) {
+        RuinedBank bank = villageWithBank(helper);
+        Village village = bank.village();
+        VillageHearts.register(helper.getLevel(), helper.absolutePos(HEART));
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        player.setGameMode(GameType.SURVIVAL);
+        BlockPos chestPos = helper.absolutePos(CHEST);
+        player.setPos(chestPos.getX() + 0.5, chestPos.getY(), chestPos.getZ() + 1.5);
+        BankChests.onConfirm(player, chestPos);
+        boolean opened = player.containerMenu instanceof ChestMenu;
+        BankChestBlockEntity chest = helper.getBlockEntity(CHEST);
+        int taken = chest.container().removeItemType(Items.BREAD, 4).getCount();
+
+        ruin(helper, village);
+        player.closeContainer();
+        int bread = count(helper, Items.BREAD);
+        int emeralds = count(helper, Items.EMERALD);
+        int stock = village.settlement().economy().stock().count("minecraft:bread");
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.setBlock(CHEST, Blocks.AIR);
+        int droppedBread = dropped(helper, Items.BREAD);
+        int droppedEmeralds = dropped(helper, Items.EMERALD);
+        helper.killAllEntitiesOfClass(ItemEntity.class);
+        bank.restoreTreasury(helper);
+
+        helper.assertTrue(opened && taken == 4, "The player must open the chest and take 4 bread");
+        helper.assertTrue(village.settlement().state() == SettlementState.RUINS, "The village must be ruins");
+        helper.assertTrue(bread == 6 && stock == 0, "Expected 6 bread in the chest and 0 in the stock, found "
+                + bread + " and " + stock);
+        helper.assertTrue(emeralds == bank.share(), "Expected " + bank.share() + " emeralds in the chest, found "
+                + emeralds);
+        helper.assertTrue(droppedBread == 6 && droppedEmeralds == bank.share(), "The drops must match the chest: "
+                + droppedBread + " bread and " + droppedEmeralds + " emeralds");
+        helper.succeed();
+    }
+
+    /** The number of items of this type that lie on the ground near the bank chest of the test. */
+    private static int dropped(GameTestHelper helper, Item item) {
+        return helper.getEntities(EntityType.ITEM, CHEST, 3.0).stream()
+                .filter(entity -> entity.getItem().is(item))
+                .mapToInt(entity -> entity.getItem().getCount())
+                .sum();
     }
 
     /** The stock and the share of the treasury go into the bank chest. In ruins, the chest keeps its items. */

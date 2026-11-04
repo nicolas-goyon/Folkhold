@@ -32,7 +32,10 @@ public final class BankChestFeature implements BlockFeature {
         return InteractionResult.sidedSuccess(level.isClientSide());
     }
 
-    /** With no active village, the chest drops its items (see {@link BankChests#onChestRemoved}). */
+    /**
+     * With no active village, the chest drops its items. In an active village, its items go into the stocks (see
+     * {@link BankChests#onChestRemoved}).
+     */
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
         if (!state.is(newState.getBlock()) && level instanceof ServerLevel serverLevel
