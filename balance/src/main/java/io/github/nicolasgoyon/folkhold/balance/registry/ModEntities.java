@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.balance.registry;
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
 import io.github.nicolasgoyon.folkhold.balance.rail.FurnaceLocomotive;
+import io.github.nicolasgoyon.folkhold.balance.rail.HeavyLocomotive;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -22,6 +23,15 @@ public final class ModEntities {
                     .passengerAttachments(0.1875F)
                     .clientTrackingRange(8)
                     .build("furnace_locomotive"));
+
+    /** The heavy locomotive. Same size as a vanilla minecart. */
+    public static final DeferredHolder<EntityType<?>, EntityType<HeavyLocomotive>> HEAVY_LOCOMOTIVE =
+            ENTITY_TYPES.register("heavy_locomotive", () -> EntityType.Builder
+                    .<HeavyLocomotive>of(HeavyLocomotive::new, MobCategory.MISC)
+                    .sized(0.98F, 0.7F)
+                    .passengerAttachments(0.1875F)
+                    .clientTrackingRange(8)
+                    .build("heavy_locomotive"));
 
     private ModEntities() {
     }

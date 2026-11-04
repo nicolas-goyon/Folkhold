@@ -22,6 +22,9 @@
   "folkhold_balance.configuration.mass": "Mass",
   "folkhold_balance.configuration.fuelCapacity": "Fuel capacity",
   "folkhold_balance.configuration.fuelPerBlock": "Fuel for each block",
+  "folkhold_balance.configuration.heavyLocomotive": "Heavy locomotive",
+  "folkhold_balance.configuration.curveSpeed": "Speed in curves and on slopes",
+  "folkhold_balance.configuration.lookAhead": "Blocks examined in front of a train",
   "folkhold_balance.configuration.blockedEnchantments": "Blocked enchantments",
   "folkhold_balance.configuration.enchantments": "Enchantments",
   "folkhold_balance.configuration.inTrades": "Block them in new offers",
@@ -52,8 +55,12 @@
   "folkhold_balance.chain.unlinked": "The link is removed.",
   "item.folkhold_balance.furnace_locomotive": "Furnace Locomotive",
   "entity.folkhold_balance.furnace_locomotive": "Furnace Locomotive",
+  "item.folkhold_balance.heavy_locomotive": "Heavy Locomotive",
+  "entity.folkhold_balance.heavy_locomotive": "Heavy Locomotive",
   "folkhold_balance.locomotive.running": "The locomotive runs. Fuel: %s blocks.",
   "folkhold_balance.locomotive.stopped": "The locomotive is stopped. Fuel: %s blocks.",
-  "folkhold_balance.locomotive.no_fuel": "The locomotive has no fuel. Add a furnace fuel.",
+  "folkhold_balance.locomotive.no_fuel": "The locomotive has no fuel. Add %s.",
+  "folkhold_balance.locomotive.furnace_fuel": "a furnace fuel",
+  "folkhold_balance.locomotive.heavy_fuel": "a block of coal",
   "folkhold_balance.locomotive.full": "The locomotive is full of fuel."
 }

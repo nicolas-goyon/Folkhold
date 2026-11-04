@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.balance.rail;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModItems;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -27,6 +28,11 @@ public class FurnaceLocomotive extends Locomotive {
     @Override
     protected int fuelValue(ItemStack stack) {
         return stack.isEmpty() ? 0 : stack.getBurnTime(RecipeType.SMELTING);
+    }
+
+    @Override
+    protected Component fuelName() {
+        return Component.translatable("folkhold_balance.locomotive.furnace_fuel");
     }
 
     @Override

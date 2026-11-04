@@ -200,7 +200,17 @@ public final class LocomotiveGameTests {
      * @return the locomotive, then the wagons
      */
     private static List<AbstractMinecart> train(GameTestHelper helper, double x, int z, int wagons, boolean full) {
-        Locomotive locomotive = helper.spawn(ModEntities.FURNACE_LOCOMOTIVE.get(), new Vec3(x, CART_Y, z + 0.5));
+        return train(helper, ModEntities.FURNACE_LOCOMOTIVE.get(), x, z, wagons, full);
+    }
+
+    /**
+     * A locomotive with fuel for 2000 blocks and linked chest minecarts behind it, to the west.
+     *
+     * @return the locomotive, then the wagons
+     */
+    static List<AbstractMinecart> train(GameTestHelper helper, EntityType<? extends Locomotive> type, double x, int z,
+                                        int wagons, boolean full) {
+        Locomotive locomotive = helper.spawn(type, new Vec3(x, CART_Y, z + 0.5));
         locomotive.setFuel(2000 * locomotive.stats().fuelPerBlock());
         List<AbstractMinecart> train = new ArrayList<>(List.of(locomotive));
         for (int i = 1; i <= wagons; i++) {
@@ -217,7 +227,7 @@ public final class LocomotiveGameTests {
     }
 
     /** Empties the wagons, so that they drop no items, then removes the minecarts. */
-    private static void clear(GameTestHelper helper, List<AbstractMinecart> train) {
+    static void clear(GameTestHelper helper, List<AbstractMinecart> train) {
         for (AbstractMinecart cart : train) {
             if (cart instanceof Container container) {
                 container.clearContent();
@@ -227,7 +237,7 @@ public final class LocomotiveGameTests {
     }
 
     /** A player starts the locomotive with a right click and an empty hand. */
-    private static void start(GameTestHelper helper, AbstractMinecart locomotive) {
+    static void start(GameTestHelper helper, AbstractMinecart locomotive) {
         Vec3 at = helper.relativeVec(locomotive.position()).add(-1.0, 0.0, 1.0);
         ServerPlayer player = TrainGameTests.survivalPlayer(helper, at);
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);

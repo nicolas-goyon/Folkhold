@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["IPI", " B ", " M "],
+  "key": {
+    "I": {"item": "minecraft:iron_block"},
+    "P": {"item": "minecraft:piston"},
+    "B": {"item": "minecraft:blast_furnace"},
+    "M": {"item": "minecraft:minecart"}
+  },
+  "result": {"id": "folkhold_balance:heavy_locomotive", "count": 1}
+}
