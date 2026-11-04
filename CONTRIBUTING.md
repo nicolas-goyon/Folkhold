@@ -74,7 +74,8 @@ changes, in English and in French. The CI and the release use `scripts/changelog
 - Add an entry when the player sees the change: a new feature, a gameplay change or a visible fix.
 - An entry compares with the last release, not with `develop`. A feature that is not in a release yet gets one
   entry of the category `new`. A later change or fix of this feature changes this entry, or adds no entry. A
-  feature that a later pull request removes before the release gets no entry.
+  feature that a later pull request removes before the release gets no entry. The pull request that removes a
+  feature before the release also removes the entry of this feature.
 - A pull request with the marker `[minor]` adds an entry. If it has no player-facing change, its description tells
   why it has no entry. The check gives a warning, not an error, for a `[minor]` pull request with no new entry.
 - Do not add an entry for a change to the CI, the build, the tests, the documentation or the structure of the code. A
