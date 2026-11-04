@@ -72,6 +72,12 @@ The changelog tells the players what changes in each version. The GitHub Release
 changes, in English and in French. The CI and the release use `scripts/changelog.py`.
 
 - Add an entry when the player sees the change: a new feature, a gameplay change or a visible fix.
+- An entry compares with the last release, not with `develop`. A feature that is not in a release yet gets one
+  entry of the category `new`. A later change or fix of this feature changes this entry, or adds no entry. A
+  feature that a later pull request removes before the release gets no entry. The pull request that removes a
+  feature before the release also removes the entry of this feature.
+- A pull request with the marker `[minor]` adds an entry. If it has no player-facing change, its description tells
+  why it has no entry. The check gives a warning, not an error, for a `[minor]` pull request with no new entry.
 - Do not add an entry for a change to the CI, the build, the tests, the documentation or the structure of the code. A
   pull request with no player-facing change has no entry.
 - An entry is one file in `changelog/`. Give the file the issue number and the short name of the branch:
@@ -97,8 +103,9 @@ changes, in English and in French. The CI and the release use `scripts/changelog
   gives the pull request number, and the first release tag that contains this commit gives the version.
 - The check **Title and version** fails on an entry that is not valid or on a renamed entry, and gives the file and
   the field.
-- `python3 scripts/changelog.py check` checks the entries. `python3 scripts/changelog.py build --json <file>` writes
-  the entries of all the versions to a JSON file.
+- `python3 scripts/changelog.py check` checks the entries. With `--base <rev> --title <title>`, it also gives the
+  warning for `[minor]`. `python3 scripts/changelog.py build --json <file>` writes the entries of all the versions
+  to a JSON file.
 
 ### The "What's new" screen
 

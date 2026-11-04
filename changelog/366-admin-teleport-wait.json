@@ -1,0 +1,5 @@
+{
+  "category": "fixed",
+  "en_us": "For operators: the teleport and the restore of a village from the admin screen do not freeze the server while the area generates. The action waits for the area, then occurs.",
+  "fr_fr": "Pour les opérateurs : la téléportation et la restauration d'un village depuis l'écran d'administration ne bloquent plus le serveur pendant la génération de la zone. L'action attend la zone, puis se fait."
+}

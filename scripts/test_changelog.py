@@ -195,6 +195,17 @@ class BuildTest(unittest.TestCase):
         self.git("commit", "-q", "-m", 'Revert "feat(world): caravans [minor] (#3)" [patch]')
         self.assertEqual((0, ""), self.run_main("check", "--base", base))
 
+    def test_minor_title_with_no_entry_gives_a_warning(self):
+        base = self.git("rev-parse", "HEAD")
+        self.commit("feat(world): caravans [minor]")
+        code, error = self.run_main("check", "--base", base, "--title", "feat(world): caravans [minor]")
+        self.assertEqual(0, code)
+        self.assertIn("warning: The title has [minor] and the pull request adds no changelog entry", error)
+        # No warning for a [patch] title, or for a [minor] title with an entry.
+        self.assertEqual((0, ""), self.run_main("check", "--base", base, "--title", "ci: faster build [patch]"))
+        self.commit("feat(world): caravans [minor]", a3_caravans=("new", "Caravans."))
+        self.assertEqual((0, ""), self.run_main("check", "--base", base, "--title", "feat(world): caravans [minor]"))
+
 
 if __name__ == "__main__":
     unittest.main()

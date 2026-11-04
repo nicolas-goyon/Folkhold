@@ -1,0 +1,5 @@
+{
+  "category": "new",
+  "en_us": "New server option, off by default: a moving locomotive keeps loaded the chunks of its train and the chunks in front of it, so the train does not stop at the edge of the loaded area. Without this option, a train waits when one of its minecarts is not loaded.",
+  "fr_fr": "Nouvelle option du serveur, désactivée par défaut : une locomotive en marche garde chargés les chunks de son train et ceux devant elle, et le train ne s'arrête pas au bord de la zone chargée. Sans cette option, un train attend quand un de ses wagonnets n'est pas chargé."
+}

@@ -22,11 +22,13 @@ title gives the number of the pull request. The version of the entry is the firs
 commit. An entry with no release tag gets the version of REV (see scripts/version.py).
 
 Usage:
-    scripts/changelog.py check [--dir DIR] [--base REV]
+    scripts/changelog.py check [--dir DIR] [--base REV [--title TITLE]]
     scripts/changelog.py build [--rev REV] [--notes FILE] [--json FILE]
 
 check validates the entry files of DIR (default: changelog). With --base, check also refuses a rename of an entry
-file between REV and HEAD. A removal is valid: the revert of a pull request removes its entries. build checks the
+file between REV and HEAD. A removal is valid: the revert of a pull request removes its entries. With --base and
+--title, check also gives a warning (not an error) when TITLE has the marker [minor] and the changes from REV to HEAD
+add no entry file. A [minor] pull request with no entry says why in its description. build checks the
 entries of REV, prepends the entries of the version of REV to the
 release notes in FILE, and writes all the entries, grouped by version, to the JSON file.
 """
@@ -44,6 +46,7 @@ CATEGORIES = ("new", "changed", "fixed")
 LANGUAGES = ("en_us", "fr_fr")
 FIELDS = ("category",) + LANGUAGES
 MAX_LENGTH = 300
+MINOR = "[minor]"
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]*\.json$")
 # Characters that change the Markdown or the HTML of the release notes: <, >, @, backticks and control characters.
 FORBIDDEN = re.compile(r"[<>@`\x00-\x1f\x7f-\x9f]")
@@ -118,6 +121,12 @@ def check_renames(base, path=DIR):
             errors.append(f"{fields[2]}: file name: do not rename an entry file ({fields[1]}). "
                           "The commit that adds the file gives the version and the pull request number")
     return errors
+
+
+def added_entries(base, path=DIR):
+    """The entry files that the changes from BASE to HEAD add."""
+    return version.git("diff", "--name-only", "--diff-filter=A", "--no-renames", base, "HEAD", "--",
+                       f"{path}/").split()
 
 
 def release_of(sha):
@@ -215,6 +224,10 @@ def run_check(args):
     errors = check_dir(args.dir) + (check_renames(args.base, args.dir) if args.base else [])
     if report(errors):
         return 1
+    if args.title and args.base and MINOR in args.title and not added_entries(args.base, args.dir):
+        warning = (f"The title has {MINOR} and the pull request adds no changelog entry. Add an entry, or tell why "
+                   "in the description. See CONTRIBUTING.md, section Changelog.")
+        print(f"::warning::{warning}" if os.environ.get("GITHUB_ACTIONS") else f"warning: {warning}", file=sys.stderr)
     count = len(os.listdir(args.dir)) if os.path.isdir(args.dir) else 0
     print(f"OK: {count} changelog entr{'y' if count == 1 else 'ies'}.")
     return 0
@@ -246,6 +259,7 @@ def main(argv=None):
     check = commands.add_parser("check", help="check the entry files")
     check.add_argument("--dir", default=DIR, help=f"the directory of the entries (default: {DIR})")
     check.add_argument("--base", help="refuse a rename of an entry file from this commit to HEAD")
+    check.add_argument("--title", help="with --base: the title of the pull request, for the warning on [minor]")
     check.set_defaults(run=run_check)
     build = commands.add_parser("build", help="write the entries for the release notes and for the mod")
     build.add_argument("--rev", default="HEAD", help="the commit (default: HEAD)")
