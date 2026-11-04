@@ -17,12 +17,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestInfo;
+import net.minecraft.gametest.framework.GameTestListener;
+import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.server.players.PlayerList;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -407,7 +411,11 @@ public final class TrainGameTests {
         helper.getLevel().getServer().getPlayerList().remove(mock);
     }
 
-    /** A mock player in survival mode at a position relative to the test. Remove it at the end of the test. */
+    /**
+     * A mock player in survival mode at a position relative to the test. A test can remove it with
+     * {@code getPlayerList().remove(player)}. At the end of the test, also after a failure, a listener removes the
+     * player and its operator entry.
+     */
     static ServerPlayer survivalPlayer(GameTestHelper helper, Vec3 position) {
         ServerLevel level = helper.getLevel();
         CommonListenerCookie cookie = CommonListenerCookie.createInitial(
@@ -421,7 +429,49 @@ public final class TrainGameTests {
         player.setGameMode(GameType.SURVIVAL);
         Vec3 absolute = helper.absoluteVec(position);
         player.moveTo(absolute.x, absolute.y, absolute.z);
+        logOutAtEnd(helper, player);
         return player;
+    }
+
+    /**
+     * Removes a mock player and its operator entry when the test passes or fails. A failed test does not get to its
+     * own logout: without this listener, the player stays online for the next tests. The listener removes only this
+     * player: a player of another test can have the same id.
+     */
+    private static void logOutAtEnd(GameTestHelper helper, ServerPlayer player) {
+        helper.testInfo.addListener(new GameTestListener() {
+            @Override
+            public void testStructureLoaded(GameTestInfo info) {
+            }
+
+            @Override
+            public void testPassed(GameTestInfo info, GameTestRunner runner) {
+                logOut(player);
+            }
+
+            @Override
+            public void testFailed(GameTestInfo info, GameTestRunner runner) {
+                logOut(player);
+            }
+
+            @Override
+            public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
+            }
+        });
+    }
+
+    private static void logOut(ServerPlayer player) {
+        PlayerList players = player.server.getPlayerList();
+        ServerPlayer online = players.getPlayer(player.getUUID());
+        if (online != null && online != player) {
+            return;
+        }
+        if (players.getOps().get(player.getGameProfile()) != null) {
+            players.getOps().remove(player.getGameProfile());
+        }
+        if (online == player) {
+            players.remove(player);
+        }
     }
 
     /** The number of chains on the ground in the test area. */
