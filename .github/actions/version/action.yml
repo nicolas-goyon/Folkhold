@@ -1,0 +1,98 @@
+name: Version
+description: >-
+  Calculates the version of a build or of a release with scripts/version.py. Needs a checkout with the history and
+  the tags (fetch-depth 0).
+
+inputs:
+  release:
+    description: >-
+      'true': the version of a release. Else the version of a build for the event:
+      - push on develop, or "Run workflow" on a branch: the version of the commit, then "-dev." and the short commit.
+        Example: 0.32.0-dev.13bcc38.
+      - pull request: the version after the merge, then "-pr.", the number and the short commit.
+        Example: 0.32.1-pr.472.abc1234. For a pull request to main, the first part is the version of the release.
+      - "Run workflow" on main: the version of the release.
+    default: 'false'
+  rev:
+    description: >-
+      With release: the commit of the release. With no value: the commit of develop in HEAD. A merge of develop has
+      two parents, and the second parent is the commit of develop. The files of HEAD and of this commit must be the
+      same.
+    default: ''
+  notes:
+    description: "With release: write the release notes (Markdown) to this file. The folder must exist."
+    default: ''
+
+outputs:
+  version:
+    description: The version.
+    value: ${{ steps.version.outputs.version }}
+  tag:
+    description: "With release, the tag of the version (vX.Y.Z)."
+    value: ${{ steps.version.outputs.tag }}
+  exists:
+    description: With release, 'true' when the tag exists.
+    value: ${{ steps.version.outputs.exists }}
+  commit:
+    description: The commit of the version. For a build, HEAD.
+    value: ${{ steps.version.outputs.commit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Calculate the version
+      id: version
+      shell: bash
+      env:
+        RELEASE: ${{ inputs.release }}
+        REV: ${{ inputs.rev }}
+        NOTES: ${{ inputs.notes }}
+        EVENT: ${{ github.event_name }}
+        BASE_REF: ${{ github.base_ref }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        NUMBER: ${{ github.event.pull_request.number }}
+        TITLE: ${{ github.event.pull_request.title }}
+        AUTHOR: ${{ github.event.pull_request.user.login }}
+      run: |
+        if [ "$RELEASE" = true ]; then
+          commit="$REV"
+          if [ -z "$commit" ]; then
+            commit=$(git rev-parse HEAD)
+            if git rev-parse -q --verify 'HEAD^2' > /dev/null; then
+              commit=$(git rev-parse 'HEAD^2')
+            fi
+            if ! git diff --quiet HEAD "$commit"; then
+              echo "The files of main and of the commit $commit of develop are different. Merge main into develop." >&2
+              exit 1
+            fi
+          fi
+          out=$(mktemp)
+          args=(--rev "$commit" --github-output "$out")
+          if [ -n "$NOTES" ]; then
+            args+=(--repo "$GITHUB_REPOSITORY" --notes "$NOTES")
+          fi
+          python3 scripts/version.py version "${args[@]}"
+          # The notes start with the player-facing changes of the version (see scripts/changelog.py).
+          if [ -n "$NOTES" ]; then
+            python3 scripts/changelog.py build --rev "$commit" --notes "$NOTES"
+          fi
+          sed -n '/^\(version\|tag\|exists\)=/p' "$out" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        short=$(git rev-parse --short=7 "$HEAD_SHA")
+        if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ]; then
+          # A release: the version of the commit of develop.
+          version="$(python3 scripts/version.py version --rev "$HEAD_SHA")-pr.${NUMBER}.${short}"
+        elif [ "$EVENT" = pull_request ]; then
+          base=$(python3 scripts/version.py version --rev "$BASE_SHA" --title "$TITLE" --author "$AUTHOR")
+          version="${base}-pr.${NUMBER}.${short}"
+        elif [ "$GITHUB_REF" = refs/heads/main ]; then
+          version=$(python3 scripts/version.py version --rev HEAD)
+        else
+          version="$(python3 scripts/version.py version --rev HEAD)-dev.${short}"
+        fi
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+        echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        echo "Version of this build: \`${version}\`." >> "$GITHUB_STEP_SUMMARY"
