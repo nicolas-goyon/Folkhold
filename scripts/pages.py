@@ -307,10 +307,14 @@ def render_downloads(latest, requirements, texts, repo):
     if jars:
         parts.append(f'<div class="card"><h3>{texts["download.mods.title"]}</h3>{file_list(jars, texts)}'
                      f'<p>{texts["download.mods.text"].format(**values)}{cartofold}</p></div>')
-        steps = "".join(f"<li>{step.format(**values)}</li>" for step in numbered(texts, "download.server.step"))
-        parts.append(f'<div class="card"><h3>{texts["download.server.title"]}</h3>'
-                     f'<p>{texts["download.server.text"]}</p><ol>{steps}</ol>'
-                     f'<p>{texts["download.server.docker"]}</p></div>')
+        # The server card names the jars of the release, and gives the URL of the modpack for Docker.
+        server = values | {"count": len(jars), "cartofold": cartofold,
+                           "jars": ", ".join(f"<code>{escape(asset['name'])}</code>" for asset in jars)}
+        steps = "".join(f"<li>{step.format(**server)}</li>" for step in numbered(texts, "download.server.step"))
+        docker = "".join(f'<p>{texts["download.server.docker"].format(mrpack=escape(asset["browser_download_url"]))}'
+                         "</p>" for asset in modpacks[:1])
+        parts.append(f'<div class="card card-wide"><h3>{texts["download.server.title"]}</h3>'
+                     f'<p>{texts["download.server.text"]}</p><ol>{steps}</ol>{docker}</div>')
     if others:
         parts.append(f'<div class="card"><h3>{texts["download.other.title"]}</h3>{file_list(others, texts)}</div>')
     parts.append("</div>")

@@ -196,6 +196,10 @@ class BuildTest(unittest.TestCase):
         self.assertIn("Fortified villages", english)
         self.assertIn("Villages fortifiés", french)
         self.assertIn("<h3>Serveur</h3>", french)
+        self.assertIn("the 2 Folkhold jars of the release in the <code>mods</code> folder of the server: "
+                      "<code>folkhold_core-0.2.0.jar</code>, <code>folkhold_world-0.2.0.jar</code>.", english)
+        self.assertIn("<code>MODRINTH_MODPACK</code> to the URL of the modpack of the release: "
+                      "<code>https://example.test/f.mrpack</code>", english)
         self.assertIn('<figure class="hero-shot"></figure>', english)
         self.assertNotIn("<img", english)
         self.assertFalse((out / "images").exists())
@@ -229,7 +233,7 @@ class BuildTest(unittest.TestCase):
                       'its towers" loading="eager" decoding="async"></figure>', english)
         self.assertIn('<img src="../images/villages.webp" alt="La place', french)
         self.assertEqual(2, english.count("<img"))
-        self.assertIn("Cartofold</a> 0.23.4 or later.", english)
+        self.assertEqual(2, english.count("Cartofold</a> 0.23.4 or later."))
 
     def test_site_with_no_release(self):
         out = self.build([], None, None)
