@@ -21,12 +21,14 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestSequence;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
@@ -74,6 +76,17 @@ final class TestSupport {
     static final int ARENA_SIZE = 16;
     /** The day time of a test: noon. */
     static final long NOON = 6000L;
+    /**
+     * The real-time limit, in seconds, for work on another thread, for example the route worker thread. The worker
+     * thread also does the work that the earlier tests and the simulation gave to it.
+     */
+    static final long WORKER_SECONDS = 60;
+    /**
+     * The tick limit of a test that waits for work on another thread. The GameTest server does not wait between two
+     * ticks, so a number of ticks is not a real time. This limit is a safety limit only: {@link #WORKER_SECONDS}
+     * stops the wait before it.
+     */
+    static final int WORKER_TICKS = 2_000_000;
     /** The settlements of the earlier tests in this radius go into ruins, in blocks. */
     private static final long RETIRE_RADIUS = 4096;
 
@@ -284,6 +297,32 @@ final class TestSupport {
                     }
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * Waits until a condition is true, with the real-time limit {@link #WORKER_SECONDS}, and not with a number of
+     * ticks. Use it for a result that comes from another thread. The limit starts when the wait starts. After the
+     * limit, the test fails with the message.
+     *
+     * @param helper    the helper of the test
+     * @param sequence  the sequence of the test
+     * @param condition the condition
+     * @param message   the message of the failure
+     * @return the sequence
+     */
+    static GameTestSequence thenWaitForWorker(GameTestHelper helper, GameTestSequence sequence,
+            BooleanSupplier condition, String message) {
+        long[] deadline = {0L};
+        return sequence.thenWaitUntil(() -> {
+            long now = System.nanoTime();
+            if (deadline[0] == 0L) {
+                deadline[0] = now + WORKER_SECONDS * 1_000_000_000L;
+            }
+            if (!condition.getAsBoolean() && now - deadline[0] < 0) {
+                throw new GameTestAssertException("Waiting: " + message);
+            }
+        }).thenExecute(() -> helper.assertTrue(condition.getAsBoolean(),
+                message + " (real-time limit: " + WORKER_SECONDS + " s)"));
     }
 
     /**
