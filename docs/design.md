@@ -812,7 +812,7 @@ All thresholds are in `folkhold_balance-server.toml`, with a "soft" preset and a
 
 ## Balance mod: rails
 
-The rails stay vanilla. The player links minecarts with a chain to make a train. A vanilla furnace minecart at the front pulls the train.
+The rails stay vanilla. The player links minecarts with a chain to make a train. A locomotive of the mod, or a vanilla furnace minecart, at the front pulls the train.
 
 ### Links
 
@@ -839,6 +839,19 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - Every second, the mod removes the dead links: links to a minecart that does not exist any more, for example a minecart that was destroyed while the other minecart was not loaded. A link is dead when its minecart ticks, all the chunks within `breakDistance` + 2 blocks of it have their entities loaded and tick them, and the level does not give the other minecart. The link must be dead in 2 checks in a row, because the entities of a chunk load after the chunk.
 - The client draws a chain between the two minecarts of each link, as a leash. The server sends the links to the players that track a minecart when a link changes, and when a player starts to track a minecart: the data attachments do not go to the client.
 
+### Locomotive
+
+- **Implemented** (`Locomotive`, `FurnaceLocomotive`, `LocomotiveItem`, `Traction`): the furnace locomotive is a minecart that pulls the minecarts behind it. Recipe: furnace minecart, 4 iron ingots and 1 piston. The item and the dispenser place it on a rail as a vanilla minecart. It looks like the vanilla furnace minecart with a copper color on the furnace. The item has the icon of the furnace minecart in a copper color. It has no screen, and no player rides it.
+- The player adds a furnace fuel with a right click (1 coal = 1600 units, a lava bucket gives back the bucket). A right click with an empty hand starts or stops the locomotive. The action bar shows the state and the fuel, in blocks.
+- On start, the locomotive goes away from the minecart behind it, or away from the player when it has no minecart behind it. Then its direction follows the rails.
+- Each tick, the speed of the locomotive changes by (pull − resistance) / mass:
+  - pull: the pulling force at speed 0, less in a line to 0 at the maximum speed. A locomotive that is stopped or has no fuel brakes with its pulling force;
+  - mass: the mass of the locomotive plus the mass of each minecart behind it. The mass of a wagon is `wagonMass` plus `cargoMass` multiplied by the fill ratio of its slots (the count of each stack divided by its stack size). A wagon that still has a loot table counts as empty: a read of its slots generates the loot;
+  - resistance: for each minecart, its mass multiplied by `friction`, plus `slopeForce` up a slope (minus down a slope), minus `poweredRailForce` on a powered rail with power, plus `brakeForce` on a powered rail with no power.
+- The speed is never less than 0: a train that is too heavy for a slope stops and does not slide back. The speed is never more than `maxSpeed` and 0.4 blocks per tick, the speed cap of the vanilla rails. The vanilla slope, powered rails and slowdown do not change the speed of the locomotive. The chains (see "Train") pull the minecarts behind it.
+- A locomotive with a front link is a wagon of the train in front: it does not drive and burns no fuel.
+- The fuel burns for each block that the locomotive moves while it runs: 8 units for each block, thus about 200 blocks for 1 coal. A train that waits does not move, so its fuel does not burn. The fuel is never more than `fuelCapacity`. A broken locomotive drops its item. Its fuel is lost.
+
 ### Configuration
 
 File `folkhold_balance-server.toml`, section `rails`:
@@ -853,6 +866,19 @@ File `folkhold_balance-server.toml`, section `rails`:
 | `stiffness` | 0.15 | Speed change for each block of stretch, in blocks per tick |
 | `damping` | 0.3 | Part of the speed difference that the back minecart gets back each tick |
 | `maxCarts` | 16 | Largest number of minecarts in a train |
+| `wagonMass` | 1.0 | Mass of a wagon with no cargo |
+| `cargoMass` | 3.0 | Mass of the cargo of a full wagon |
+| `friction` | 0.001 | Friction force for each unit of mass |
+| `slopeForce` | 0.0078125 | Force of a slope for each unit of mass on it |
+| `poweredRailForce` | 0.06 | Push of a powered rail with power, for each unit of mass on it |
+| `brakeForce` | 0.5 | Brake of a powered rail with no power, for each unit of mass on it |
+| `furnaceLocomotive.maxSpeed` | 0.4 | Largest speed, in blocks per tick (0.4 at most) |
+| `furnaceLocomotive.pullingForce` | 0.12 | Pulling force at speed 0 |
+| `furnaceLocomotive.mass` | 2.0 | Mass of the locomotive |
+| `furnaceLocomotive.fuelCapacity` | 32000 | Largest quantity of fuel (1 coal = 1600) |
+| `furnaceLocomotive.fuelPerBlock` | 8.0 | Fuel for each block that the locomotive moves |
+
+With the default values, a furnace locomotive pulls 2 full wagons up a slope of 1 block in 1. With 12 full wagons, it stops on this slope. On flat rails, its top speed is about 0.37 blocks per tick with 8 empty wagons and 0.29 with 8 full wagons. These values can change with the balance of version 1.
 
 ## Maps and journal
 

@@ -2,6 +2,8 @@ package io.github.nicolasgoyon.folkhold.balance.gametest;
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartLinks;
+import io.github.nicolasgoyon.folkhold.balance.rail.Locomotive;
+import io.github.nicolasgoyon.folkhold.balance.registry.ModEntities;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -104,6 +106,46 @@ public final class TrainLoadingGameTests {
                     helper.assertTrue(moved < 0.1, "The train does not stop: the furnace minecart moves " + moved
                             + " blocks");
                     helper.assertTrue(far.chains() == 0, "A chain drops");
+                    far.clear(carts);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The back minecart is at the edge of the simulation distance. The running locomotive in front does not move and
+     * burns no fuel.
+     */
+    @GameTest(template = "bench", timeoutTicks = 2400, batch = "balance_rails_locomotive_edge")
+    public static void waitingLocomotiveBurnsNoFuel(GameTestHelper helper) {
+        Far far = new Far(helper);
+        far.ticket(far.west, 2);
+        for (int x = 1; x < 24; x++) {
+            far.rail(x, 0, RailShape.EAST_WEST);
+        }
+        far.fixRails();
+        List<AbstractMinecart> carts = new ArrayList<>();
+        List<Vec3> start = new ArrayList<>();
+        double fuel = 1000.0;
+        helper.startSequence()
+                .thenWaitUntil(far::assertEdgeReady)
+                .thenExecute(() -> {
+                    Locomotive locomotive = far.spawn(ModEntities.FURNACE_LOCOMOTIVE.get(), FRONT_X, 0);
+                    locomotive.setFuel(fuel);
+                    carts.add(locomotive);
+                    carts.add(far.spawn(EntityType.CHEST_MINECART, BACK_X, 0));
+                    TrainGameTests.assertLinked(helper, carts.get(0), carts.get(1));
+                    // The locomotive goes away from the minecart behind it: toward the west.
+                    locomotive.setRunning(true, locomotive.position());
+                    start.add(locomotive.position());
+                })
+                .thenIdle(WAIT_TICKS)
+                .thenExecute(() -> {
+                    far.assertEdge(carts.get(1));
+                    far.assertLinked(carts.get(0), carts.get(1));
+                    double moved = carts.get(0).position().distanceTo(start.get(0));
+                    helper.assertTrue(moved < 0.1, "The locomotive moves " + moved + " blocks");
+                    double left = ((Locomotive) carts.get(0)).fuel();
+                    helper.assertTrue(left == fuel, "The waiting locomotive burns " + (fuel - left) + " fuel");
                     far.clear(carts);
                 })
                 .thenSucceed();
