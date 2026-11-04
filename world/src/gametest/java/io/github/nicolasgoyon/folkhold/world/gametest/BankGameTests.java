@@ -28,6 +28,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -245,6 +246,71 @@ public final class BankGameTests {
                 left -= taken;
             }
         }
+    }
+
+    /**
+     * A bank chest of an active village with real items breaks: for example the items of the ruins in a chunk that
+     * was not ready when the village became active again. The items go into the stock and the treasury, and nothing
+     * drops.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "bank_break_ruin_items")
+    public static void brokenChestGivesItsItemsToTheStock(GameTestHelper helper) {
+        Scene scene = scene(helper);
+        SettlementData data = SettlementData.get(helper.getLevel().getServer());
+        long treasuryBefore = data.treasury(scene.settlement().factionId());
+        scene.chest().container().setItem(0, new ItemStack(Items.BREAD, 5));
+        scene.chest().container().setItem(1, new ItemStack(Items.EMERALD, 3));
+
+        helper.setBlock(CHEST, Blocks.AIR);
+
+        int bread = scene.settlement().economy().stock().count("minecraft:bread");
+        long treasuryAfter = data.treasury(scene.settlement().factionId());
+        scene.remove(helper);
+        helper.assertTrue(bread == 15, "Expected 15 bread in the stock, not " + bread);
+        helper.assertTrue(treasuryAfter == treasuryBefore + 3,
+                "Expected " + (treasuryBefore + 3) + " emeralds in the treasury, not " + treasuryAfter);
+        helper.assertItemEntityNotPresent(Items.BREAD, CHEST, 3.0);
+        helper.assertItemEntityNotPresent(Items.EMERALD, CHEST, 3.0);
+        helper.succeed();
+    }
+
+    /** An empty bank chest of an active village breaks: the stock and the treasury do not change, nothing drops. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "bank_break_empty")
+    public static void brokenEmptyChestChangesNothing(GameTestHelper helper) {
+        Scene scene = scene(helper);
+        SettlementData data = SettlementData.get(helper.getLevel().getServer());
+        long treasuryBefore = data.treasury(scene.settlement().factionId());
+
+        helper.setBlock(CHEST, Blocks.AIR);
+
+        int bread = scene.settlement().economy().stock().count("minecraft:bread");
+        long treasuryAfter = data.treasury(scene.settlement().factionId());
+        scene.remove(helper);
+        helper.assertTrue(bread == 10, "Expected 10 bread in the stock, not " + bread);
+        helper.assertTrue(treasuryAfter == treasuryBefore, "The treasury must not change");
+        helper.assertItemEntityNotPresent(Items.BREAD, CHEST, 3.0);
+        helper.assertItemEntityNotPresent(Items.EMERALD, CHEST, 3.0);
+        helper.succeed();
+    }
+
+    /**
+     * A bank chest breaks while a player has it open: the items that the player took leave the stock one time, and
+     * the items that stay in the chest stay in the stock.
+     */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "bank_break_open")
+    public static void brokenOpenChestKeepsTheStock(GameTestHelper helper) {
+        Scene scene = scene(helper);
+        BankChests.onConfirm(scene.player(), helper.absolutePos(CHEST));
+        removeFromChest(scene.chest(), new ItemStack(Items.BREAD, 4));
+
+        helper.setBlock(CHEST, Blocks.AIR);
+        scene.player().closeContainer();
+
+        int bread = scene.settlement().economy().stock().count("minecraft:bread");
+        scene.remove(helper);
+        helper.assertTrue(bread == 6, "Expected 6 bread in the stock, not " + bread);
+        helper.assertItemEntityNotPresent(Items.BREAD, CHEST, 3.0);
+        helper.succeed();
     }
 
     /** TNT next to a bank chest does not break it. */

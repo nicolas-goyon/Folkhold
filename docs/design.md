@@ -505,6 +505,7 @@ A surplus lowers the price down to ×0.5. A shortage raises the price up to ×3.
 - Each village has a bank with bank chests. The bank chests show the stocks of the village and 40 % of the treasury that belongs to the village (configurable). When a player takes items, the mod removes them from the stocks and from the treasury.
 - To open or break a bank chest is a pillage (see "Reputation and welcome").
 - The bank chests and the walls of the bank resist explosions. A creeper or TNT does not break them by accident.
+- When a bank chest of an active village breaks, it drops nothing. The real items in the chest go into the stocks and the treasury. For example, a chest in a chunk that is not loaded when ruins become an active village again keeps the items of the ruins until a player opens or breaks it. When a player has the chest open, the changes of this player apply first. With no active village, a bank chest is a normal chest: it drops its items when it breaks.
 
 ### Professions and offers
 

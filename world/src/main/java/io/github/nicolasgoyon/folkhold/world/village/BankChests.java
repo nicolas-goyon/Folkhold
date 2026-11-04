@@ -72,7 +72,8 @@ import net.neoforged.neoforge.event.level.ExplosionEvent;
  * <p>Ruins: when the village becomes ruins, its stock and its share of the treasury go into its bank chests as real
  * items ({@link #storeInRuins}). With no active village, a bank chest is a normal chest: it keeps its items, and it
  * drops them when it breaks. When the village becomes active again, the items go back into the stock and the
- * treasury ({@link #recoverFromRuins}).
+ * treasury ({@link #recoverFromRuins}). A bank chest in a chunk that is not ready at this time keeps its items. The
+ * items go into the stock and the treasury when a player opens the chest or when the chest breaks.
  */
 public final class BankChests {
     /** A player farther than this distance from a bank chest cannot confirm the pillage. */
@@ -410,19 +411,26 @@ public final class BankChests {
     }
 
     /**
-     * A bank chest is removed. With no active village, the chest drops its items. In an active village, the items
-     * of the chest are a view of the stocks, so the chest drops nothing.
+     * A bank chest is removed (a player, an explosion, a command or a structure replaces the block). With no active
+     * village, the chest drops its items. In an active village, the chest drops nothing: the chest settles first
+     * (see {@link #settle}). Thus the real items in the chest go into the stocks and the treasury, for example the
+     * items of the ruins in a chunk that was not ready when the village became active again. If a player has the
+     * chest open, the changes of this player apply as when the player closes the chest. An item goes into the stocks
+     * or drops, never both.
      *
      * @param level the level
      * @param pos   the position of the chest
      * @param chest the chest
      */
     public static void onChestRemoved(ServerLevel level, BlockPos pos, BankChestBlockEntity chest) {
-        boolean active = bank(level, pos).map(bank -> bank.settlement() != null).orElse(false);
-        if (!active) {
+        Settlement settlement = bank(level, pos).map(Bank::settlement).orElse(null);
+        if (settlement == null) {
             Containers.dropContents(level, pos, chest.container());
+        } else {
+            settle(level.getServer(), settlement, chest);
         }
         chest.container().clearContent();
+        chest.snapshot().clear();
     }
 
     /**
