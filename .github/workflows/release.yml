@@ -6,7 +6,7 @@ name: Release
 # Release with the jars and the modpack (.mrpack) of the build, then publishes the Maven files of the build to GitHub
 # Packages. The release comes first: a Maven version is immutable, so a failed release step can run again only when
 # the publication did not happen.
-# When the tag of the version exists, the workflow makes no release. To run it again after a failure, use
+# When the tag of the version exists, the workflow does not build and makes no release. To run it again after a failure, use
 # "Run workflow" on main.
 # After the release, the workflow starts the workflow Pages on develop. Pages publishes the site of the project with
 # the downloads and the notes of the releases, and version.json for the version badge of the README.
@@ -24,8 +24,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # When the tag of the version exists, the next jobs do not run: no build and no release.
+  tag:
+    name: Tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      exists: ${{ steps.version.outputs.exists }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The history and the tags, for the version.
+          fetch-depth: 0
+
+      - name: Calculate the version
+        id: version
+        uses: ./.github/actions/version
+        with:
+          release: 'true'
+
   build:
     name: Build
+    needs: tag
+    if: needs.tag.outputs.exists == 'false'
     uses: ./.github/workflows/build.yml
     with:
       release: true
