@@ -35,6 +35,9 @@ def verifyCartofold = tasks.register('verifyCartofold') {
         if (!match.find()) {
             throw new GradleException("No sha256 hash in ${metafile}")
         }
+        if (jars.isEmpty()) {
+            throw new GradleException("No Cartofold jar on the compile classpath. See docs/getting-started.md, Cartofold dependency.")
+        }
         jars.each { jar ->
             def actual = java.security.MessageDigest.getInstance('SHA-256').digest(jar.bytes).encodeHex().toString()
             if (actual != match.group(1)) {

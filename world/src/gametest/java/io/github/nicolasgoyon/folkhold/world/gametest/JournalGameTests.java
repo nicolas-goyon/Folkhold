@@ -51,7 +51,7 @@ public final class JournalGameTests {
         JournalData.Visit discovered = data.visits(player.getUUID()).get(settlement.id());
         Journals.update(player, Optional.empty(), Optional.of(settlement.id()));
         JournalData.Visit visited = data.visits(player.getUUID()).get(settlement.id());
-        JournalPayload payload = Journals.payload(player);
+        JournalPayload payload = Journals.payload(player, "");
         server.getPlayerList().remove(player);
 
         helper.assertTrue(discovered != null && !discovered.visited(), "The territory must discover the village");

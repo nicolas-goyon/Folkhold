@@ -70,16 +70,27 @@ public final class Journals {
 
     /** Sends the journal to a player. */
     public static void request(ServerPlayer player) {
-        ModNetwork.send(player, payload(player));
+        ModNetwork.send(player, payload(player, ""));
+    }
+
+    /**
+     * Opens the journal of a player at a village of the journal.
+     *
+     * @param player    the player
+     * @param villageId the settlement id of the village
+     */
+    public static void open(ServerPlayer player, String villageId) {
+        ModNetwork.send(player, payload(player, villageId));
     }
 
     /**
      * The journal of a player.
      *
      * @param player the player
+     * @param focus  the settlement id of the village that the journal shows, or an empty string
      * @return the payload: the villages that the server knows, nearest first, and their factions
      */
-    public static JournalPayload payload(ServerPlayer player) {
+    public static JournalPayload payload(ServerPlayer player, String focus) {
         MinecraftServer server = player.server;
         SettlementData settlements = SettlementData.get(server);
         FactionData factionData = FactionData.get(server);
@@ -118,6 +129,6 @@ public final class Journals {
                         ReputationTier.of(value), value, entry.getValue()));
             });
         }
-        return new JournalPayload(villages, factions, day(server));
+        return new JournalPayload(villages, factions, day(server), focus);
     }
 }

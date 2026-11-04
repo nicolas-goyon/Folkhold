@@ -43,7 +43,7 @@ public final class RouteViews {
     }
 
     /**
-     * Sends the route between two villages to a player.
+     * Sends the route between two villages to a player, also as a layer of the maps (see {@link CartofoldMaps}).
      *
      * @param player      the player
      * @param fromId      the settlement id of the start
@@ -54,7 +54,9 @@ public final class RouteViews {
         if (recalculate) {
             recalculate(player, fromId, toId);
         }
-        ModNetwork.send(player, answer(player, fromId, toId));
+        RoutePayload answer = answer(player, fromId, toId);
+        CartofoldMaps.showRoute(player, answer.route(), answer.detailed());
+        ModNetwork.send(player, answer);
     }
 
     /**

@@ -57,12 +57,14 @@ public final class TerritoryMaps {
     }
 
     /**
-     * Sends the map of a player if it changed since the last payload.
+     * Sends the map of a player if it changed since the last payload, and the layers of Cartofold (see
+     * {@link CartofoldMaps}).
      *
      * @param player the player
      */
     public static void update(ServerPlayer player) {
         TerritoryMapPayload payload = payload(player);
+        CartofoldMaps.update(player, payload);
         if (!payload.equals(SENT.get(player.getUUID())) && ModNetwork.send(player, payload)) {
             SENT.put(player.getUUID(), payload);
         }

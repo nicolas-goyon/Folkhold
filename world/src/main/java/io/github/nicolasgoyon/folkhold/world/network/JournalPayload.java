@@ -19,8 +19,9 @@ import net.minecraft.resources.ResourceLocation;
  * @param villages the discovered villages, nearest to the player first
  * @param factions the factions of the discovered villages
  * @param today    the day of the world at the time of the payload
+ * @param focus    the settlement id of the village that the journal opens at, or an empty string
  */
-public record JournalPayload(List<Village> villages, List<Faction> factions, long today)
+public record JournalPayload(List<Village> villages, List<Faction> factions, long today, String focus)
         implements CustomPacketPayload {
 
     public static final Type<JournalPayload> TYPE =
@@ -120,6 +121,7 @@ public record JournalPayload(List<Village> villages, List<Faction> factions, lon
                 buf.writeVarInt(payload.factions.size());
                 payload.factions.forEach(faction -> Faction.write(buf, faction));
                 buf.writeVarLong(payload.today);
+                buf.writeUtf(payload.focus);
             },
             buf -> {
                 int villageCount = buf.readVarInt();
@@ -132,7 +134,7 @@ public record JournalPayload(List<Village> villages, List<Faction> factions, lon
                 for (int i = 0; i < factionCount; i++) {
                     factions.add(Faction.read(buf));
                 }
-                return new JournalPayload(villages, factions, buf.readVarLong());
+                return new JournalPayload(villages, factions, buf.readVarLong(), buf.readUtf());
             });
 
     @Override
