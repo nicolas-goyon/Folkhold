@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -73,6 +74,13 @@ public final class RaidBalanceGameTests {
     /** The time with no change after which a trial stalls, in ticks: 2 minutes of game time. */
     static final long STALL_TICKS = 2400;
     static final int VILLAGERS = 4;
+    /**
+     * The maximum number of trials of an exit test. The units and the raiders use random sources with no fixed seed,
+     * so the result of one trial is random: an exit test checks the result of the majority of the trials.
+     */
+    static final int EXIT_TRIALS = 5;
+    /** The number of trials with the same result that decides an exit test. */
+    static final int EXIT_MAJORITY = EXIT_TRIALS / 2 + 1;
     static final String MATRIX_VARIABLE = "FOLKHOLD_RAID_MATRIX";
     static final int[] MATRIX_RAIDS = {1, 3, 5};
     /** The first level of each tier: hamlet, village, town, city, capital. */
@@ -108,21 +116,42 @@ public final class RaidBalanceGameTests {
     }
 
     /**
-     * Exit criterion of version 1: a city (level 13) holds against a raid of level 5. The test is optional: with the
-     * current balance, the city does not hold in each trial. It becomes required when the balance meets the target.
+     * Exit criterion of version 1: a hamlet (level 1) falls to a raid of level 1. Cell "raid level 1, hamlet" of the
+     * targets.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_hamlet")
+    public static void smallVillageFalls(GameTestHelper helper) {
+        majority(helper, 1, 1, Outcome.FALLS, "A hamlet must fall to a raid of level 1");
+    }
+
+    /**
+     * Cell "raid level 1, village" of the targets: a village (level 5) holds against a raid of level 1. The test is
+     * optional until the balance meets the target.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_village",
+            required = false)
+    public static void villageHoldsAgainstARaidOfLevel1(GameTestHelper helper) {
+        majority(helper, 1, 5, Outcome.HOLDS, "A village must hold against a raid of level 1");
+    }
+
+    /**
+     * Cell "raid level 3, town" of the targets: a town (level 9) holds against a raid of level 3. The test is optional
+     * until the balance meets the target.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town",
+            required = false)
+    public static void townHoldsAgainstARaidOfLevel3(GameTestHelper helper) {
+        majority(helper, 3, 9, Outcome.HOLDS, "A town must hold against a raid of level 3");
+    }
+
+    /**
+     * Exit criterion of version 1: a city (level 13) holds against a raid of level 5. Cell "raid level 5, city" of the
+     * targets. The test is optional until the balance meets the target.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_city",
             required = false)
     public static void largeVillageResistsARaid(GameTestHelper helper) {
-        trial(helper, 5, 13, result -> helper.assertTrue(result.outcome() == Outcome.HOLDS,
-                "A city must hold against a raid of level 5: " + result));
-    }
-
-    /** Exit criterion of version 1: a hamlet (level 1) falls to a raid of level 1. */
-    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_hamlet")
-    public static void smallVillageFalls(GameTestHelper helper) {
-        trial(helper, 1, 1, result -> helper.assertTrue(result.outcome() == Outcome.FALLS,
-                "A hamlet must fall to a raid of level 1: " + result));
+        majority(helper, 5, 13, Outcome.HOLDS, "A city must hold against a raid of level 5");
     }
 
     /** The optional trials of the matrix. With no environment variable {@value #MATRIX_VARIABLE}, no trials. */
@@ -136,9 +165,11 @@ public final class RaidBalanceGameTests {
                     String name = String.format(Locale.ROOT, "raid%d_level%02d_run%d", raidLevel, villageLevel, run);
                     tests.add(new TestFunction("raid_matrix_" + name, "raidmatrix." + name, TEMPLATE, Rotation.NONE,
                             TestSupport.WORKER_TICKS, 0L, false, false, 1, 1, false,
-                            helper -> trial(helper, raidLevel, villageLevel, result -> helper.assertTrue(
-                                    result.outcome() == Outcome.HOLDS || result.outcome() == Outcome.FALLS,
-                                    "The trial must give a result: " + result))));
+                            helper -> thenTrial(helper, helper.startSequence(), raidLevel, villageLevel, () -> false,
+                                    result -> helper.assertTrue(
+                                            result.outcome() == Outcome.HOLDS || result.outcome() == Outcome.FALLS,
+                                            "The trial must give a result: " + result))
+                                    .thenSucceed()));
                 }
             }
         }
@@ -155,63 +186,113 @@ public final class RaidBalanceGameTests {
     }
 
     /**
-     * Runs a trial: builds the village, starts the raid, waits for its result, writes the result in the log, removes
-     * the village and the raiders, then gives the result to the check.
+     * Runs up to {@link #EXIT_TRIALS} trials and checks the result of the majority. The test stops the trials when
+     * {@link #EXIT_MAJORITY} trials give the same side: the expected result, or another result.
      *
      * @param helper       the helper of the test
      * @param raidLevel    the level of the raid, 1 to 5
      * @param villageLevel the level of the village, 1 to 20
-     * @param check        the checks of the test
+     * @param expected     the result of the target
+     * @param message      the message of the failure
      */
-    static void trial(GameTestHelper helper, int raidLevel, int villageLevel, Consumer<Result> check) {
-        TestSupport.buildFloor(helper, HUGE);
-        // The raiders come from outside the test area: no barriers around it.
-        StructureUtils.removeBarriers(helper.getBounds(), helper.getLevel());
-        forceChunks(helper, true);
-        helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
-        VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
-        TestSupport.setLevel(helper, heart, villageLevel);
+    static void majority(GameTestHelper helper, int raidLevel, int villageLevel, Outcome expected, String message) {
+        List<Outcome> outcomes = new ArrayList<>();
+        BooleanSupplier decided = () -> {
+            long hits = outcomes.stream().filter(outcome -> outcome == expected).count();
+            return hits >= EXIT_MAJORITY || outcomes.size() - hits >= EXIT_MAJORITY;
+        };
+        GameTestSequence sequence = helper.startSequence();
+        for (int i = 0; i < EXIT_TRIALS; i++) {
+            sequence = thenTrial(helper, sequence, raidLevel, villageLevel, decided,
+                    result -> outcomes.add(result.outcome()));
+        }
+        sequence.thenExecute(() -> helper.assertTrue(
+                outcomes.stream().filter(outcome -> outcome == expected).count() >= EXIT_MAJORITY,
+                message + " in " + EXIT_MAJORITY + " of " + EXIT_TRIALS + " trials: " + outcomes))
+                .thenSucceed();
+    }
+
+    /**
+     * Adds a trial to the sequence: builds the village, starts the raid, waits for its result, writes the result in
+     * the log, removes the village and the raiders, then gives the result to the consumer. The trial does nothing when
+     * {@code skip} is true at its start.
+     *
+     * @param helper       the helper of the test
+     * @param sequence     the sequence of the test
+     * @param raidLevel    the level of the raid, 1 to 5
+     * @param villageLevel the level of the village, 1 to 20
+     * @param skip         true when the test needs no more trials
+     * @param onResult     receives the result of the trial
+     * @return the sequence, with the stages of the trial
+     */
+    static GameTestSequence thenTrial(GameTestHelper helper, GameTestSequence sequence, int raidLevel,
+            int villageLevel, BooleanSupplier skip, Consumer<Result> onResult) {
         ServerLevel level = helper.getLevel();
         BlockPos heartPos = helper.absolutePos(HEART);
+        PoiManager pois = level.getPoiManager();
         // The trial keeps the relative positions of the beds. For a test with no rotation, GameTestHelper.relativePos
         // gives the opposite x and z: it does not give back the relative position of an absolute position.
         List<BlockPos> heads = new ArrayList<>();
         List<BlockPos> beds = new ArrayList<>();
         for (int i = 0; i < VILLAGERS; i++) {
-            BlockPos foot = HEART.offset(-3 + 2 * i, 0, 4);
-            TestSupport.placeBed(helper, foot, Direction.SOUTH);
-            heads.add(foot.south());
-            beds.add(helper.absolutePos(foot.south()));
+            BlockPos head = HEART.offset(-3 + 2 * i, 0, 5);
+            heads.add(head);
+            beds.add(helper.absolutePos(head));
         }
-        PoiManager pois = level.getPoiManager();
-        Trial trial = new Trial(heart, raidLevel);
+        Trial[] trial = new Trial[1];
+        boolean[] skipped = new boolean[1];
 
-        GameTestSequence sequence = TestSupport.thenWaitForWorker(helper, helper.startSequence(), () -> {
+        sequence = sequence.thenExecute(() -> {
+            skipped[0] = skip.getAsBoolean();
+            if (skipped[0]) {
+                return;
+            }
+            TestSupport.buildFloor(helper, HUGE);
+            // The raiders come from outside the test area: no barriers around it.
+            StructureUtils.removeBarriers(helper.getBounds(), level);
+            forceChunks(helper, true);
+            helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
+            VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+            TestSupport.setLevel(helper, heart, villageLevel);
+            heads.forEach(head -> TestSupport.placeBed(helper, head.north(), Direction.SOUTH));
+            trial[0] = new Trial(heart, raidLevel);
+        });
+        return TestSupport.thenWaitForWorker(helper, sequence, () -> {
+            if (skipped[0]) {
+                return true;
+            }
             if (!VillageHearts.findNearest(level, heartPos, 1.0).isPresent()
                     || !beds.stream().allMatch(bed -> pois.existsAtPosition(PoiTypes.HOME, bed))) {
                 return false;
             }
+            VillageHeartBlockEntity heart = trial[0].heart;
             heart.ensureGarrison(level.getGameTime());
             return heart.getGarrison().aliveCount() == fullSize(heart);
-        }, "The heart must be loaded, the beds must be points of interest, and the heart must create its garrison");
-        sequence
+        }, "The heart must be loaded, the beds must be points of interest, and the heart must create its garrison")
                 .thenExecute(() -> {
+                    if (skipped[0]) {
+                        return;
+                    }
                     for (int i = 0; i < VILLAGERS; i++) {
                         BlockPos bed = beds.get(i);
                         Villager villager = helper.spawn(EntityType.VILLAGER, heads.get(i).north(2));
                         pois.take(type -> type.is(PoiTypes.HOME), (type, pos) -> pos.equals(bed), bed, 1);
                         villager.getBrain().setMemory(MemoryModuleType.HOME, GlobalPos.of(level.dimension(), bed));
-                        trial.villagers.add(villager);
+                        trial[0].villagers.add(villager);
                     }
-                    trial.start(helper);
+                    trial[0].start(helper);
                 })
-                .thenWaitUntil(() -> helper.assertTrue(trial.isFinished(), "Waiting for the end of the raid"))
+                .thenWaitUntil(() -> helper.assertTrue(skipped[0] || trial[0].isFinished(),
+                        "Waiting for the end of the raid"))
                 .thenExecute(() -> {
-                    Result result = trial.result();
+                    if (skipped[0]) {
+                        return;
+                    }
+                    Result result = trial[0].result();
                     FolkholdWorld.LOGGER.info("Raid trial: raid level {}, village level {}: {}", raidLevel,
                             villageLevel, result);
                     if (result.raiders() > 0 && result.outcome() != Outcome.FALLS) {
-                        trial.raid.getAllRaiders().forEach(raider -> FolkholdWorld.LOGGER.info(
+                        trial[0].raid.getAllRaiders().forEach(raider -> FolkholdWorld.LOGGER.info(
                                 "Raid trial: raider left: {}, offset from the heart {}, distance {} blocks, ticking {}, "
                                         + "target {}, in water {}",
                                 raider.getType(), raider.blockPosition().subtract(heartPos),
@@ -219,16 +300,15 @@ public final class RaidBalanceGameTests {
                                 level.isPositionEntityTicking(raider.blockPosition()), raider.getTarget(),
                                 raider.isInWater()));
                     }
-                    trial.remove();
+                    trial[0].remove();
                     heads.forEach(head -> {
                         helper.setBlock(head, Blocks.AIR);
                         helper.setBlock(head.north(), Blocks.AIR);
                     });
                     helper.setBlock(HEART, Blocks.AIR);
                     forceChunks(helper, false);
-                    check.accept(result);
-                })
-                .thenSucceed();
+                    onResult.accept(result);
+                });
     }
 
     /**
