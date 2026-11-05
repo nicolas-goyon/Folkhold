@@ -131,7 +131,7 @@ public final class LevelTable {
         // The garrison of each tier: guards, archers, captains, healers, golems and riders. The balance of the raids
         // (see "Raids against the faction villages" in docs/design.md) gives a village the equipment set of a town, and
         // a town the equipment set of a city. The other tiers have the equipment set with the id of the tier.
-        int[][] garrisons = {{2, 2, 1, 0, 0, 0}, {5, 3, 1, 1, 0, 0}, {5, 4, 1, 1, 1, 1}, {5, 4, 1, 1, 1, 2},
+        int[][] garrisons = {{2, 2, 1, 0, 0, 0}, {5, 3, 1, 1, 0, 0}, {5, 4, 1, 1, 1, 1}, {6, 5, 1, 2, 2, 2},
                 {6, 5, 1, 2, 2, 3}};
         String[] equipment = {"hamlet", "town", "city", "city", "capital"};
         List<LevelTraits> levels = new ArrayList<>();

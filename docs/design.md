@@ -364,6 +364,7 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
 - The raiders force the gates also when the game rule `mobGriefing` is false: a forced gate opens, and no block breaks.
 - When a raider has a target, it attacks. When it loses the target, it marches again. A raider outside the palisade with a target inside the palisade (for example a villager) marches to a gate, forces it when it is closed, and attacks the target when it is inside the palisade. At 12 blocks from the heart, the raider arrives: the vanilla goals of the raid move it in the village. After its arrival, a raider marches again only when it is outside the palisade.
 - The raiders target the faction units, as the other monsters do. A garrison can stop a wave outside the palisade.
+- Waves: at the difficulty Normal, a vanilla raid has 5 waves, and a 6th wave when its level is 2 or more. The waves of the levels 2 to 5 are the same: only the chance of enchanted weapons changes (10 % to 75 % of the raiders). At a faction village, each wave of a raid of level 4 gets 1 extra ravager, and each wave of a raid of level 5 gets 2 extra ravagers (`VillageRaids.extraRavagers`). The first raider of a new wave adds them at the spawn position of the wave. The wave ends when they are dead, as the vanilla raiders. The raids at the vanilla villages do not change.
 
 **Balance targets** (targets of version 1, not a description of the current balance). The raid level is the level of the Raid Omen (1 to 5), at the difficulty Normal. The village holds when the raid ends in a victory. The village falls when all the units of its garrison die, or when the raid ends in a loss.
 
@@ -373,26 +374,29 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
 | 2 to 3 | Falls | Falls | Holds | Holds | Holds |
 | 4 to 5 | Falls | Falls | Falls | Holds | Holds |
 
-- The exit criterion of version 1 ("a large village resists a raid, a small village falls") is the GameTests of `RaidBalanceGameTests` for the decisive cells of the targets: a hamlet (level 1) falls to a raid of level 1, a village (level 5) holds against a raid of level 1, a town (level 9) holds against a raid of level 3, and a city (level 13) holds against a raid of level 5. The units and the raiders use random sources with no fixed seed: each of these tests runs up to 5 trials and checks the result of 3 trials. A test is required when the probability of a wrong majority is below 1 %, also at the low end of the 95 % interval of the measured rate: the hamlet only. The village, the town and the city tests are optional. For the city (29 / 32), a wrong majority occurs in about 0.7 % of the runs at the measured rate, and in about 5.8 % of the runs at a hold rate of 0.8.
-- The harness of these tests measures the garrison against the raiders: a heart, the full garrison of the level, 4 villagers with a bed, no palisade, and no refill of the garrison. A Holds result with no walls is also a Holds result with the palisade. The chunks in the gate radius of the heart (village radius and chase radius) plus one chunk have a ticket of the trial: they stay loaded and ticking. When the test ends, also after a failure, the trial removes its tickets, its raiders and its units. The arena is a cell of the GameTest grid: the barrier cages of the tests that ran before stay near the spawn positions of the raiders. A trial stalls when no raider and no unit dies, the raiders lose no health and no wave spawns during 2 minutes of game time (one game day with a palisade). The environment variable `FOLKHOLD_RAID_MATRIX=<runs>` adds the optional trials of the raid levels 1, 3 and 5 against the first level of each tier, and the trials of the Falls cells with a palisade: a square of 4 logs, 20 blocks from the heart, with a gate on each side. A gate is 3 closed fence gates with 3 blocks of free height, as the gate of a generated village. The gates are closed at the start, as at night: the raiders must force them. Each trial writes a line `Raid trial:` in the log of the GameTest server. The worst time of an exit test is 5 × (60 s + 600 s) = 3300 s. The usual time is 15 to 50 s.
+- The exit criterion of version 1 ("a large village resists a raid, a small village falls") is the GameTests of `RaidBalanceGameTests` for the decisive cells of the targets: a hamlet (level 1) falls to a raid of level 1, a village (level 5) holds against a raid of level 1, a town (level 9) holds against a raid of level 3, and a city (level 13) holds against a raid of level 5. The units and the raiders use random sources with no fixed seed: each of these tests runs up to 5 trials and checks the result of 3 trials. A test is required when the probability of a wrong majority at the measured rate is 1 % or less: the hamlet and the town. The village and the city tests are optional. For the town (32 / 33), a wrong majority occurs in about 0.03 % of the runs. For the city (17 / 21), a wrong majority occurs in about 5.1 % of the runs.
+- The harness of these tests measures the garrison against the raiders: a heart, the full garrison of the level, 4 villagers with a bed, no palisade, and no refill of the garrison. A Holds result with no walls is also a Holds result with the palisade. The chunks in the gate radius of the heart (village radius and chase radius) plus one chunk have a ticket of the trial: they stay loaded and ticking. When the test ends, also after a failure, the trial removes its tickets, its raiders and its units. The arena is a cell of the GameTest grid: the barrier cages of the tests that ran before stay near the spawn positions of the raiders. A trial stalls when no raider and no unit dies, the raiders lose no health and no wave spawns during 2 minutes of game time (one game day with a palisade). The environment variable `FOLKHOLD_RAID_MATRIX=<runs>` adds the optional trials of the raid levels 1, 3, 4 and 5 against the first level of each tier, and the trials of the Falls cells with a palisade. The environment variable `FOLKHOLD_RAID_CELLS` (for example `3:9,5:13,5:9:p`) replaces these cells with a list of `raid:level` pairs (suffix `:p`: with a palisade). The palisade of a trial is a square of 4 logs, 20 blocks from the heart, with a gate on each side. A gate is 3 closed fence gates with 3 blocks of free height, as the gate of a generated village. The gates are closed at the start, as at night: the raiders must force them. Each trial writes a line `Raid trial:` in the log of the GameTest server. The worst time of an exit test is 5 × (60 s + 600 s) = 3300 s. The usual time is 15 to 50 s.
 
-**Measured balance** (difficulty Normal, no palisade): one run of the GameTest server with `FOLKHOLD_RAID_MATRIX=4` and the exit tests. Each cell: results / trials. **Bold**: not the target. The garrison of the city is the same in all the measures of the balance: it holds against a raid of level 5 in 29 / 32 trials.
+**Measured balance** (difficulty Normal, no palisade): the trials of 4 runs of the GameTest server with the current values (`FOLKHOLD_RAID_MATRIX` and `FOLKHOLD_RAID_CELLS`, and the exit tests). Each cell: results / trials. **Bold**: not the target.
 
 | Raid level | Hamlet (1) | Village (5) | Town (9) | City (13) | Capital (17) |
 | --- | --- | --- | --- | --- | --- |
-| 1 | falls 7 / 7 | holds 6, **falls 1** / 7 | holds 4 / 4 | holds 4 / 4 | holds 4 / 4 |
-| 3 | falls 4 / 4 | falls 4 / 4 | holds 5, **falls 4** / 9 | holds 4 / 4 | holds 4 / 4 |
-| 5 | falls 4 / 4 | falls 4 / 4 | **holds 3**, falls 1 / 4 | holds 5, **falls 2** / 7 | holds 4 / 4 |
+| 1 | falls 14 / 14 | holds 11, **falls 5** / 16 | holds 2 / 2 | holds 2 / 2 | holds 2 / 2 |
+| 3 | falls 2 / 2 | falls 2 / 2 | holds 32, **falls 1** / 33 | holds 2 / 2 | holds 2 / 2 |
+| 4 | falls 2 / 2 | falls 2 / 2 | falls 12, **holds 8** / 20 | holds 14 / 14 | holds 8 / 8 |
+| 5 | falls 2 / 2 | falls 2 / 2 | falls 10, **holds 4** / 14 | holds 17, **falls 4** / 21 | holds 10 / 10 |
 
-- The raids of levels 3 and 5 have the same waves. Only the enchantments of the raiders change (25 % and 75 % of the raiders). Thus a town that holds against a raid of level 3 also holds against most raids of level 5.
+- The city has 6 guards, 5 archers, 2 healers and 2 golems, thus 5 units more than the town. With a difference of one unit, no number of extra ravagers makes the town fall and the city hold with a good probability (measured).
+- Gaps: the town falls to a raid of level 4 in 60 % of the trials, and to a raid of level 5 in 71 % of the trials. The city holds against a raid of level 5 in 81 % of the trials.
 
-**Measured with a palisade** (the Falls cells, difficulty Normal, closed gates at the start): one run of the GameTest server with 3 trials of each cell. The hamlet and the village fall in 14 of 15 trials: the palisade gives a small advantage. The town holds against a raid of level 5, also with no palisade (see [#602](https://github.com/nicolas-goyon/Folkhold/issues/602)).
+**Measured with a palisade** (the Falls cells, difficulty Normal, closed gates at the start). Each cell: results / trials.
 
 | Raid level | Hamlet (1) | Village (5) | Town (9) |
 | --- | --- | --- | --- |
-| 1 | falls 3 / 3 | | |
-| 3 | falls 3 / 3 | falls 2, **holds 1** / 3 | |
-| 5 | falls 3 / 3 | falls 3 / 3 | **holds 3** / 3 |
+| 1 | falls 2 / 2 | | |
+| 3 | falls 2 / 2 | falls 2 / 2 | |
+| 4 | | | **holds 2** / 2 |
+| 5 | falls 2 / 2 | falls 2 / 2 | falls 8, **holds 2** / 10 |
 
 ### NPC types
 
@@ -446,10 +450,10 @@ The garrison and its equipment grow with the tier. The units do not drop their e
 | Hamlet | 2 | 2 | 1 | 0 | 0 | 0 | Iron (guards, captain) and chainmail (archers) |
 | Village | 5 | 3 | 1 | 1 | 0 | 0 | Set `town`: diamond swords, Protection I to II, a crossbow for some archers |
 | Town | 5 | 4 | 1 | 1 | 1 | 1 | Set `city`: diamond (guards, captain), Protection II, Sharpness II, Power II, Quick Charge I |
-| City | 5 | 4 | 1 | 1 | 1 | 2 | Set `city` |
+| City | 6 | 5 | 1 | 2 | 2 | 2 | Set `city` |
 | Capital | 6 | 5 | 1 | 2 | 2 | 3 | Diamond and netherite, Protection III, Sharpness III, Power III, Quick Charge I and Piercing I |
 
-The balance of the raids (see "Raids against the faction villages") sets the garrison and the equipment of the village and the town: a village has the set `town`, and a town the set `city`. The default level table does not use the set `village` (with Protection I and Power I). A data pack can select it.
+The balance of the raids (see "Raids against the faction villages") sets the garrison and the equipment of the village, the town and the city: a village has the set `town`, and a town the set `city`. The default level table does not use the set `village` (with Protection I and Power I). A data pack can select it.
 
 Most villages start as a hamlet. The garrison of a hamlet keeps the difficulty target.
 

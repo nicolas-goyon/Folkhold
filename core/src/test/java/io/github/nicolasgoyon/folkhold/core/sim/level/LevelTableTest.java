@@ -46,7 +46,7 @@ class LevelTableTest {
         assertEquals(0, hamlet.count("golem"));
         assertEquals(0, TABLE.traits(8).garrison().count("golem"));
         assertEquals(1, TABLE.traits(9).garrison().count("golem"));
-        assertEquals(1, TABLE.traits(13).garrison().count("golem"));
+        assertEquals(2, TABLE.traits(13).garrison().count("golem"));
         assertEquals(2, capital.count("golem"));
         assertEquals(0, TABLE.traits(8).garrison().count("rider"));
         assertEquals(1, TABLE.traits(9).garrison().count("rider"));
@@ -60,6 +60,8 @@ class LevelTableTest {
         assertEquals(3, TABLE.traits(5).garrison().count("archer"));
         assertEquals(5, TABLE.traits(9).garrison().count("guard"));
         assertEquals(4, TABLE.traits(9).garrison().count("archer"));
+        assertEquals(6, TABLE.traits(13).garrison().count("guard"));
+        assertEquals(2, TABLE.traits(13).garrison().count("healer"));
         Map<String, String> sets = Map.of("hamlet", "hamlet", "village", "town", "town", "city", "city", "city",
                 "capital", "capital");
         for (int level = 1; level <= TABLE.maxLevel(); level++) {
