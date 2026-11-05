@@ -839,7 +839,7 @@ All thresholds are in `folkhold_balance-server.toml`, with a "soft" preset and a
 
 ## Balance mod: rails
 
-The rails stay vanilla. The player links minecarts with a chain to make a train. A locomotive of the mod, or a vanilla furnace minecart, at the front pulls the train.
+The rails stay vanilla. The player links minecarts with a chain to make a train. A locomotive of the mod at the front pulls the train. A vanilla furnace minecart pulls or pushes the train from any position in the train.
 
 ### Links
 
@@ -851,11 +851,12 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 
 ### Train
 
-- **Implemented** (`Trains`, `Coupling`): the game ticks the entities in a random order. Thus the mod moves the trains after the entities, at the end of the tick of each level. It finds each train one time, then corrects the motion of each minecart in order from the front minecart. The correction of a minecart uses the corrected motion of the minecart in front of it. Thus a long train has no delay of one tick for each minecart.
-- The front minecart pulls the back minecart. The mod changes only the speed of the back minecart, along its rail:
-  - below the buffer distance, the back minecart slows down. Two linked minecarts do not push each other as vanilla minecarts do;
+- **Implemented** (`Trains`, `Coupling`): the game ticks the entities in a random order. Thus the mod moves the trains after the entities, at the end of the tick of each level. It finds each train one time, then corrects the motion of each minecart in order from the driver of the train to the two ends of the train. The correction of a minecart uses the corrected motion of the next minecart toward the driver. Thus a long train has no delay of one tick for each minecart.
+- The driver is the front minecart when it is a locomotive or a vanilla furnace minecart with a push (with fuel). Else the driver is the first vanilla furnace minecart with a push, also when it is behind its wagons: a vanilla furnace minecart moves in the direction of its push, from the position of the player that gives the fuel. Else the driver is the front minecart.
+- In each link, the minecart nearer to the driver (the leader) pulls or pushes the other minecart (the follower). The mod changes only the speed of the follower, along its rail:
+  - below the buffer distance, the follower slows down, or moves away from the leader when the leader comes nearer. Two linked minecarts do not push each other as vanilla minecarts do;
   - from the buffer distance to the rest distance, the chain is slack;
-  - from the rest distance to the maximum distance, a spring with damping pulls the back minecart;
+  - from the rest distance to the maximum distance, a spring with damping pulls the follower;
   - above the maximum distance, the chain acts as a rigid bar.
 - The motion of a minecart stays below the speed limit of its rail, so that a minecart does not leave a curve.
 - A link breaks when the distance stays above the break distance for some ticks. This tolerance keeps the train together after a lag of some ticks. The chain drops at the middle of the link.

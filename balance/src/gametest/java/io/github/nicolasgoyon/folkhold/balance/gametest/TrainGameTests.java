@@ -74,6 +74,17 @@ public final class TrainGameTests {
     /** The rows of the slope up and of the slope down on the east side of the loop. */
     private static final int LOOP_SLOPE_UP_Z = 10;
     private static final int LOOP_SLOPE_DOWN_Z = 20;
+    /**
+     * The real-time limit of a wait for a state of a train, in seconds. The GameTest server does not wait between two
+     * ticks, so a number of ticks is not a real time.
+     */
+    private static final long STATE_SECONDS = 30;
+    /** The tick limit of a test that waits with {@link #STATE_SECONDS}: a safety limit only. */
+    private static final int STATE_TEST_TICKS = 2_000_000;
+    /** The distance that a furnace minecart moves its linked minecart in the tests, in blocks. */
+    private static final double MOVE_DISTANCE = 6.0;
+    /** The smallest speed of a minecart that a furnace minecart moves, in blocks per tick. The vanilla cap is 0.2. */
+    private static final double MOVE_SPEED = 0.15;
     /** The shape of each rail that a test places, by absolute position. The tests run on the server thread. */
     private static final Map<BlockPos, RailShape> RAILS = new HashMap<>();
 
@@ -224,6 +235,78 @@ public final class TrainGameTests {
             helper.assertTrue(wagon.getX() < wagonX + 0.5, "The block does not stop the wagon");
             clear(helper, List.of(wagon, furnace));
         });
+    }
+
+    /**
+     * The player links a minecart, then a furnace minecart: the furnace minecart is behind the minecart in the train.
+     * The player gives coal to the furnace minecart from behind the minecart: the furnace minecart goes away from the
+     * minecart and pulls it.
+     */
+    @GameTest(template = "bench", timeoutTicks = STATE_TEST_TICKS, batch = "balance_rails")
+    public static void furnaceBehindPullsItsLinkedMinecart(GameTestHelper helper) {
+        furnaceBehindMovesItsLinkedMinecart(helper, 5.5, 4.5, 1.0);
+    }
+
+    /**
+     * The player links a minecart, then a furnace minecart: the furnace minecart is behind the minecart in the train.
+     * The player gives coal to the furnace minecart from behind the furnace minecart: the furnace minecart goes to the
+     * minecart and pushes it.
+     */
+    @GameTest(template = "bench", timeoutTicks = STATE_TEST_TICKS, batch = "balance_rails")
+    public static void furnaceBehindPushesItsLinkedMinecart(GameTestHelper helper) {
+        furnaceBehindMovesItsLinkedMinecart(helper, 15.5, 18.0, -1.0);
+    }
+
+    /**
+     * A minecart and a furnace minecart on the bench, linked with a chain by a player in this order. The furnace
+     * minecart is to the east of the minecart, at the rest distance. The player gives coal to the furnace minecart,
+     * and the furnace minecart moves the minecart along the rails, with a real-time limit of {@link #STATE_SECONDS}.
+     *
+     * @param cartX     the X of the minecart, relative to the test
+     * @param playerX   the X of the player that gives the coal, relative to the test
+     * @param direction 1 when the train goes to the east, -1 when it goes to the west
+     */
+    private static void furnaceBehindMovesItsLinkedMinecart(GameTestHelper helper, double cartX, double playerX,
+                                                            double direction) {
+        floor(helper, 24, 8);
+        for (int x = 1; x < 23; x++) {
+            rail(helper, x, BENCH_Z, RailShape.EAST_WEST);
+        }
+        fixRails(helper);
+        double spacing = BalanceConfig.coupling().restDistance();
+        AbstractMinecart cart = helper.spawn(EntityType.MINECART, new Vec3(cartX, CART_Y, BENCH_Z + 0.5));
+        MinecartFurnace furnace = helper.spawn(EntityType.FURNACE_MINECART,
+                new Vec3(cartX + spacing, CART_Y, BENCH_Z + 0.5));
+        ServerPlayer player = survivalPlayer(helper, new Vec3(cartX + spacing / 2.0, 1.0, BENCH_Z + 1.5));
+        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.CHAIN));
+        player.interactOn(cart, InteractionHand.MAIN_HAND);
+        player.interactOn(furnace, InteractionHand.MAIN_HAND);
+        helper.getLevel().getServer().getPlayerList().remove(player);
+        helper.assertTrue(CartLinks.get(cart).back().equals(Optional.of(furnace.getUUID())),
+                "The furnace minecart is not behind the minecart");
+        fuel(helper, furnace, new Vec3(playerX, CART_Y, BENCH_Z + 0.5));
+        double startX = cart.getX();
+        Runnable moves = () -> {
+            double travel = (cart.getX() - startX) * direction;
+            double speed = (cart.getX() - cart.xo) * direction;
+            helper.assertTrue(CartLinks.get(cart).back().equals(Optional.of(furnace.getUUID())), "The link breaks");
+            helper.assertTrue(travel >= MOVE_DISTANCE && speed >= MOVE_SPEED,
+                    "The minecart moves " + travel + " blocks, at " + speed + " blocks per tick");
+        };
+        long[] deadline = {0L};
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    long now = System.nanoTime();
+                    if (deadline[0] == 0L) {
+                        deadline[0] = now + STATE_SECONDS * 1_000_000_000L;
+                    }
+                    if (now - deadline[0] < 0) {
+                        moves.run();
+                    }
+                })
+                .thenExecute(moves)
+                .thenExecute(() -> clear(helper, List.of(cart, furnace)))
+                .thenSucceed();
     }
 
     /**
