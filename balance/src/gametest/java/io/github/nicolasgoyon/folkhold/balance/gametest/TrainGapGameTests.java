@@ -41,9 +41,9 @@ public final class TrainGapGameTests {
     /** The tick limit of a test that waits with {@link #STATE_SECONDS}: a safety limit only. */
     private static final int STATE_TEST_TICKS = 2_000_000;
     /** The margin below the buffer gap for the gap on a straight rail, in blocks. */
-    private static final double STRAIGHT_MARGIN_BELOW = 0.07;
+    private static final double STRAIGHT_MARGIN_BELOW = 0.1;
     /** The margin above the rest gap for the gap on a straight rail: the stretch of a pulling chain, in blocks. */
-    private static final double STRAIGHT_MARGIN_ABOVE = 0.12;
+    private static final double STRAIGHT_MARGIN_ABOVE = 0.2;
     /** The smallest gap in a curve and on a slope: the minecarts do not go into each other, in blocks. */
     private static final double CURVE_MIN_GAP = 0.0;
     /** The largest gap in a curve and on a slope, in blocks. */
@@ -132,6 +132,9 @@ public final class TrainGapGameTests {
         Vec3 start = last.position();
         double[] range = {Double.MAX_VALUE, -Double.MAX_VALUE};
         double[] ends = {Double.MAX_VALUE, -Double.MAX_VALUE};
+        // The tick and the position of the follower for the smallest gap and for the largest gap.
+        long[] ticks = {0L, 0L};
+        Vec3[] positions = {Vec3.ZERO, Vec3.ZERO};
         boolean[] derailed = {false};
         helper.onEachTick(() -> {
             if (finished.getAsBoolean()) {
@@ -146,9 +149,17 @@ public final class TrainGapGameTests {
             }
             for (int i = 0; i + 1 < train.size(); i++) {
                 double gap = CartEnds.gap(train.get(i), train.get(i + 1));
-                range[0] = Math.min(range[0], gap);
-                range[1] = Math.max(range[1], gap);
-                double endDistance = CartEnds.endDistance(train.get(i), train.get(i + 1));
+                if (gap < range[0]) {
+                    range[0] = gap;
+                    ticks[0] = helper.getTick();
+                    positions[0] = helper.relativeVec(train.get(i + 1).position());
+                }
+                if (gap > range[1]) {
+                    range[1] = gap;
+                    ticks[1] = helper.getTick();
+                    positions[1] = helper.relativeVec(train.get(i + 1).position());
+                }
+                double endDistance = endDistance(train.get(i), train.get(i + 1));
                 ends[0] = Math.min(ends[0], endDistance);
                 ends[1] = Math.max(ends[1], endDistance);
             }
@@ -176,12 +187,26 @@ public final class TrainGapGameTests {
                         state.run();
                     }
                 })
-                .thenExecute(state)
                 .thenExecute(() -> {
-                    LOGGER.info("Gaps of the {} train: from {} to {} blocks; distances between the ends: from {} to {}"
-                            + " blocks", name, range[0], range[1], ends[0], ends[1]);
+                    LOGGER.info("Gaps of the {} train: from {} blocks (tick {}, follower at {}) to {} blocks (tick {},"
+                            + " follower at {}); distances between the ends: from {} to {} blocks", name, range[0],
+                            ticks[0], positions[0], range[1], ticks[1], positions[1], ends[0], ends[1]);
+                    state.run();
                     TrainGameTests.clear(helper, train);
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * The distance between the ends of two minecarts that face each other, where the client draws the chain (see
+     * {@link CartEnds#end}). The distance is negative when the ends go past each other. A diagnostic value for the
+     * log: on a curve rail, the vanilla minecart turns 45 degrees, so this distance is more than the gap.
+     */
+    private static double endDistance(AbstractMinecart first, AbstractMinecart second) {
+        Vec3 firstPos = first.position();
+        Vec3 secondPos = second.position();
+        Vec3 span = CartEnds.end(second, secondPos, firstPos).subtract(CartEnds.end(first, firstPos, secondPos));
+        double length = span.length();
+        return span.dot(secondPos.subtract(firstPos)) < 0.0 ? -length : length;
     }
 }

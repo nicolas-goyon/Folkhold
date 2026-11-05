@@ -75,18 +75,18 @@ public final class BalanceConfig {
                 .defineInRange("bufferGap", defaults.bufferGap(), 0.0, 2.0);
         CHAIN_REST_GAP = builder
                 .comment("Gap in blocks between two linked minecarts when the chain is not stretched. Below this",
-                        "gap, the chain does not pull. The value must be more than bufferGap.")
+                        "gap, the chain does not pull. The value must be at least bufferGap.")
                 .translation(KEY_PREFIX + "restGap")
                 .defineInRange("restGap", defaults.restGap(), 0.05, 2.0);
         CHAIN_MAX_GAP = builder
                 .comment("Largest gap in blocks of a stretched chain. Above this gap, the back minecart follows the",
                         "front minecart as with a rigid bar. A player links two minecarts only at this gap or",
-                        "nearer. The value must be more than restGap.")
+                        "nearer. The value must be at least restGap.")
                 .translation(KEY_PREFIX + "maxGap")
                 .defineInRange("maxGap", defaults.maxGap(), 0.1, 6.0);
         CHAIN_BREAK_GAP = builder
                 .comment("A link breaks when the gap stays above this value in blocks for breakTicks ticks.",
-                        "The value must be more than maxGap.")
+                        "The value must be at least maxGap.")
                 .translation(KEY_PREFIX + "breakGap")
                 .defineInRange("breakGap", defaults.breakGap(), 0.25, 14.0);
         CHAIN_BREAK_TICKS = builder

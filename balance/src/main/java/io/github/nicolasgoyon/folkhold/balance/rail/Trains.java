@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -25,8 +24,7 @@ import net.minecraft.world.entity.vehicle.AbstractMinecart;
 import net.minecraft.world.entity.vehicle.MinecartFurnace;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.BaseRailBlock;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.RailShape;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
@@ -341,7 +339,7 @@ public final class Trains {
         double nz = dz / horizontal;
         double impulse = coupling.impulse(gap, nextSpeed(leader, nx, nz) - currentSpeed(follower, nx, nz));
         if (impulse != 0.0) {
-            accelerate(level, follower, nx, nz, impulse);
+            accelerate(follower, nx, nz, impulse);
         }
         return false;
     }
@@ -372,10 +370,10 @@ public final class Trains {
      * @param impulse the speed change toward the leader, in blocks per tick. A negative value moves the follower
      *                away from the leader.
      */
-    private static void accelerate(ServerLevel level, AbstractMinecart cart, double nx, double nz, double impulse) {
+    private static void accelerate(AbstractMinecart cart, double nx, double nz, double impulse) {
         double dirX = nx;
         double dirZ = nz;
-        double[] axis = railAxis(level, cart);
+        double[] axis = railAxis(cart);
         if (axis != null) {
             double along = nx * axis[0] + nz * axis[1];
             if (Math.abs(along) < MIN_RAIL_ALIGNMENT) {
@@ -408,16 +406,12 @@ public final class Trains {
      * @return the direction, or null when the minecart is not on a rail
      */
     @Nullable
-    private static double[] railAxis(ServerLevel level, AbstractMinecart cart) {
-        if (!cart.isOnRails()) {
+    private static double[] railAxis(AbstractMinecart cart) {
+        RailShape shape = cart.isOnRails() ? CartEnds.railShape(cart, cart.position()) : null;
+        if (shape == null) {
             return null;
         }
-        BlockPos pos = cart.getCurrentRailPosition();
-        BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof BaseRailBlock rail)) {
-            return null;
-        }
-        return switch (rail.getRailDirection(state, level, pos, cart)) {
+        return switch (shape) {
             case NORTH_SOUTH, ASCENDING_NORTH, ASCENDING_SOUTH -> new double[] {0.0, 1.0};
             case EAST_WEST, ASCENDING_EAST, ASCENDING_WEST -> new double[] {1.0, 0.0};
             case SOUTH_EAST, NORTH_WEST -> new double[] {DIAGONAL, -DIAGONAL};

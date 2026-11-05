@@ -43,18 +43,6 @@ public final class CartEnds {
     }
 
     /**
-     * The distance between the ends of two minecarts that face each other (see {@link #end}). The distance is
-     * negative when the ends go past each other, so that the two minecarts go into each other.
-     */
-    public static double endDistance(AbstractMinecart first, AbstractMinecart second) {
-        Vec3 firstPos = first.position();
-        Vec3 secondPos = second.position();
-        Vec3 span = end(second, secondPos, firstPos).subtract(end(first, firstPos, secondPos));
-        double length = span.length();
-        return span.dot(secondPos.subtract(firstPos)) < 0.0 ? -length : length;
-    }
-
-    /**
      * The end of a minecart on the side of a point.
      *
      * @param cart    the minecart
@@ -84,7 +72,7 @@ public final class CartEnds {
      * @return the shape, or null when there is no rail
      */
     @Nullable
-    private static RailShape railShape(AbstractMinecart cart, Vec3 center) {
+    static RailShape railShape(AbstractMinecart cart, Vec3 center) {
         Level level = cart.level();
         BlockPos pos = BlockPos.containing(center);
         if (level.getBlockState(pos.below()).is(BlockTags.RAILS)) {
