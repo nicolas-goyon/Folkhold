@@ -339,7 +339,11 @@ public final class Trains {
         }
         double nx = dx / horizontal;
         double nz = dz / horizontal;
-        double impulse = coupling.impulse(gap, nextSpeed(leader, nx, nz) - currentSpeed(follower, nx, nz));
+        // In a curve, the straight line between the two minecarts is shorter than the rails between them: the buffer
+        // does not push the follower back there.
+        double chainGap = gap < coupling.bufferGap() && (isOnCurve(level, leader) || isOnCurve(level, follower))
+                ? coupling.bufferGap() : gap;
+        double impulse = coupling.impulse(chainGap, nextSpeed(leader, nx, nz) - currentSpeed(follower, nx, nz));
         if (impulse != 0.0) {
             accelerate(level, follower, nx, nz, impulse);
         }
@@ -400,6 +404,20 @@ public final class Trains {
             next = new Vec3(next.x * limit / horizontal, next.y, next.z * limit / horizontal);
         }
         cart.setDeltaMovement(next);
+    }
+
+    /** Tells if a minecart is on a curve rail. */
+    private static boolean isOnCurve(ServerLevel level, AbstractMinecart cart) {
+        if (!cart.isOnRails()) {
+            return false;
+        }
+        BlockPos pos = cart.getCurrentRailPosition();
+        BlockState state = level.getBlockState(pos);
+        return state.getBlock() instanceof BaseRailBlock rail
+                && switch (rail.getRailDirection(state, level, pos, cart)) {
+                    case SOUTH_EAST, SOUTH_WEST, NORTH_WEST, NORTH_EAST -> true;
+                    default -> false;
+                };
     }
 
     /**
