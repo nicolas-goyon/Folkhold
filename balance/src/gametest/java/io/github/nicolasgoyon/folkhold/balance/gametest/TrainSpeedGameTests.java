@@ -5,6 +5,7 @@ import static io.github.nicolasgoyon.folkhold.balance.gametest.TrainGameTests.ra
 
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
+import io.github.nicolasgoyon.folkhold.balance.rail.CartEnds;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartLinks;
 import io.github.nicolasgoyon.folkhold.balance.rail.Locomotive;
 import io.github.nicolasgoyon.folkhold.balance.registry.ModEntities;
@@ -123,22 +124,22 @@ public final class TrainSpeedGameTests {
             }
             before.set(last.position());
             for (int i = 0; i + 1 < train.size(); i++) {
-                largest.set(Math.max(largest.get(), train.get(i).distanceTo(train.get(i + 1))));
+                largest.set(Math.max(largest.get(), CartEnds.gap(train.get(i), train.get(i + 1))));
             }
             if (train.stream().anyMatch(cart -> !cart.isOnRails() && cart.tickCount > 2)) {
                 derailed.set(true);
             }
         });
         LocomotiveGameTests.start(helper, train.get(0));
-        double maxDistance = BalanceConfig.coupling().maxDistance();
+        double maxGap = BalanceConfig.coupling().maxGap();
         helper.succeedWhen(() -> {
             for (int i = 0; i + 1 < train.size(); i++) {
                 helper.assertTrue(CartLinks.get(train.get(i)).back().equals(Optional.of(train.get(i + 1).getUUID())),
                         "The link " + i + " of the train is broken");
             }
             helper.assertTrue(!derailed.get(), "A minecart of the train leaves the rails");
-            helper.assertTrue(largest.get() <= maxDistance + 0.5,
-                    "The largest distance between two minecarts is " + largest.get());
+            helper.assertTrue(largest.get() <= maxGap + 0.5,
+                    "The largest gap between two minecarts is " + largest.get());
             helper.assertTrue(fastest.get() <= maxSpeed + EPSILON, "A minecart goes at " + fastest.get());
             helper.assertTrue(atJunction.get() > 0.5, "The last wagon goes through the junction at "
                     + atJunction.get() + " (-1: a minecart is not on a straight rail)");

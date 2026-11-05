@@ -92,7 +92,7 @@ public final class ChainUse {
         }
         SELECTIONS.remove(player.getUUID());
         int maxCarts = BalanceConfig.TRAIN_MAX_CARTS.get();
-        CartLinks.LinkResult result = CartLinks.link(level, first.get(), cart, BalanceConfig.coupling().maxDistance(),
+        CartLinks.LinkResult result = CartLinks.link(level, first.get(), cart, BalanceConfig.coupling().maxGap(),
                 maxCarts);
         if (result == CartLinks.LinkResult.LINKED) {
             stack.consume(1, player);

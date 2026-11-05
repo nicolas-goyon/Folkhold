@@ -13,60 +13,60 @@ class CouplingTest {
 
     @Test
     void slackChainDoesNotPull() {
-        assertEquals(0.0, COUPLING.impulse(COUPLING.restDistance(), 0.5), EPSILON);
-        assertEquals(0.0, COUPLING.impulse(1.0, 0.5), EPSILON);
+        assertEquals(0.0, COUPLING.impulse(COUPLING.restGap(), 0.5), EPSILON);
+        assertEquals(0.0, COUPLING.impulse(COUPLING.bufferGap(), 0.5), EPSILON);
     }
 
     @Test
     void springPullsInProportionToTheStretch() {
-        double small = COUPLING.impulse(COUPLING.restDistance() + 0.2, 0.0);
-        double large = COUPLING.impulse(COUPLING.restDistance() + 0.4, 0.0);
+        double small = COUPLING.impulse(COUPLING.restGap() + 0.2, 0.0);
+        double large = COUPLING.impulse(COUPLING.restGap() + 0.4, 0.0);
         assertEquals(COUPLING.stiffness() * 0.2, small, EPSILON);
         assertEquals(2.0 * small, large, EPSILON);
     }
 
     @Test
     void dampingAddsTheSeparationSpeed() {
-        double distance = COUPLING.restDistance() + 0.2;
-        double still = COUPLING.impulse(distance, 0.0);
-        double separating = COUPLING.impulse(distance, 0.1);
+        double gap = COUPLING.restGap() + 0.2;
+        double still = COUPLING.impulse(gap, 0.0);
+        double separating = COUPLING.impulse(gap, 0.1);
         assertEquals(COUPLING.damping() * 0.1, separating - still, EPSILON);
     }
 
     @Test
     void stretchedChainNeverPushes() {
-        assertEquals(0.0, COUPLING.impulse(COUPLING.restDistance() + 0.1, -1.0), EPSILON);
+        assertEquals(0.0, COUPLING.impulse(COUPLING.restGap() + 0.1, -1.0), EPSILON);
     }
 
     @Test
-    void slackChainBetweenTheBufferAndTheRestDistanceDoesNothing() {
-        double distance = (COUPLING.bufferDistance() + COUPLING.restDistance()) / 2.0;
-        assertEquals(0.0, COUPLING.impulse(distance, -0.2), EPSILON);
-        assertEquals(0.0, COUPLING.impulse(distance, 0.2), EPSILON);
+    void slackChainBetweenTheBufferAndTheRestGapDoesNothing() {
+        double gap = (COUPLING.bufferGap() + COUPLING.restGap()) / 2.0;
+        assertEquals(0.0, COUPLING.impulse(gap, -0.2), EPSILON);
+        assertEquals(0.0, COUPLING.impulse(gap, 0.2), EPSILON);
     }
 
     @Test
-    void belowTheBufferDistanceTheBackMinecartSlowsDown() {
-        double distance = COUPLING.bufferDistance() - 0.1;
+    void belowTheBufferGapTheBackMinecartSlowsDown() {
+        double gap = COUPLING.bufferGap() - 0.1;
         double separationSpeed = -0.2;
-        double impulse = COUPLING.impulse(distance, separationSpeed);
+        double impulse = COUPLING.impulse(gap, separationSpeed);
         assertTrue(impulse < 0.0);
-        // The next distance is the distance plus the separation speed minus the impulse.
-        assertEquals(COUPLING.bufferDistance(), distance + separationSpeed - impulse, EPSILON);
+        // The next gap is the gap plus the separation speed minus the impulse.
+        assertEquals(COUPLING.bufferGap(), gap + separationSpeed - impulse, EPSILON);
     }
 
     @Test
-    void belowTheBufferDistanceMinecartsThatSeparateGetNoChange() {
-        assertEquals(0.0, COUPLING.impulse(COUPLING.bufferDistance() - 0.1, 0.5), EPSILON);
+    void belowTheBufferGapMinecartsThatSeparateGetNoChange() {
+        assertEquals(0.0, COUPLING.impulse(COUPLING.bufferGap() - 0.1, 0.5), EPSILON);
     }
 
     @Test
-    void aboveTheMaximumDistanceTheChainActsAsABar() {
-        double distance = COUPLING.maxDistance() + 0.2;
+    void aboveTheMaximumGapTheChainActsAsABar() {
+        double gap = COUPLING.maxGap() + 0.2;
         double separationSpeed = 0.1;
-        double impulse = COUPLING.impulse(distance, separationSpeed);
-        // The next distance is the distance plus the separation speed minus the impulse.
-        assertTrue(distance + separationSpeed - impulse <= COUPLING.maxDistance() + EPSILON);
+        double impulse = COUPLING.impulse(gap, separationSpeed);
+        // The next gap is the gap plus the separation speed minus the impulse.
+        assertTrue(gap + separationSpeed - impulse <= COUPLING.maxGap() + EPSILON);
     }
 
     @Test
@@ -76,21 +76,21 @@ class CouplingTest {
     }
 
     @Test
-    void breakCounterIncreasesOnlyAboveTheBreakDistance() {
-        assertEquals(1, COUPLING.nextStretchTicks(0, COUPLING.breakDistance() + 0.1));
-        assertEquals(6, COUPLING.nextStretchTicks(5, COUPLING.breakDistance() + 0.1));
-        assertEquals(0, COUPLING.nextStretchTicks(5, COUPLING.breakDistance()));
+    void breakCounterIncreasesOnlyAboveTheBreakGap() {
+        assertEquals(1, COUPLING.nextStretchTicks(0, COUPLING.breakGap() + 0.1));
+        assertEquals(6, COUPLING.nextStretchTicks(5, COUPLING.breakGap() + 0.1));
+        assertEquals(0, COUPLING.nextStretchTicks(5, COUPLING.breakGap()));
     }
 
     @Test
     void linkBreaksAfterTheTolerance() {
         int ticks = 0;
-        double distance = COUPLING.breakDistance() + 1.0;
+        double gap = COUPLING.breakGap() + 1.0;
         for (int i = 1; i < COUPLING.breakTicks(); i++) {
-            ticks = COUPLING.nextStretchTicks(ticks, distance);
+            ticks = COUPLING.nextStretchTicks(ticks, gap);
             assertFalse(COUPLING.breaks(ticks), "tick " + i);
         }
-        ticks = COUPLING.nextStretchTicks(ticks, distance);
+        ticks = COUPLING.nextStretchTicks(ticks, gap);
         assertTrue(COUPLING.breaks(ticks));
     }
 
@@ -98,22 +98,22 @@ class CouplingTest {
     void shortLagDoesNotBreakTheLink() {
         int ticks = 0;
         for (int i = 0; i < COUPLING.breakTicks() - 1; i++) {
-            ticks = COUPLING.nextStretchTicks(ticks, COUPLING.breakDistance() + 1.0);
+            ticks = COUPLING.nextStretchTicks(ticks, COUPLING.breakGap() + 1.0);
         }
-        ticks = COUPLING.nextStretchTicks(ticks, COUPLING.restDistance());
+        ticks = COUPLING.nextStretchTicks(ticks, COUPLING.restGap());
         assertEquals(0, ticks);
         assertFalse(COUPLING.breaks(ticks));
     }
 
     /**
      * A front minecart at the speed of a furnace minecart (0.2 blocks per tick) pulls a minecart with the slowdown of
-     * an empty vanilla minecart (0.96 each tick). The distance stays below the maximum distance and settles near the
-     * rest distance.
+     * an empty vanilla minecart (0.96 each tick). The gap stays below the maximum gap and settles near the
+     * rest gap.
      */
     @Test
-    void trainSettlesBetweenTheRestAndTheMaximumDistance() {
+    void trainSettlesBetweenTheRestAndTheMaximumGap() {
         double frontSpeed = 0.2;
-        double front = COUPLING.restDistance();
+        double front = COUPLING.restGap();
         double back = 0.0;
         double backSpeed = 0.0;
         double largest = 0.0;
@@ -124,25 +124,25 @@ class CouplingTest {
             front += frontMove;
             back += backMove;
             backSpeed *= 0.96;
-            double distance = front - back;
-            largest = Math.max(largest, distance);
-            backSpeed += COUPLING.impulse(distance, frontMove - backMove);
+            double gap = front - back;
+            largest = Math.max(largest, gap);
+            backSpeed += COUPLING.impulse(gap, frontMove - backMove);
             lastBackSpeed = backMove;
         }
-        assertTrue(largest <= COUPLING.maxDistance(), "largest distance " + largest);
-        double distance = front - back;
-        assertTrue(distance > COUPLING.restDistance() && distance < COUPLING.restDistance() + 0.2,
-                "final distance " + distance);
+        assertTrue(largest <= COUPLING.maxGap(), "largest gap " + largest);
+        double gap = front - back;
+        assertTrue(gap > COUPLING.restGap() && gap < COUPLING.restGap() + 0.2,
+                "final gap " + gap);
         assertEquals(frontSpeed, lastBackSpeed, 1.0E-3);
     }
 
     /**
      * The front minecart stops at once. The back minecart arrives at the speed of a furnace minecart. It stops at the
-     * buffer distance and does not go into the front minecart.
+     * buffer gap and does not go into the front minecart.
      */
     @Test
-    void backMinecartStopsAtTheBufferDistance() {
-        double front = COUPLING.restDistance();
+    void backMinecartStopsAtTheBufferGap() {
+        double front = COUPLING.restGap();
         double back = 0.0;
         double backSpeed = 0.2;
         double smallest = Double.MAX_VALUE;
@@ -150,16 +150,16 @@ class CouplingTest {
             double backMove = backSpeed;
             back += backMove;
             backSpeed *= 0.96;
-            double distance = front - back;
-            smallest = Math.min(smallest, distance);
-            backSpeed += COUPLING.impulse(distance, -backMove);
+            double gap = front - back;
+            smallest = Math.min(smallest, gap);
+            backSpeed += COUPLING.impulse(gap, -backMove);
         }
-        assertTrue(smallest >= COUPLING.bufferDistance() - 0.2, "smallest distance " + smallest);
-        assertTrue(front - back >= COUPLING.bufferDistance() - EPSILON, "final distance " + (front - back));
+        assertTrue(smallest >= COUPLING.bufferGap() - 0.2, "smallest gap " + smallest);
+        assertTrue(front - back >= COUPLING.bufferGap() - EPSILON, "final gap " + (front - back));
     }
 
     @Test
-    void distancesMustBeInOrder() {
+    void gapsMustBeInOrder() {
         assertThrows(IllegalArgumentException.class, () -> new Coupling(1.6, 1.5, 2.5, 4.0, 40, 0.1, 0.1));
         assertThrows(IllegalArgumentException.class, () -> new Coupling(1.1, 2.0, 1.5, 4.0, 40, 0.1, 0.1));
         assertThrows(IllegalArgumentException.class, () -> new Coupling(1.1, 1.5, 2.5, 2.0, 40, 0.1, 0.1));

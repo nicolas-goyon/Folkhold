@@ -46,12 +46,12 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  *
  * <p>A train stops as one unit when one of its minecarts is not in a chunk that ticks its entities, or is not loaded.
  * Its links wait, and the break counters do not increase. A link breaks when a minecart is destroyed or goes through
- * a portal, or when the chain stays too long above its break distance (see {@link Coupling}).
+ * a portal, or when the chain stays too long above its break gap (see {@link Coupling}).
  */
 public final class Trains {
     /** The minecarts with a link in each level that are loaded. */
     private static final Map<ResourceKey<Level>, Set<AbstractMinecart>> LINKED = new HashMap<>();
-    /** The break counter of each follower whose chain is above the break distance (see {@link #pull}). */
+    /** The break counter of each follower whose chain is above the break gap (see {@link #pull}). */
     private static final Map<UUID, Integer> STRETCH_TICKS = new HashMap<>();
     /** The links that the last check found dead: the UUID of a minecart to the UUIDs of its missing partners. */
     private static final Map<UUID, Set<UUID>> DEAD_LINKS = new HashMap<>();
@@ -67,7 +67,7 @@ public final class Trains {
     private static final double MIN_FURNACE_PUSH_SQR = 1.0E-7;
     /** The interval of the check of the dead links, in ticks. */
     private static final int DEAD_LINK_CHECK_TICKS = 20;
-    /** The margin around the break distance for the check of the dead links, in blocks. */
+    /** The margin around the largest distance of two linked minecarts for the check of the dead links, in blocks. */
     private static final double DEAD_LINK_MARGIN = 2.0;
 
     private Trains() {
@@ -120,7 +120,7 @@ public final class Trains {
         carts.removeIf(Entity::isRemoved);
         Coupling coupling = BalanceConfig.coupling();
         if (level.getGameTime() % DEAD_LINK_CHECK_TICKS == 0) {
-            checkDeadLinks(level, carts, coupling.breakDistance() + DEAD_LINK_MARGIN);
+            checkDeadLinks(level, carts, coupling.breakGap() + 2.0 * CartEnds.HALF_LENGTH + DEAD_LINK_MARGIN);
         }
         int maxCarts = BalanceConfig.TRAIN_MAX_CARTS.get();
         Set<AbstractMinecart> done = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -249,8 +249,8 @@ public final class Trains {
     }
 
     /**
-     * Removes the dead links: links to a minecart that does not exist any more. Two linked minecarts are never
-     * farther apart than the break distance: a train that waits does not move. Thus a link is dead when its minecart
+     * Removes the dead links: links to a minecart that does not exist any more. Two linked minecarts are never much
+     * farther apart than the break gap: a train that waits does not move. Thus a link is dead when its minecart
      * ticks, all the chunks in this radius around it have their entities loaded and tick them, and the level does not
      * give the other minecart. The entities of a chunk load after the chunk: a link must be dead in 2 checks in a
      * row. No chain drops.
@@ -320,11 +320,10 @@ public final class Trains {
     private static boolean pull(ServerLevel level, Coupling coupling, AbstractMinecart leader,
                                 AbstractMinecart follower) {
         double dx = leader.getX() - follower.getX();
-        double dy = leader.getY() - follower.getY();
         double dz = leader.getZ() - follower.getZ();
-        double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        double gap = CartEnds.gap(follower, leader);
         // Each minecart is the follower of one link at most: the counter of a link has the UUID of its follower.
-        int ticks = coupling.nextStretchTicks(STRETCH_TICKS.getOrDefault(follower.getUUID(), 0), distance);
+        int ticks = coupling.nextStretchTicks(STRETCH_TICKS.getOrDefault(follower.getUUID(), 0), gap);
         if (coupling.breaks(ticks)) {
             CartLinks.unlink(level, follower, leader.getUUID(), true);
             return true;
@@ -340,7 +339,7 @@ public final class Trains {
         }
         double nx = dx / horizontal;
         double nz = dz / horizontal;
-        double impulse = coupling.impulse(distance, nextSpeed(leader, nx, nz) - currentSpeed(follower, nx, nz));
+        double impulse = coupling.impulse(gap, nextSpeed(leader, nx, nz) - currentSpeed(follower, nx, nz));
         if (impulse != 0.0) {
             accelerate(level, follower, nx, nz, impulse);
         }
