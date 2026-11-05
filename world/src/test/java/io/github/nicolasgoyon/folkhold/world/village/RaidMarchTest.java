@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -47,25 +46,31 @@ class RaidMarchTest {
         RaidMarch.Leg north = leg(5, -45, RaidMarchTest::open, null);
         RaidMarch.Leg south = leg(-3, 40, RaidMarchTest::open, null);
 
-        assertEquals(Optional.of(NORTH.point()), north.target());
+        assertEquals(NORTH.point(), north.target());
         assertNull(north.entering());
-        assertEquals(Optional.of(SOUTH.point()), south.target());
+        assertNull(north.forcing());
+        assertEquals(SOUTH.point(), south.target());
     }
 
+    /** The front of the north gate is one block outside the middle fence gate. */
     @Test
-    void atAClosedGateTheRaiderWaits() {
+    void atAClosedGateTheRaiderForcesTheGate() {
         RaidMarch.Leg leg = leg(1, -26, RaidMarchTest::closed, null);
 
-        assertEquals(Optional.empty(), leg.target());
-        assertNull(leg.entering());
+        assertEquals(new BlockPos(0, 64, -20), leg.target());
+        assertEquals(new BlockPos(0, 64, -20), RaidMarch.front(NORTH));
+        assertEquals(new BlockPos(0, 64, 20), RaidMarch.front(SOUTH));
+        assertEquals(NORTH.point(), leg.entering());
+        assertEquals(NORTH, leg.forcing());
     }
 
     @Test
     void atAnOpenGateTheRaiderGoesThroughTheGate() {
         RaidMarch.Leg leg = leg(1, -26, RaidMarchTest::open, null);
 
-        assertEquals(Optional.of(HEART), leg.target());
+        assertEquals(HEART, leg.target());
         assertEquals(NORTH.point(), leg.entering());
+        assertNull(leg.forcing());
     }
 
     /**
@@ -77,17 +82,19 @@ class RaidMarchTest {
         RaidMarch.Leg entering = leg(0, -21, RaidMarchTest::open, NORTH.point());
         RaidMarch.Leg other = leg(0, -21, RaidMarchTest::open, null);
 
-        assertEquals(Optional.of(HEART), entering.target());
+        assertEquals(HEART, entering.target());
         assertEquals(NORTH.point(), entering.entering());
-        assertEquals(Optional.of(NORTH.point()), other.target());
+        assertEquals(NORTH.point(), other.target());
     }
 
+    /** A gate that closes in front of a raider on its way through the gate: the raider forces the gate. */
     @Test
-    void whenTheGateClosesTheRaiderGoesBackToTheApproach() {
+    void whenTheGateClosesTheRaiderForcesIt() {
         RaidMarch.Leg leg = leg(0, -21, RaidMarchTest::closed, NORTH.point());
 
-        assertEquals(Optional.of(NORTH.point()), leg.target());
-        assertNull(leg.entering());
+        assertEquals(RaidMarch.front(NORTH), leg.target());
+        assertEquals(NORTH.point(), leg.entering());
+        assertEquals(NORTH, leg.forcing());
     }
 
     /** A corner of the palisade is far from the heart, but inside the square of the palisade. */
@@ -96,17 +103,18 @@ class RaidMarchTest {
         RaidMarch.Leg corner = leg(17, 17, RaidMarchTest::closed, null);
         RaidMarch.Leg gate = leg(0, -18, RaidMarchTest::closed, NORTH.point());
 
-        assertEquals(Optional.of(HEART), corner.target());
+        assertEquals(HEART, corner.target());
         assertNull(corner.entering());
-        assertEquals(Optional.of(HEART), gate.target());
+        assertEquals(HEART, gate.target());
         assertNull(gate.entering());
+        assertNull(gate.forcing());
     }
 
     @Test
     void withNoKnownGatesTheRaiderWalksToTheHeart() {
         RaidMarch.Leg leg = RaidMarch.next(HEART, List.of(), RaidMarchTest::closed, new BlockPos(30, 64, 30), null);
 
-        assertEquals(Optional.of(HEART), leg.target());
+        assertEquals(HEART, leg.target());
     }
 
     @Test

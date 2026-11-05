@@ -109,6 +109,8 @@ public final class RaidBalanceGameTests {
     static final int[][] PALISADE_CELLS = {{1, 1}, {3, 1}, {5, 1}, {3, 5}, {5, 5}, {5, 9}};
     /** The distance from the heart to the palisade, in blocks. The arena has 27 blocks on each side of the heart. */
     static final int PALISADE = 20;
+    /** The free height of a gate, in blocks: one fence gate and 2 blocks of air, as the gate of a generated village. */
+    static final int GATE_HEIGHT = 3;
     private static final String TEMPLATE = FolkholdWorld.MOD_ID + ":arena_huge";
     private static final int HUGE = 56;
     private static final BlockPos HEART = new BlockPos(HUGE / 2, 1, HUGE / 2);
@@ -381,20 +383,21 @@ public final class RaidBalanceGameTests {
 
     /**
      * Builds the palisade of a village, or removes it with air: a square of columns of {@link PalisadeHeights#LOGS}
-     * logs, {@link #PALISADE} blocks from the heart, as the palisade of a generated village. A gate of 3 open fence
-     * gates is in the middle of each side, with 2 logs above it: the state of the day. At night the gates close, and
-     * the raiders wait outside a closed gate (see {@code RaidMarch}): no unit and no raider dies, and the trial
-     * stalls.
+     * logs, {@link #PALISADE} blocks from the heart, as the palisade of a generated village. A gate is in the middle of
+     * each side: 3 closed fence gates with {@link #GATE_HEIGHT} blocks of free height, as the gate of a generated
+     * village. The closed gates are the state of the night: the raiders force them (see {@code RaidMarch}). The heart
+     * opens the gates only in the morning, after a night.
      */
     private static void buildPalisade(GameTestHelper helper, BlockState log, BlockState gate) {
         for (int d = -PALISADE; d <= PALISADE; d++) {
             for (int y = 0; y < PalisadeHeights.LOGS; y++) {
-                BlockState block = Math.abs(d) <= 1 && y < 2 ? gate : log;
+                boolean passage = Math.abs(d) <= 1 && y < GATE_HEIGHT;
+                BlockState block = passage ? (y == 0 ? gate : Blocks.AIR.defaultBlockState()) : log;
                 for (Direction side : Direction.Plane.HORIZONTAL) {
                     Direction along = side.getClockWise();
                     BlockPos pos = HEART.relative(side, PALISADE).relative(along, d).above(y);
                     helper.setBlock(pos, block.hasProperty(FenceGateBlock.FACING)
-                            ? block.setValue(FenceGateBlock.FACING, side).setValue(FenceGateBlock.OPEN, true)
+                            ? block.setValue(FenceGateBlock.FACING, side)
                             : block);
                 }
             }
