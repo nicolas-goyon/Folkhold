@@ -205,7 +205,7 @@ public final class BalanceConfig {
                 .define("inChestLoot", false);
         builder.pop();
 
-        builder.comment("Anvil: no level cap, no \"Too Expensive!\" limit, a quadratic enchantment cost and a repair",
+        builder.comment("Anvil: no level cap, no \"Too Expensive!\" limit, an exponential enchantment cost and a repair",
                         "cost with no prior work penalty. All costs are in levels.")
                 .translation(KEY_PREFIX + "anvil")
                 .push("anvil");
@@ -220,10 +220,13 @@ public final class BalanceConfig {
                 .translation(KEY_PREFIX + "mergeRule")
                 .defineEnum("mergeRule", MergeRule.VANILLA);
         ANVIL_ENCHANT_COST_FACTOR = builder
-                .comment("Factor k of the enchantment cost: operationCost + ceil(k × sum of weight × (b² - a²)).",
-                        "a is the level on the left item, b is the level of the result.")
+                .comment("Factor k of the enchantment cost: operationCost + ceil(k × sum of weight × (2^b - 2^a)).",
+                        "a is the level on the left item (0 if none), b is the level of the result. Level 0 has the",
+                        "value 0. Each level costs double the level before it. With k = 0.5: Efficiency V costs 17,",
+                        "Efficiency VI on Efficiency V costs 17, Efficiency VIII on Efficiency VII costs 65.",
+                        "A cost above 32,767 levels gives no result.")
                 .translation(KEY_PREFIX + "enchantCostFactor")
-                .defineInRange("enchantCostFactor", 1.0, 0.0, 1000.0);
+                .defineInRange("enchantCostFactor", 0.5, 0.0, 1000.0);
         ANVIL_OPERATION_COST = builder
                 .comment("Fixed cost of an operation that raises the level of an enchantment.")
                 .translation(KEY_PREFIX + "operationCost")

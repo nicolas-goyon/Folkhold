@@ -32,8 +32,8 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * In-game tests for the anvil with the default config: vanilla merge rule with no level cap, quadratic enchantment
- * cost, repair cost with no prior work penalty. A mock player uses an anvil menu, and takes the result as a click
+ * In-game tests for the anvil with the default config: vanilla merge rule with no level cap, exponential enchantment
+ * cost (k = 0.5), repair cost with no prior work penalty. A mock player uses an anvil menu, and takes the result as a click
  * does. The tests use the template {@code folkhold_balance:bench}.
  */
 @GameTestHolder(FolkholdBalance.MOD_ID)
@@ -45,21 +45,22 @@ public final class AnvilGameTests {
     }
 
     /**
-     * A player at level 80 puts a book Efficiency X on a pickaxe with Efficiency V. The result has Efficiency X, above
-     * the vanilla max level, and costs 76 levels. The take removes the levels one time and empties the inputs.
+     * A player at level 80 puts a book Efficiency VII on a pickaxe with Efficiency V. The result has Efficiency VII,
+     * above the vanilla max level, and costs 1 + 0.5 × (2⁷ − 2⁵) = 49 levels. The take removes the levels one time and
+     * empties the inputs.
      */
     @GameTest(template = "bench", batch = "balance_anvil")
-    public static void efficiencyTenBookOnEfficiencyFiveCostsSeventySix(GameTestHelper helper) {
+    public static void efficiencySevenBookOnEfficiencyFiveCostsFortyNine(GameTestHelper helper) {
         ServerPlayer player = player(helper, 80);
         AnvilMenu menu = anvil(helper, player);
         ItemStack pickaxe = enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.EFFICIENCY, 5);
         menu.getSlot(0).set(pickaxe);
-        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 10));
-        assertCost(helper, menu, 76);
+        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 7));
+        assertCost(helper, menu, 49);
         ItemStack result = take(helper, menu, player);
-        helper.assertTrue(level(helper, result, Enchantments.EFFICIENCY) == 10, "The result is not Efficiency X");
+        helper.assertTrue(level(helper, result, Enchantments.EFFICIENCY) == 7, "The result is not Efficiency VII");
         helper.assertTrue(result.getOrDefault(DataComponents.REPAIR_COST, 0) == 0, "The result has a work penalty");
-        helper.assertTrue(player.experienceLevel == 4, "The player has " + player.experienceLevel + " levels, not 4");
+        helper.assertTrue(player.experienceLevel == 31, "The player has " + player.experienceLevel + " levels, not 31");
         helper.assertTrue(menu.getSlot(0).getItem().isEmpty() && menu.getSlot(1).getItem().isEmpty(),
                 "The anvil keeps an input item");
         remove(helper, player);
@@ -67,8 +68,8 @@ public final class AnvilGameTests {
     }
 
     /**
-     * Two books with the same level give the level + 1 with no cap: V + V gives VI for 12 levels, XX + XX gives XXI
-     * for 42 levels. 42 is above the vanilla limit of 39, and the player can take the result.
+     * Two books with the same level give the level + 1 with no cap: V + V gives VI for 17 levels, VII + VII gives VIII
+     * for 65 levels. 65 is above the vanilla limit of 39, and the player can take the result.
      */
     @GameTest(template = "bench", batch = "balance_anvil")
     public static void equalLevelsGiveTheLevelPlusOneWithNoCap(GameTestHelper helper) {
@@ -76,16 +77,16 @@ public final class AnvilGameTests {
         AnvilMenu menu = anvil(helper, player);
         menu.getSlot(0).set(book(helper, Enchantments.EFFICIENCY, 5));
         menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 5));
-        assertCost(helper, menu, 12);
+        assertCost(helper, menu, 17);
         ItemStack six = take(helper, menu, player);
         helper.assertTrue(storedLevel(helper, six, Enchantments.EFFICIENCY) == 6, "V + V does not give VI");
 
-        menu.getSlot(0).set(book(helper, Enchantments.EFFICIENCY, 20));
-        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 20));
-        assertCost(helper, menu, 42);
-        ItemStack twentyOne = take(helper, menu, player);
-        helper.assertTrue(storedLevel(helper, twentyOne, Enchantments.EFFICIENCY) == 21, "XX + XX does not give XXI");
-        helper.assertTrue(player.experienceLevel == 100 - 12 - 42, "The levels are not taken exactly once");
+        menu.getSlot(0).set(book(helper, Enchantments.EFFICIENCY, 7));
+        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 7));
+        assertCost(helper, menu, 65);
+        ItemStack eight = take(helper, menu, player);
+        helper.assertTrue(storedLevel(helper, eight, Enchantments.EFFICIENCY) == 8, "VII + VII does not give VIII");
+        helper.assertTrue(player.experienceLevel == 100 - 17 - 65, "The levels are not taken exactly once");
         remove(helper, player);
         helper.succeed();
     }
@@ -128,7 +129,7 @@ public final class AnvilGameTests {
     /**
      * Two damaged pickaxes: the left one has Efficiency II, the right one has Unbreaking III. The durability is the
      * vanilla sum (+12 %). The cost is the repair of 2 quarters of the left pickaxe (3 levels) plus Unbreaking III
-     * (19 levels).
+     * (9 levels).
      */
     @GameTest(template = "bench", batch = "balance_anvil")
     public static void twoDamagedItemsCombine(GameTestHelper helper) {
@@ -140,7 +141,7 @@ public final class AnvilGameTests {
         right.setDamageValue(1000);
         menu.getSlot(0).set(left);
         menu.getSlot(1).set(right);
-        assertCost(helper, menu, 22);
+        assertCost(helper, menu, 12);
         ItemStack result = take(helper, menu, player);
         helper.assertTrue(result.getDamageValue() == 1561 - (561 + 561 + 1561 * 12 / 100),
                 "The damage of the result is " + result.getDamageValue());
@@ -180,18 +181,24 @@ public final class AnvilGameTests {
         helper.succeed();
     }
 
-    /** A cost above 32,767 levels (the largest value that the menu sends) gives no result. */
+    /**
+     * A cost above 32,767 levels (the largest value that the menu sends) gives no result. Efficiency 255 does not
+     * overflow the calculation.
+     */
     @GameTest(template = "bench", batch = "balance_anvil")
     public static void costAboveTheLimitGivesNoResult(GameTestHelper helper) {
         ServerPlayer player = player(helper, 50);
         AnvilMenu menu = anvil(helper, player);
         menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
-        // 1 + 1 × 200² = 40,001 levels.
-        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 200));
-        helper.assertTrue(menu.getSlot(2).getItem().isEmpty(), "The anvil gives a result for 40,001 levels");
-        // 1 + 1 × 181² = 32,762 levels: below the limit.
-        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 181));
-        assertCost(helper, menu, 32762);
+        // 1 + 0.5 × 2²⁵⁵ levels.
+        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 255));
+        helper.assertTrue(menu.getSlot(2).getItem().isEmpty(), "The anvil gives a result for Efficiency 255");
+        // 1 + 0.5 × 2¹⁶ = 32,769 levels.
+        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 16));
+        helper.assertTrue(menu.getSlot(2).getItem().isEmpty(), "The anvil gives a result for 32,769 levels");
+        // 1 + 0.5 × 2¹⁵ = 16,385 levels: below the limit.
+        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 15));
+        assertCost(helper, menu, 16385);
         remove(helper, player);
         helper.succeed();
     }
@@ -199,14 +206,14 @@ public final class AnvilGameTests {
     /** A player with too few levels cannot take the result: no levels and no items change. */
     @GameTest(template = "bench", batch = "balance_anvil")
     public static void tooFewLevelsTakeNothing(GameTestHelper helper) {
-        ServerPlayer player = player(helper, 10);
+        ServerPlayer player = player(helper, 5);
         AnvilMenu menu = anvil(helper, player);
         menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
         menu.getSlot(1).set(book(helper, Enchantments.UNBREAKING, 3));
-        assertCost(helper, menu, 19);
+        assertCost(helper, menu, 9);
         menu.clicked(AnvilMenu.RESULT_SLOT, 0, ClickType.PICKUP, player);
         helper.assertTrue(menu.getCarried().isEmpty(), "The player takes the result with too few levels");
-        helper.assertTrue(player.experienceLevel == 10, "The player loses levels");
+        helper.assertTrue(player.experienceLevel == 5, "The player loses levels");
         helper.assertTrue(menu.getSlot(0).getItem().is(Items.DIAMOND_PICKAXE)
                 && menu.getSlot(1).getItem().is(Items.ENCHANTED_BOOK), "The anvil loses an input item");
         remove(helper, player);
@@ -249,7 +256,7 @@ public final class AnvilGameTests {
     }
 
     /**
-     * A book with Unbreaking III and Sharpness V on a pickaxe: the pickaxe gets Unbreaking III only, for 19 levels.
+     * A book with Unbreaking III and Sharpness V on a pickaxe: the pickaxe gets Unbreaking III only, for 9 levels.
      * An enchantment that the item does not support adds no cost.
      */
     @GameTest(template = "bench", batch = "balance_anvil")
@@ -261,7 +268,7 @@ public final class AnvilGameTests {
         EnchantmentHelper.updateEnchantments(book, enchantments -> enchantments.set(sharpness, 5));
         menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
         menu.getSlot(1).set(book);
-        assertCost(helper, menu, 19);
+        assertCost(helper, menu, 9);
         ItemStack result = take(helper, menu, player);
         helper.assertTrue(level(helper, result, Enchantments.UNBREAKING) == 3, "The pickaxe has no Unbreaking III");
         helper.assertTrue(level(helper, result, Enchantments.SHARPNESS) == 0, "The pickaxe has Sharpness");
@@ -298,7 +305,7 @@ public final class AnvilGameTests {
         AnvilMenu menu = anvil(helper, player);
         menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
         menu.getSlot(1).set(book(helper, Enchantments.UNBREAKING, 3));
-        assertCost(helper, menu, 19);
+        assertCost(helper, menu, 9);
         menu.clicked(AnvilMenu.RESULT_SLOT, 0, ClickType.QUICK_MOVE, player);
         int pickaxes = 0;
         for (ItemStack stack : player.getInventory().items) {
@@ -308,7 +315,7 @@ public final class AnvilGameTests {
             }
         }
         helper.assertTrue(pickaxes == 1, "The inventory has " + pickaxes + " pickaxes, not 1");
-        helper.assertTrue(player.experienceLevel == 11, "The player has " + player.experienceLevel + " levels");
+        helper.assertTrue(player.experienceLevel == 21, "The player has " + player.experienceLevel + " levels");
         helper.assertTrue(menu.getSlot(0).getItem().isEmpty() && menu.getSlot(1).getItem().isEmpty()
                 && menu.getSlot(AnvilMenu.RESULT_SLOT).getItem().isEmpty(), "The anvil keeps an item");
         remove(helper, player);
