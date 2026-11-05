@@ -9,6 +9,7 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.raid.Raid;
 import net.minecraft.world.entity.raid.Raider;
 import net.minecraft.world.level.Level;
@@ -28,6 +29,9 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *   <li>March: each raider gets a {@link MarchOnVillageGoal}. The goal works only in a raid at a faction village. The
  *       raider walks to the approach of the nearest gate, then through the gate to the heart. It crosses the
  *       rivers.</li>
+ *   <li>Waves: a raid of level 4 or 5 at a faction village gets more raiders. Each wave of the raid gets
+ *       {@link #extraRavagers} ravagers more than the vanilla wave (see {@link #reinforce}). The vanilla raids at the
+ *       other villages do not change.</li>
  * </ul>
  */
 public final class VillageRaids {
@@ -39,6 +43,13 @@ public final class VillageRaids {
     private static final long APPROACH_CACHE_TICKS = 100;
     /** The cache of the spawn positions keeps the raids of this count, at most. */
     private static final int MAX_RAIDS = 64;
+    /**
+     * The ravagers that each wave of a raid at a faction village gets more than the vanilla wave, by the level of the
+     * raid (index 0 to 5). At the difficulty Normal, a raid of level 2 to 5 has the same 6 vanilla waves: only the
+     * chance of enchanted weapons changes. These ravagers make the raids of levels 4 and 5 stronger than the raids
+     * of levels 2 and 3 (balance targets in {@code docs/design.md}).
+     */
+    private static final int[] EXTRA_RAVAGERS = {0, 0, 0, 0, 1, 2};
 
     /** The spawn position of the current wave of each raid. */
     private static final Map<RaidKey, WaveSpawn> WAVE_SPAWNS = new HashMap<>();
@@ -50,6 +61,9 @@ public final class VillageRaids {
 
     private record WaveSpawn(int wave, Optional<BlockPos> pos) {
     }
+
+    /** The waves that have their extra raiders, by raid. */
+    private static final Map<RaidKey, Integer> REINFORCED_WAVES = new HashMap<>();
 
     private record HeartKey(ResourceKey<Level> dimension, BlockPos heart) {
     }
@@ -111,8 +125,48 @@ public final class VillageRaids {
         if (event.loadedFromDisk() || raid == null) {
             return;
         }
-        heartOf(raid, level).flatMap(heart -> waveSpawn(level, raid, raider.getWave(), heart)).ifPresent(pos ->
+        Optional<BlockPos> heart = heartOf(raid, level);
+        if (heart.isEmpty()) {
+            return;
+        }
+        BlockPos vanillaPos = raider.blockPosition().below();
+        waveSpawn(level, raid, raider.getWave(), heart.get()).ifPresent(pos ->
                 raider.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, raider.getYRot(), raider.getXRot()));
+        reinforce(level, raid, raider.getWave(), vanillaPos);
+    }
+
+    /**
+     * The ravagers that each wave of a raid at a faction village gets more than the vanilla wave.
+     *
+     * @param raidLevel the level of the raid (the Raid Omen level, 0 to 5)
+     * @return the number of extra ravagers: 1 at level 4, 2 at level 5, else 0
+     */
+    public static int extraRavagers(int raidLevel) {
+        return raidLevel < 0 || raidLevel >= EXTRA_RAVAGERS.length ? 0 : EXTRA_RAVAGERS[raidLevel];
+    }
+
+    /**
+     * Adds the extra ravagers of {@link #extraRavagers} to a new wave of a raid at a faction village. The first raider
+     * of the wave adds them. The extra ravagers join the wave as the vanilla raiders: the wave ends when they are dead.
+     * They spawn at the spawn position of the wave.
+     */
+    private static void reinforce(ServerLevel level, Raid raid, int wave, BlockPos vanillaPos) {
+        RaidKey key = new RaidKey(level.dimension(), raid.getId());
+        Integer done = REINFORCED_WAVES.get(key);
+        if (done != null && done >= wave) {
+            return;
+        }
+        if (REINFORCED_WAVES.size() >= MAX_RAIDS) {
+            REINFORCED_WAVES.clear();
+        }
+        REINFORCED_WAVES.put(key, wave);
+        for (int i = 0; i < extraRavagers(raid.getRaidOmenLevel()); i++) {
+            Raider ravager = EntityType.RAVAGER.create(level);
+            if (ravager == null) {
+                return;
+            }
+            raid.joinRaid(wave, ravager, vanillaPos, false);
+        }
     }
 
     /** The spawn position of a wave of a raid. The first raider of the wave calculates it. */
@@ -133,5 +187,6 @@ public final class VillageRaids {
     public static void onServerStopped(ServerStoppedEvent event) {
         WAVE_SPAWNS.clear();
         APPROACHES.clear();
+        REINFORCED_WAVES.clear();
     }
 }

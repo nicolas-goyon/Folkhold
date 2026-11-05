@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.world.village.RaidMarch;
 import io.github.nicolasgoyon.folkhold.world.village.RaidSpawns;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -408,4 +409,46 @@ public final class RaidGameTests {
         }
     }
 
+
+    /**
+     * A raid of level 4 or 5 at a faction village gets extra ravagers in each wave ({@link VillageRaids#extraRavagers}):
+     * the first raider of a new wave adds them, and the next raiders of the same wave add no more. A raid of level 3
+     * gets no extra raiders.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "raid_waves")
+    public static void raidsOfLevel4And5GetExtraRavagers(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos heart = helper.absolutePos(new BlockPos(16, 1, 16));
+        BlockPos spawn = helper.absolutePos(new BlockPos(16, 1, 4));
+        VillageHearts.register(level, heart);
+        Raid strong = new Raid(RAID_ID + 5, level, heart);
+        strong.setRaidOmenLevel(5);
+        Raid weak = new Raid(RAID_ID + 6, level, heart);
+        weak.setRaidOmenLevel(3);
+        try {
+            strong.joinRaid(1, EntityType.PILLAGER.create(level), spawn, false);
+            strong.joinRaid(1, EntityType.PILLAGER.create(level), spawn, false);
+            long firstWave = ravagers(strong);
+            strong.joinRaid(2, EntityType.PILLAGER.create(level), spawn, false);
+            long twoWaves = ravagers(strong);
+            weak.joinRaid(1, EntityType.PILLAGER.create(level), spawn, false);
+
+            int extra = VillageRaids.extraRavagers(5);
+            helper.assertTrue(VillageRaids.extraRavagers(3) == 0 && VillageRaids.extraRavagers(4) > 0 && extra > 0,
+                    "Only the raids of levels 4 and 5 must get extra ravagers");
+            helper.assertTrue(firstWave == extra, "Wave 1 of a raid of level 5 must get " + extra + " ravagers: "
+                    + firstWave);
+            helper.assertTrue(twoWaves == 2L * extra, "Wave 2 must get " + extra + " more ravagers: " + twoWaves);
+            helper.assertTrue(ravagers(weak) == 0, "A raid of level 3 must get no extra ravagers");
+        } finally {
+            strong.getAllRaiders().forEach(Raider::discard);
+            weak.getAllRaiders().forEach(Raider::discard);
+            VillageHearts.unregister(level, heart);
+        }
+        helper.succeed();
+    }
+
+    private static long ravagers(Raid raid) {
+        return raid.getAllRaiders().stream().filter(raider -> raider.getType() == EntityType.RAVAGER).count();
+    }
 }
