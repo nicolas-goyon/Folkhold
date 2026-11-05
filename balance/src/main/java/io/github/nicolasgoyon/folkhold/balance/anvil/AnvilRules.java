@@ -24,8 +24,8 @@ import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.neoforge.event.AnvilUpdateEvent;
 
 /**
- * The anvil of the balance mod (section {@code anvil} of the server config): no level cap, no "Too Expensive!", a
- * quadratic enchantment cost and a repair cost with no prior work penalty. See {@link AnvilCost}.
+ * The anvil of the balance mod (section {@code anvil} of the server config): no level cap, no "Too Expensive!", an
+ * exponential enchantment cost and a repair cost with no prior work penalty. See {@link AnvilCost}.
  *
  * <p>The listener runs on the server and on the client: the menu calculates its result on both sides.
  */
@@ -218,7 +218,7 @@ public final class AnvilRules {
         KeyedValues caps = tables().caps();
         KeyedValues weights = tables().weights();
         int absoluteMax = BalanceConfig.ANVIL_ABSOLUTE_MAX_LEVEL.get();
-        long increase = 0;
+        double increase = 0;
         long incompatible = 0;
         boolean applied = false;
         boolean rejected = false;

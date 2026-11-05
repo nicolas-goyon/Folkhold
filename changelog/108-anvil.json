@@ -1,5 +1,5 @@
 {
   "category": "changed",
-  "en_us": "The anvil has no level limit and never shows \"Too Expensive!\". An enchantment of a higher level costs much more. A repair has its own cost, from the material and the enchantments of the item, and this cost does not increase after each repair.",
-  "fr_fr": "L'enclume n'a plus de limite de niveaux et n'affiche jamais « Trop cher ! ». Un enchantement de niveau plus élevé coûte beaucoup plus cher. Une réparation a son propre coût, selon le matériau et les enchantements de l'objet, et ce coût n'augmente pas après chaque réparation."
+  "en_us": "The anvil has no level limit and never shows \"Too Expensive!\". Each enchantment level costs double the level before it. A repair has its own cost, from the material and the enchantments of the item, and this cost does not increase after each repair.",
+  "fr_fr": "L'enclume n'a plus de limite de niveaux et n'affiche jamais « Trop cher ! ». Chaque niveau d'enchantement coûte le double du précédent. Une réparation a son propre coût, selon le matériau et les enchantements de l'objet, et ce coût n'augmente pas après chaque réparation."
 }

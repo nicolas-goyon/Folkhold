@@ -786,7 +786,7 @@ Section `blockedEnchantments` of `folkhold_balance-server.toml`:
 
 - **Implemented** (`AnvilRules`, `AnvilCost`): no level cap and no "Too Expensive!" limit. An enchantment level such as Efficiency 20 is possible, but very expensive. All costs are in levels.
 - **Merge**: the vanilla rule with no max level. Two equal levels give the level + 1, two different levels give the higher level. Efficiency 20 thus needs 2¹⁵ books of Efficiency V. The config key `levelCaps` can set a cap for each enchantment; by default there is no cap. The game stores a maximum level of 255.
-- The **enchantment cost** is quadratic in the level of the result: `operationCost + ceil(k × Σ w × (b² − a²))`. a is the level on the left item, b is the level of the result, w is the weight of the enchantment (its `anvil_cost`, or the config key `weights`). A book is not cheaper than an item. The cost does not depend on the path: a level built in steps costs one `operationCost` more for each additional step.
+- The **enchantment cost** is exponential in the level of the result: `operationCost + ceil(k × Σ w × (2^b − 2^a))`. a is the level on the left item (0 if none), b is the level of the result, w is the weight of the enchantment (its `anvil_cost`, or the config key `weights`). Level 0 has the value 0, not 2⁰. Each level costs double the level before it, as the vanilla prior work penalty. The default k is 0.5: the vanilla max levels stay near the vanilla costs, and each level above the vanilla max is much more expensive. A book is not cheaper than an item. A level built in steps is never cheaper than the same level in one operation: each additional step costs one more `operationCost`, and the rounding up of each step can add 1 level.
 - The **repair cost** is separate. A full repair costs `base + ceil(r × Σ w × level)` for the current enchantments of the item, curses excluded. The base comes from the repair material. A repair with n units of material costs `ceil(full × min(n, 4) / 4)`. The anvil uses the material units of the vanilla loop: each unit repairs a quarter of the maximum durability, rounded down. Thus an item with a maximum durability that is not a multiple of 4 can use a fifth unit (for example an iron pickaxe at 249 damage of 250). A repair with a second item of the same type counts the repaired durability in quarters, rounded up. The vanilla durability rule stays (sum of the two items + 12 %).
 - There is **no prior work penalty**: the result has a `repair_cost` of 0, and the anvil ignores the `repair_cost` of the inputs. A repair of the same item thus always has the same cost.
 - A rename adds 1 level. Each incompatible enchantment adds 1 level. A book with only incompatible enchantments gives no result. An operation that changes nothing gives no result. The anvil still takes damage.
@@ -796,15 +796,21 @@ Section `blockedEnchantments` of `folkhold_balance-server.toml`:
 - With `enabled = false`, the anvil is vanilla, and the levels above X have no number.
 - Villagers do not sell Mending, and fishing does not give it (see "Fairer trades"). The repair cost is then an important choice.
 
-Example: diamond pickaxe, weights Efficiency 1, Unbreaking 2, Mending 4, default factors.
+Example: weights of the vanilla `anvil_cost` (Efficiency, Sharpness and Protection 1, Unbreaking 2, Fortune, Looting and Mending 4, Thorns 8), default factors (k = 0.5, r = 1). The vanilla column is a book on an item with no prior work penalty: the vanilla anvil also adds 1, 3, 7, 15... levels for 1, 2, 3, 4... earlier operations on each input, and shows "Too Expensive!" at 40 levels or more.
 
-| Action | Cost (levels) |
-| --- | --- |
-| Book Unbreaking III on a pickaxe with no enchantments | 19 |
-| Book Efficiency III / V on Efficiency II | 6 / 22 |
-| Book Efficiency X on Efficiency V / five steps V + V, VI + VI, ... | 76 / 80 |
-| Book Efficiency XX on Efficiency X / ten steps | 301 / 310 |
-| Book Unbreaking V on Unbreaking III | 33 |
+| Action | Cost (levels) | Vanilla |
+| --- | --- | --- |
+| Book Efficiency V or Sharpness V on an item with no enchantments | 17 | 5 |
+| Book Protection IV / Unbreaking III / Fortune III / Mending | 9 / 9 / 17 / 5 | 4 / 3 / 6 / 2 |
+| Book Thorns III | 33 | 12 |
+| Two books Efficiency IV, Unbreaking II or Protection III (the level + 1) | 9 / 5 / 5 | 5 / 3 / 4 |
+| One book Efficiency V + Unbreaking III + Fortune III + Mending on a pickaxe | 45 | 16 |
+| One book Protection IV + Unbreaking III + Mending on a chestplate | 21 | 9 |
+| Book Efficiency III / V on Efficiency II | 3 / 15 | 3 / 5 |
+| Efficiency VI / VII / VIII / X, from the level before it | 17 / 33 / 65 / 257 | not possible |
+| Book Efficiency X on Efficiency V / five steps V + V, VI + VI, ... | 497 / 501 | not possible |
+| Efficiency XV from no enchantment / Efficiency XVI | 16,385 / no result (32,769) | not possible |
+| Book Unbreaking IV / V on Unbreaking III | 9 / 25 | not possible |
 | Full repair: Eff II + Unb III + Mending / Eff II + Unb III | 16 / 12 |
 | Full repair: Eff V + Unb III / Eff X + Unb III / Eff XX + Unb III | 15 / 20 / 30 |
 | Iron pickaxe, full repair: Eff II / Eff II + Unb III | 5 / 11 |
@@ -815,7 +821,7 @@ Section `anvil` of `folkhold_balance-server.toml`:
 | --- | --- | --- |
 | `enabled` | true | Use these rules. False gives the vanilla anvil |
 | `mergeRule` | `VANILLA` | `VANILLA` or `SUM` (the levels add together) |
-| `enchantCostFactor` | 1.0 | Factor k of the enchantment cost |
+| `enchantCostFactor` | 0.5 | Factor k of the enchantment cost |
 | `operationCost` | 1 | Fixed cost of an operation that raises a level |
 | `weights` | `[]` | `"id=weight"` or `"#tag=weight"`. Other enchantments use their `anvil_cost` |
 | `repairEnchantFactor` | 1.0 | Factor r of the repair cost |
