@@ -26,8 +26,8 @@ import net.minecraft.world.level.block.state.BlockState;
  *       the axis of their passage. The other fence gates (gardens, pens) do not get stairs.</li>
  *   <li>The fence gates side by side make one exit. The column in the middle of the exit gives the terrain level, and
  *       all the columns of the exit get the same steps.</li>
- *   <li>The fence gates stacked on a fence gate of an exit are in the same column of the exit. The lowest fence gate
- *       of a column gives the floor of the exit. The stacked fence gates get no steps.</li>
+ *   <li>The fence gates stacked on a fence gate of an exit, on the same axis, are in the same column of the exit. The
+ *       lowest fence gate of a column gives the floor of the exit. The stacked fence gates get no steps.</li>
  *   <li>Lower terrain: stairs that go down, with cobblestone under each step to the terrain.</li>
  *   <li>Higher terrain: stairs that go up, with the terrain above each step removed.</li>
  *   <li>At most {@link #MAX_STEPS} steps. A terrain that is higher than this (a cliff, a tree) gets no stairs.</li>
@@ -184,7 +184,11 @@ public final class VillageExits {
                 continue;
             }
             BlockPos below = gate.below();
-            Exit stacked = exits.stream().filter(exit -> exit.blocks().contains(below)).findFirst().orElse(null);
+            BlockState belowState = level.getBlockState(below);
+            Exit stacked = belowState.getBlock() instanceof FenceGateBlock
+                    && belowState.getValue(FenceGateBlock.FACING).getAxis() == facing.getAxis()
+                    ? exits.stream().filter(exit -> exit.blocks().contains(below)).findFirst().orElse(null)
+                    : null;
             if (stacked != null) {
                 stacked.blocks().add(gate.immutable());
                 continue;

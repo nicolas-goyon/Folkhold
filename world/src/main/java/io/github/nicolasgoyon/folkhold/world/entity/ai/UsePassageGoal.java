@@ -56,8 +56,6 @@ public class UsePassageGoal extends Goal {
     private static final double FOLLOWER_DISTANCE = 16.0;
     /** The largest number of fence gates on each side of a fence gate in one gate. */
     private static final int MAX_GATE_SIDE = 2;
-    /** The largest number of fence gates stacked on a fence gate in one gate. */
-    private static final int MAX_GATE_STACK = 2;
 
     private final Mob mob;
     private final Supplier<List<? extends Entity>> followers;
@@ -251,7 +249,7 @@ public class UsePassageGoal extends Goal {
     /**
      * The fence gates of one gate: the fence gate at the position, and the fence gates next to it in the same line
      * with the same axis, up to {@link #MAX_GATE_SIDE} on each side. Each of these fence gates adds the fence gates
-     * stacked on it with the same axis, up to {@link #MAX_GATE_STACK}.
+     * stacked on it with the same axis: the full column, as in {@code VillageExits}.
      *
      * @param level the level
      * @param pos   the position of a fence gate
@@ -272,7 +270,7 @@ public class UsePassageGoal extends Goal {
         List<BlockPos> row = List.copyOf(blocks);
         for (BlockPos column : row) {
             BlockPos above = column.above();
-            for (int i = 0; i < MAX_GATE_STACK && isGate(level, above, facing); i++) {
+            while (isGate(level, above, facing)) {
                 blocks.add(above);
                 above = above.above();
             }
