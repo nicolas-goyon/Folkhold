@@ -2,7 +2,6 @@ package io.github.nicolasgoyon.folkhold.world.village;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
@@ -14,9 +13,11 @@ import net.minecraft.core.BlockPos;
  *
  * <ul>
  *   <li>Outside the palisade, the raider walks to the approach of the nearest gate.</li>
- *   <li>At the approach of an open gate, the raider goes through this gate to the heart. It keeps this way while the
- *       gate stays open, until it is inside the palisade.</li>
- *   <li>At the approach of a closed gate, the raider waits.</li>
+ *   <li>At the approach of an open gate, the raider goes through this gate to the heart. It keeps this gate until it
+ *       is inside the palisade.</li>
+ *   <li>At the approach of a closed gate, the raider walks to the front of the gate and forces the gate (see
+ *       {@code MarchOnVillageGoal}). When the gate opens, the raider goes through it to the heart. A gate that
+ *       closes again in front of the raider is forced again.</li>
  *   <li>Inside the palisade, or in a village with no known gates, the raider walks to the heart.</li>
  * </ul>
  */
@@ -30,10 +31,11 @@ public final class RaidMarch {
     /**
      * One leg of the march.
      *
-     * @param target   the position where the raider walks, or empty: the raider waits at a closed gate
-     * @param entering the approach of the open gate that the raider goes through, or null
+     * @param target   the position where the raider walks
+     * @param entering the approach of the gate that the raider goes through, or null
+     * @param forcing  the gate that the raider forces, or null when the gate is open or the raider is not at a gate
      */
-    public record Leg(Optional<BlockPos> target, @Nullable BlockPos entering) {
+    public record Leg(BlockPos target, @Nullable BlockPos entering, @Nullable VillageExits.Approach forcing) {
     }
 
     /**
@@ -49,12 +51,12 @@ public final class RaidMarch {
     public static Leg next(BlockPos heart, List<VillageExits.Approach> approaches,
             Predicate<VillageExits.Approach> isOpen, BlockPos pos, @Nullable BlockPos entering) {
         if (approaches.isEmpty() || isInside(heart, approaches, pos)) {
-            return new Leg(Optional.of(heart), null);
+            return new Leg(heart, null, null);
         }
         if (entering != null) {
             for (VillageExits.Approach approach : approaches) {
-                if (approach.point().equals(entering) && isOpen.test(approach)) {
-                    return new Leg(Optional.of(heart), entering);
+                if (approach.point().equals(entering)) {
+                    return through(heart, approach, isOpen);
                 }
             }
         }
@@ -62,9 +64,31 @@ public final class RaidMarch {
                 .min(Comparator.comparingDouble(approach -> approach.point().distSqr(pos)))
                 .orElseThrow();
         if (!nearest.point().closerThan(pos, AT_APPROACH)) {
-            return new Leg(Optional.of(nearest.point()), null);
+            return new Leg(nearest.point(), null, null);
         }
-        return isOpen.test(nearest) ? new Leg(Optional.of(heart), nearest.point()) : new Leg(Optional.empty(), null);
+        return through(heart, nearest, isOpen);
+    }
+
+    /** The leg through a gate: to the heart through an open gate, else to the front of the closed gate. */
+    private static Leg through(BlockPos heart, VillageExits.Approach approach,
+            Predicate<VillageExits.Approach> isOpen) {
+        return isOpen.test(approach) ? new Leg(heart, approach.point(), null)
+                : new Leg(front(approach), approach.point(), approach);
+    }
+
+    /**
+     * The position in front of a gate, outside the palisade: one block from the middle fence gate, toward the
+     * approach.
+     *
+     * @param approach the approach of the gate
+     * @return the position
+     */
+    public static BlockPos front(VillageExits.Approach approach) {
+        BlockPos middle = approach.gates().get(approach.gates().size() / 2);
+        int dx = approach.point().getX() - middle.getX();
+        int dz = approach.point().getZ() - middle.getZ();
+        return Math.abs(dx) >= Math.abs(dz) ? middle.offset(Integer.signum(dx), 0, 0)
+                : middle.offset(0, 0, Integer.signum(dz));
     }
 
     /**
