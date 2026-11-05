@@ -869,13 +869,13 @@ The rails stay vanilla. The player links minecarts with a chain to make a train.
 - **Implemented** (`Trains`, `Coupling`): the game ticks the entities in a random order. Thus the mod moves the trains after the entities, at the end of the tick of each level. It finds each train one time, then corrects the motion of each minecart in order from the driver of the train to the two ends of the train. The correction of a minecart uses the corrected motion of the next minecart toward the driver. Thus a long train has no delay of one tick for each minecart.
 - The driver is the front minecart when it is a locomotive or a vanilla furnace minecart with a push (with fuel). Else the driver is the first vanilla furnace minecart with a push, also when it is behind its wagons: a vanilla furnace minecart moves in the direction of its push, from the position of the player that gives the fuel. Else the driver is the front minecart.
 - **Implemented** (`CartEnds`): the gap of a link is the distance between the positions of the two minecarts minus the length of one minecart (1.25 blocks, the length of the vanilla minecart model). On a straight rail, it is the distance between the two ends that face each other. The server uses the gap for all the rules of the chain. The gap changes smoothly in a curve and on a slope, so the chain does not jolt a minecart when it goes onto a new rail.
-- The chain attaches at the ends of the two minecarts that face each other. An end is at 0.625 blocks from the position of the minecart, along the rail under it: along the diagonal of a curve, and up 45 degrees on a slope, as the vanilla renderer turns the minecart. A minecart that is not on a rail turns to the other minecart. On a curve rail, the minecart turns 45 degrees: while a minecart is on the curve rail, the distance between the two ends is more than the gap, up to about 0.6 blocks.
+- The chain attaches at the ends of the two minecarts that face each other. An end is at 0.625 blocks from the position of the minecart, along the rail under it: along the diagonal of a curve, and up 45 degrees on a slope, as the vanilla renderer turns the minecart. A minecart that is not on a rail turns to the other minecart. On a curve rail, the minecart turns 45 degrees: while a minecart is on the curve rail, the distance between the two ends is more than the gap, up to about 1 block for some ticks.
 - In each link, the minecart nearer to the driver (the leader) pulls or pushes the other minecart (the follower). The mod changes only the speed of the follower, along its rail:
-  - below the buffer gap (0.15 blocks), the follower slows down, or moves away from the leader when the leader comes nearer. Two linked minecarts do not push each other as vanilla minecarts do, and they do not touch;
-  - from the buffer gap to the rest gap (0.2 blocks), the chain is slack;
+  - below the buffer gap (0.1 blocks), the follower slows down, or moves away from the leader when the leader comes nearer. Two linked minecarts do not push each other as vanilla minecarts do, and they do not touch;
+  - from the buffer gap to the rest gap (0.25 blocks), the chain is slack;
   - from the rest gap to the maximum gap, a spring with damping pulls the follower;
   - above the maximum gap, the chain acts as a rigid bar.
-- Thus two linked minecarts keep a gap of about 0.2 blocks on a straight rail, in a curve and on a slope: from the buffer gap when the leader pushes or brakes, to a little more than the rest gap when the leader pulls. The two minecarts do not touch.
+- Thus two linked minecarts keep a visible gap of about 0.2 blocks on a straight rail: from the buffer gap when the leader pushes or brakes, to a little more than the rest gap when the leader pulls. In a curve and on a slope, the gap changes for a short time, from 0 to 0.5 blocks. The two minecarts do not touch.
 - The motion of a minecart stays below the speed limit of its rail, so that a minecart does not leave a curve.
 - A link breaks when the gap stays above the break gap for some ticks. This tolerance keeps the train together after a lag of some ticks. The chain drops at the middle of the link.
 - A link breaks and drops the chain when a minecart is destroyed or goes through a portal. A link does not break when a minecart unloads.
@@ -967,8 +967,8 @@ File `folkhold_balance-server.toml`, section `rails`:
 
 | Value | Default | Meaning |
 | --- | --- | --- |
-| `bufferGap` | 0.15 | Smallest gap between the ends of two linked minecarts, in blocks |
-| `restGap` | 0.2 | Gap of a slack chain, in blocks |
+| `bufferGap` | 0.1 | Smallest gap between the ends of two linked minecarts, in blocks |
+| `restGap` | 0.25 | Gap of a slack chain, in blocks |
 | `maxGap` | 1.25 | Largest gap of a stretched chain, in blocks. Also the largest gap for a new link |
 | `breakGap` | 2.75 | A link breaks above this gap, in blocks |
 | `breakTicks` | 40 | Ticks above `breakGap` before a link breaks (2 seconds) |

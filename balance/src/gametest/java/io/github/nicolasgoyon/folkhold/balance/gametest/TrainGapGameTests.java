@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartEnds;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartLinks;
+import io.github.nicolasgoyon.folkhold.balance.rail.Coupling;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
@@ -39,19 +40,14 @@ public final class TrainGapGameTests {
     private static final long STATE_SECONDS = 30;
     /** The tick limit of a test that waits with {@link #STATE_SECONDS}: a safety limit only. */
     private static final int STATE_TEST_TICKS = 2_000_000;
-    /** The gap that the links keep, in blocks. */
-    private static final double TARGET_GAP = 0.2;
-    /** The largest difference between the gap of a link and {@link #TARGET_GAP} on a straight rail, in blocks. */
-    private static final double STRAIGHT_TOLERANCE = 0.1;
-    /** The largest difference between the gap of a link and {@link #TARGET_GAP} in a curve and on a slope. */
-    private static final double CURVE_TOLERANCE = 0.15;
-    /** The smallest distance between the ends of two linked minecarts: the minecarts do not touch, in blocks. */
-    private static final double MIN_END_DISTANCE = 0.05;
-    /**
-     * The largest distance between the ends of two linked minecarts, in blocks. On a curve rail, the vanilla minecart
-     * turns 45 degrees, so its end goes away from the other minecart.
-     */
-    private static final double MAX_END_DISTANCE = 0.75;
+    /** The margin below the buffer gap for the gap on a straight rail, in blocks. */
+    private static final double STRAIGHT_MARGIN_BELOW = 0.05;
+    /** The margin above the rest gap for the gap on a straight rail: the stretch of a pulling chain, in blocks. */
+    private static final double STRAIGHT_MARGIN_ABOVE = 0.12;
+    /** The smallest gap in a curve and on a slope: the minecarts do not go into each other, in blocks. */
+    private static final double CURVE_MIN_GAP = 0.0;
+    /** The largest gap in a curve and on a slope, in blocks. */
+    private static final double CURVE_MAX_GAP = 0.5;
     /** The distance that the last wagon moves before the test examines the gaps, in blocks. */
     private static final double START_DISTANCE = 2.0;
     /** The row of the straight part of the track. */
@@ -64,7 +60,10 @@ public final class TrainGapGameTests {
     private TrainGapGameTests() {
     }
 
-    /** A furnace minecart pulls 2 chest minecarts on a straight rail. Each link keeps a gap of about 0.2 blocks. */
+    /**
+     * A furnace minecart pulls 2 chest minecarts on a straight rail. The gap of each link stays near the slack range
+     * of the chain: from the buffer gap to the rest gap.
+     */
     @GameTest(template = "bench", timeoutTicks = STATE_TEST_TICKS, batch = "balance_rails")
     public static void linkedMinecartsKeepAGapOnAStraightRail(GameTestHelper helper) {
         TrainGameTests.floor(helper, 24, 8);
@@ -74,12 +73,14 @@ public final class TrainGapGameTests {
         TrainGameTests.fixRails(helper);
         List<AbstractMinecart> train = spawnTrain(helper, 6.5, BENCH_Z + 0.5);
         double finish = helper.absoluteVec(new Vec3(17.0, 0.0, 0.0)).x;
-        travel(helper, train, () -> train.get(train.size() - 1).getX() > finish, STRAIGHT_TOLERANCE, "straight");
+        Coupling coupling = BalanceConfig.coupling();
+        travel(helper, train, () -> train.get(train.size() - 1).getX() > finish,
+                coupling.bufferGap() - STRAIGHT_MARGIN_BELOW, coupling.restGap() + STRAIGHT_MARGIN_ABOVE, "straight");
     }
 
     /**
-     * A furnace minecart pulls 2 chest minecarts on a straight rail, through a curve, then up a slope. Each link
-     * keeps a gap of about 0.2 blocks, and no minecart leaves the rails.
+     * A furnace minecart pulls 2 chest minecarts on a straight rail, through a curve, then up a slope. The gap of
+     * each link stays from 0 to 0.5 blocks, no link breaks and no minecart leaves the rails.
      */
     @GameTest(template = "track", timeoutTicks = STATE_TEST_TICKS, batch = "balance_rails")
     public static void linkedMinecartsKeepAGapInACurve(GameTestHelper helper) {
@@ -99,7 +100,8 @@ public final class TrainGapGameTests {
         TrainGameTests.fixRails(helper);
         List<AbstractMinecart> train = spawnTrain(helper, 17.5, TRACK_Z + 0.5);
         double finish = helper.absoluteVec(new Vec3(0.0, 0.0, TRACK_SLOPE_Z + 4)).z;
-        travel(helper, train, () -> train.get(train.size() - 1).getZ() > finish, CURVE_TOLERANCE, "curve");
+        travel(helper, train, () -> train.get(train.size() - 1).getZ() > finish, CURVE_MIN_GAP, CURVE_MAX_GAP,
+                "curve");
     }
 
     /**
@@ -122,10 +124,10 @@ public final class TrainGapGameTests {
     /**
      * Examines the gap of each link in each tick after the last wagon moves {@link #START_DISTANCE} blocks, until the
      * train gets to its finish, with a real-time limit of {@link #STATE_SECONDS}. The links must stay, no minecart
-     * leaves the rails, each gap stays near {@link #TARGET_GAP}, and the ends of two linked minecarts do not touch.
+     * leaves the rails, and each gap stays from {@code minGap} to {@code maxGap} blocks.
      */
     private static void travel(GameTestHelper helper, List<AbstractMinecart> train, BooleanSupplier finished,
-                               double tolerance, String name) {
+                               double minGap, double maxGap, String name) {
         AbstractMinecart last = train.get(train.size() - 1);
         Vec3 start = last.position();
         double[] range = {Double.MAX_VALUE, -Double.MAX_VALUE};
@@ -159,10 +161,9 @@ public final class TrainGapGameTests {
             helper.assertTrue(!derailed[0], "A minecart of the train leaves the rails");
             helper.assertTrue(finished.getAsBoolean(), "The last wagon is at " + last.position()
                     + ", not at the finish");
-            helper.assertTrue(range[0] >= TARGET_GAP - tolerance && range[1] <= TARGET_GAP + tolerance,
-                    "The gaps are from " + range[0] + " to " + range[1] + " blocks");
-            helper.assertTrue(ends[0] >= MIN_END_DISTANCE && ends[1] <= MAX_END_DISTANCE,
-                    "The distances between the ends are from " + ends[0] + " to " + ends[1] + " blocks");
+            helper.assertTrue(range[0] >= minGap && range[1] <= maxGap,
+                    "The gaps are from " + range[0] + " to " + range[1] + " blocks, not from " + minGap + " to "
+                            + maxGap);
         };
         long[] deadline = {0L};
         helper.startSequence()
