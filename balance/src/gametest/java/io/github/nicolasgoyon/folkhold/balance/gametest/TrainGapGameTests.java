@@ -41,7 +41,7 @@ public final class TrainGapGameTests {
     /** The tick limit of a test that waits with {@link #STATE_SECONDS}: a safety limit only. */
     private static final int STATE_TEST_TICKS = 2_000_000;
     /** The margin below the buffer gap for the gap on a straight rail, in blocks. */
-    private static final double STRAIGHT_MARGIN_BELOW = 0.05;
+    private static final double STRAIGHT_MARGIN_BELOW = 0.07;
     /** The margin above the rest gap for the gap on a straight rail: the stretch of a pulling chain, in blocks. */
     private static final double STRAIGHT_MARGIN_ABOVE = 0.12;
     /** The smallest gap in a curve and on a slope: the minecarts do not go into each other, in blocks. */

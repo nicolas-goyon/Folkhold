@@ -36,9 +36,9 @@ public record Coupling(double bufferGap, double restGap, double maxGap, double b
 
     /**
      * The default values. The configuration uses them as its defaults. On a straight rail, the distances between the
-     * centers of the two minecarts are 1.35 (buffer), 1.5 (rest), 2.5 (maximum) and 4.0 (break) blocks.
+     * centers of the two minecarts are 1.4 (buffer), 1.45 (rest), 2.5 (maximum) and 4.0 (break) blocks.
      */
-    public static final Coupling DEFAULTS = new Coupling(0.1, 0.25, 1.25, 2.75, 40, 0.15, 0.3);
+    public static final Coupling DEFAULTS = new Coupling(0.15, 0.2, 1.25, 2.75, 40, 0.15, 0.3);
 
     /** The largest size of a speed change in one tick, in blocks per tick. */
     public static final double MAX_IMPULSE = 0.5;
