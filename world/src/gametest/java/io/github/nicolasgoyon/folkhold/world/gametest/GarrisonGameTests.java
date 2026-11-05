@@ -143,7 +143,7 @@ public final class GarrisonGameTests {
     }
 
     /**
-     * The level of the village sets the number of units of each role: a town (level 9) has 4 guards, 3 archers and
+     * The level of the village sets the number of units of each role: a town (level 9) has 5 guards, 4 archers and
      * 1 captain.
      */
     @GameTest(template = "arena", batch = "garrison_level")
@@ -157,8 +157,8 @@ public final class GarrisonGameTests {
         int captains = units(heart, GarrisonRole.CAPTAIN).size();
         removeVillage(helper, heart);
 
-        helper.assertTrue(guards == 4 && archers == 3 && captains == 1,
-                "A town must have 4 guards, 3 archers and 1 captain: " + guards + ", " + archers + ", " + captains);
+        helper.assertTrue(guards == 5 && archers == 4 && captains == 1,
+                "A town must have 5 guards, 4 archers and 1 captain: " + guards + ", " + archers + ", " + captains);
         helper.succeed();
     }
 

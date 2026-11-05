@@ -158,28 +158,35 @@ public final class FactionGolemGameTests {
         });
     }
 
-    /** A town has no golem. A city has one golem and a capital two golems, with an armband in the faction color. */
+    /**
+     * A village has no golem. A town and a city have one golem, and a capital two golems, with an armband in the faction
+     * color.
+     */
     @GameTest(template = "arena", batch = "golem_garrison")
     public static void golemsComeFromTheVillageTier(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
         long now = helper.getLevel().getGameTime();
-        TestSupport.setLevel(helper, heart, 12);
+        TestSupport.setLevel(helper, heart, 8);
         heart.ensureGarrison(now);
+        int village = golems(heart).size();
+        TestSupport.setLevel(helper, heart, 12);
+        heart.ensureGarrison(now + 1);
         int town = golems(heart).size();
         TestSupport.setLevel(helper, heart, 13);
-        heart.ensureGarrison(now + 1);
+        heart.ensureGarrison(now + 2);
         int city = golems(heart).size();
         TestSupport.setLevel(helper, heart, 17);
-        heart.ensureGarrison(now + 2);
+        heart.ensureGarrison(now + 3);
         List<FactionGolemEntity> capital = golems(heart);
         boolean armbands = capital.stream().allMatch(golem -> golem.getArmbandColor()
                 == golem.faction().map(FactionSpec::color).orElse(FactionUnit.DEFAULT_TABARD_COLOR));
         heart.getUnits().forEach(Entity::discard);
         helper.setBlock(HEART, Blocks.AIR);
 
-        helper.assertTrue(town == 0, "A town must have no golem: " + town);
+        helper.assertTrue(village == 0, "A village must have no golem: " + village);
+        helper.assertTrue(town == 1, "A town must have one golem: " + town);
         helper.assertTrue(city == 1, "A city must have one golem: " + city);
         helper.assertTrue(capital.size() == 2, "A capital must have two golems: " + capital.size());
         helper.assertTrue(armbands, "The armband of a golem must have the color of its faction");
