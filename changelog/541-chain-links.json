@@ -1,5 +1,5 @@
 {
   "category": "new",
-  "en_us": "Link minecarts with a chain: use a chain on a minecart, then on a second minecart. A furnace minecart moves the linked minecarts in front of it and behind it. Shears, or an empty hand while you sneak, remove a link. A link breaks when a minecart stays blocked.",
-  "fr_fr": "Liez des wagonnets avec une chaîne : utilisez une chaîne sur un wagonnet, puis sur un second wagonnet. Un wagonnet motorisé déplace les wagonnets liés devant et derrière lui. Des cisailles, ou une main vide en étant accroupi, retirent un lien. Un lien se casse quand un wagonnet reste bloqué."
+  "en_us": "Link minecarts with a chain: use a chain on a minecart, then on a second one. The chain keeps a small gap between them. A furnace minecart moves the linked minecarts in front of it and behind it. Shears, or an empty hand while you sneak, remove a link. A link breaks when a minecart stays blocked.",
+  "fr_fr": "Liez des wagonnets avec une chaîne : utilisez-la sur un wagonnet, puis sur un autre. Elle laisse un petit écart entre eux. Un wagonnet motorisé déplace les wagonnets liés devant et derrière. Des cisailles, ou une main vide en étant accroupi, retirent un lien. Un lien casse si un wagonnet est bloqué."
 }

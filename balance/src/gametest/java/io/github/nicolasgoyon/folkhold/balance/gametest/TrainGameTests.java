@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.balance.gametest;
 import com.mojang.authlib.GameProfile;
 import io.github.nicolasgoyon.folkhold.balance.FolkholdBalance;
 import io.github.nicolasgoyon.folkhold.balance.config.BalanceConfig;
+import io.github.nicolasgoyon.folkhold.balance.rail.CartEnds;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartLink;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartLinks;
 import io.github.nicolasgoyon.folkhold.balance.rail.CartLinks.LinkResult;
@@ -93,7 +94,7 @@ public final class TrainGameTests {
 
     /**
      * A furnace minecart pulls 3 linked chest minecarts along a straight rail, through a curve, then up a slope. No
-     * link breaks, and the chains stay near their maximum distance or below it.
+     * link breaks, and the chains stay near their maximum gap or below it.
      */
     @GameTest(template = "track", timeoutTicks = 500, batch = "balance_rails")
     public static void furnacePullsThreeWagonsThroughACurve(GameTestHelper helper) {
@@ -111,7 +112,7 @@ public final class TrainGameTests {
             rail(helper, TRACK_TURN_X, 2, z, RailShape.NORTH_SOUTH);
         }
         fixRails(helper);
-        double spacing = BalanceConfig.coupling().restDistance();
+        double spacing = BalanceConfig.coupling().restGap() + 2.0 * CartEnds.HALF_LENGTH;
         MinecartFurnace furnace = helper.spawn(EntityType.FURNACE_MINECART, new Vec3(9.5, CART_Y, TRACK_Z + 0.5));
         List<AbstractMinecart> train = List.of(furnace,
                 helper.spawn(EntityType.CHEST_MINECART, new Vec3(9.5 - spacing, CART_Y, TRACK_Z + 0.5)),
@@ -121,11 +122,11 @@ public final class TrainGameTests {
             assertLinked(helper, train.get(i), train.get(i + 1));
         }
         fuel(helper, furnace, new Vec3(8.5, CART_Y, TRACK_Z + 0.5));
-        double maxDistance = BalanceConfig.coupling().maxDistance();
+        double maxGap = BalanceConfig.coupling().maxGap();
         AtomicReference<Double> largest = new AtomicReference<>(0.0);
         helper.onEachTick(() -> {
             for (int i = 0; i + 1 < train.size(); i++) {
-                largest.set(Math.max(largest.get(), train.get(i).distanceTo(train.get(i + 1))));
+                largest.set(Math.max(largest.get(), CartEnds.gap(train.get(i), train.get(i + 1))));
             }
         });
         AbstractMinecart last = train.get(train.size() - 1);
@@ -139,8 +140,8 @@ public final class TrainGameTests {
                 helper.assertTrue(cart.isOnRails(), "A minecart of the train leaves the rails");
             }
             helper.assertTrue(last.getZ() > finish, "The last wagon is at z " + last.getZ() + ", not after the slope");
-            helper.assertTrue(largest.get() <= maxDistance + 0.5,
-                    "The largest distance between two minecarts is " + largest.get());
+            helper.assertTrue(largest.get() <= maxGap + 0.5,
+                    "The largest gap between two minecarts is " + largest.get());
             clear(helper, train);
         });
     }
@@ -174,7 +175,7 @@ public final class TrainGameTests {
         }
         rail(helper, high, LOOP_SLOPE_DOWN_Z, RailShape.ASCENDING_NORTH);
         fixRails(helper);
-        double spacing = BalanceConfig.coupling().restDistance();
+        double spacing = BalanceConfig.coupling().restGap() + 2.0 * CartEnds.HALF_LENGTH;
         double z = low + 0.5;
         MinecartFurnace furnace = helper.spawn(EntityType.FURNACE_MINECART, new Vec3(9.5, CART_Y, z));
         List<AbstractMinecart> train = List.of(furnace,
@@ -193,21 +194,21 @@ public final class TrainGameTests {
             travel.set(travel.get() + furnace.position().subtract(last.get()).horizontalDistance());
             last.set(furnace.position());
             for (int i = 0; i + 1 < train.size(); i++) {
-                largest.set(Math.max(largest.get(), train.get(i).distanceTo(train.get(i + 1))));
+                largest.set(Math.max(largest.get(), CartEnds.gap(train.get(i), train.get(i + 1))));
             }
             if (train.stream().anyMatch(cart -> !cart.isOnRails() && cart.tickCount > 2)) {
                 derailed.set(true);
             }
         });
-        double maxDistance = BalanceConfig.coupling().maxDistance();
+        double maxGap = BalanceConfig.coupling().maxGap();
         helper.succeedWhen(() -> {
             for (int i = 0; i + 1 < train.size(); i++) {
                 helper.assertTrue(CartLinks.get(train.get(i)).back().equals(Optional.of(train.get(i + 1).getUUID())),
                         "The link " + i + " of the train is broken");
             }
             helper.assertTrue(!derailed.get(), "A minecart of the train leaves the rails");
-            helper.assertTrue(largest.get() <= maxDistance + 0.5,
-                    "The largest distance between two minecarts is " + largest.get());
+            helper.assertTrue(largest.get() <= maxGap + 0.5,
+                    "The largest gap between two minecarts is " + largest.get());
             helper.assertTrue(travel.get() >= 100.0, "The train travels " + travel.get() + " blocks");
             clear(helper, train);
         });
@@ -259,7 +260,7 @@ public final class TrainGameTests {
 
     /**
      * A minecart and a furnace minecart on the bench, linked with a chain by a player in this order. The furnace
-     * minecart is to the east of the minecart, at the rest distance. The player gives coal to the furnace minecart,
+     * minecart is to the east of the minecart, at the rest gap. The player gives coal to the furnace minecart,
      * and the furnace minecart moves the minecart along the rails, with a real-time limit of {@link #STATE_SECONDS}.
      *
      * @param cartX     the X of the minecart, relative to the test
@@ -273,7 +274,7 @@ public final class TrainGameTests {
             rail(helper, x, BENCH_Z, RailShape.EAST_WEST);
         }
         fixRails(helper);
-        double spacing = BalanceConfig.coupling().restDistance();
+        double spacing = BalanceConfig.coupling().restGap() + 2.0 * CartEnds.HALF_LENGTH;
         AbstractMinecart cart = helper.spawn(EntityType.MINECART, new Vec3(cartX, CART_Y, BENCH_Z + 0.5));
         MinecartFurnace furnace = helper.spawn(EntityType.FURNACE_MINECART,
                 new Vec3(cartX + spacing, CART_Y, BENCH_Z + 0.5));
@@ -395,7 +396,7 @@ public final class TrainGameTests {
         AbstractMinecart c = helper.spawn(EntityType.MINECART, new Vec3(5.0, 1.0, 2.5));
         AbstractMinecart d = helper.spawn(EntityType.MINECART, new Vec3(4.0, 1.0, 4.0));
         AbstractMinecart far = helper.spawn(EntityType.MINECART, new Vec3(12.5, 1.0, 2.5));
-        double max = BalanceConfig.coupling().maxDistance();
+        double max = BalanceConfig.coupling().maxGap();
 
         helper.assertTrue(CartLinks.link(level, a, a, max, 16) == LinkResult.SAME_CART, "A minecart links to itself");
         helper.assertTrue(CartLinks.link(level, a, far, max, 16) == LinkResult.TOO_FAR, "Far minecarts link");
@@ -477,7 +478,7 @@ public final class TrainGameTests {
 
     /** Links two minecarts with the default distance and fails the test when the link fails. */
     static void assertLinked(GameTestHelper helper, AbstractMinecart front, AbstractMinecart back) {
-        LinkResult result = CartLinks.link(helper.getLevel(), front, back, BalanceConfig.coupling().maxDistance(),
+        LinkResult result = CartLinks.link(helper.getLevel(), front, back, BalanceConfig.coupling().maxGap(),
                 BalanceConfig.TRAIN_MAX_CARTS.get());
         helper.assertTrue(result == LinkResult.LINKED, "The link fails: " + result);
     }

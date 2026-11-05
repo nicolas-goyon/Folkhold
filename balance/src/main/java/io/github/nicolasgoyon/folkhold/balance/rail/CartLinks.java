@@ -98,16 +98,16 @@ public final class CartLinks {
      * @param level       the level of the two minecarts
      * @param first       the first minecart
      * @param second      the second minecart
-     * @param maxDistance the largest distance between the two minecarts, in blocks
+     * @param maxGap      the largest gap between the ends of the two minecarts, in blocks (see {@link CartEnds})
      * @param maxCarts    the largest number of minecarts in a train
      * @return {@link LinkResult#LINKED}, or the reason of the failure
      */
     public static LinkResult link(ServerLevel level, AbstractMinecart first, AbstractMinecart second,
-                                  double maxDistance, int maxCarts) {
+                                  double maxGap, int maxCarts) {
         if (first == second) {
             return LinkResult.SAME_CART;
         }
-        if (first.level() != level || second.level() != level || first.distanceTo(second) > maxDistance) {
+        if (first.level() != level || second.level() != level || CartEnds.gap(first, second) > maxGap) {
             return LinkResult.TOO_FAR;
         }
         CartLink firstLink = get(first);

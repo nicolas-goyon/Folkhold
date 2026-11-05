@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.balance.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import io.github.nicolasgoyon.folkhold.balance.rail.CartEnds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -18,14 +19,17 @@ import org.joml.Matrix4f;
 
 /**
  * Draws a chain between the two minecarts of each link that {@link ClientCartLinks} knows, as a leash: two crossed
- * strips with a small sag, between the interpolated positions of the minecarts. The links of a minecart that the
- * client does not have are removed.
+ * strips with a small sag. The chain attaches at the ends of the minecarts that face each other (see
+ * {@link CartEnds}), at the interpolated positions of the minecarts. The links of a minecart that the client does not
+ * have are removed.
  */
 public final class ChainRenderer {
-    /** The height of the chain above the bottom of a minecart, in blocks. */
+    /** The height of the chain above the position of a minecart, in blocks: the middle of the end wall. */
     private static final double HEIGHT = 0.45;
-    /** The sag at the middle of the chain, in blocks. */
-    private static final float SAG = 0.12F;
+    /** The largest sag at the middle of the chain, in blocks. */
+    private static final float MAX_SAG = 0.12F;
+    /** The sag for each block of length of the chain. A short chain has a small sag. */
+    private static final float SAG_PER_BLOCK = 0.25F;
     /** The half width of a strip, in blocks. */
     private static final float HALF_WIDTH = 0.03F;
     /** The number of segments of a strip. */
@@ -53,12 +57,14 @@ public final class ChainRenderer {
         ClientCartLinks.forEach((frontId, backId) -> {
             Entity front = level.getEntity(frontId);
             Entity back = level.getEntity(backId);
-            if (!(front instanceof AbstractMinecart) || !(back instanceof AbstractMinecart)
+            if (!(front instanceof AbstractMinecart frontCart) || !(back instanceof AbstractMinecart backCart)
                     || front.isRemoved() || back.isRemoved()) {
                 return false;
             }
-            Vec3 start = front.getPosition(partialTick).add(0.0, HEIGHT, 0.0);
-            Vec3 end = back.getPosition(partialTick).add(0.0, HEIGHT, 0.0);
+            Vec3 frontPos = front.getPosition(partialTick);
+            Vec3 backPos = back.getPosition(partialTick);
+            Vec3 start = CartEnds.end(frontCart, frontPos, backPos).add(0.0, HEIGHT, 0.0);
+            Vec3 end = CartEnds.end(backCart, backPos, frontPos).add(0.0, HEIGHT, 0.0);
             if (start.distanceToSqr(camera) < MAX_RENDER_DISTANCE * MAX_RENDER_DISTANCE) {
                 renderChain(level, pose, buffers, start.subtract(camera), end.subtract(start), start, end);
             }
@@ -73,6 +79,7 @@ public final class ChainRenderer {
         float dy = (float) span.y;
         float dz = (float) span.z;
         float horizontal = Mth.sqrt(dx * dx + dz * dz);
+        float sag = Math.min(MAX_SAG, SAG_PER_BLOCK * Mth.sqrt(dx * dx + dy * dy + dz * dz));
         // The side direction of the flat strip. A vertical chain uses the X axis.
         float sideX = horizontal > 1.0E-4F ? -dz / horizontal * HALF_WIDTH : HALF_WIDTH;
         float sideZ = horizontal > 1.0E-4F ? dx / horizontal * HALF_WIDTH : 0.0F;
@@ -84,20 +91,20 @@ public final class ChainRenderer {
         // Each call of getBuffer starts a new strip.
         VertexConsumer flat = buffers.getBuffer(RenderType.leash());
         for (int i = 0; i <= SEGMENTS; i++) {
-            addPair(flat, matrix, dx, dy, dz, i, sideX, 0.0F, sideZ, startLight, endLight);
+            addPair(flat, matrix, dx, dy, dz, sag, i, sideX, 0.0F, sideZ, startLight, endLight);
         }
         VertexConsumer upright = buffers.getBuffer(RenderType.leash());
         for (int i = 0; i <= SEGMENTS; i++) {
-            addPair(upright, matrix, dx, dy, dz, i, 0.0F, HALF_WIDTH, 0.0F, startLight, endLight);
+            addPair(upright, matrix, dx, dy, dz, sag, i, 0.0F, HALF_WIDTH, 0.0F, startLight, endLight);
         }
         pose.popPose();
     }
 
-    private static void addPair(VertexConsumer buffer, Matrix4f matrix, float dx, float dy, float dz, int index,
-                                float offsetX, float offsetY, float offsetZ, int startLight, int endLight) {
+    private static void addPair(VertexConsumer buffer, Matrix4f matrix, float dx, float dy, float dz, float sag,
+                                int index, float offsetX, float offsetY, float offsetZ, int startLight, int endLight) {
         float f = (float) index / SEGMENTS;
         float x = dx * f;
-        float y = dy * f - SAG * 4.0F * f * (1.0F - f);
+        float y = dy * f - sag * 4.0F * f * (1.0F - f);
         float z = dz * f;
         int block = (int) Mth.lerp(f, LightTexture.block(startLight), LightTexture.block(endLight));
         int sky = (int) Mth.lerp(f, LightTexture.sky(startLight), LightTexture.sky(endLight));

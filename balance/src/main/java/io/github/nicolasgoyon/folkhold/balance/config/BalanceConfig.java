@@ -20,10 +20,10 @@ public final class BalanceConfig {
 
     public static final ModConfigSpec SPEC;
 
-    public static final ModConfigSpec.DoubleValue CHAIN_BUFFER_DISTANCE;
-    public static final ModConfigSpec.DoubleValue CHAIN_REST_DISTANCE;
-    public static final ModConfigSpec.DoubleValue CHAIN_MAX_DISTANCE;
-    public static final ModConfigSpec.DoubleValue CHAIN_BREAK_DISTANCE;
+    public static final ModConfigSpec.DoubleValue CHAIN_BUFFER_GAP;
+    public static final ModConfigSpec.DoubleValue CHAIN_REST_GAP;
+    public static final ModConfigSpec.DoubleValue CHAIN_MAX_GAP;
+    public static final ModConfigSpec.DoubleValue CHAIN_BREAK_GAP;
     public static final ModConfigSpec.IntValue CHAIN_BREAK_TICKS;
     public static final ModConfigSpec.DoubleValue CHAIN_STIFFNESS;
     public static final ModConfigSpec.DoubleValue CHAIN_DAMPING;
@@ -67,37 +67,36 @@ public final class BalanceConfig {
         builder.comment("Trains: minecarts that a chain links.")
                 .translation(KEY_PREFIX + "rails")
                 .push("rails");
-        CHAIN_BUFFER_DISTANCE = builder
-                .comment("Smallest distance in blocks between the centers of two linked minecarts. Below this",
-                        "distance, the back minecart slows down: linked minecarts do not push each other as vanilla",
-                        "minecarts do.")
-                .translation(KEY_PREFIX + "bufferDistance")
-                .defineInRange("bufferDistance", defaults.bufferDistance(), 0.5, 4.0);
-        CHAIN_REST_DISTANCE = builder
-                .comment("Distance in blocks between the centers of two linked minecarts when the chain is not",
-                        "stretched. Below this distance, the chain does not pull. The value must be more than",
-                        "bufferDistance.")
-                .translation(KEY_PREFIX + "restDistance")
-                .defineInRange("restDistance", defaults.restDistance(), 1.2, 4.0);
-        CHAIN_MAX_DISTANCE = builder
-                .comment("Largest distance in blocks of a stretched chain. Above this distance, the back minecart",
-                        "follows the front minecart as with a rigid bar. A player links two minecarts only at this",
-                        "distance or nearer. The value must be more than restDistance.")
-                .translation(KEY_PREFIX + "maxDistance")
-                .defineInRange("maxDistance", defaults.maxDistance(), 1.3, 8.0);
-        CHAIN_BREAK_DISTANCE = builder
-                .comment("A link breaks when the distance stays above this value in blocks for breakTicks ticks.",
-                        "The value must be more than maxDistance.")
-                .translation(KEY_PREFIX + "breakDistance")
-                .defineInRange("breakDistance", defaults.breakDistance(), 1.5, 16.0);
+        CHAIN_BUFFER_GAP = builder
+                .comment("Smallest gap in blocks between two linked minecarts: the distance between the ends that",
+                        "face each other. Below this gap, the back minecart slows down: linked minecarts do not push",
+                        "each other as vanilla minecarts do.")
+                .translation(KEY_PREFIX + "bufferGap")
+                .defineInRange("bufferGap", defaults.bufferGap(), 0.0, 2.0);
+        CHAIN_REST_GAP = builder
+                .comment("Gap in blocks between two linked minecarts when the chain is not stretched. Below this",
+                        "gap, the chain does not pull. The value must be at least bufferGap.")
+                .translation(KEY_PREFIX + "restGap")
+                .defineInRange("restGap", defaults.restGap(), 0.05, 2.0);
+        CHAIN_MAX_GAP = builder
+                .comment("Largest gap in blocks of a stretched chain. Above this gap, the back minecart follows the",
+                        "front minecart as with a rigid bar. A player links two minecarts only at this gap or",
+                        "nearer. The value must be at least restGap.")
+                .translation(KEY_PREFIX + "maxGap")
+                .defineInRange("maxGap", defaults.maxGap(), 0.1, 6.0);
+        CHAIN_BREAK_GAP = builder
+                .comment("A link breaks when the gap stays above this value in blocks for breakTicks ticks.",
+                        "The value must be at least maxGap.")
+                .translation(KEY_PREFIX + "breakGap")
+                .defineInRange("breakGap", defaults.breakGap(), 0.25, 14.0);
         CHAIN_BREAK_TICKS = builder
-                .comment("Number of ticks (20 ticks = 1 second) above breakDistance before a link breaks. This",
+                .comment("Number of ticks (20 ticks = 1 second) above breakGap before a link breaks. This",
                         "tolerance keeps the train together after a lag of some ticks.")
                 .translation(KEY_PREFIX + "breakTicks")
                 .defineInRange("breakTicks", defaults.breakTicks(), 1, 1200);
         CHAIN_STIFFNESS = builder
                 .comment("Force of the spring: the speed in blocks per tick that the back minecart gets each tick",
-                        "for each block of stretch above restDistance.")
+                        "for each block of stretch above restGap.")
                 .translation(KEY_PREFIX + "stiffness")
                 .defineInRange("stiffness", defaults.stiffness(), 0.0, 1.0);
         CHAIN_DAMPING = builder
@@ -274,15 +273,15 @@ public final class BalanceConfig {
     }
 
     /**
-     * The coupling from the values of the section {@code rails}. Each distance is at least the distance before it in
-     * the order buffer, rest, maximum, break.
+     * The coupling from the values of the section {@code rails}. Each gap is at least the gap before it in the order
+     * buffer, rest, maximum, break.
      */
     public static Coupling coupling() {
-        double buffer = CHAIN_BUFFER_DISTANCE.get();
-        double rest = Math.max(buffer, CHAIN_REST_DISTANCE.get());
-        double max = Math.max(rest, CHAIN_MAX_DISTANCE.get());
-        double breakDistance = Math.max(max, CHAIN_BREAK_DISTANCE.get());
-        return new Coupling(buffer, rest, max, breakDistance, CHAIN_BREAK_TICKS.get(), CHAIN_STIFFNESS.get(),
+        double buffer = CHAIN_BUFFER_GAP.get();
+        double rest = Math.max(buffer, CHAIN_REST_GAP.get());
+        double max = Math.max(rest, CHAIN_MAX_GAP.get());
+        double breakGap = Math.max(max, CHAIN_BREAK_GAP.get());
+        return new Coupling(buffer, rest, max, breakGap, CHAIN_BREAK_TICKS.get(), CHAIN_STIFFNESS.get(),
                 CHAIN_DAMPING.get());
     }
 

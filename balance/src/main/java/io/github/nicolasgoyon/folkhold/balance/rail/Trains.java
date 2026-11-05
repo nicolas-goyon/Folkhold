@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -25,8 +24,7 @@ import net.minecraft.world.entity.vehicle.AbstractMinecart;
 import net.minecraft.world.entity.vehicle.MinecartFurnace;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.BaseRailBlock;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.RailShape;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
@@ -46,12 +44,12 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  *
  * <p>A train stops as one unit when one of its minecarts is not in a chunk that ticks its entities, or is not loaded.
  * Its links wait, and the break counters do not increase. A link breaks when a minecart is destroyed or goes through
- * a portal, or when the chain stays too long above its break distance (see {@link Coupling}).
+ * a portal, or when the chain stays too long above its break gap (see {@link Coupling}).
  */
 public final class Trains {
     /** The minecarts with a link in each level that are loaded. */
     private static final Map<ResourceKey<Level>, Set<AbstractMinecart>> LINKED = new HashMap<>();
-    /** The break counter of each follower whose chain is above the break distance (see {@link #pull}). */
+    /** The break counter of each follower whose chain is above the break gap (see {@link #pull}). */
     private static final Map<UUID, Integer> STRETCH_TICKS = new HashMap<>();
     /** The links that the last check found dead: the UUID of a minecart to the UUIDs of its missing partners. */
     private static final Map<UUID, Set<UUID>> DEAD_LINKS = new HashMap<>();
@@ -67,7 +65,7 @@ public final class Trains {
     private static final double MIN_FURNACE_PUSH_SQR = 1.0E-7;
     /** The interval of the check of the dead links, in ticks. */
     private static final int DEAD_LINK_CHECK_TICKS = 20;
-    /** The margin around the break distance for the check of the dead links, in blocks. */
+    /** The margin around the largest distance of two linked minecarts for the check of the dead links, in blocks. */
     private static final double DEAD_LINK_MARGIN = 2.0;
 
     private Trains() {
@@ -120,7 +118,7 @@ public final class Trains {
         carts.removeIf(Entity::isRemoved);
         Coupling coupling = BalanceConfig.coupling();
         if (level.getGameTime() % DEAD_LINK_CHECK_TICKS == 0) {
-            checkDeadLinks(level, carts, coupling.breakDistance() + DEAD_LINK_MARGIN);
+            checkDeadLinks(level, carts, coupling.breakGap() + 2.0 * CartEnds.HALF_LENGTH + DEAD_LINK_MARGIN);
         }
         int maxCarts = BalanceConfig.TRAIN_MAX_CARTS.get();
         Set<AbstractMinecart> done = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -249,8 +247,8 @@ public final class Trains {
     }
 
     /**
-     * Removes the dead links: links to a minecart that does not exist any more. Two linked minecarts are never
-     * farther apart than the break distance: a train that waits does not move. Thus a link is dead when its minecart
+     * Removes the dead links: links to a minecart that does not exist any more. Two linked minecarts are never much
+     * farther apart than the break gap: a train that waits does not move. Thus a link is dead when its minecart
      * ticks, all the chunks in this radius around it have their entities loaded and tick them, and the level does not
      * give the other minecart. The entities of a chunk load after the chunk: a link must be dead in 2 checks in a
      * row. No chain drops.
@@ -320,11 +318,10 @@ public final class Trains {
     private static boolean pull(ServerLevel level, Coupling coupling, AbstractMinecart leader,
                                 AbstractMinecart follower) {
         double dx = leader.getX() - follower.getX();
-        double dy = leader.getY() - follower.getY();
         double dz = leader.getZ() - follower.getZ();
-        double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        double gap = CartEnds.gap(follower, leader);
         // Each minecart is the follower of one link at most: the counter of a link has the UUID of its follower.
-        int ticks = coupling.nextStretchTicks(STRETCH_TICKS.getOrDefault(follower.getUUID(), 0), distance);
+        int ticks = coupling.nextStretchTicks(STRETCH_TICKS.getOrDefault(follower.getUUID(), 0), gap);
         if (coupling.breaks(ticks)) {
             CartLinks.unlink(level, follower, leader.getUUID(), true);
             return true;
@@ -340,9 +337,9 @@ public final class Trains {
         }
         double nx = dx / horizontal;
         double nz = dz / horizontal;
-        double impulse = coupling.impulse(distance, nextSpeed(leader, nx, nz) - currentSpeed(follower, nx, nz));
+        double impulse = coupling.impulse(gap, nextSpeed(leader, nx, nz) - currentSpeed(follower, nx, nz));
         if (impulse != 0.0) {
-            accelerate(level, follower, nx, nz, impulse);
+            accelerate(follower, nx, nz, impulse);
         }
         return false;
     }
@@ -373,10 +370,10 @@ public final class Trains {
      * @param impulse the speed change toward the leader, in blocks per tick. A negative value moves the follower
      *                away from the leader.
      */
-    private static void accelerate(ServerLevel level, AbstractMinecart cart, double nx, double nz, double impulse) {
+    private static void accelerate(AbstractMinecart cart, double nx, double nz, double impulse) {
         double dirX = nx;
         double dirZ = nz;
-        double[] axis = railAxis(level, cart);
+        double[] axis = railAxis(cart);
         if (axis != null) {
             double along = nx * axis[0] + nz * axis[1];
             if (Math.abs(along) < MIN_RAIL_ALIGNMENT) {
@@ -409,16 +406,12 @@ public final class Trains {
      * @return the direction, or null when the minecart is not on a rail
      */
     @Nullable
-    private static double[] railAxis(ServerLevel level, AbstractMinecart cart) {
-        if (!cart.isOnRails()) {
+    private static double[] railAxis(AbstractMinecart cart) {
+        RailShape shape = cart.isOnRails() ? CartEnds.railShape(cart, cart.position()) : null;
+        if (shape == null) {
             return null;
         }
-        BlockPos pos = cart.getCurrentRailPosition();
-        BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof BaseRailBlock rail)) {
-            return null;
-        }
-        return switch (rail.getRailDirection(state, level, pos, cart)) {
+        return switch (shape) {
             case NORTH_SOUTH, ASCENDING_NORTH, ASCENDING_SOUTH -> new double[] {0.0, 1.0};
             case EAST_WEST, ASCENDING_EAST, ASCENDING_WEST -> new double[] {1.0, 0.0};
             case SOUTH_EAST, NORTH_WEST -> new double[] {DIAGONAL, -DIAGONAL};

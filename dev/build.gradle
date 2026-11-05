@@ -82,10 +82,13 @@ tasks.named('jar') {
     enabled = false
 }
 
-// Each GameTest run starts in a new world: the tests do not see the saved data of an earlier run.
+// Each GameTest run starts in a new world with the default configuration: the tests do not see the saved data or
+// the configuration files of an earlier run.
 def gameTestWorld = project.file('run-gametest/world')
+def gameTestConfig = project.file('run-gametest/config')
 tasks.named('runGameTestServer') {
     doFirst {
         gameTestWorld.deleteDir()
+        gameTestConfig.deleteDir()
     }
 }
