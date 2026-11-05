@@ -14,12 +14,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.gametest.framework.GameTestSequence;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Pillager;
 import net.minecraft.world.entity.monster.Witch;
+import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.raid.Raid;
 import net.minecraft.world.entity.raid.Raider;
 import net.minecraft.world.level.block.Block;
@@ -49,6 +49,8 @@ public final class RaidGameTests {
     private static final int HUGE = 56;
     /** The distance from the heart to the palisade in the test of the gates, in blocks. */
     private static final int PALISADE = 16;
+    /** The day time of midnight: the heart keeps the gates closed. */
+    private static final long MIDNIGHT = 18_000L;
 
     private RaidGameTests() {
     }
@@ -202,6 +204,8 @@ public final class RaidGameTests {
         BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
         Witch raider = helper.spawn(EntityType.WITCH, heartRelative.offset(10, 0, -PALISADE - 10));
         Raid raid = new Raid(RAID_ID + 1, level, heartPos);
+        // At midnight, the heart keeps the gate closed: only the raider opens it.
+        helper.onEachTick(() -> level.setDayTime(MIDNIGHT));
 
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(VillageHearts.findNearest(level, heartPos, 1.0).isPresent(),
@@ -242,11 +246,13 @@ public final class RaidGameTests {
 
     /**
      * Raiders of a raid reach the heart of a village with a palisade and closed gates. The palisade of
-     * {@link #buildPalisade} has one closed gate, on the north side. Three vindicators start outside the east, the
-     * south and the west sides: they walk around the palisade to the gate, force it and go through it. The test
-     * waits for this state with a real-time limit, and not for a number of ticks.
+     * {@link #buildPalisade} has one closed gate, on the north side. The time stays at midnight: the heart keeps the
+     * gates closed, and only a raider can open the gate. A vindicator with no target starts outside the east side. A
+     * pillager starts outside the south side, with the target of a villager near the heart. Each raider walks around
+     * the palisade to the gate. The test records the tick that the gate opens, with a raider in front of it. Then the
+     * vindicator arrives at the heart, and the pillager is inside the palisade.
      */
-    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_gate_closed")
+    @GameTest(template = "arena_huge", timeoutTicks = 2400, batch = "raid_gate_closed")
     public static void raidersForceClosedGatesToTheHeart(GameTestHelper helper) {
         TestSupport.buildFloor(helper, HUGE);
         BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
@@ -254,30 +260,47 @@ public final class RaidGameTests {
         helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
         ServerLevel level = helper.getLevel();
         BlockPos heartPos = helper.absolutePos(heartRelative);
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
         Raid raid = new Raid(RAID_ID + 3, level, heartPos);
         List<Raider> raiders = new ArrayList<>();
+        Villager[] villager = new Villager[1];
+        boolean[] forced = new boolean[1];
         int outside = PALISADE + 5;
+        helper.onEachTick(() -> {
+            level.setDayTime(MIDNIGHT);
+            if (!forced[0] && !raiders.isEmpty() && isOpen(level, gates)) {
+                forced[0] = raiders.stream()
+                        .anyMatch(raider -> horizontalDistance(raider.blockPosition(), front) <= 3.0);
+                helper.assertTrue(forced[0], "A raider in front of the gate must open it");
+            }
+        });
 
-        GameTestSequence sequence = helper.startSequence()
+        helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(VillageHearts.findNearest(level, heartPos, 1.0).isPresent(),
                         "The heart must be in the list of the loaded hearts"))
                 .thenExecute(() -> {
                     VillageHeartBlockEntity heart = helper.getBlockEntity(heartRelative);
                     helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
                     setGates(level, gates, false);
-                    for (BlockPos start : List.of(heartRelative.east(outside), heartRelative.south(outside),
-                            heartRelative.west(outside))) {
-                        Raider raider = helper.spawn(EntityType.VINDICATOR, start);
+                    villager[0] = helper.spawn(EntityType.VILLAGER, heartRelative.east(3));
+                    villager[0].setNoAi(true);
+                    villager[0].setInvulnerable(true);
+                    Raider vindicator = helper.spawn(EntityType.VINDICATOR, heartRelative.east(outside));
+                    Raider pillager = helper.spawn(EntityType.PILLAGER, heartRelative.south(outside));
+                    for (Raider raider : List.of(vindicator, pillager)) {
                         raid.joinRaid(1, raider, null, true);
                         raiders.add(raider);
                     }
-                });
-        TestSupport.thenWaitForWorker(helper, sequence, () -> raiders.stream().allMatch(raider -> raider.isAlive()
-                && horizontalDistance(raider.blockPosition(), heartPos) <= MarchOnVillageGoal.ARRIVAL),
-                "Each raider must force the closed gate and arrive at the heart")
+                    pillager.setTarget(villager[0]);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(forced[0]
+                        && horizontalDistance(raiders.get(0).blockPosition(), heartPos) <= MarchOnVillageGoal.ARRIVAL
+                        && RaidMarch.squareDistance(heartPos, raiders.get(1).blockPosition()) < PALISADE,
+                        "A raider must force the closed gate, the vindicator must arrive at the heart, and the pillager "
+                        + "with a target must be inside the palisade"))
                 .thenExecute(() -> {
-                    helper.assertTrue(isOpen(level, gates), "The raiders must open the gate");
                     raiders.forEach(Raider::discard);
+                    villager[0].discard();
                     helper.setBlock(heartRelative, Blocks.AIR);
                 })
                 .thenSucceed();
