@@ -196,7 +196,7 @@ public final class RaidGameTests {
     public static void raiderForcesAClosedGateThenGoesThroughIt(GameTestHelper helper) {
         TestSupport.buildFloor(helper, HUGE);
         BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
-        List<BlockPos> gates = buildPalisade(helper, heartRelative);
+        List<BlockPos> gates = buildPalisade(helper, heartRelative, 1);
         helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
         ServerLevel level = helper.getLevel();
         BlockPos heartPos = helper.absolutePos(heartRelative);
@@ -256,7 +256,7 @@ public final class RaidGameTests {
     public static void raidersForceClosedGatesToTheHeart(GameTestHelper helper) {
         TestSupport.buildFloor(helper, HUGE);
         BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
-        List<BlockPos> gates = buildPalisade(helper, heartRelative);
+        List<BlockPos> gates = buildPalisade(helper, heartRelative, 1);
         helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
         ServerLevel level = helper.getLevel();
         BlockPos heartPos = helper.absolutePos(heartRelative);
@@ -307,12 +307,76 @@ public final class RaidGameTests {
     }
 
     /**
+     * Raiders of a raid reach the heart of a village through a gate of stacked fence gates. The palisade of
+     * {@link #buildPalisade} has one closed gate of 2 rows of 3 fence gates, on the north side. The heart makes one
+     * gate of the 2 rows: the stairs of the exits do not change the terrain in front of the gate, and the approach of
+     * the gate has the 6 fence gates. The time stays at midnight: the heart keeps the gate closed. A vindicator starts
+     * outside the east side, walks around the palisade to the gate and forces it. All the fence gates of the gate
+     * open, and the vindicator arrives at the heart.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 2400, batch = "raid_gate_stacked")
+    public static void raidersForceStackedGatesToTheHeart(GameTestHelper helper) {
+        TestSupport.buildFloor(helper, HUGE);
+        BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
+        List<BlockPos> gates = buildPalisade(helper, heartRelative, 2);
+        helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
+        ServerLevel level = helper.getLevel();
+        BlockPos heartPos = helper.absolutePos(heartRelative);
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
+        Raid raid = new Raid(RAID_ID + 4, level, heartPos);
+        Raider[] raider = new Raider[1];
+        boolean[] forced = new boolean[1];
+        helper.onEachTick(() -> {
+            level.setDayTime(MIDNIGHT);
+            if (!forced[0] && raider[0] != null && gates.stream()
+                    .anyMatch(gate -> level.getBlockState(gate).getValue(FenceGateBlock.OPEN))) {
+                forced[0] = horizontalDistance(raider[0].blockPosition(), front) <= 3.0 && isOpen(level, gates);
+                helper.assertTrue(forced[0], "A raider in front of the gate must open all the fence gates together");
+            }
+        });
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(VillageHearts.findNearest(level, heartPos, 1.0).isPresent(),
+                        "The heart must be in the list of the loaded hearts"))
+                .thenExecute(() -> {
+                    VillageHeartBlockEntity heart = helper.getBlockEntity(heartRelative);
+                    helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
+                    helper.assertTrue(heart.getLayout().gates().size() == gates.size(),
+                            "The village must have the 6 fence gates: " + heart.getLayout().gates());
+                    int stairs = VillageExits.build(level, heartPos, heart.getLayout().gates());
+                    helper.assertTrue(stairs == 0, "The stacked fence gates must get no stairs: " + stairs);
+                    for (int dx = -1; dx <= 1; dx++) {
+                        helper.assertBlockPresent(Blocks.AIR, heartRelative.offset(dx, 0, -PALISADE - 1));
+                    }
+                    List<VillageExits.Approach> approaches = VillageExits.approaches(level, heartPos,
+                            heart.getLayout().gates());
+                    helper.assertTrue(approaches.size() == 1 && approaches.get(0).gates().size() == 3
+                            && approaches.get(0).blocks().size() == gates.size(),
+                            "The 2 rows must make one gate: " + approaches);
+                    setGates(level, gates, false);
+                    raider[0] = helper.spawn(EntityType.VINDICATOR, heartRelative.east(PALISADE + 5));
+                    raid.joinRaid(1, raider[0], null, true);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(forced[0]
+                        && horizontalDistance(raider[0].blockPosition(), heartPos) <= MarchOnVillageGoal.ARRIVAL,
+                        "The raider must force the stacked gate and arrive at the heart: "
+                        + helper.relativePos(raider[0].blockPosition())))
+                .thenExecute(() -> {
+                    raider[0].discard();
+                    helper.setBlock(heartRelative, Blocks.AIR);
+                })
+                .thenSucceed();
+    }
+
+    /**
      * Builds a square palisade of stone bricks around the heart, {@link #PALISADE} blocks from it, 3 blocks high, with
-     * a closed gate of 3 fence gates on the north side. The gate has 2 blocks of free height.
+     * a closed gate of 3 fence gates on the north side. The gate has 1 or 2 rows of fence gates. Above them, the gate
+     * has free height up to 2 blocks.
      *
+     * @param rows the number of rows of fence gates: 1 or 2
      * @return the positions of the fence gates
      */
-    private static List<BlockPos> buildPalisade(GameTestHelper helper, BlockPos heart) {
+    private static List<BlockPos> buildPalisade(GameTestHelper helper, BlockPos heart, int rows) {
         BlockState wall = Blocks.STONE_BRICKS.defaultBlockState();
         for (int d = -PALISADE; d <= PALISADE; d++) {
             for (int y = 1; y <= 3; y++) {
@@ -324,11 +388,16 @@ public final class RaidGameTests {
         }
         List<BlockPos> gates = new ArrayList<>();
         for (int dx = -1; dx <= 1; dx++) {
-            BlockPos gate = heart.offset(dx, 0, -PALISADE);
-            helper.setBlock(gate, Blocks.SPRUCE_FENCE_GATE.defaultBlockState()
-                    .setValue(FenceGateBlock.FACING, Direction.NORTH));
-            helper.setBlock(gate.above(), Blocks.AIR);
-            gates.add(helper.absolutePos(gate));
+            for (int y = 0; y < 2; y++) {
+                BlockPos pos = heart.offset(dx, y, -PALISADE);
+                if (y < rows) {
+                    helper.setBlock(pos, Blocks.SPRUCE_FENCE_GATE.defaultBlockState()
+                            .setValue(FenceGateBlock.FACING, Direction.NORTH));
+                    gates.add(helper.absolutePos(pos));
+                } else {
+                    helper.setBlock(pos, Blocks.AIR);
+                }
+            }
         }
         return gates;
     }

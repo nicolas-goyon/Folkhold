@@ -26,6 +26,8 @@ import net.minecraft.world.level.block.state.BlockState;
  *       the axis of their passage. The other fence gates (gardens, pens) do not get stairs.</li>
  *   <li>The fence gates side by side make one exit. The column in the middle of the exit gives the terrain level, and
  *       all the columns of the exit get the same steps.</li>
+ *   <li>The fence gates stacked on a fence gate of an exit are in the same column of the exit. The lowest fence gate
+ *       of a column gives the floor of the exit. The stacked fence gates get no steps.</li>
  *   <li>Lower terrain: stairs that go down, with cobblestone under each step to the terrain.</li>
  *   <li>Higher terrain: stairs that go up, with the terrain above each step removed.</li>
  *   <li>At most {@link #MAX_STEPS} steps. A terrain that is higher than this (a cliff, a tree) gets no stairs.</li>
@@ -47,8 +49,14 @@ public final class VillageExits {
     private VillageExits() {
     }
 
-    /** The fence gates of one exit, side by side, and the direction out of the village. */
-    private record Exit(List<BlockPos> columns, Direction out) {
+    /**
+     * The fence gates of one exit and the direction out of the village.
+     *
+     * @param columns the lowest fence gate of each column, side by side
+     * @param blocks  all the fence gates of the exit, with the stacked fence gates
+     * @param out     the direction out of the village
+     */
+    private record Exit(List<BlockPos> columns, List<BlockPos> blocks, Direction out) {
         BlockPos middle() {
             return columns.get(columns.size() / 2);
         }
@@ -59,18 +67,36 @@ public final class VillageExits {
      *
      * @param point the position outside the gate, {@link #APPROACH_DISTANCE} blocks from its middle, at the level of
      *              the feet on the terrain. In water, the point is at the surface: a raider swims there.
-     * @param gates the fence gates of the gate, side by side
+     * @param gates  the lowest fence gate of each column of the gate, side by side
+     * @param blocks all the fence gates of the gate: the fence gates of {@code gates} and the fence gates stacked on
+     *               them
      */
-    public record Approach(BlockPos point, List<BlockPos> gates) {
-        /** True if a fence gate of the gate is open. */
+    public record Approach(BlockPos point, List<BlockPos> gates, List<BlockPos> blocks) {
+        /**
+         * An approach of a gate with no stacked fence gates.
+         *
+         * @param point the position outside the gate
+         * @param gates the fence gates of the gate, side by side
+         */
+        public Approach(BlockPos point, List<BlockPos> gates) {
+            this(point, gates, gates);
+        }
+
+        /** True if a column of the gate is open: all the fence gates of the column are open. */
         public boolean isOpen(Level level) {
             for (BlockPos gate : gates) {
-                BlockState state = level.getBlockState(gate);
-                if (state.getBlock() instanceof FenceGateBlock && state.getValue(FenceGateBlock.OPEN)) {
+                boolean open = blocks.stream()
+                        .filter(block -> block.getX() == gate.getX() && block.getZ() == gate.getZ())
+                        .allMatch(block -> isOpenGate(level.getBlockState(block)));
+                if (open) {
                     return true;
                 }
             }
             return false;
+        }
+
+        private static boolean isOpenGate(BlockState state) {
+            return state.getBlock() instanceof FenceGateBlock && state.getValue(FenceGateBlock.OPEN);
         }
     }
 
@@ -91,7 +117,7 @@ public final class VillageExits {
             BlockPos outside = middle.relative(exit.out(), APPROACH_DISTANCE);
             if (level.isLoaded(outside)) {
                 BlockPos point = surface(level, outside.atY(terrain(level, outside, middle.getY())));
-                approaches.add(new Approach(point, List.copyOf(exit.columns())));
+                approaches.add(new Approach(point, List.copyOf(exit.columns()), List.copyOf(exit.blocks())));
             }
         }
         return approaches;
@@ -136,7 +162,10 @@ public final class VillageExits {
         return stairs;
     }
 
-    /** The exits: the gates of the palisade, in groups of gates side by side. */
+    /**
+     * The exits: the gates of the palisade, in groups of gates side by side. The method reads the fence gates from the
+     * lowest to the highest, so a fence gate on a fence gate of an exit goes into the column of this exit.
+     */
     private static List<Exit> exits(ServerLevel level, BlockPos heart, List<BlockPos> gates) {
         List<Exit> exits = new ArrayList<>();
         List<BlockPos> sorted = new ArrayList<>(gates);
@@ -154,6 +183,12 @@ public final class VillageExits {
             if (distance < WALL_DISTANCE) {
                 continue;
             }
+            BlockPos below = gate.below();
+            Exit stacked = exits.stream().filter(exit -> exit.blocks().contains(below)).findFirst().orElse(null);
+            if (stacked != null) {
+                stacked.blocks().add(gate.immutable());
+                continue;
+            }
             Exit joined = null;
             for (Exit exit : exits) {
                 BlockPos last = exit.columns().get(exit.columns().size() - 1);
@@ -163,10 +198,12 @@ public final class VillageExits {
             }
             if (joined != null) {
                 joined.columns().add(gate.immutable());
+                joined.blocks().add(gate.immutable());
             } else {
                 List<BlockPos> columns = new ArrayList<>();
                 columns.add(gate.immutable());
-                exits.add(new Exit(columns, out));
+                List<BlockPos> blocks = new ArrayList<>(columns);
+                exits.add(new Exit(columns, blocks, out));
             }
         }
         return exits;

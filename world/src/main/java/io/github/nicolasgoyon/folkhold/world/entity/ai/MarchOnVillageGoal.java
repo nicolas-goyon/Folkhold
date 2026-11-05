@@ -184,9 +184,9 @@ public class MarchOnVillageGoal extends Goal {
 
     /**
      * Forces the closed gate in front of the raider: the raider hits the gate, and after {@link #FORCE_TICKS} ticks
-     * in front of it, all the fence gates of the gate open. A raider that comes back to the same gate in
-     * {@link #FORCE_MEMORY_TICKS} ticks continues from its time. Else it starts again from zero. A raider forces a gate
-     * also when the game rule {@code mobGriefing} is false: the gate opens, and no block breaks.
+     * in front of it, all the fence gates of the gate open, also the stacked fence gates. A raider that comes back to
+     * the same gate in {@link #FORCE_MEMORY_TICKS} ticks continues from its time. Else it starts again from zero. A
+     * raider forces a gate also when the game rule {@code mobGriefing} is false: the gate opens, and no block breaks.
      *
      * @return true while the raider stays in front of the closed gate and forces it
      */
@@ -213,7 +213,7 @@ public class MarchOnVillageGoal extends Goal {
         if (++forceTicks < FORCE_TICKS) {
             return true;
         }
-        for (BlockPos gate : forcing.gates()) {
+        for (BlockPos gate : forcing.blocks()) {
             BlockState state = level.getBlockState(gate);
             if (state.getBlock() instanceof FenceGateBlock && !state.getValue(FenceGateBlock.OPEN)) {
                 level.setBlock(gate, state.setValue(FenceGateBlock.OPEN, true), Block.UPDATE_ALL);
