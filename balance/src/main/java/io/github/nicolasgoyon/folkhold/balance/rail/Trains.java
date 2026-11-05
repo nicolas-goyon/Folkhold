@@ -22,6 +22,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.vehicle.AbstractMinecart;
+import net.minecraft.world.entity.vehicle.MinecartFurnace;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseRailBlock;
@@ -39,8 +40,9 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  *
  * <p>The game ticks the entities in a random order. Thus the mod moves the trains after the entities, in
  * {@link LevelTickEvent.Post}: it finds each train one time, then corrects the motion of each minecart in order from
- * the front minecart. The correction of a minecart uses the corrected motion of the minecart in front of it, so a
- * long train has no delay of one tick for each minecart.
+ * the driver of the train (see {@link #driver}) to the two ends of the train. The correction of a minecart uses the
+ * corrected motion of the next minecart toward the driver, so a long train has no delay of one tick for each
+ * minecart.
  *
  * <p>A train stops as one unit when one of its minecarts is not in a chunk that ticks its entities, or is not loaded.
  * Its links wait, and the break counters do not increase. A link breaks when a minecart is destroyed or goes through
@@ -49,7 +51,7 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
 public final class Trains {
     /** The minecarts with a link in each level that are loaded. */
     private static final Map<ResourceKey<Level>, Set<AbstractMinecart>> LINKED = new HashMap<>();
-    /** The break counter of each back minecart whose chain is above the break distance. */
+    /** The break counter of each follower whose chain is above the break distance (see {@link #pull}). */
     private static final Map<UUID, Integer> STRETCH_TICKS = new HashMap<>();
     /** The links that the last check found dead: the UUID of a minecart to the UUIDs of its missing partners. */
     private static final Map<UUID, Set<UUID>> DEAD_LINKS = new HashMap<>();
@@ -61,6 +63,8 @@ public final class Trains {
     private static final double MIN_RAIL_ALIGNMENT = 0.2;
     /** The parts of a diagonal unit vector. */
     private static final double DIAGONAL = Math.sqrt(0.5);
+    /** A vanilla furnace minecart with a push of this squared length or less does not drive (vanilla value). */
+    private static final double MIN_FURNACE_PUSH_SQR = 1.0E-7;
     /** The interval of the check of the dead links, in ticks. */
     private static final int DEAD_LINK_CHECK_TICKS = 20;
     /** The margin around the break distance for the check of the dead links, in blocks. */
@@ -190,12 +194,49 @@ public final class Trains {
             stop(level, train);
             return;
         }
-        for (int i = 0; i + 1 < train.size(); i++) {
-            if (pull(level, coupling, train.get(i), train.get(i + 1))) {
-                // The minecarts behind the broken link are a new train: they move in the next tick.
+        int driver = driver(train);
+        // A broken link makes new trains: they move in the next tick.
+        for (int i = driver; i > 0; i--) {
+            if (pull(level, coupling, train.get(i), train.get(i - 1))) {
                 return;
             }
         }
+        for (int i = driver; i + 1 < train.size(); i++) {
+            if (pull(level, coupling, train.get(i), train.get(i + 1))) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * The index of the driver of a train: the minecart that the chains do not move. The chains move the other
+     * minecarts toward the driver or away from it.
+     *
+     * <ul>
+     *   <li>A locomotive at the front, or a vanilla furnace minecart with a push at the front: the front
+     *       minecart.</li>
+     *   <li>Else, the first vanilla furnace minecart with a push. A vanilla furnace minecart moves in the direction of
+     *       its push and has no front end: the player cannot see if it is in front of its wagon or behind it.</li>
+     *   <li>Else, the front minecart.</li>
+     * </ul>
+     */
+    private static int driver(List<AbstractMinecart> train) {
+        AbstractMinecart head = train.get(0);
+        if (head instanceof Locomotive || isPushed(head)) {
+            return 0;
+        }
+        for (int i = 1; i < train.size(); i++) {
+            if (isPushed(train.get(i))) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /** Tells if a minecart is a vanilla furnace minecart with a push: it has fuel and moves by itself. */
+    private static boolean isPushed(AbstractMinecart cart) {
+        return cart instanceof MinecartFurnace furnace
+                && furnace.xPush * furnace.xPush + furnace.zPush * furnace.zPush > MIN_FURNACE_PUSH_SQR;
     }
 
     /**
@@ -271,24 +312,27 @@ public final class Trains {
     }
 
     /**
-     * Applies the chain between two minecarts for one tick. The front minecart has its motion for the next tick.
+     * Applies the chain between two linked minecarts for one tick. The chain changes only the motion of the follower.
+     * The leader is the minecart nearer to the driver of the train, and it has its motion for the next tick.
      *
      * @return true if the link breaks
      */
-    private static boolean pull(ServerLevel level, Coupling coupling, AbstractMinecart front, AbstractMinecart back) {
-        double dx = front.getX() - back.getX();
-        double dy = front.getY() - back.getY();
-        double dz = front.getZ() - back.getZ();
+    private static boolean pull(ServerLevel level, Coupling coupling, AbstractMinecart leader,
+                                AbstractMinecart follower) {
+        double dx = leader.getX() - follower.getX();
+        double dy = leader.getY() - follower.getY();
+        double dz = leader.getZ() - follower.getZ();
         double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        int ticks = coupling.nextStretchTicks(STRETCH_TICKS.getOrDefault(back.getUUID(), 0), distance);
+        // Each minecart is the follower of one link at most: the counter of a link has the UUID of its follower.
+        int ticks = coupling.nextStretchTicks(STRETCH_TICKS.getOrDefault(follower.getUUID(), 0), distance);
         if (coupling.breaks(ticks)) {
-            CartLinks.unlink(level, back, front.getUUID(), true);
+            CartLinks.unlink(level, follower, leader.getUUID(), true);
             return true;
         }
         if (ticks > 0) {
-            STRETCH_TICKS.put(back.getUUID(), ticks);
+            STRETCH_TICKS.put(follower.getUUID(), ticks);
         } else {
-            STRETCH_TICKS.remove(back.getUUID());
+            STRETCH_TICKS.remove(follower.getUUID());
         }
         double horizontal = Math.sqrt(dx * dx + dz * dz);
         if (horizontal < MIN_HORIZONTAL_DISTANCE) {
@@ -296,9 +340,9 @@ public final class Trains {
         }
         double nx = dx / horizontal;
         double nz = dz / horizontal;
-        double impulse = coupling.impulse(distance, nextSpeed(front, nx, nz) - currentSpeed(back, nx, nz));
+        double impulse = coupling.impulse(distance, nextSpeed(leader, nx, nz) - currentSpeed(follower, nx, nz));
         if (impulse != 0.0) {
-            accelerate(level, back, nx, nz, impulse);
+            accelerate(level, follower, nx, nz, impulse);
         }
         return false;
     }
@@ -319,15 +363,15 @@ public final class Trains {
     }
 
     /**
-     * Gives a speed change to the back minecart of a link. On a rail, the change goes along the rail, in the direction
+     * Gives a speed change to the follower of a link. On a rail, the change goes along the rail, in the direction
      * of the chain. The new speed is the speed of the movement of this tick plus the change: the motion of a minecart
      * does not grow above its real speed. The motion also stays below the speed limit of the rail, so that a minecart
      * does not leave a curve.
      *
-     * @param nx      the X part of the horizontal direction from the back minecart to the front minecart
-     * @param nz      the Z part of the horizontal direction from the back minecart to the front minecart
-     * @param impulse the speed change toward the front minecart, in blocks per tick. A negative value slows the back
-     *                minecart.
+     * @param nx      the X part of the horizontal direction from the follower to the leader
+     * @param nz      the Z part of the horizontal direction from the follower to the leader
+     * @param impulse the speed change toward the leader, in blocks per tick. A negative value moves the follower
+     *                away from the leader.
      */
     private static void accelerate(ServerLevel level, AbstractMinecart cart, double nx, double nz, double impulse) {
         double dirX = nx;

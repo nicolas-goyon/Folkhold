@@ -3,8 +3,9 @@ package io.github.nicolasgoyon.folkhold.balance.rail;
 /**
  * The elastic coupling of a chain between two minecarts. This class is pure Java: it has no game types.
  *
- * <p>The mod changes only the speed of the back minecart. Each tick, the back minecart gets a speed change along the
- * chain, toward the front minecart:
+ * <p>In this class, the front minecart is the leader of the link and the back minecart is the follower: the follower
+ * is farther from the driver of the train (see {@link Trains}). The mod changes only the speed of the back minecart.
+ * Each tick, the back minecart gets a speed change along the chain, toward the front minecart:
  * <ul>
  *   <li>below the buffer distance: at most the negative change that brings the distance back to the buffer
  *       distance in the next tick. The two minecarts do not go into each other;</li>
