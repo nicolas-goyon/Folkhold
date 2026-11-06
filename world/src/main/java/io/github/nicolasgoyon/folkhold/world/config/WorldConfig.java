@@ -68,6 +68,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue RAID_EXTRA_RAVAGERS_LEVEL_5;
     public static final ModConfigSpec.IntValue RAID_GATE_FORCE_SECONDS;
     public static final ModConfigSpec.IntValue RAID_GATE_FORCE_MEMORY_SECONDS;
+    public static final ModConfigSpec.IntValue RAID_GATE_BREAK_AFTER_SECONDS;
+    public static final ModConfigSpec.IntValue RAID_GATE_BREAK_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue DETACHMENT_GUARDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
@@ -473,6 +475,17 @@ public final class WorldConfig {
                         "the same gate in this time, in seconds. Else it starts again from zero.")
                 .translation(KEY_PREFIX + "raidGateForceMemorySeconds")
                 .defineInRange("gateForceMemorySeconds", 5, 0, 600);
+        RAID_GATE_BREAK_AFTER_SECONDS = builder
+                .comment("A raider that forced a gate open and is still in front of the same closed gate this time",
+                        "after its first hit breaks the gate, in seconds. The time starts again when the raider is",
+                        "away from the gate for this time. The break follows the game rule mobGriefing: when it is",
+                        "false, the raider only forces the gate.")
+                .translation(KEY_PREFIX + "raidGateBreakAfterSeconds")
+                .defineInRange("gateBreakAfterSeconds", 20, 1, 600);
+        RAID_GATE_BREAK_SECONDS = builder
+                .comment("Time in seconds that a raider needs to break the middle column of fence gates of a gate.")
+                .translation(KEY_PREFIX + "raidGateBreakSeconds")
+                .defineInRange("gateBreakSeconds", 10, 1, 600);
         builder.pop();
 
         builder.comment("Reputation of the players with the factions and the villages (-1000 to +1000).")

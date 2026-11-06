@@ -119,6 +119,8 @@
   "folkhold_world.configuration.raidExtraRavagersLevel5": "Extra ravagers for each wave (level 5)",
   "folkhold_world.configuration.raidGateForceSeconds": "Time to force a closed gate (seconds)",
   "folkhold_world.configuration.raidGateForceMemorySeconds": "Time a raider keeps its force progress (seconds)",
+  "folkhold_world.configuration.raidGateBreakAfterSeconds": "Time before a raider breaks a gate (seconds)",
+  "folkhold_world.configuration.raidGateBreakSeconds": "Time to break a gate (seconds)",
   "folkhold_world.configuration.unit.captain": "Captain",
   "folkhold_world.configuration.unit.captain.health": "Health",
   "folkhold_world.configuration.unit.captain.attackDamage": "Attack damage",

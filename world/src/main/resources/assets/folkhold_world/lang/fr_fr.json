@@ -119,6 +119,8 @@
   "folkhold_world.configuration.raidExtraRavagersLevel5": "Ravageurs en plus par vague (niveau 5)",
   "folkhold_world.configuration.raidGateForceSeconds": "Temps pour forcer une porte fermée (secondes)",
   "folkhold_world.configuration.raidGateForceMemorySeconds": "Temps de conservation de la progression d'un assaillant (secondes)",
+  "folkhold_world.configuration.raidGateBreakAfterSeconds": "Temps avant qu'un assaillant casse une porte (secondes)",
+  "folkhold_world.configuration.raidGateBreakSeconds": "Temps pour casser une porte (secondes)",
   "folkhold_world.configuration.unit.captain": "Capitaine",
   "folkhold_world.configuration.unit.captain.health": "Points de vie",
   "folkhold_world.configuration.unit.captain.attackDamage": "Dégâts d'attaque",

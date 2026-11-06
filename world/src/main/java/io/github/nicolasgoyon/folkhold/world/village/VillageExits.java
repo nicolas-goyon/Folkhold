@@ -28,6 +28,9 @@ import net.minecraft.world.level.block.state.BlockState;
  *       all the columns of the exit get the same steps.</li>
  *   <li>The fence gates stacked on a fence gate of an exit, on the same axis, are in the same column of the exit. The
  *       lowest fence gate of a column gives the floor of the exit. The stacked fence gates get no steps.</li>
+ *   <li>A broken fence gate (a position of the layout with no fence gate and no collision, see {@link #isBroken}) stays
+ *       a part of its exit, on the main axis from the heart. It is always open: the opening is an exit with no
+ *       gate.</li>
  *   <li>Lower terrain: stairs that go down, with cobblestone under each step to the terrain.</li>
  *   <li>Higher terrain: stairs that go up, with the terrain above each step removed.</li>
  *   <li>At most {@link #MAX_STEPS} steps. A terrain that is higher than this (a cliff, a tree) gets no stairs.</li>
@@ -82,22 +85,70 @@ public final class VillageExits {
             this(point, gates, gates);
         }
 
-        /** True if a column of the gate is open: all the fence gates of the column are open. */
+        /**
+         * True if a column of the gate is open: all the fence gates of the column are open or broken (see
+         * {@link VillageExits#isBroken}).
+         */
         public boolean isOpen(Level level) {
+            return isOpen(level, 1.0);
+        }
+
+        /**
+         * True if the gate is open for an entity of a width: the open columns side by side are as wide as the entity
+         * or wider. A column is open when all its fence gates are open or broken (see {@link VillageExits#isBroken}).
+         * Thus a gate with a broken middle column and closed side columns is open for a pillager, and closed for a
+         * ravager.
+         *
+         * @param level the level
+         * @param width the width of the entity, in blocks
+         * @return true if the entity can go through the gate
+         */
+        public boolean isOpen(Level level, double width) {
+            int needed = Math.max(1, (int) Math.ceil(width));
+            int run = 0;
             for (BlockPos gate : gates) {
-                boolean open = blocks.stream()
-                        .filter(block -> block.getX() == gate.getX() && block.getZ() == gate.getZ())
-                        .allMatch(block -> isOpenGate(level.getBlockState(block)));
-                if (open) {
+                run = isOpenColumn(level, gate) ? run + 1 : 0;
+                if (run >= needed) {
                     return true;
                 }
             }
             return false;
         }
 
-        private static boolean isOpenGate(BlockState state) {
-            return state.getBlock() instanceof FenceGateBlock && state.getValue(FenceGateBlock.OPEN);
+        /**
+         * The fence gates of one column of the gate: the floor fence gate and the fence gates stacked on it.
+         *
+         * @param floor the floor fence gate of the column, one of {@link #gates}
+         * @return the fence gates of the column
+         */
+        public List<BlockPos> column(BlockPos floor) {
+            return blocks.stream().filter(block -> block.getX() == floor.getX() && block.getZ() == floor.getZ())
+                    .toList();
         }
+
+        /** True if all the fence gates of the column of a floor fence gate are open or broken. */
+        public boolean isOpenColumn(Level level, BlockPos floor) {
+            return column(floor).stream().allMatch(block -> isOpenGate(level, block));
+        }
+
+        private static boolean isOpenGate(Level level, BlockPos pos) {
+            BlockState state = level.getBlockState(pos);
+            return state.getBlock() instanceof FenceGateBlock ? state.getValue(FenceGateBlock.OPEN)
+                    : isBroken(level, pos);
+        }
+    }
+
+    /**
+     * True if a gate position of the layout has no fence gate and no collision: for example a raider broke the fence
+     * gate. An entity goes through the position.
+     *
+     * @param level the level
+     * @param pos   the gate position
+     * @return true for a broken fence gate
+     */
+    public static boolean isBroken(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return !(state.getBlock() instanceof FenceGateBlock) && state.getCollisionShape(level, pos).isEmpty();
     }
 
     /**
@@ -173,10 +224,12 @@ public final class VillageExits {
                 .thenComparingInt(pos -> pos.getZ()));
         for (BlockPos gate : sorted) {
             BlockState state = level.getBlockState(gate);
-            if (!(state.getBlock() instanceof FenceGateBlock)) {
+            boolean broken = isBroken(level, gate);
+            if (!(state.getBlock() instanceof FenceGateBlock) && !broken) {
                 continue;
             }
-            Direction facing = state.getValue(FenceGateBlock.FACING);
+            Direction facing = broken ? brokenFacing(level, heart, gate, gates)
+                    : state.getValue(FenceGateBlock.FACING);
             Direction out = gate.relative(facing).distSqr(heart) > gate.relative(facing.getOpposite()).distSqr(heart)
                     ? facing : facing.getOpposite();
             int distance = Math.abs(out.getAxis().choose(gate.getX() - heart.getX(), 0, gate.getZ() - heart.getZ()));
@@ -185,8 +238,10 @@ public final class VillageExits {
             }
             BlockPos below = gate.below();
             BlockState belowState = level.getBlockState(below);
-            Exit stacked = belowState.getBlock() instanceof FenceGateBlock
-                    && belowState.getValue(FenceGateBlock.FACING).getAxis() == facing.getAxis()
+            boolean onColumn = belowState.getBlock() instanceof FenceGateBlock
+                    ? belowState.getValue(FenceGateBlock.FACING).getAxis() == facing.getAxis()
+                    : isBroken(level, below);
+            Exit stacked = onColumn
                     ? exits.stream().filter(exit -> exit.blocks().contains(below)).findFirst().orElse(null)
                     : null;
             if (stacked != null) {
@@ -211,6 +266,29 @@ public final class VillageExits {
             }
         }
         return exits;
+    }
+
+    /**
+     * The facing of a broken fence gate: the facing of a fence gate of the layout next to it (on a side, below or
+     * above), else the direction from the heart on the main axis.
+     */
+    private static Direction brokenFacing(ServerLevel level, BlockPos heart, BlockPos gate, List<BlockPos> gates) {
+        for (Direction direction : Direction.values()) {
+            BlockPos next = gate.relative(direction);
+            BlockState state = level.getBlockState(next);
+            if (gates.contains(next) && state.getBlock() instanceof FenceGateBlock) {
+                return state.getValue(FenceGateBlock.FACING);
+            }
+        }
+        return mainDirection(heart, gate);
+    }
+
+    /** The direction from the heart to a gate position, on the main axis. */
+    private static Direction mainDirection(BlockPos heart, BlockPos gate) {
+        int dx = gate.getX() - heart.getX();
+        int dz = gate.getZ() - heart.getZ();
+        return Math.abs(dx) >= Math.abs(dz) ? (dx >= 0 ? Direction.EAST : Direction.WEST)
+                : (dz >= 0 ? Direction.SOUTH : Direction.NORTH);
     }
 
     /** Builds the steps of one exit. Returns the number of stair blocks. */
