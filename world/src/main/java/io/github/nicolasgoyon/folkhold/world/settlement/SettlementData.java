@@ -186,6 +186,9 @@ public final class SettlementData extends SavedData {
                 entry.putIntArray("Gates", gates);
             }
             entry.putInt("Beds", settlement.beds());
+            if (settlement.lastFallPenalty() != Settlement.NO_FALL_PENALTY) {
+                entry.putLong("LastFallPenalty", settlement.lastFallPenalty());
+            }
             entry.put("Economy", saveEconomy(settlement.economy()));
             list.add(entry);
         }
@@ -233,6 +236,8 @@ public final class SettlementData extends SavedData {
             }
             settlement.setGates(loadedGates);
             settlement.setBeds(entry.contains("Beds") ? entry.getInt("Beds") : VillagePlaces.UNKNOWN);
+            settlement.setLastFallPenalty(entry.contains("LastFallPenalty") ? entry.getLong("LastFallPenalty")
+                    : Settlement.NO_FALL_PENALTY);
             loadEconomy(settlement.economy(), entry.getCompound("Economy"));
             if (data.registry.byId(settlement.id()).isEmpty()) {
                 data.registry.add(settlement);
