@@ -4,6 +4,7 @@ import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -94,25 +95,138 @@ public final class VillageExits {
         }
 
         /**
-         * True if the gate is open for an entity of a width: the open columns side by side are as wide as the entity
-         * or wider. A column is open when all its fence gates are open or broken (see {@link VillageExits#isBroken}).
-         * Thus a gate with a broken middle column and closed side columns is open for a pillager, and closed for a
-         * ravager.
+         * True if the gate is open for an entity of a width, with no limit on the height (see
+         * {@link #isOpen(Level, double, double)}).
          *
          * @param level the level
          * @param width the width of the entity, in blocks
          * @return true if the entity can go through the gate
          */
         public boolean isOpen(Level level, double width) {
-            int needed = Math.max(1, (int) Math.ceil(width));
+            return isOpen(level, width, 1.0);
+        }
+
+        /**
+         * True if the gate is open for an entity of a width and a height: the open columns side by side on the line
+         * of the gate are as wide as the entity or wider. A column of the gate is open when all its fence gates are
+         * open or broken (see {@link VillageExits#isBroken}) and its blocks from the floor to the height of the entity
+         * have no collision. The positions next to the gate on its line (for example a broken part of the palisade)
+         * are open columns when their blocks from the floor to the height of the entity have no collision. Thus a gate
+         * with a broken middle column and closed side columns is open for a pillager, and closed for a ravager. A gate
+         * of 2 blocks of free height is closed for a ravager (2.2 blocks high).
+         *
+         * @param level  the level
+         * @param width  the width of the entity, in blocks
+         * @param height the height of the entity, in blocks
+         * @return true if the entity can go through the gate
+         */
+        public boolean isOpen(Level level, double width, double height) {
+            int high = blocks(height);
+            return hasRun(line(blocks(width) - 1), blocks(width), pos -> isOpenColumn(level, pos, high));
+        }
+
+        /**
+         * True if the gate can open for an entity of a width and a height: the gate is open for the entity (see
+         * {@link #isOpen(Level, double, double)}) when all its fence gates are open. A raider that forces the gate
+         * thus goes through it. A position of the gate with a block that is not a fence gate and has a collision (for
+         * example a block that a player put in a broken gate) does not open. The method changes no block.
+         *
+         * @param level  the level
+         * @param width  the width of the entity, in blocks
+         * @param height the height of the entity, in blocks
+         * @return true if the entity can go through the gate after a force
+         */
+        public boolean fits(Level level, double width, double height) {
+            int high = blocks(height);
+            return hasRun(line(blocks(width) - 1), blocks(width), pos -> {
+                for (int dy = 0; dy < high; dy++) {
+                    BlockPos above = pos.above(dy);
+                    boolean gate = blocks.contains(above)
+                            && level.getBlockState(above).getBlock() instanceof FenceGateBlock;
+                    if (!gate && !isFree(level, above)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+        }
+
+        /**
+         * True if a column on the line of the gate is open for an entity of a height in blocks: the fence gates of a
+         * column of the gate are open or broken, and the blocks from the floor to the height have no collision.
+         *
+         * @param level the level
+         * @param pos   the floor of the column, on {@link #line}
+         * @param high  the height of the entity, in blocks
+         * @return true if the entity of this height can go through the column
+         */
+        public boolean isOpenColumn(Level level, BlockPos pos, int high) {
+            if (gates.contains(pos) && !isOpenColumn(level, pos)) {
+                return false;
+            }
+            for (int dy = 0; dy < high; dy++) {
+                if (!isFree(level, pos.above(dy))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * The floor positions on the line of the gate: the columns of the gate, with a number of positions of the
+         * palisade on each side of the gate.
+         *
+         * @param extra the number of positions on each side of the gate
+         * @return the positions, in the order of the line
+         */
+        public List<BlockPos> line(int extra) {
+            Direction along = along();
+            List<BlockPos> line = new ArrayList<>();
+            for (int i = extra; i > 0; i--) {
+                line.add(gates.get(0).relative(along, -i));
+            }
+            line.addAll(gates);
+            for (int i = 1; i <= extra; i++) {
+                line.add(gates.get(gates.size() - 1).relative(along, i));
+            }
+            return line;
+        }
+
+        /** The horizontal direction along the line of the gate, from its first column to its last column. */
+        private Direction along() {
+            if (gates.size() > 1) {
+                BlockPos step = gates.get(1).subtract(gates.get(0));
+                return Direction.fromDelta(step.getX(), 0, step.getZ());
+            }
+            BlockPos middle = gates.get(0);
+            return Math.abs(point.getX() - middle.getX()) >= Math.abs(point.getZ() - middle.getZ())
+                    ? Direction.SOUTH : Direction.EAST;
+        }
+
+        /** True if a number of positions side by side in a line pass a test. */
+        private static boolean hasRun(List<BlockPos> line, int needed, Predicate<BlockPos> open) {
             int run = 0;
-            for (BlockPos gate : gates) {
-                run = isOpenColumn(level, gate) ? run + 1 : 0;
+            for (BlockPos pos : line) {
+                run = open.test(pos) ? run + 1 : 0;
                 if (run >= needed) {
                     return true;
                 }
             }
             return false;
+        }
+
+        /**
+         * The number of blocks for a size of an entity: 1 at least.
+         *
+         * @param size the width or the height of the entity, in blocks
+         * @return the number of blocks
+         */
+        public static int blocks(double size) {
+            return Math.max(1, (int) Math.ceil(size - 1.0E-6));
+        }
+
+        private static boolean isFree(Level level, BlockPos pos) {
+            return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
         }
 
         /**
