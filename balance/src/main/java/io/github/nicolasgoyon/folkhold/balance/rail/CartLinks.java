@@ -186,8 +186,9 @@ public final class CartLinks {
      *                  not loaded
      */
     public static void unlink(ServerLevel level, AbstractMinecart cart, UUID partner, boolean dropChain) {
+        // The key of the break counter of a link is the back minecart of the link.
+        Trains.forgetStretch(get(cart).back().equals(Optional.of(partner)) ? partner : cart.getUUID());
         set(cart, get(cart).without(partner));
-        Trains.forgetStretch(cart, partner);
         Optional<AbstractMinecart> other = find(level, partner);
         Vec3 drop = cart.position();
         if (other.isPresent()) {

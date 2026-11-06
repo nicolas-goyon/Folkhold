@@ -7,12 +7,13 @@ package io.github.nicolasgoyon.folkhold.balance.rail;
  * the length of one minecart. On a straight rail, the gap is the distance between the two ends that face each other.
  * A negative gap tells that the two minecarts go into each other.
  *
- * <p>In this class, the front minecart is the leader of the link and the back minecart is the follower: the follower
- * is farther from the driver of the train (see {@link Trains}). The mod changes only the speed of the back minecart.
- * Each tick, the back minecart gets a speed change along the chain, toward the front minecart:
+ * <p>In each link, the leader is the minecart nearer to the driver of the train, and the follower is the other
+ * minecart (see {@link Trains}). The mod changes only the speed of the follower. Each tick, the follower gets a speed
+ * change along the chain, toward the leader:
  * <ul>
- *   <li>below the buffer gap: at most the negative change that brings the gap back to the buffer gap in the next
- *       tick. The two minecarts do not go into each other;</li>
+ *   <li>below the buffer gap, or when the gap of the next tick goes below the buffer gap: at most the negative
+ *       change that makes the gap of the next tick equal to the buffer gap. The two minecarts do not go into each
+ *       other, also when the leader comes nearer fast;</li>
  *   <li>from the buffer gap to the rest gap: no change (the chain is slack);</li>
  *   <li>from the rest gap to the maximum gap: a spring with damping,
  *       {@code stiffness × stretch + damping × separation speed}. The change is not negative;</li>
@@ -29,7 +30,7 @@ package io.github.nicolasgoyon.folkhold.balance.rail;
  * @param breakGap   the gap above which the break counter increases, in blocks
  * @param breakTicks the number of ticks above the break gap before the link breaks
  * @param stiffness  the speed change for each block of stretch, in blocks per tick
- * @param damping    the part of the separation speed that the back minecart gets back each tick
+ * @param damping    the part of the separation speed that the follower gets back each tick
  */
 public record Coupling(double bufferGap, double restGap, double maxGap, double breakGap, int breakTicks,
                        double stiffness, double damping) {
@@ -55,16 +56,15 @@ public record Coupling(double bufferGap, double restGap, double maxGap, double b
     }
 
     /**
-     * The speed change of the back minecart along the chain. A positive value moves the back minecart toward the
-     * front minecart.
+     * The speed change of the follower along the chain. A positive value moves the follower toward the leader.
      *
      * @param gap             the gap between the two minecarts, in blocks
-     * @param separationSpeed the speed of the front minecart minus the speed of the back minecart, along the chain,
+     * @param separationSpeed the speed of the leader minus the speed of the follower, along the chain,
      *                        in blocks per tick. A positive value moves the minecarts apart.
      * @return the speed change, from {@code -MAX_IMPULSE} to {@link #MAX_IMPULSE}, in blocks per tick
      */
     public double impulse(double gap, double separationSpeed) {
-        if (gap < bufferGap) {
+        if (gap < bufferGap || gap + separationSpeed < bufferGap) {
             // The change that makes the gap of the next tick equal to the buffer gap.
             return Math.clamp(Math.min(0.0, gap - bufferGap + separationSpeed), -MAX_IMPULSE, 0.0);
         }
