@@ -46,6 +46,13 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue RIDER_PATROL_RADIUS;
     public static final ModConfigSpec.DoubleValue RIDER_HORSE_HEALTH;
     public static final ModConfigSpec.DoubleValue RIDER_HORSE_SPEED;
+    public static final ModConfigSpec.IntValue RAID_HEART_RADIUS;
+    public static final ModConfigSpec.IntValue RAID_SPAWN_MIN_DISTANCE;
+    public static final ModConfigSpec.IntValue RAID_SPAWN_MAX_DISTANCE;
+    public static final ModConfigSpec.IntValue RAID_EXTRA_RAVAGERS_LEVEL_4;
+    public static final ModConfigSpec.IntValue RAID_EXTRA_RAVAGERS_LEVEL_5;
+    public static final ModConfigSpec.IntValue RAID_GATE_FORCE_SECONDS;
+    public static final ModConfigSpec.IntValue RAID_GATE_FORCE_MEMORY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue DETACHMENT_GUARDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
@@ -341,6 +348,44 @@ public final class WorldConfig {
                 .comment("Movement speed attribute of the horse of a rider (vanilla horses: 0.11 to 0.34).")
                 .translation(KEY_PREFIX + "riderHorseSpeed")
                 .defineInRange("horseSpeed", 0.3, 0.05, 1.0);
+        builder.pop();
+
+        builder.comment("Vanilla raids against the faction villages. The vanilla raids at the other villages do not",
+                        "change. The garrison of each level is in the level table (data/folkhold_world/folkhold/",
+                        "levels.json).")
+                .translation(KEY_PREFIX + "raid")
+                .push("raid");
+        RAID_HEART_RADIUS = builder
+                .comment("A raid is at a faction village when a loaded village heart is this distance or less from",
+                        "the center of the raid, in blocks.")
+                .translation(KEY_PREFIX + "raidHeartRadius")
+                .defineInRange("heartRadius", 64, 16, 256);
+        RAID_SPAWN_MIN_DISTANCE = builder
+                .comment("Minimum distance in blocks from the heart to the spawn position of a wave.")
+                .translation(KEY_PREFIX + "raidSpawnMinDistance")
+                .defineInRange("spawnMinDistance", 40, 16, 128);
+        RAID_SPAWN_MAX_DISTANCE = builder
+                .comment("Maximum distance in blocks from the heart to the spawn position of a wave. When this value",
+                        "is less than spawnMinDistance, the waves spawn at spawnMinDistance.")
+                .translation(KEY_PREFIX + "raidSpawnMaxDistance")
+                .defineInRange("spawnMaxDistance", 56, 16, 128);
+        RAID_EXTRA_RAVAGERS_LEVEL_4 = builder
+                .comment("Ravagers that each wave of a raid of level 4 gets more than the vanilla wave.")
+                .translation(KEY_PREFIX + "raidExtraRavagersLevel4")
+                .defineInRange("extraRavagersLevel4", 1, 0, 16);
+        RAID_EXTRA_RAVAGERS_LEVEL_5 = builder
+                .comment("Ravagers that each wave of a raid of level 5 gets more than the vanilla wave.")
+                .translation(KEY_PREFIX + "raidExtraRavagersLevel5")
+                .defineInRange("extraRavagersLevel5", 2, 0, 16);
+        RAID_GATE_FORCE_SECONDS = builder
+                .comment("Time in seconds that a raider stays in front of a closed gate before the gate opens.")
+                .translation(KEY_PREFIX + "raidGateForceSeconds")
+                .defineInRange("gateForceSeconds", 10, 1, 600);
+        RAID_GATE_FORCE_MEMORY_SECONDS = builder
+                .comment("A raider that moves away from the gate that it forces keeps its time when it comes back to",
+                        "the same gate in this time, in seconds. Else it starts again from zero.")
+                .translation(KEY_PREFIX + "raidGateForceMemorySeconds")
+                .defineInRange("gateForceMemorySeconds", 5, 0, 600);
         builder.pop();
 
         builder.comment("Reputation of the players with the factions and the villages (-1000 to +1000).")

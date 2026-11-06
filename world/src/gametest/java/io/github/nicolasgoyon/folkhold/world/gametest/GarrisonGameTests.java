@@ -123,6 +123,36 @@ public final class GarrisonGameTests {
         helper.succeed();
     }
 
+    /**
+     * The value {@code refillDelaySeconds} of the config sets the refill delay. With 20 seconds, a dead unit is
+     * replaced after 400 ticks, and not before. The default value (300 seconds) is longer. The test sets the default
+     * value again.
+     */
+    @GameTest(template = "arena", batch = "garrison_refill_config")
+    public static void refillDelayFollowsTheConfig(GameTestHelper helper) {
+        int delaySeconds = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get();
+        WorldConfig.GARRISON_REFILL_DELAY_SECONDS.set(20);
+        VillageHeartBlockEntity heart = placeHeart(helper);
+        try {
+            int expected = fullGarrisonSize(heart);
+            long now = helper.getLevel().getGameTime();
+            heart.ensureGarrison(now);
+            heart.getUnits().get(0).kill();
+            heart.ensureGarrison(now + 1);
+            heart.ensureGarrison(now + 399);
+            int aliveBeforeDelay = heart.getGarrison().aliveCount();
+            heart.ensureGarrison(now + 402);
+            int aliveAfterDelay = heart.getGarrison().aliveCount();
+            helper.assertTrue(aliveBeforeDelay == expected - 1,
+                    "No replacement before 20 seconds, alive: " + aliveBeforeDelay);
+            helper.assertTrue(aliveAfterDelay == expected, "Replacement after 20 seconds, alive: " + aliveAfterDelay);
+        } finally {
+            WorldConfig.GARRISON_REFILL_DELAY_SECONDS.set(delaySeconds);
+            removeUnits(heart);
+        }
+        helper.succeed();
+    }
+
     /** A unit that unloads with its chunk is still alive: the heart does not create a duplicate. */
     @GameTest(template = "arena", batch = "garrison_unload")
     public static void unloadedUnitIsNotDuplicated(GameTestHelper helper) {
