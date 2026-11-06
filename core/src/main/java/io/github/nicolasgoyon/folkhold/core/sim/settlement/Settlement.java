@@ -15,6 +15,9 @@ import java.util.Objects;
  * game generates its chunks.
  */
 public final class Settlement {
+    /** The value of {@link #lastFallPenalty()} for a settlement that did not pay a raid fall penalty. */
+    public static final long NO_FALL_PENALTY = Long.MIN_VALUE;
+
     private String id;
     private final int startChunkX;
     private final int startChunkZ;
@@ -31,6 +34,7 @@ public final class Settlement {
     private final EconomyState economy = new EconomyState();
     private List<Gate> gates = List.of();
     private int beds = VillagePlaces.UNKNOWN;
+    private long lastFallPenalty = NO_FALL_PENALTY;
 
     /**
      * A gate of the palisade of the village: the caravans go in and out of the village there.
@@ -222,6 +226,23 @@ public final class Settlement {
         }
         this.beds = value;
         return true;
+    }
+
+    /**
+     * The game time of the last raid fall penalty of the settlement (the loss of experience and stocks), or
+     * {@link #NO_FALL_PENALTY} if the settlement did not pay a fall penalty.
+     */
+    public long lastFallPenalty() {
+        return lastFallPenalty;
+    }
+
+    /**
+     * Sets the game time of the last raid fall penalty.
+     *
+     * @param gameTime the game time, or {@link #NO_FALL_PENALTY}
+     */
+    public void setLastFallPenalty(long gameTime) {
+        this.lastFallPenalty = gameTime;
     }
 
     /** Square of the horizontal distance from the settlement to a position, in blocks. */

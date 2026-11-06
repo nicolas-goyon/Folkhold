@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
@@ -200,6 +201,99 @@ public final class RaidEffectGameTests {
                 .thenSucceed();
     }
 
+    /**
+     * Two raids end in a loss within the cooldown: the settlement pays the fall penalty one time. The helper gets the
+     * fall change of each raid.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 200, batch = "raid_effect_cooldown")
+    public static void secondFallInTheCooldownPaysNoPenalty(GameTestHelper helper) {
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_HEART_RADIUS, 96);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_FALL_COOLDOWN_TICKS, 24000);
+        Scene scene = scene(helper, RaidRewardGameTests.CENTER);
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(RaidRewardGameTests.CENTER).above(RaidRewardGameTests.SKY);
+        Raid[] raid = new Raid[2];
+        int percent = WorldConfig.RAID_FALL_STOCK_PERCENT.get();
+        int diamonds = DIAMONDS - DIAMONDS * percent / 100;
+        waitForHeart(helper, scene)
+                .thenExecute(() -> {
+                    raid[0] = RaidRewardGameTests.raidAt(level, center);
+                    killAndEnd(helper, scene, raid[0]);
+                    helper.assertTrue(raid[0].isLoss(), "The first raid must end in a loss");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(RaidHelpers.isSettled(level, raid[0]),
+                        "Waiting for the effects of the first raid"))
+                .thenExecute(() -> {
+                    helper.assertTrue(scene.settlement().lastFallPenalty() != Settlement.NO_FALL_PENALTY,
+                            "The first fall must set the time of the penalty");
+                    assertStock(helper, scene, diamonds, BREAD);
+                    stop(raid[0]);
+                    raid[1] = RaidRewardGameTests.raidAt(level, center);
+                    killAndEnd(helper, scene, raid[1]);
+                    helper.assertTrue(raid[1].isLoss(), "The second raid must end in a loss");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(RaidHelpers.isSettled(level, raid[1]),
+                        "Waiting for the effects of the second raid"))
+                .thenExecute(() -> {
+                    try {
+                        int loss = RaidEffects.experienceLoss(LevelTables.get().traits(LEVEL).experience(),
+                                WorldConfig.RAID_FALL_EXPERIENCE_PERCENT.get());
+                        Experience.Progress expected = Experience.apply(LEVEL, EXPERIENCE, -loss, LevelTables.get());
+                        assertProgress(helper, scene, expected.level(), expected.experience());
+                        assertStock(helper, scene, diamonds, BREAD);
+                        assertReputation(helper, scene, 2 * WorldConfig.RAID_FALL_REPUTATION.get());
+                    } finally {
+                        stop(raid[0]);
+                        end(level, raid[1], scene);
+                    }
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A raid ends in a loss, and the food of the stocks is at the food floor: the food stays, the other items lose
+     * their part.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 100, batch = "raid_effect_food_floor")
+    public static void fallKeepsTheFoodFloor(GameTestHelper helper) {
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_HEART_RADIUS, 96);
+        TestSupport.setConfigForTest(helper, WorldConfig.ECONOMY_FOOD_PER_INHABITANT, 4);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_FALL_FOOD_FLOOR_DAYS, 3);
+        Scene scene = scene(helper, RaidRewardGameTests.CENTER);
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(RaidRewardGameTests.CENTER).above(RaidRewardGameTests.SKY);
+        // 5 inhabitants eat 4 food points each day: the floor of 3 days is 60 points, 12 bread (5 points each).
+        int breadAtFloor = 12;
+        scene.settlement().economy().setPopulation(5);
+        scene.settlement().economy().stock().set("minecraft:bread", breadAtFloor);
+        Raid[] raid = new Raid[1];
+        waitForHeart(helper, scene)
+                .thenExecute(() -> {
+                    helper.assertTrue(EconomyData.catalog().info("minecraft:bread").food() == 5,
+                            "The bread must give 5 food points");
+                    raid[0] = RaidRewardGameTests.raidAt(level, center);
+                    killAndEnd(helper, scene, raid[0]);
+                    helper.assertTrue(raid[0].isLoss(), "The raid must end in a loss");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(RaidHelpers.isSettled(level, raid[0]),
+                        "Waiting for the effects of the raid"))
+                .thenExecute(() -> {
+                    try {
+                        int percent = WorldConfig.RAID_FALL_STOCK_PERCENT.get();
+                        assertStock(helper, scene, DIAMONDS - DIAMONDS * percent / 100, breadAtFloor);
+                    } finally {
+                        end(level, raid[0], scene);
+                    }
+                })
+                .thenSucceed();
+    }
+
+    /** Stops a raid and removes its raiders. The heart stays in the registry. */
+    private static void stop(Raid raid) {
+        raid.getAllRaiders().forEach(Raider::discard);
+        raid.stop();
+    }
+
     /** Makes the village and the players of a test, with the heart at a relative position. */
     private static Scene scene(GameTestHelper helper, BlockPos heartPos) {
         TestSupport.sweep(helper);
@@ -212,6 +306,7 @@ public final class RaidEffectGameTests {
         TestSupport.setLevel(helper, heart, LEVEL);
         Settlement settlement = Settlements.of(server, heart).orElseThrow();
         SettlementLevels.setProgress(server, settlement, LEVEL, EXPERIENCE);
+        settlement.setLastFallPenalty(Settlement.NO_FALL_PENALTY);
         TestSupport.emptyStock(settlement);
         settlement.economy().stock().set("minecraft:diamond", DIAMONDS);
         settlement.economy().stock().set("minecraft:bread", BREAD);

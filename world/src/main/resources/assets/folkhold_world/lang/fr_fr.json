@@ -295,6 +295,8 @@
   "folkhold_world.configuration.raidFallStockPercent": "Stocks perdus après une chute (%)",
   "folkhold_world.configuration.raidHoldReputation": "Réputation d'un défenseur quand le village résiste",
   "folkhold_world.configuration.raidFallReputation": "Réputation d'un défenseur quand le village tombe",
+  "folkhold_world.configuration.raidFallCooldownTicks": "Délai après une pénalité de chute (ticks)",
+  "folkhold_world.configuration.raidFallFoodFloorDays": "Nourriture gardée après une chute (cycles économiques)",
   "entity.minecraft.villager.folkhold_world.merchant": "Marchand",
   "message.folkhold_world.merchant_refuses": "%s : Je ne commerce pas avec toi.",
   "message.folkhold_world.caravan_mule": "Cette mule porte les marchandises d'une caravane.",

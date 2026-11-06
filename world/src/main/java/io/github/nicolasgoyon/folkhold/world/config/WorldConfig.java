@@ -93,6 +93,8 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue RAID_FALL_STOCK_PERCENT;
     public static final ModConfigSpec.IntValue RAID_HOLD_REPUTATION;
     public static final ModConfigSpec.IntValue RAID_FALL_REPUTATION;
+    public static final ModConfigSpec.IntValue RAID_FALL_COOLDOWN_TICKS;
+    public static final ModConfigSpec.IntValue RAID_FALL_FOOD_FLOOR_DAYS;
 
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue ADMIN_DISCOVERY_RADIUS;
@@ -570,6 +572,18 @@ public final class WorldConfig {
                 .comment("Reputation change of each helper with the faction and the village when the village falls.")
                 .translation(KEY_PREFIX + "raidFallReputation")
                 .defineInRange("fallReputation", 15, 0, 1000);
+        RAID_FALL_COOLDOWN_TICKS = builder
+                .comment("Time after a fall penalty (the loss of experience and stocks) when the same settlement does",
+                        "not pay a new fall penalty, in ticks of game time (24000 = one game day, 0: no cooldown).",
+                        "A sleep or /time set does not end it. The helpers still get the reputation.")
+                .translation(KEY_PREFIX + "raidFallCooldownTicks")
+                .defineInRange("fallCooldownTicks", 24000, 0, 2400000);
+        RAID_FALL_FOOD_FLOOR_DAYS = builder
+                .comment("Food that the stock loss of a fall does not remove, in economy cycles of the food need of the",
+                        "population (one cycle is one game day with the default simulation interval; 0: no floor).",
+                        "The other items lose the full part.")
+                .translation(KEY_PREFIX + "raidFallFoodFloorDays")
+                .defineInRange("fallFoodFloorDays", 3, 0, 100);
         builder.pop();
 
         builder.comment("Abstract simulation of the settlements.")

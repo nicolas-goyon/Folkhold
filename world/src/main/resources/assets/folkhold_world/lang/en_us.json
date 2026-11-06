@@ -295,6 +295,8 @@
   "folkhold_world.configuration.raidFallStockPercent": "Stocks lost after a fall (%)",
   "folkhold_world.configuration.raidHoldReputation": "Helper reputation when the village holds",
   "folkhold_world.configuration.raidFallReputation": "Helper reputation when the village falls",
+  "folkhold_world.configuration.raidFallCooldownTicks": "Cooldown after a fall penalty (ticks)",
+  "folkhold_world.configuration.raidFallFoodFloorDays": "Food kept after a fall (economy cycles)",
   "entity.minecraft.villager.folkhold_world.merchant": "Merchant",
   "message.folkhold_world.merchant_refuses": "%s: I do not trade with you.",
   "message.folkhold_world.caravan_mule": "This mule carries the goods of a caravan.",

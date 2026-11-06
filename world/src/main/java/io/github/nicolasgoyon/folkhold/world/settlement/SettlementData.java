@@ -50,7 +50,8 @@ public final class SettlementData extends SavedData {
     private List<Claimant> claimants = List.of();
     private final Map<String, Long> treasuries = new HashMap<>();
 
-    private SettlementData() {
+    /** An empty data. Package-private for the unit tests; the game uses {@link #get}. */
+    SettlementData() {
     }
 
     public static SettlementData get(MinecraftServer server) {
@@ -186,6 +187,9 @@ public final class SettlementData extends SavedData {
                 entry.putIntArray("Gates", gates);
             }
             entry.putInt("Beds", settlement.beds());
+            if (settlement.lastFallPenalty() != Settlement.NO_FALL_PENALTY) {
+                entry.putLong("LastFallPenalty", settlement.lastFallPenalty());
+            }
             entry.put("Economy", saveEconomy(settlement.economy()));
             list.add(entry);
         }
@@ -199,7 +203,8 @@ public final class SettlementData extends SavedData {
         return tag;
     }
 
-    private static SettlementData load(CompoundTag tag, HolderLookup.Provider registries) {
+    /** Reads the data from a saved tag. Package-private for the unit tests. */
+    static SettlementData load(CompoundTag tag, HolderLookup.Provider registries) {
         SettlementData data = new SettlementData();
         int version = tag.getInt("Version");
         if (version > VERSION) {
@@ -233,6 +238,8 @@ public final class SettlementData extends SavedData {
             }
             settlement.setGates(loadedGates);
             settlement.setBeds(entry.contains("Beds") ? entry.getInt("Beds") : VillagePlaces.UNKNOWN);
+            settlement.setLastFallPenalty(entry.contains("LastFallPenalty") ? entry.getLong("LastFallPenalty")
+                    : Settlement.NO_FALL_PENALTY);
             loadEconomy(settlement.economy(), entry.getCompound("Economy"));
             if (data.registry.byId(settlement.id()).isEmpty()) {
                 data.registry.add(settlement);
