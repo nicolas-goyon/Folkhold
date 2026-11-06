@@ -24,7 +24,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * In-game tests for the rewards of the players who help a faction village during a raid ({@link RaidHelpers}). Each
  * test makes a raid at its last wave, with no raider. A raider joins the raid, a mock player kills it, and the test
  * ticks the raid until its end, with a limit of {@link #MAX_RAID_TICKS} ticks. The vanilla raid ends in a victory
- * when a village point of interest (a bed) is near its center, else in a loss.
+ * when a village point of interest (a bed) is near its center, else in a loss. The loss test puts the center
+ * {@link #SKY} blocks over the test, far from the beds.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -46,12 +47,21 @@ public final class RaidRewardGameTests {
      * A player who kills a raider and a player who gives the minimum damage get the effect Hero of the Village when
      * the village wins. A player in the raid area who does nothing gets no effect.
      */
-    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "raid_reward_victory")
+    @GameTest(template = "arena_large", timeoutTicks = 100, batch = "raid_reward_victory")
     public static void helpersGetHeroOfTheVillageAfterAVictory(GameTestHelper helper) {
         TestSupport.sweep(helper);
         TestSupport.placeBed(helper, CENTER, Direction.NORTH);
         ServerLevel level = helper.getLevel();
         BlockPos center = helper.absolutePos(CENTER);
+        // The server adds the point of interest of the bed in a later task: the raid starts when the center is a
+        // village, with the timeout of the test as the limit.
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(level.isVillage(center), "Waiting for the village of the bed"))
+                .thenExecute(() -> raidAtVillage(helper, level, center))
+                .thenSucceed();
+    }
+
+    private static void raidAtVillage(GameTestHelper helper, ServerLevel level, BlockPos center) {
         ServerPlayer killer = playerAt(helper, new BlockPos(12, 1, 20));
         ServerPlayer hitter = playerAt(helper, new BlockPos(16, 1, 20));
         ServerPlayer idle = playerAt(helper, new BlockPos(20, 1, 20));
@@ -79,7 +89,6 @@ public final class RaidRewardGameTests {
         } finally {
             end(level, raid, center);
         }
-        helper.succeed();
     }
 
     /** A player who kills a raider gets no effect when the village falls: the raid ends in a loss. */
