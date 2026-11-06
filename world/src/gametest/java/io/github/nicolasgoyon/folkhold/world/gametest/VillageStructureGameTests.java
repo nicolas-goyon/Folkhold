@@ -191,10 +191,14 @@ public final class VillageStructureGameTests {
         helper.succeed();
     }
 
-    /** In an alert, two archers on the same tower go to two different towers. */
+    /**
+     * In an alert, two archers on the same tower go to two different towers. The test sets the level 1: the start
+     * level of a new settlement comes from its random id, and a city garrison has more archers than the 4 towers.
+     */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_archer_alert")
     public static void alertSendsArchersToDifferentTowers(GameTestHelper helper) {
         VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
+        TestSupport.setLevel(helper, heart, 1);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         List<ArcherEntity> archers = heart.getUnits().stream()
                 .filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();
