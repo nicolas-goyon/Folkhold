@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MarchOnVillageGoal;
 import io.github.nicolasgoyon.folkhold.world.village.RaidMarch;
 import io.github.nicolasgoyon.folkhold.world.village.RaidSpawns;
@@ -515,6 +516,75 @@ public final class RaidGameTests {
         } finally {
             strong.getAllRaiders().forEach(Raider::discard);
             weak.getAllRaiders().forEach(Raider::discard);
+            VillageHearts.unregister(level, heart);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The value {@code gateForceSeconds} of the config sets the time to force a gate. With 1 second, the closed gate
+     * opens less than 100 ticks after the raider arrives in front of it. With the default value (10 seconds), the
+     * raider stays 200 ticks in front of the gate. A listener sets the old value again when the test ends.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 1200, batch = "raid_gate_config")
+    public static void gateForceTimeFollowsTheConfig(GameTestHelper helper) {
+        TestSupport.buildFloor(helper, HUGE);
+        BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
+        List<BlockPos> gates = buildPalisade(helper, heartRelative, 1);
+        helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
+        ServerLevel level = helper.getLevel();
+        BlockPos heartPos = helper.absolutePos(heartRelative);
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
+        Witch raider = helper.spawn(EntityType.WITCH, heartRelative.offset(10, 0, -PALISADE - 10));
+        Raid raid = new Raid(RAID_ID + 5, level, heartPos);
+        helper.onEachTick(() -> level.setDayTime(MIDNIGHT));
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
+        long[] arrival = {0L};
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(VillageHearts.findNearest(level, heartPos, 1.0).isPresent(),
+                        "The heart must be in the list of the loaded hearts"))
+                .thenExecute(() -> {
+                    VillageHeartBlockEntity heart = helper.getBlockEntity(heartRelative);
+                    helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
+                    raid.joinRaid(1, raider, null, true);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(horizontalDistance(raider.blockPosition(), front) <= 3.0,
+                        "The raider must walk to the front of the gate: " + helper.relativePos(raider.blockPosition())))
+                .thenExecute(() -> arrival[0] = helper.getTick())
+                .thenWaitUntil(() -> helper.assertTrue(isOpen(level, gates), "The raider must force the gate"))
+                .thenExecute(() -> {
+                    long elapsed = helper.getTick() - arrival[0];
+                    raider.discard();
+                    helper.setBlock(heartRelative, Blocks.AIR);
+                    helper.assertTrue(elapsed < 100, "With gateForceSeconds = 1, the gate must open in less than 100"
+                            + " ticks: " + elapsed);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The values {@code extraRavagersLevel4} and {@code extraRavagersLevel5} of the config set the extra ravagers of
+     * each wave. The test sets 0 and 3. A listener sets the old values again when the test ends.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "raid_waves_config")
+    public static void extraRavagersFollowTheConfig(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos heart = helper.absolutePos(new BlockPos(16, 1, 16));
+        BlockPos spawn = helper.absolutePos(new BlockPos(16, 1, 4));
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_EXTRA_RAVAGERS_LEVEL_4, 0);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_EXTRA_RAVAGERS_LEVEL_5, 3);
+        VillageHearts.register(level, heart);
+        Raid raid = new Raid(NEXT_RAID_ID.getAndIncrement(), level, heart);
+        raid.setRaidOmenLevel(5);
+        try {
+            raid.joinRaid(1, EntityType.PILLAGER.create(level), spawn, false);
+            helper.assertTrue(VillageRaids.extraRavagers(4) == 0 && VillageRaids.extraRavagers(5) == 3,
+                    "The extra ravagers must be the values of the config");
+            helper.assertTrue(ravagers(raid) == 3, "Wave 1 of a raid of level 5 must get 3 ravagers: "
+                    + ravagers(raid));
+        } finally {
+            raid.getAllRaiders().forEach(Raider::discard);
             VillageHearts.unregister(level, heart);
         }
         helper.succeed();

@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.entity.ai;
 
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.village.RaidMarch;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
@@ -31,9 +32,10 @@ import net.minecraft.world.phys.Vec3;
  * <ul>
  *   <li>The route comes from {@link RaidMarch}: the raider walks to the approach of the nearest gate, then through
  *       the gate to the heart.</li>
- *   <li>A raider in front of a closed gate forces it: it hits the gate, and after {@link #FORCE_TICKS} ticks all the
- *       fence gates of the gate open. A gate that closes again is forced again. A knockback does not lose the time
- *       when the raider comes back in {@link #FORCE_MEMORY_TICKS} ticks.</li>
+ *   <li>A raider in front of a closed gate forces it: it hits the gate, and after
+ *       {@link WorldConfig#RAID_GATE_FORCE_SECONDS} seconds all the fence gates of the gate open. A gate that closes
+ *       again is forced again. A knockback does not lose the time when the raider comes back in
+ *       {@link WorldConfig#RAID_GATE_FORCE_MEMORY_SECONDS} seconds.</li>
  *   <li>At {@link #ARRIVAL} blocks from the heart, the raider arrives and the goal stops: the vanilla goals of the
  *       raid move the raider in the village. After the arrival, the goal starts again only when the raider is
  *       outside the palisade.</li>
@@ -54,15 +56,8 @@ public class MarchOnVillageGoal extends Goal {
     /** The raider calculates a new path at this interval, in ticks. */
     private static final int PATH_INTERVAL = 40;
     private static final double SPEED = 1.0;
-    /** A raider forces a closed gate in this time, in ticks: 10 seconds. */
-    public static final int FORCE_TICKS = 200;
     /** A raider forces a gate at this horizontal distance from the front of the gate, in blocks. */
     private static final double FORCE_REACH = 2.0;
-    /**
-     * The raider keeps the time that it forced a gate for this time, in ticks: 5 seconds. A raider that a knockback
-     * moves away from the gate continues when it comes back to the same gate in this time.
-     */
-    public static final int FORCE_MEMORY_TICKS = 100;
     /** The raider hits the gate at this interval, in ticks. */
     private static final int HIT_INTERVAL = 20;
 
@@ -183,10 +178,12 @@ public class MarchOnVillageGoal extends Goal {
     }
 
     /**
-     * Forces the closed gate in front of the raider: the raider hits the gate, and after {@link #FORCE_TICKS} ticks
-     * in front of it, all the fence gates of the gate open, also the stacked fence gates. A raider that comes back to
-     * the same gate in {@link #FORCE_MEMORY_TICKS} ticks continues from its time. Else it starts again from zero. A
-     * raider forces a gate also when the game rule {@code mobGriefing} is false: the gate opens, and no block breaks.
+     * Forces the closed gate in front of the raider: the raider hits the gate, and after
+     * {@link WorldConfig#RAID_GATE_FORCE_SECONDS} seconds in front of it, all the fence gates of the gate open, also
+     * the stacked fence gates. A raider that comes back to the same gate in
+     * {@link WorldConfig#RAID_GATE_FORCE_MEMORY_SECONDS} seconds continues from its time. Else it starts again from
+     * zero. A raider forces a gate also when the game rule {@code mobGriefing} is false: the gate opens, and no block
+     * breaks.
      *
      * @return true while the raider stays in front of the closed gate and forces it
      */
@@ -194,7 +191,7 @@ public class MarchOnVillageGoal extends Goal {
         long now = level.getGameTime();
         if (forcing == null || forcing.isOpen(level)
                 || horizontalDistanceSqr(RaidMarch.front(forcing)) > FORCE_REACH * FORCE_REACH) {
-            if (now - lastForce > FORCE_MEMORY_TICKS) {
+            if (now - lastForce > WorldConfig.RAID_GATE_FORCE_MEMORY_SECONDS.get() * 20L) {
                 forceTicks = 0;
             }
             return false;
@@ -210,7 +207,7 @@ public class MarchOnVillageGoal extends Goal {
             raider.swing(InteractionHand.MAIN_HAND);
             level.playSound(null, middle, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.0F, 1.0F);
         }
-        if (++forceTicks < FORCE_TICKS) {
+        if (++forceTicks < WorldConfig.RAID_GATE_FORCE_SECONDS.get() * 20) {
             return true;
         }
         for (BlockPos gate : forcing.blocks()) {

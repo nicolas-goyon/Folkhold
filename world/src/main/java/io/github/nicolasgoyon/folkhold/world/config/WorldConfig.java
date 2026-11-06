@@ -7,7 +7,9 @@ import net.neoforged.neoforge.common.ModConfigSpec;
  * Server configuration of the world mod: file {@code folkhold_world-server.toml} in the {@code serverconfig}
  * folder of each world.
  *
- * <p>The values apply to units that spawn after the change. Existing units keep their values.
+ * <p>The values of the units (attributes, attack interval and range, charge speed) apply to units that spawn after
+ * the change. Existing units keep their values. The other values, for example the values of the section {@code raid},
+ * apply at once.
  */
 public final class WorldConfig {
     static final String KEY_PREFIX = "folkhold_world.configuration.";
@@ -33,6 +35,14 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue CAPTAIN_AURA_RADIUS;
     public static final ModConfigSpec.DoubleValue CAPTAIN_ROUT_SHARE;
     public static final ModConfigSpec.IntValue CAPTAIN_ROUT_SECONDS;
+    public static final ModConfigSpec.DoubleValue CAPTAIN_ROUT_SPEED;
+    public static final ModConfigSpec.IntValue CAPTAIN_ROUT_WEAKNESS_LEVEL;
+    public static final ModConfigSpec.IntValue CAPTAIN_AURA_INTERVAL_TICKS;
+    public static final ModConfigSpec.IntValue CAPTAIN_AURA_DURATION_TICKS;
+    public static final ModConfigSpec.IntValue CAPTAIN_AURA_LEVEL;
+    public static final ModConfigSpec.IntValue ARCHER_ATTACK_INTERVAL_TICKS;
+    public static final ModConfigSpec.DoubleValue ARCHER_ATTACK_RADIUS;
+    public static final ModConfigSpec.DoubleValue ARCHER_BOLT_SPEED;
     public static final ModConfigSpec.DoubleValue HEALER_HEAL_AMOUNT;
     public static final ModConfigSpec.IntValue HEALER_HEAL_COOLDOWN_SECONDS;
     public static final ModConfigSpec.DoubleValue HEALER_WOUNDED_SHARE;
@@ -41,11 +51,23 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue HEALER_BUFF_SECONDS;
     public static final ModConfigSpec.IntValue HEALER_SUPPLY;
     public static final ModConfigSpec.IntValue HEALER_SUPPLY_REFILL_SECONDS;
+    public static final ModConfigSpec.DoubleValue HEALER_BUFF_RADIUS;
+    public static final ModConfigSpec.IntValue HEALER_REGENERATION_LEVEL;
+    public static final ModConfigSpec.IntValue HEALER_RESISTANCE_LEVEL;
     public static final ModConfigSpec.IntValue GOLEM_CHASE_RADIUS;
     public static final ModConfigSpec.DoubleValue GOLEM_KNOCKBACK_RESISTANCE;
+    public static final ModConfigSpec.DoubleValue GOLEM_THROW_UP_SPEED;
     public static final ModConfigSpec.IntValue RIDER_PATROL_RADIUS;
     public static final ModConfigSpec.DoubleValue RIDER_HORSE_HEALTH;
     public static final ModConfigSpec.DoubleValue RIDER_HORSE_SPEED;
+    public static final ModConfigSpec.DoubleValue RIDER_CHARGE_SPEED;
+    public static final ModConfigSpec.IntValue RAID_HEART_RADIUS;
+    public static final ModConfigSpec.IntValue RAID_SPAWN_MIN_DISTANCE;
+    public static final ModConfigSpec.IntValue RAID_SPAWN_MAX_DISTANCE;
+    public static final ModConfigSpec.IntValue RAID_EXTRA_RAVAGERS_LEVEL_4;
+    public static final ModConfigSpec.IntValue RAID_EXTRA_RAVAGERS_LEVEL_5;
+    public static final ModConfigSpec.IntValue RAID_GATE_FORCE_SECONDS;
+    public static final ModConfigSpec.IntValue RAID_GATE_FORCE_MEMORY_SECONDS;
     public static final ModConfigSpec.IntValue GARRISON_REFILL_DELAY_SECONDS;
     public static final ModConfigSpec.IntValue DETACHMENT_GUARDS;
     public static final ModConfigSpec.IntValue GARRISON_ACTIVATION_RADIUS;
@@ -261,7 +283,7 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "captain")
                 .push("captain");
         CAPTAIN_AURA_RADIUS = builder
-                .comment("Radius in blocks of the morale aura (Strength I for the units of the village).")
+                .comment("Radius in blocks of the morale aura (Strength for the units of the village).")
                 .translation(KEY_PREFIX + "captainAuraRadius")
                 .defineInRange("auraRadius", 16, 0, 64);
         CAPTAIN_ROUT_SHARE = builder
@@ -272,6 +294,45 @@ public final class WorldConfig {
                 .comment("Duration in seconds of the rout and of the Weakness effect after the death of the captain.")
                 .translation(KEY_PREFIX + "captainRoutSeconds")
                 .defineInRange("routSeconds", 20, 1, 600);
+        CAPTAIN_ROUT_SPEED = builder
+                .comment("Speed modifier of a unit that runs back home in a rout (1 is the walk speed).")
+                .translation(KEY_PREFIX + "captainRoutSpeed")
+                .defineInRange("routSpeed", 1.3, 0.1, 4.0);
+        CAPTAIN_ROUT_WEAKNESS_LEVEL = builder
+                .comment("Level of the Weakness effect on the units of the village after the death of the captain.",
+                        "0: no Weakness effect.")
+                .translation(KEY_PREFIX + "captainRoutWeaknessLevel")
+                .defineInRange("routWeaknessLevel", 1, 0, 5);
+        CAPTAIN_AURA_INTERVAL_TICKS = builder
+                .comment("Time in ticks between two updates of the morale aura. 20 ticks are 1 second.")
+                .translation(KEY_PREFIX + "captainAuraIntervalTicks")
+                .defineInRange("auraIntervalTicks", 40, 1, 1200);
+        CAPTAIN_AURA_DURATION_TICKS = builder
+                .comment("Duration in ticks of the Strength effect of each update of the aura. Make it longer than",
+                        "auraIntervalTicks: else the effect stops between two updates.")
+                .translation(KEY_PREFIX + "captainAuraDurationTicks")
+                .defineInRange("auraDurationTicks", 60, 1, 2400);
+        CAPTAIN_AURA_LEVEL = builder
+                .comment("Level of the Strength effect of the aura. 0: no aura.")
+                .translation(KEY_PREFIX + "captainAuraLevel")
+                .defineInRange("auraLevel", 1, 0, 5);
+        builder.pop();
+
+        builder.comment("Archer: the ranged unit of the garrison.")
+                .translation(KEY_PREFIX + "archer")
+                .push("archer");
+        ARCHER_ATTACK_INTERVAL_TICKS = builder
+                .comment("Time in ticks between two shots of the bow. 20 ticks are 1 second.")
+                .translation(KEY_PREFIX + "archerAttackIntervalTicks")
+                .defineInRange("attackIntervalTicks", 30, 5, 200);
+        ARCHER_ATTACK_RADIUS = builder
+                .comment("Maximum distance in blocks of a shot of the bow or the crossbow.")
+                .translation(KEY_PREFIX + "archerAttackRadius")
+                .defineInRange("attackRadius", 16.0, 4.0, 64.0);
+        ARCHER_BOLT_SPEED = builder
+                .comment("Speed of a bolt of the crossbow. An arrow of the bow has the speed 1.6.")
+                .translation(KEY_PREFIX + "archerBoltSpeed")
+                .defineInRange("boltSpeed", 2.0, 0.5, 5.0);
         builder.pop();
 
         builder.comment("Healer: heals with bandages and gives buffs, with cooldowns and a limited supply.")
@@ -298,7 +359,7 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "healerBuffCooldownSeconds")
                 .defineInRange("buffCooldownSeconds", 60, 1, 3600);
         HEALER_BUFF_SECONDS = builder
-                .comment("Duration in seconds of the buff (Regeneration I and Resistance I).")
+                .comment("Duration in seconds of the buff (Regeneration and Resistance).")
                 .translation(KEY_PREFIX + "healerBuffSeconds")
                 .defineInRange("buffSeconds", 10, 1, 600);
         HEALER_SUPPLY = builder
@@ -309,6 +370,19 @@ public final class WorldConfig {
                 .comment("Time in seconds to get back one bandage while the village is calm.")
                 .translation(KEY_PREFIX + "healerSupplyRefillSeconds")
                 .defineInRange("supplyRefillSeconds", 30, 1, 3600);
+        HEALER_BUFF_RADIUS = builder
+                .comment("The buff reaches the units of the village at this distance from the healer, in blocks.")
+                .translation(KEY_PREFIX + "healerBuffRadius")
+                .defineInRange("buffRadius", 6.0, 1.0, 32.0);
+        HEALER_REGENERATION_LEVEL = builder
+                .comment("Level of the Regeneration effect of the buff. 0: no Regeneration effect.")
+                .translation(KEY_PREFIX + "healerRegenerationLevel")
+                .defineInRange("regenerationLevel", 1, 0, 5);
+        HEALER_RESISTANCE_LEVEL = builder
+                .comment("Level of the Resistance effect of the buff. 0: no Resistance effect. At level 5, the units",
+                        "get no damage.")
+                .translation(KEY_PREFIX + "healerResistanceLevel")
+                .defineInRange("resistanceLevel", 1, 0, 5);
         builder.pop();
 
         builder.comment("Faction golem: the heavy unit of the large villages. It guards a gate or the village heart.")
@@ -323,6 +397,11 @@ public final class WorldConfig {
                 .comment("Knockback resistance of the golem (0 to 1). At 1, the attacks do not push the golem.")
                 .translation(KEY_PREFIX + "golemKnockbackResistance")
                 .defineInRange("knockbackResistance", 1.0, 0.0, 1.0);
+        GOLEM_THROW_UP_SPEED = builder
+                .comment("Upward speed of a target that the golem hits. The knockback resistance of the target makes",
+                        "it smaller.")
+                .translation(KEY_PREFIX + "golemThrowUpSpeed")
+                .defineInRange("throwUpSpeed", 0.4, 0.0, 2.0);
         builder.pop();
 
         builder.comment("Rider: a mounted unit that patrols outside the walls and charges the threats.")
@@ -341,6 +420,50 @@ public final class WorldConfig {
                 .comment("Movement speed attribute of the horse of a rider (vanilla horses: 0.11 to 0.34).")
                 .translation(KEY_PREFIX + "riderHorseSpeed")
                 .defineInRange("horseSpeed", 0.3, 0.05, 1.0);
+        RIDER_CHARGE_SPEED = builder
+                .comment("Speed modifier of the horse when the rider charges a target (1 is the patrol speed).")
+                .translation(KEY_PREFIX + "riderChargeSpeed")
+                .defineInRange("chargeSpeed", 1.5, 0.5, 4.0);
+        builder.pop();
+
+        builder.comment("Vanilla raids against the faction villages. The vanilla raids at the other villages do not",
+                        "change. The garrison of each level is in the level table (data/folkhold_world/folkhold/",
+                        "levels.json).")
+                .translation(KEY_PREFIX + "raid")
+                .push("raid");
+        RAID_HEART_RADIUS = builder
+                .comment("A raid is at a faction village when a loaded village heart is this distance or less from",
+                        "the center of the raid, in blocks.")
+                .translation(KEY_PREFIX + "raidHeartRadius")
+                .defineInRange("heartRadius", 64, 16, 256);
+        RAID_SPAWN_MIN_DISTANCE = builder
+                .comment("Minimum distance in blocks from the heart to the spawn position of a wave.")
+                .translation(KEY_PREFIX + "raidSpawnMinDistance")
+                .defineInRange("spawnMinDistance", 40, 16, 80);
+        RAID_SPAWN_MAX_DISTANCE = builder
+                .comment("Maximum distance in blocks from the heart to the spawn position of a wave. When this value",
+                        "is less than spawnMinDistance, the waves spawn at spawnMinDistance. The maximum is 80: the",
+                        "search for a spawn position reads the terrain at this distance, and at a larger distance it",
+                        "loads more chunks and finds fewer paths to the village.")
+                .translation(KEY_PREFIX + "raidSpawnMaxDistance")
+                .defineInRange("spawnMaxDistance", 56, 16, 80);
+        RAID_EXTRA_RAVAGERS_LEVEL_4 = builder
+                .comment("Ravagers that each wave of a raid of level 4 gets more than the vanilla wave.")
+                .translation(KEY_PREFIX + "raidExtraRavagersLevel4")
+                .defineInRange("extraRavagersLevel4", 1, 0, 16);
+        RAID_EXTRA_RAVAGERS_LEVEL_5 = builder
+                .comment("Ravagers that each wave of a raid of level 5 gets more than the vanilla wave.")
+                .translation(KEY_PREFIX + "raidExtraRavagersLevel5")
+                .defineInRange("extraRavagersLevel5", 2, 0, 16);
+        RAID_GATE_FORCE_SECONDS = builder
+                .comment("Time in seconds that a raider stays in front of a closed gate before the gate opens.")
+                .translation(KEY_PREFIX + "raidGateForceSeconds")
+                .defineInRange("gateForceSeconds", 10, 1, 600);
+        RAID_GATE_FORCE_MEMORY_SECONDS = builder
+                .comment("A raider that moves away from the gate that it forces keeps its time when it comes back to",
+                        "the same gate in this time, in seconds. Else it starts again from zero.")
+                .translation(KEY_PREFIX + "raidGateForceMemorySeconds")
+                .defineInRange("gateForceMemorySeconds", 5, 0, 600);
         builder.pop();
 
         builder.comment("Reputation of the players with the factions and the villages (-1000 to +1000).")

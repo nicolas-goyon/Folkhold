@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -45,10 +46,6 @@ public final class RaidSpawns {
     /** The blocks of natural ground where raiders can spawn. */
     public static final TagKey<Block> GROUND = TagKey.create(Registries.BLOCK,
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "raid_spawn_ground"));
-    /** The minimum distance from the heart to the spawn position, in blocks. */
-    public static final int MIN_DISTANCE = 40;
-    /** The maximum distance from the heart to the spawn position, in blocks. */
-    public static final int MAX_DISTANCE = 56;
     /** A position this many blocks lower than the terrain around it is in a hole. */
     public static final int HOLLOW_DEPTH = 3;
     /** The number of random positions that the method tries. */
@@ -84,7 +81,9 @@ public final class RaidSpawns {
     }
 
     /**
-     * A spawn position in the ring of {@link #MIN_DISTANCE} to {@link #MAX_DISTANCE} blocks around a heart.
+     * A spawn position in the ring of {@link WorldConfig#RAID_SPAWN_MIN_DISTANCE} to
+     * {@link WorldConfig#RAID_SPAWN_MAX_DISTANCE} blocks around a heart. When the maximum is less than the minimum, the
+     * ring has the minimum distance as its two radii.
      *
      * @param level      the level
      * @param heart      the position of the heart
@@ -94,7 +93,8 @@ public final class RaidSpawns {
      */
     public static Optional<BlockPos> find(ServerLevel level, BlockPos heart, List<BlockPos> approaches,
             RandomSource random) {
-        return find(level, heart, approaches, random, MIN_DISTANCE, MAX_DISTANCE);
+        int min = WorldConfig.RAID_SPAWN_MIN_DISTANCE.get();
+        return find(level, heart, approaches, random, min, Math.max(min, WorldConfig.RAID_SPAWN_MAX_DISTANCE.get()));
     }
 
     /**

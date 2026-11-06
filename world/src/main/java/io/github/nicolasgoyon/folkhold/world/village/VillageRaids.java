@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MarchOnVillageGoal;
 import java.util.HashMap;
 import java.util.List;
@@ -21,8 +22,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  * and how they march on the village.
  *
  * <ul>
- *   <li>A raid is at a faction village when a loaded village heart is {@link #HEART_RADIUS} blocks or less from the
- *       center of the raid.</li>
+ *   <li>A raid is at a faction village when a loaded village heart is {@link WorldConfig#RAID_HEART_RADIUS} blocks
+ *       or less from the center of the raid.</li>
  *   <li>Spawn: the raiders of a new wave of such a raid spawn at a position of {@link RaidSpawns}: on natural ground,
  *       on land, under the open sky, not in a hole or a ravine, with a path to the village. All the raiders of a wave
  *       spawn at the same position. When no position is good, the raiders keep the vanilla position.</li>
@@ -33,23 +34,16 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *       {@link #extraRavagers} ravagers more than the vanilla wave (see {@link #reinforce}). The vanilla raids at the
  *       other villages do not change.</li>
  * </ul>
+ *
+ * <p>The numbers of these rules are in the section {@code raid} of {@link WorldConfig}.
  */
 public final class VillageRaids {
-    /** The maximum distance from the center of a raid to the heart of its village, in blocks. */
-    public static final int HEART_RADIUS = 64;
     /** The priority of the march: before the vanilla march of the raid (3). */
     private static final int MARCH_PRIORITY = 2;
     /** The approaches of a village stay in the cache for this time, in ticks. */
     private static final long APPROACH_CACHE_TICKS = 100;
     /** The cache of the spawn positions keeps the raids of this count, at most. */
     private static final int MAX_RAIDS = 64;
-    /**
-     * The ravagers that each wave of a raid at a faction village gets more than the vanilla wave, by the level of the
-     * raid (index 0 to 5). At the difficulty Normal, a raid of level 2 to 5 has the same 6 vanilla waves: only the
-     * chance of enchanted weapons changes. These ravagers make the raids of levels 4 and 5 stronger than the raids
-     * of levels 2 and 3 (balance targets in {@code docs/design.md}).
-     */
-    private static final int[] EXTRA_RAVAGERS = {0, 0, 0, 0, 1, 2};
 
     /** The spawn position of the current wave of each raid. */
     private static final Map<RaidKey, WaveSpawn> WAVE_SPAWNS = new HashMap<>();
@@ -83,7 +77,7 @@ public final class VillageRaids {
      *         not at a faction village
      */
     public static Optional<BlockPos> heartOf(Raid raid, Level level) {
-        return VillageHearts.findNearest(level, raid.getCenter(), HEART_RADIUS);
+        return VillageHearts.findNearest(level, raid.getCenter(), WorldConfig.RAID_HEART_RADIUS.get());
     }
 
     /**
@@ -136,13 +130,21 @@ public final class VillageRaids {
     }
 
     /**
-     * The ravagers that each wave of a raid at a faction village gets more than the vanilla wave.
+     * The ravagers that each wave of a raid at a faction village gets more than the vanilla wave. At the difficulty
+     * Normal, a raid of level 2 to 5 has the same 6 vanilla waves: only the chance of enchanted weapons changes. These
+     * ravagers make the raids of levels 4 and 5 stronger than the raids of levels 2 and 3 (balance targets in
+     * {@code docs/design.md}).
      *
      * @param raidLevel the level of the raid (the Raid Omen level, 0 to 5)
-     * @return the number of extra ravagers: 1 at level 4, 2 at level 5, else 0
+     * @return the number of extra ravagers: {@link WorldConfig#RAID_EXTRA_RAVAGERS_LEVEL_4} at level 4,
+     *         {@link WorldConfig#RAID_EXTRA_RAVAGERS_LEVEL_5} at level 5, else 0
      */
     public static int extraRavagers(int raidLevel) {
-        return raidLevel < 0 || raidLevel >= EXTRA_RAVAGERS.length ? 0 : EXTRA_RAVAGERS[raidLevel];
+        return switch (raidLevel) {
+            case 4 -> WorldConfig.RAID_EXTRA_RAVAGERS_LEVEL_4.get();
+            case 5 -> WorldConfig.RAID_EXTRA_RAVAGERS_LEVEL_5.get();
+            default -> 0;
+        };
     }
 
     /**

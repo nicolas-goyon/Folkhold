@@ -49,8 +49,6 @@ public class HealerEntity extends FactionUnit {
     private static final String LAST_REFILL_TAG = "LastRefill";
     /** The healer runs away from a threat at this distance or nearer, in blocks. */
     private static final float AVOID_DISTANCE = 5.0F;
-    /** The buff reaches the units at this distance from the healer or nearer, in blocks. */
-    private static final double BUFF_RADIUS = 6.0;
 
     private int supply = -1;
     private long lastHeal = Long.MIN_VALUE / 2;
@@ -185,14 +183,21 @@ public class HealerEntity extends FactionUnit {
      * @return the number of units that got the buff
      */
     public int buffAllies() {
-        List<FactionUnit> allies = alliesNear(BUFF_RADIUS);
+        double radius = WorldConfig.HEALER_BUFF_RADIUS.get();
+        List<FactionUnit> allies = alliesNear(radius);
         if (allies.isEmpty()) {
             return 0;
         }
         int ticks = WorldConfig.HEALER_BUFF_SECONDS.get() * 20;
+        int regeneration = WorldConfig.HEALER_REGENERATION_LEVEL.get();
+        int resistance = WorldConfig.HEALER_RESISTANCE_LEVEL.get();
         for (FactionUnit unit : allies) {
-            unit.addEffect(new MobEffectInstance(MobEffects.REGENERATION, ticks, 0));
-            unit.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, ticks, 0));
+            if (regeneration > 0) {
+                unit.addEffect(new MobEffectInstance(MobEffects.REGENERATION, ticks, regeneration - 1));
+            }
+            if (resistance > 0) {
+                unit.addEffect(new MobEffectInstance(MobEffects.DAMAGE_RESISTANCE, ticks, resistance - 1));
+            }
         }
         supply = getSupply() - 1;
         lastBuff = level().getGameTime();
@@ -200,8 +205,8 @@ public class HealerEntity extends FactionUnit {
         level().playSound(null, getX(), getY(), getZ(), SoundEvents.BREWING_STAND_BREW, SoundSource.NEUTRAL, 1.0F,
                 1.0F);
         if (level() instanceof ServerLevel serverLevel) {
-            serverLevel.sendParticles(ParticleTypes.HAPPY_VILLAGER, getX(), getY() + 1.0, getZ(), 12, BUFF_RADIUS / 3,
-                    0.5, BUFF_RADIUS / 3, 0.0);
+            serverLevel.sendParticles(ParticleTypes.HAPPY_VILLAGER, getX(), getY() + 1.0, getZ(), 12, radius / 3,
+                    0.5, radius / 3, 0.0);
         }
         return allies.size();
     }

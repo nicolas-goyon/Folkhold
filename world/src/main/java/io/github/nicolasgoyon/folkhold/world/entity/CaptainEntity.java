@@ -30,7 +30,8 @@ import net.minecraft.world.phys.AABB;
  * Captain: leader of the garrison. It fights as a guard, with better values.
  *
  * <ul>
- *   <li><b>Morale aura</b>: the units of its village near the captain get Strength I.</li>
+ *   <li><b>Morale aura</b>: the units of its village near the captain get Strength
+ *       ({@link WorldConfig#CAPTAIN_AURA_LEVEL}).</li>
  *   <li><b>General alarm</b>: when the captain has a target, its village goes to {@link AlertState#ASSAULT}.</li>
  *   <li><b>Death</b>: a share of the units of its village is routed (runs back home and does not fight),
  *       and all units of the village get Weakness I for the same time. The settlement of the village loses
@@ -40,9 +41,6 @@ import net.minecraft.world.phys.AABB;
  * <p>It wears the banner of its faction on its head (a blue banner without a faction).
  */
 public class CaptainEntity extends GuardEntity {
-    /** The captain updates its aura every 2 seconds. The effect lasts 3 seconds. */
-    private static final int AURA_INTERVAL = 40;
-    private static final int AURA_DURATION = 60;
     private static final String RUINS_TAG = "RuinsOnDeath";
     /** The settlement that becomes ruins when this captain dies (its heart is destroyed), or null. */
     @Nullable
@@ -76,9 +74,11 @@ public class CaptainEntity extends GuardEntity {
                 heart.setAlertState(AlertState.ASSAULT);
             });
         }
-        if (tickCount % AURA_INTERVAL == 0) {
+        int auraLevel = WorldConfig.CAPTAIN_AURA_LEVEL.get();
+        if (auraLevel > 0 && tickCount % WorldConfig.CAPTAIN_AURA_INTERVAL_TICKS.get() == 0) {
+            int duration = WorldConfig.CAPTAIN_AURA_DURATION_TICKS.get();
             for (FactionUnit unit : villageUnitsNear(WorldConfig.CAPTAIN_AURA_RADIUS.get())) {
-                unit.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, AURA_DURATION, 0, true, true));
+                unit.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, duration, auraLevel - 1, true, true));
             }
         }
     }
@@ -158,9 +158,12 @@ public class CaptainEntity extends GuardEntity {
         double share = WorldConfig.CAPTAIN_ROUT_SHARE.get();
         int routed = share <= 0.0 ? 0 : Math.max(1, (int) Math.round(units.size() * share));
         Collections.shuffle(units, new Random(getRandom().nextLong()));
+        int weakness = WorldConfig.CAPTAIN_ROUT_WEAKNESS_LEVEL.get();
         for (int i = 0; i < units.size(); i++) {
             FactionUnit unit = units.get(i);
-            unit.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, (int) ticks, 0));
+            if (weakness > 0) {
+                unit.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, (int) ticks, weakness - 1));
+            }
             if (i < routed) {
                 unit.rout(ticks);
             }
