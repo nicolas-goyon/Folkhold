@@ -52,6 +52,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class ShulkerMinecartGameTests {
     private static final int SIZE = ShulkerMinecart.SIZE;
+    /** The tick of {@link #removedMinecartDropsOneItem} that counts the dropped items. */
+    private static final int DROP_TICK = 5;
+    /**
+     * The largest age of a drop of {@link #removedMinecartDropsOneItem} at {@link #DROP_TICK}, in ticks. It includes a
+     * margin for the order of the entity ticks and the test ticks in a server tick.
+     */
+    private static final int MAX_DROP_AGE = DROP_TICK + 5;
+    /** The distance from the test area where {@link #removedMinecartDropsOneItem} counts the items, in blocks. */
+    private static final double DROP_MARGIN = 2.0;
 
     private ShulkerMinecartGameTests() {
     }
@@ -64,6 +73,9 @@ public final class ShulkerMinecartGameTests {
     @GameTest(template = "bench", timeoutTicks = 100, batch = "balance_rails")
     public static void removedMinecartDropsOneItem(GameTestHelper helper) {
         TrainGameTests.floor(helper, 24, 8);
+        // Items of earlier tests, for example the drops of raiders, can be in the area.
+        helper.getLevel().getEntitiesOfClass(ItemEntity.class, helper.getBounds().inflate(DROP_MARGIN))
+                .forEach(ItemEntity::discard);
         DamageSources sources = helper.getLevel().damageSources();
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         Player creative = helper.makeMockPlayer(GameType.CREATIVE);
@@ -95,9 +107,10 @@ public final class ShulkerMinecartGameTests {
             removals.get(i).accept(carts.get(i), 100.0F);
         }
         empty.kill();
-        helper.runAtTickTime(5, () -> {
+        helper.runAtTickTime(DROP_TICK, () -> {
+            // Only the items that drop during this test: an item of an earlier test is older.
             List<ItemEntity> drops = helper.getLevel().getEntitiesOfClass(ItemEntity.class,
-                    helper.getBounds().inflate(2.0));
+                    helper.getBounds().inflate(DROP_MARGIN), item -> item.getAge() <= MAX_DROP_AGE);
             helper.assertTrue(drops.size() == removals.size(), "The minecarts drop " + drops.size() + " items");
             for (int i = 0; i < removals.size(); i++) {
                 helper.assertTrue(carts.get(i).isRemoved(), "The minecart " + i + " is not removed");

@@ -354,7 +354,8 @@ public final class ConstructionGameTests {
     }
 
     /**
-     * Watches the dropped items and the falling blocks near a box, at each tick of the test.
+     * Watches the dropped items and the falling blocks near a box, at each tick of the test. An item is a problem
+     * only if it is a new drop ({@link TestSupport#isNewDrop}). The watch removes all the items near the box.
      *
      * @return the list of the problems, which the test fills at each tick
      */
@@ -364,7 +365,10 @@ public final class ConstructionGameTests {
         List<String> problems = new ArrayList<>();
         helper.onEachTick(() -> {
             for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, area)) {
-                problems.add("dropped item " + item.getItem() + " at " + item.blockPosition());
+                // An older item is a drop of an earlier test, for example of a raider: it is not a problem.
+                if (TestSupport.isNewDrop(item)) {
+                    problems.add("dropped item " + item.getItem() + " at " + item.blockPosition());
+                }
                 item.discard();
             }
             for (FallingBlockEntity falling : level.getEntitiesOfClass(FallingBlockEntity.class, area)) {
