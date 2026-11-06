@@ -87,6 +87,9 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue REPUTATION_KILL_CAT;
     public static final ModConfigSpec.IntValue REPUTATION_RAID_CARAVAN;
 
+    public static final ModConfigSpec.IntValue RAID_REWARD_MIN_KILLS;
+    public static final ModConfigSpec.DoubleValue RAID_REWARD_MIN_DAMAGE;
+
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue ADMIN_DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue DISCOVERY_CHECKS_PER_TICK;
@@ -520,6 +523,23 @@ public final class WorldConfig {
                         "opens a mule chest). Once in each offense window.")
                 .translation(KEY_PREFIX + "reputationRaidCaravan")
                 .defineInRange("raidCaravan", -150, -1000, 0);
+        builder.pop();
+
+        builder.comment("Rewards of the players who help a faction village during a raid. A player helps when the",
+                        "player kills raiders or hurts them in the raid area (96 blocks from the center of the raid).",
+                        "After a victory of the village, each helper gets the effect Hero of the Village, with the",
+                        "level of the raid. The other players get no reward.")
+                .translation(KEY_PREFIX + "raidRewards")
+                .push("raidRewards");
+        RAID_REWARD_MIN_KILLS = builder
+                .comment("Raiders that a player must kill in the raid area to help the village.")
+                .translation(KEY_PREFIX + "raidRewardMinKills")
+                .defineInRange("minKills", 1, 1, 1000);
+        RAID_REWARD_MIN_DAMAGE = builder
+                .comment("Damage (half hearts) that a player must give to the raiders in the raid area to help the",
+                        "village, also with no kill. 0: the damage alone does not make a helper.")
+                .translation(KEY_PREFIX + "raidRewardMinDamage")
+                .defineInRange("minDamage", 40.0, 0.0, 100000.0);
         builder.pop();
 
         builder.comment("Abstract simulation of the settlements.")

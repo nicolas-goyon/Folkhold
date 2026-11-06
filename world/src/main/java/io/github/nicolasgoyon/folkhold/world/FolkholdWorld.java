@@ -52,6 +52,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SimulationTicker;
 import io.github.nicolasgoyon.folkhold.world.testworld.TestWorldPack;
 import io.github.nicolasgoyon.folkhold.world.village.BankChests;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
+import io.github.nicolasgoyon.folkhold.world.village.RaidHelpers;
 import io.github.nicolasgoyon.folkhold.world.village.VanillaGolems;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBuildingTable;
@@ -97,6 +98,10 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(MonsterTargeting::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(VillageRaids::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(VillageRaids::onServerStopped);
+        NeoForge.EVENT_BUS.addListener(RaidHelpers::onDamage);
+        NeoForge.EVENT_BUS.addListener(RaidHelpers::onDeath);
+        NeoForge.EVENT_BUS.addListener(RaidHelpers::onServerTick);
+        NeoForge.EVENT_BUS.addListener(RaidHelpers::onServerStopped);
         NeoForge.EVENT_BUS.addListener(FriendlyFire::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(ReputationEvents::onDeath);
         NeoForge.EVENT_BUS.addListener(ReputationEvents::onDamage);
