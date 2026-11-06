@@ -83,6 +83,18 @@ public final class VillageRaids {
     }
 
     /**
+     * True when the village of a raid holds: the raid ends in a victory, and the village did not fall during the raid
+     * ({@link RaidHelpers#isFallen}). The village of a raid at a vanilla village holds after a victory.
+     *
+     * @param level the level of the raid
+     * @param raid  the raid
+     * @return true when the village holds
+     */
+    public static boolean holds(ServerLevel level, Raid raid) {
+        return raid.isVictory() && !RaidHelpers.isFallen(level, raid);
+    }
+
+    /**
      * The approaches of the gates of a village (see {@link VillageExits#approaches}). The method keeps them in a
      * cache for {@link #APPROACH_CACHE_TICKS} ticks.
      *

@@ -1,9 +1,12 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.village.RaidHelpers;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -15,6 +18,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.entity.raid.Raid;
 import net.minecraft.world.entity.raid.Raider;
@@ -38,6 +42,10 @@ public final class RaidRewardGameTests {
     /** The ids of the raids of the tests: each run takes new ids, far from the ids of the raids of the world. */
     private static final AtomicInteger NEXT_RAID_ID = new AtomicInteger(314_159);
     private static final BlockPos CENTER = new BlockPos(16, 1, 16);
+    /** The heart of the fall test, away from the bed at the center. */
+    private static final BlockPos HEART = new BlockPos(6, 1, 6);
+    /** The distance of a player outside the raid area, on the x axis: more than {@link RaidHelpers#RAID_AREA_RADIUS}. */
+    private static final int FAR = 100;
     /** The height of the center of a raid with no village, over the test: no bed of the area is near it. */
     private static final int SKY = 64;
 
@@ -46,17 +54,14 @@ public final class RaidRewardGameTests {
 
     /**
      * A player who kills a raider and a player who gives the minimum damage get the effect Hero of the Village when
-     * the village wins. A player in the raid area who does nothing gets no effect.
+     * the village wins. A player in the raid area who does nothing gets no effect. A player who kills a raider from
+     * outside the raid area gets no effect: vanilla adds this player to the heroes, and {@link RaidHelpers} removes it.
      */
     @GameTest(template = "arena_large", timeoutTicks = 100, batch = "raid_reward_victory")
     public static void helpersGetHeroOfTheVillageAfterAVictory(GameTestHelper helper) {
         TestSupport.sweep(helper);
-        TestSupport.placeBed(helper, CENTER, Direction.NORTH);
         ServerLevel level = helper.getLevel();
-        BlockPos center = helper.absolutePos(CENTER);
-        // Vanilla counts only the occupied points of interest of a village: the test claims the bed, as a villager
-        // does. The raid starts when the center is a village, with the timeout of the test as the limit.
-        level.getPoiManager().take(type -> type.is(PoiTypes.HOME), (type, pos) -> true, center, 2);
+        BlockPos center = placeVillageBed(helper);
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(level.isVillage(center), "Waiting for the village of the bed"))
                 .thenExecute(() -> raidAtVillage(helper, level, center))
@@ -67,11 +72,15 @@ public final class RaidRewardGameTests {
         ServerPlayer killer = playerAt(helper, new BlockPos(12, 1, 20));
         ServerPlayer hitter = playerAt(helper, new BlockPos(16, 1, 20));
         ServerPlayer idle = playerAt(helper, new BlockPos(20, 1, 20));
+        ServerPlayer far = playerAt(helper, CENTER.east(FAR));
         Raid raid = raidAt(level, center);
         VillageHearts.register(level, center);
         try {
             Raider pillager = join(helper, raid, EntityType.PILLAGER);
             pillager.hurt(level.damageSources().playerAttack(killer), 1000.0F);
+            Raider second = join(helper, raid, EntityType.PILLAGER);
+            second.hurt(level.damageSources().playerAttack(far), 1000.0F);
+            helper.assertTrue(second.isDeadOrDying(), "The far player must kill the second pillager");
             Raider ravager = join(helper, raid, EntityType.RAVAGER);
             double minDamage = WorldConfig.RAID_REWARD_MIN_DAMAGE.get();
             helper.assertTrue(minDamage > 0 && minDamage < ravager.getMaxHealth(),
@@ -82,15 +91,68 @@ public final class RaidRewardGameTests {
             helper.assertTrue(RaidHelpers.helps(level, raid, killer.getUUID()), "The killer must help");
             helper.assertTrue(RaidHelpers.helps(level, raid, hitter.getUUID()), "The hitter must help");
             helper.assertFalse(RaidHelpers.helps(level, raid, idle.getUUID()), "The idle player must not help");
+            helper.assertFalse(RaidHelpers.helps(level, raid, far.getUUID()), "The far player must not help");
+            helper.assertFalse(raid.heroesOfTheVillage.contains(far.getUUID()),
+                    "The far player must not be a hero of the raid");
             tickToEnd(helper, raid);
             helper.assertTrue(raid.isVictory(), "The raid must end in a victory");
             assertHero(helper, killer, "The killer");
             assertHero(helper, hitter, "The hitter");
             helper.assertFalse(idle.hasEffect(MobEffects.HERO_OF_THE_VILLAGE),
                     "The idle player must not get Hero of the Village");
+            helper.assertFalse(far.hasEffect(MobEffects.HERO_OF_THE_VILLAGE),
+                    "The far player must not get Hero of the Village");
+            helper.assertTrue(VillageRaids.holds(level, raid), "The village must hold");
         } finally {
             end(level, raid, center);
         }
+    }
+
+    /**
+     * The garrison dies during the raid, then a player kills the last raider. The raid ends in a victory, but the
+     * village falls: the player gets no effect.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 200, batch = "raid_reward_garrison")
+    public static void noRewardWhenTheGarrisonDies(GameTestHelper helper) {
+        TestSupport.sweep(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos center = placeVillageBed(helper);
+        helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
+        VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+        TestSupport.setLevel(helper, heart, 1);
+        ServerPlayer killer = playerAt(helper, new BlockPos(12, 1, 20));
+        Raid[] raid = new Raid[1];
+        Raider[] pillager = new Raider[1];
+        helper.startSequence()
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(level.isVillage(center), "Waiting for the village of the bed");
+                    heart.ensureGarrison(level.getGameTime());
+                    int alive = heart.getGarrison().aliveCount();
+                    helper.assertTrue(alive > 0 && heart.getUnits().size() == alive, "Waiting for the garrison");
+                })
+                .thenExecute(() -> {
+                    raid[0] = raidAt(level, center);
+                    pillager[0] = join(helper, raid[0], EntityType.PILLAGER);
+                    helper.assertFalse(RaidHelpers.isFallen(level, raid[0]), "The village must stand at the start");
+                    heart.getUnits().forEach(LivingEntity::kill);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(RaidHelpers.isFallen(level, raid[0]),
+                        "Waiting for the fall of the village"))
+                .thenExecute(() -> {
+                    try {
+                        pillager[0].hurt(level.damageSources().playerAttack(killer), 1000.0F);
+                        helper.assertTrue(RaidHelpers.helps(level, raid[0], killer.getUUID()), "The killer must help");
+                        tickToEnd(helper, raid[0]);
+                        helper.assertTrue(raid[0].isVictory(), "The raid must end in a victory");
+                        helper.assertFalse(VillageRaids.holds(level, raid[0]), "The village must fall");
+                        helper.assertFalse(killer.hasEffect(MobEffects.HERO_OF_THE_VILLAGE),
+                                "The killer must not get Hero of the Village after the fall");
+                    } finally {
+                        end(level, raid[0], center);
+                        heart.getUnits().forEach(LivingEntity::discard);
+                    }
+                })
+                .thenSucceed();
     }
 
     /** A player who kills a raider gets no effect when the village falls: the raid ends in a loss. */
@@ -114,6 +176,19 @@ public final class RaidRewardGameTests {
             end(level, raid, center);
         }
         helper.succeed();
+    }
+
+    /**
+     * Places a bed at the center and claims it: vanilla counts only the occupied points of interest of a village, and
+     * a villager claims its bed. The test waits for {@code isVillage} before the raid, with its timeout as the limit.
+     *
+     * @return the absolute position of the center
+     */
+    private static BlockPos placeVillageBed(GameTestHelper helper) {
+        TestSupport.placeBed(helper, CENTER, Direction.NORTH);
+        BlockPos center = helper.absolutePos(CENTER);
+        helper.getLevel().getPoiManager().take(type -> type.is(PoiTypes.HOME), (type, pos) -> true, center, 2);
+        return center;
     }
 
     /** A mock player at a position of the test. The listener of {@link TestSupport#mockPlayer} removes it. */

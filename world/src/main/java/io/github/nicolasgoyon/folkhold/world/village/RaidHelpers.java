@@ -1,11 +1,18 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -28,15 +35,21 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *   <li>the player kills {@code raidRewards.minKills} raiders or more;</li>
  *   <li>the player gives {@code raidRewards.minDamage} damage or more to the raiders (0: the damage does not count).</li>
  * </ul>
- * A hit or a kill from a position outside the raid area does not count.
+ * A hit or a kill from outside the raid area does not count. Only the damage source of a player counts, as in vanilla:
+ * the projectiles of the player count, a tamed wolf and the fire do not.
+ *
+ * <p>Fall: the village of a raid falls when the raid starts and the heart is loaded with no living unit in its
+ * garrison, or when its settlement is ruins. The fall stays until the raid stops, also when units come back. The
+ * village holds when the raid ends in a victory and the village did not fall ({@link VillageRaids#holds}).
  *
  * <p>Reward: the vanilla raid gives the effect Hero of the Village to its heroes when it ends in a victory, with the
- * level of the raid. For a raid at a faction village, the heroes are the helpers only. Vanilla adds each player who
- * kills a raider to the heroes: this class removes the players who do not help. Thus a player gets the reward one
- * time, and a player who does not help gets no reward, also in the raid area.
+ * level of the raid. For a raid at a faction village, the heroes are the helpers only, and no player when the village
+ * falls. Vanilla adds each player who kills a raider to the heroes: this class removes the players who do not help.
+ * Thus a player gets the reward one time, and a player who does not help gets no reward, also in the raid area.
  *
  * <p>The helpers of a raid stay in memory until the raid stops (vanilla stops a raid 30 seconds after its victory or
- * its loss). A server restart during a raid clears them.
+ * its loss). A server restart during a raid clears them. The map keeps {@link #MAX_RAIDS} raids at most: when it is
+ * full of active raids, a new raid gets no record and keeps the vanilla heroes.
  */
 public final class RaidHelpers {
     /** The radius of the raid area, in blocks: vanilla finds the raid of a position at 96 blocks or less. */
@@ -45,6 +58,8 @@ public final class RaidHelpers {
     private static final int MAX_RAIDS = 64;
 
     private static final Map<RaidKey, Tracked> RAIDS = new HashMap<>();
+    /** True after the log of a full map, until the map has room again. */
+    private static boolean warnedFull;
 
     private record RaidKey(ResourceKey<Level> dimension, int id) {
     }
@@ -55,7 +70,15 @@ public final class RaidHelpers {
         private double damage;
     }
 
-    private record Tracked(Raid raid, Map<UUID, Help> help) {
+    /** The help of the players during one raid, and the fall of its village. */
+    private static final class Tracked {
+        private final Raid raid;
+        private final Map<UUID, Help> help = new HashMap<>();
+        private boolean fallen;
+
+        private Tracked(Raid raid) {
+            this.raid = raid;
+        }
     }
 
     private RaidHelpers() {
@@ -84,7 +107,7 @@ public final class RaidHelpers {
      */
     public static boolean helps(ServerLevel level, Raid raid, UUID player) {
         Tracked tracked = RAIDS.get(key(level, raid));
-        Help help = tracked == null ? null : tracked.help().get(player);
+        Help help = tracked == null ? null : tracked.help.get(player);
         return help != null && helps(help);
     }
 
@@ -100,8 +123,20 @@ public final class RaidHelpers {
         if (tracked == null) {
             return Set.of();
         }
-        return tracked.help().entrySet().stream().filter(entry -> helps(entry.getValue()))
+        return tracked.help.entrySet().stream().filter(entry -> helps(entry.getValue()))
                 .map(Map.Entry::getKey).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * True when the village of a raid at a faction village falls (see the class comment).
+     *
+     * @param level the level of the raid
+     * @param raid  the raid
+     * @return true when the village falls; false when the raid is not at a faction village
+     */
+    public static boolean isFallen(ServerLevel level, Raid raid) {
+        Tracked tracked = RAIDS.get(key(level, raid));
+        return tracked != null && tracked.raid == raid && tracked.fallen;
     }
 
     /** True when an entity is in the raid area: {@link #RAID_AREA_RADIUS} blocks or less from the center. */
@@ -117,14 +152,26 @@ public final class RaidHelpers {
         tracked(level, raid);
     }
 
+    /** The record of a raid, new or known. Null when the map is full of active raids. */
+    @Nullable
     private static Tracked tracked(ServerLevel level, Raid raid) {
         RaidKey key = key(level, raid);
         Tracked tracked = RAIDS.get(key);
-        if (tracked == null || tracked.raid() != raid) {
-            if (RAIDS.size() >= MAX_RAIDS) {
-                RAIDS.clear();
+        if (tracked == null || tracked.raid != raid) {
+            if (tracked == null && RAIDS.size() >= MAX_RAIDS) {
+                RAIDS.values().removeIf(old -> old.raid.isStopped()
+                        || level.getServer().getLevel(old.raid.getLevel().dimension()) != old.raid.getLevel());
+                if (RAIDS.size() >= MAX_RAIDS) {
+                    if (!warnedFull) {
+                        warnedFull = true;
+                        FolkholdWorld.LOGGER.warn("{} raids at faction villages are active: the raid {} gets no "
+                                + "record of its helpers", MAX_RAIDS, raid.getId());
+                    }
+                    return null;
+                }
             }
-            tracked = new Tracked(raid, new HashMap<>());
+            warnedFull = false;
+            tracked = new Tracked(raid);
             RAIDS.put(key, tracked);
             syncHeroes(level, tracked);
         }
@@ -142,13 +189,16 @@ public final class RaidHelpers {
             return;
         }
         Tracked tracked = RAIDS.get(key(level, raid));
-        if (tracked == null || tracked.raid() != raid) {
+        if (tracked == null || tracked.raid != raid) {
             if (VillageRaids.heartOf(raid, level).isEmpty()) {
                 return;
             }
             tracked = tracked(level, raid);
+            if (tracked == null) {
+                return;
+            }
         }
-        Help help = tracked.help().computeIfAbsent(player.getUUID(), id -> new Help());
+        Help help = tracked.help.computeIfAbsent(player.getUUID(), id -> new Help());
         boolean before = helps(help);
         help.damage += event.getNewDamage();
         if (raider.isDeadOrDying()) {
@@ -169,28 +219,61 @@ public final class RaidHelpers {
             return;
         }
         for (Tracked tracked : RAIDS.values()) {
-            if (tracked.raid().getLevel() == level) {
+            if (tracked.raid.getLevel() == level) {
+                checkFall(level, tracked);
                 syncHeroes(level, tracked);
             }
         }
     }
 
-    /** Removes the helpers of the raids that stop. */
+    /**
+     * Records the fall of the villages, and removes the helpers of the raids that stop. Vanilla sets a victory 40
+     * ticks after the death of the last raider: a fall before this death stops the reward.
+     */
     public static void onServerTick(ServerTickEvent.Post event) {
-        if (!RAIDS.isEmpty()) {
-            RAIDS.values().removeIf(tracked -> tracked.raid().isStopped());
+        if (RAIDS.isEmpty()) {
+            return;
         }
+        RAIDS.values().removeIf(tracked -> tracked.raid.isStopped());
+        for (Tracked tracked : RAIDS.values()) {
+            if (tracked.raid.getLevel() instanceof ServerLevel level && !tracked.fallen && !tracked.raid.isOver()
+                    && checkFall(level, tracked)) {
+                syncHeroes(level, tracked);
+            }
+        }
+    }
+
+    /** Sets the fall of the village of a raid when the raid started and the village has no living unit or is ruins. */
+    private static boolean checkFall(ServerLevel level, Tracked tracked) {
+        if (tracked.fallen || !tracked.raid.isStarted()) {
+            return tracked.fallen;
+        }
+        Optional<BlockPos> pos = VillageRaids.heartOf(tracked.raid, level);
+        if (pos.isEmpty() || !level.isLoaded(pos.get())
+                || !(level.getBlockEntity(pos.get()) instanceof VillageHeartBlockEntity heart)) {
+            return false;
+        }
+        boolean ruins = SettlementData.get(level.getServer()).registry().byId(heart.getVillageId().toString())
+                .filter(settlement -> settlement.state() == SettlementState.RUINS).isPresent();
+        tracked.fallen = ruins || heart.getGarrison().aliveCount() == 0;
+        return tracked.fallen;
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
         RAIDS.clear();
+        warnedFull = false;
     }
 
-    /** Sets the heroes of a raid to its helpers: the vanilla victory gives the reward to the heroes only. */
+    /**
+     * Sets the heroes of a raid to its helpers, or to no player when the village falls: the vanilla victory gives the
+     * reward to the heroes only.
+     */
     private static void syncHeroes(ServerLevel level, Tracked tracked) {
-        Set<UUID> heroes = tracked.raid().heroesOfTheVillage;
+        Set<UUID> heroes = tracked.raid.heroesOfTheVillage;
         heroes.clear();
-        heroes.addAll(helpers(level, tracked.raid()));
+        if (!tracked.fallen) {
+            heroes.addAll(helpers(level, tracked.raid));
+        }
     }
 
     private static boolean helps(Help help) {

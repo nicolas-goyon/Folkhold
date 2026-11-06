@@ -526,7 +526,7 @@ public final class WorldConfig {
         builder.pop();
 
         builder.comment("Rewards of the players who help a faction village during a raid. A player helps when the",
-                        "player kills raiders or hurts them in the raid area (96 blocks from the center of the raid).",
+                        "player kills raiders or hurts them in the raid area (96 blocks or less from the center).",
                         "After a victory of the village, each helper gets the effect Hero of the Village, with the",
                         "level of the raid. The other players get no reward.")
                 .translation(KEY_PREFIX + "raidRewards")
