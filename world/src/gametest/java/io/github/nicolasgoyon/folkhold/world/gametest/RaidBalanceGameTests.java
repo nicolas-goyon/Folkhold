@@ -44,6 +44,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -589,7 +590,11 @@ public final class RaidBalanceGameTests {
                     endTick - startTick, Math.round((endNanos - startNanos) / 1.0e8) / 10.0);
         }
 
-        /** Stops the raid and removes the raiders, the units and the villagers. */
+        /**
+         * Stops the raid and removes the raiders, the units and the villagers. Also removes the drops of the fight in
+         * the forced chunks: the raiders die outside the test area, and their drops can be in the area of a later
+         * test.
+         */
         void remove() {
             if (raid != null) {
                 raid.getAllRaiders().forEach(Raider::discard);
@@ -597,6 +602,9 @@ public final class RaidBalanceGameTests {
             }
             heart.getUnits().forEach(FactionUnit::discard);
             villagers.forEach(Villager::discard);
+            if (heart.getLevel() instanceof ServerLevel level) {
+                TestSupport.removeDrops(level, new AABB(heart.getBlockPos()).inflate(forcedRadius()));
+            }
         }
     }
 }

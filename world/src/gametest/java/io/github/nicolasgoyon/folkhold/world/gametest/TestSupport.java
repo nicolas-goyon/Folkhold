@@ -42,7 +42,9 @@ import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.server.players.PlayerList;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
@@ -131,6 +133,17 @@ final class TestSupport {
 
     /** The entities of an earlier test this far from the test area are removed, in blocks. */
     private static final double SWEEP_DISTANCE = 64.0;
+    /**
+     * The drops of an earlier test this far from the test area are removed, in blocks. The distance is small: the
+     * tests of the same batch start at the same tick, and the cell of another test is not in this distance.
+     */
+    private static final double DROP_MARGIN = 2.0;
+    /**
+     * The largest age of a drop of the test, in ticks, when the test sees it for the first time. The test looks at
+     * the drops on each tick. A drop of an earlier test is older: it comes from a chunk that loads again, or it moves
+     * into the area.
+     */
+    static final int NEW_DROP_AGE = 5;
 
     /** The largest number of beds that {@link #placeBeds} puts in an arena. */
     static final int MAX_ARENA_BEDS = 2 * ARENA_SIZE + 2 * (ARENA_SIZE - 6);
@@ -182,8 +195,9 @@ final class TestSupport {
 
     /**
      * Removes what an earlier test can leave behind when it fails: its units, monsters and villagers within
-     * {@link #SWEEP_DISTANCE} blocks of the test area, the kept groups of the materializer, and a day time that
-     * is not noon. A test does not depend on the success of the test before it.
+     * {@link #SWEEP_DISTANCE} blocks of the test area, its drops in the test area (see {@link #removeDrops}), the
+     * kept groups of the materializer, and a day time that is not noon. A test does not depend on the success of the
+     * test before it.
      */
     static void sweep(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
@@ -192,10 +206,32 @@ final class TestSupport {
                 entity instanceof FactionUnit || entity instanceof Monster || entity instanceof Villager)) {
             entity.discard();
         }
+        removeDrops(level, helper.getBounds().inflate(DROP_MARGIN));
         for (MobileGroup group : MobileGroupData.get(level.getServer()).groups().all()) {
             GroupMaterializer.keep(group.id(), false);
         }
         level.setDayTime(NOON);
+    }
+
+    /**
+     * Removes the item entities and the experience orbs in an area. Monsters that die outside their test area, for
+     * example the raiders of a raid test, drop items there. The GameTest framework removes only the entities in the
+     * test area when a test passes. These drops can stay in the area of a later test, and change its count of items.
+     *
+     * @param level the level
+     * @param area  the area, in absolute positions
+     */
+    static void removeDrops(ServerLevel level, AABB area) {
+        level.getEntitiesOfClass(ItemEntity.class, area).forEach(Entity::discard);
+        level.getEntitiesOfClass(ExperienceOrb.class, area).forEach(Entity::discard);
+    }
+
+    /**
+     * Tells if an item entity is a new drop: its age is {@link #NEW_DROP_AGE} ticks or less. A test that looks at the
+     * drops on each tick uses this to ignore the drops of earlier tests.
+     */
+    static boolean isNewDrop(ItemEntity item) {
+        return item.getAge() <= NEW_DROP_AGE;
     }
 
     /**
