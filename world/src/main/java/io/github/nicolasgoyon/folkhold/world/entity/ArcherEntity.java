@@ -45,10 +45,6 @@ import net.minecraft.world.level.Level;
  * </ul>
  */
 public class ArcherEntity extends FactionUnit implements RangedAttackMob {
-    private static final int ATTACK_INTERVAL = 30;
-    private static final float ATTACK_RADIUS = 16.0F;
-    /** The speed of a bolt of the crossbow. An arrow of the bow has the speed 1.6. */
-    private static final float CROSSBOW_VELOCITY = 2.0F;
     /** True while the archer charges its crossbow. The clients use it for the animation. */
     private static final EntityDataAccessor<Boolean> CHARGING_CROSSBOW =
             SynchedEntityData.defineId(ArcherEntity.class, EntityDataSerializers.BOOLEAN);
@@ -80,14 +76,16 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
 
     @Override
     protected void registerAttackGoals() {
-        goalSelector.addGoal(2, new PostRangedAttackGoal(this, ATTACK_INTERVAL, ATTACK_RADIUS) {
+        int interval = WorldConfig.ARCHER_ATTACK_INTERVAL_TICKS.get();
+        float radius = WorldConfig.ARCHER_ATTACK_RADIUS.get().floatValue();
+        goalSelector.addGoal(2, new PostRangedAttackGoal(this, interval, radius) {
             @Override
             public boolean canUse() {
                 return holdsBow() && super.canUse();
             }
         });
-        goalSelector.addGoal(2, new CrossbowAttackGoal(this, true, ATTACK_RADIUS, 1.0));
-        goalSelector.addGoal(3, new RangedAttackGoal(this, 1.0, ATTACK_INTERVAL, ATTACK_RADIUS) {
+        goalSelector.addGoal(2, new CrossbowAttackGoal(this, true, radius, 1.0));
+        goalSelector.addGoal(3, new RangedAttackGoal(this, 1.0, interval, radius) {
             @Override
             public boolean canUse() {
                 return getPostPos() == null && holdsBow() && super.canUse();
@@ -99,7 +97,7 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
                 return getPostPos() == null && holdsBow() && getTarget() != null && super.canContinueToUse();
             }
         });
-        goalSelector.addGoal(3, new CrossbowAttackGoal(this, false, ATTACK_RADIUS, 1.0));
+        goalSelector.addGoal(3, new CrossbowAttackGoal(this, false, radius, 1.0));
     }
 
     @Override
@@ -168,7 +166,7 @@ public class ArcherEntity extends FactionUnit implements RangedAttackMob {
         bolt.setBaseDamage(getAttributeValue(Attributes.ATTACK_DAMAGE));
         bolt.setSoundEvent(SoundEvents.CROSSBOW_HIT);
         bolt.pickup = AbstractArrow.Pickup.DISALLOWED;
-        aim(bolt, target, CROSSBOW_VELOCITY, 0.1);
+        aim(bolt, target, WorldConfig.ARCHER_BOLT_SPEED.get().floatValue(), 0.1);
         playSound(SoundEvents.CROSSBOW_SHOOT, 1.0F, 1.0F / (getRandom().nextFloat() * 0.4F + 0.8F));
         playVoice(UnitVoice.ATTACK);
         level().addFreshEntity(bolt);

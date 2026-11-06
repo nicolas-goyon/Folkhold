@@ -181,8 +181,9 @@ public class MarchOnVillageGoal extends Goal {
      * Forces the closed gate in front of the raider: the raider hits the gate, and after
      * {@link WorldConfig#RAID_GATE_FORCE_SECONDS} seconds in front of it, all the fence gates of the gate open, also
      * the stacked fence gates. A raider that comes back to the same gate in
-     * {@link WorldConfig#RAID_GATE_FORCE_MEMORY_SECONDS} seconds continues from its time. Else it starts again from zero. A
-     * raider forces a gate also when the game rule {@code mobGriefing} is false: the gate opens, and no block breaks.
+     * {@link WorldConfig#RAID_GATE_FORCE_MEMORY_SECONDS} seconds continues from its time. Else it starts again from
+     * zero. A raider forces a gate also when the game rule {@code mobGriefing} is false: the gate opens, and no block
+     * breaks.
      *
      * @return true while the raider stays in front of the closed gate and forces it
      */

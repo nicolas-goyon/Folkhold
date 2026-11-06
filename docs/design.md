@@ -356,7 +356,7 @@ The growth of the village starts the sites of its new homes (see "Village growth
 
 ### Raids against the faction villages
 
-The vanilla raid stays. Near a faction village, Folkhold changes where the raiders spawn and how they march on the village. A raid is at a faction village when a loaded village heart is 64 blocks or less from the center of the raid. The numbers of this section are in the section `raid` of the server config (`folkhold_world-server.toml`), with these values as defaults.
+The vanilla raid stays. Near a faction village, Folkhold changes where the raiders spawn and how they march on the village. A raid is at a faction village when a loaded village heart is 64 blocks or less from the center of the raid (`heartRadius`). The numbers of the spawn, the gates and the waves are in the section `raid` of the server config (`folkhold_world-server.toml`), with these values as defaults.
 
 - Spawn: all the raiders of a wave spawn at one position, 40 to 56 blocks from the heart (`spawnMinDistance`, `spawnMaxDistance`). The position is on natural ground (tag `folkhold_world:raid_spawn_ground`: dirt, sand, stone, terracotta, gravel, paths and snow), on land and under the open sky. It is not in a hole or a ravine, it has room for a ravager, and it has a path to the village. When no position is good, the raiders keep the vanilla position.
 - March: a raider walks to the approach of the nearest gate, 8 blocks outside the gate. In water, the approach is at the surface. At an open gate, it goes through the gate to the heart, and it keeps this gate until it is inside the palisade. It swims across the rivers.
@@ -364,7 +364,7 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
 - The raiders force the gates also when the game rule `mobGriefing` is false: a forced gate opens, and no block breaks.
 - When a raider has a target, it attacks. When it loses the target, it marches again. A raider outside the palisade with a target inside the palisade (for example a villager) marches to a gate, forces it when it is closed, and attacks the target when it is inside the palisade. At 12 blocks from the heart, the raider arrives: the vanilla goals of the raid move it in the village. After its arrival, a raider marches again only when it is outside the palisade.
 - The raiders target the faction units, as the other monsters do. A garrison can stop a wave outside the palisade.
-- Waves: at the difficulty Normal, a vanilla raid has 5 waves, and a 6th wave when its level is 2 or more. The waves of the levels 2 to 5 are the same: only the chance of enchanted weapons changes (10 % to 75 % of the raiders). At a faction village, each wave of a raid of level 4 gets 1 extra ravager, and each wave of a raid of level 5 gets 2 extra ravagers (`extraRavagersLevel4`, `extraRavagersLevel5`). A faction village is a village with a loaded village heart at 64 blocks or less from the center of the raid (`heartRadius`). The first raider of a new wave adds them at the spawn position of the wave. The wave ends when they are dead, as the vanilla raiders. The raids at the vanilla villages do not change. The extra ravagers apply at each difficulty and in each wave, also in the bonus wave: at Easy, a raid has 3 waves (4 with the bonus wave); at Hard, a raid has 7 waves (8 with the bonus wave). Thus at Hard, a raid of level 4 gets 8 extra ravagers, and a raid of level 5 gets 16 extra ravagers. The balance targets are for the difficulty Normal only.
+- Waves: at the difficulty Normal, a vanilla raid has 5 waves, and a 6th wave when its level is 2 or more. The waves of the levels 2 to 5 are the same: only the chance of enchanted weapons changes (10 % to 75 % of the raiders). At a faction village, each wave of a raid of level 4 gets 1 extra ravager, and each wave of a raid of level 5 gets 2 extra ravagers (`extraRavagersLevel4`, `extraRavagersLevel5`). A faction village is a village with a loaded village heart at 64 blocks or less from the center of the raid. The first raider of a new wave adds them at the spawn position of the wave. The wave ends when they are dead, as the vanilla raiders. The raids at the vanilla villages do not change. The extra ravagers apply at each difficulty and in each wave, also in the bonus wave: at Easy, a raid has 3 waves (4 with the bonus wave); at Hard, a raid has 7 waves (8 with the bonus wave). Thus at Hard, a raid of level 4 gets 8 extra ravagers, and a raid of level 5 gets 16 extra ravagers. The balance targets are for the difficulty Normal only.
 
 **Balance targets** (targets of version 1, not a description of the current balance). The raid level is the level of the Raid Omen (1 to 5), at the difficulty Normal. The village holds when the raid ends in a victory. The village falls when all the units of its garrison die, or when the raid ends in a loss.
 
@@ -433,9 +433,11 @@ Difficulty target: a player in iron armor with no enchantments loses a frontal a
 All values are configurable, with a global difficulty multiplier. This lets us adjust the difficulty without a new build:
 
 - the health, the damage and the armor of each unit type: server config;
-- the heal value, the cooldowns and the supply of the healer: server config;
-- the chase radius and the knockback resistance of the faction golem: server config;
-- the patrol radius of the riders, and the health and the speed of their horses: server config;
+- the interval and the range of the shots of the archers, and the speed of the crossbow bolts: server config;
+- the aura of the captain (radius, interval, duration and Strength level), and the rout after its death (share, duration, speed and Weakness level): server config;
+- the heal value, the cooldowns, the supply, the buff radius and the buff levels of the healer: server config;
+- the chase radius, the knockback resistance and the upward speed of a hit target of the faction golem: server config;
+- the patrol radius and the charge speed of the riders, and the health and the speed of their horses: server config;
 - the refill delay of the garrison: server config;
 - the numbers of the raids against the faction villages (the extra ravagers of the waves, the time to force a gate, the spawn distance of the waves): section `raid` of the server config;
 - the number of units of each role for each level: `garrison` in the level table (`levels.json`). A data pack can replace this table. The server config does not have these numbers;

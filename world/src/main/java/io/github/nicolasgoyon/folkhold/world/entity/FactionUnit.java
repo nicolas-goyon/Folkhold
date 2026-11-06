@@ -126,8 +126,6 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final String NIGHT_TAG = "NightPos";
     private static final String FACTION_TAG = "Faction";
     private static final String EQUIPMENT_TAG = "Equipment";
-    /** Speed of a routed unit that runs back home. */
-    private static final double ROUT_SPEED = 1.3;
     /** After the end of a chase at the limit of the chase area, the unit ignores all targets for this time. */
     static final int GIVE_UP_TICKS = 100;
     /** Water of this depth, in blocks, or more is deep: a unit does not chase a target in it. */
@@ -625,7 +623,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             }
             if (distanceToSqr(getHomePos().getCenter()) > 9.0 && getNavigation().isDone()) {
                 BlockPos home = getHomePos();
-                getNavigation().moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, ROUT_SPEED);
+                getNavigation().moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5,
+                        WorldConfig.CAPTAIN_ROUT_SPEED.get());
             }
             unitServerAiStep(null);
             return;

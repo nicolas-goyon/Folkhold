@@ -56,6 +56,7 @@ import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.neoforge.event.EventHooks;
 
 /**
@@ -407,6 +408,34 @@ final class TestSupport {
             public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
             }
         });
+    }
+
+    /**
+     * Sets a config value for one test. A listener sets the old value again when the test passes or fails: the next
+     * tests see the old value also after a failure. The method adds the listener before it sets the value.
+     */
+    static <T> void setConfigForTest(GameTestHelper helper, ModConfigSpec.ConfigValue<T> value, T newValue) {
+        T old = value.get();
+        helper.testInfo.addListener(new GameTestListener() {
+            @Override
+            public void testStructureLoaded(GameTestInfo info) {
+            }
+
+            @Override
+            public void testPassed(GameTestInfo info, GameTestRunner runner) {
+                value.set(old);
+            }
+
+            @Override
+            public void testFailed(GameTestInfo info, GameTestRunner runner) {
+                value.set(old);
+            }
+
+            @Override
+            public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
+            }
+        });
+        value.set(newValue);
     }
 
     private static void logOut(ServerPlayer player) {

@@ -125,13 +125,12 @@ public final class GarrisonGameTests {
 
     /**
      * The value {@code refillDelaySeconds} of the config sets the refill delay. With 20 seconds, a dead unit is
-     * replaced after 400 ticks, and not before. The default value (300 seconds) is longer. The test sets the default
-     * value again.
+     * replaced after 400 ticks, and not before. The default value (300 seconds) is longer. A listener sets the old
+     * value again when the test ends.
      */
     @GameTest(template = "arena", batch = "garrison_refill_config")
     public static void refillDelayFollowsTheConfig(GameTestHelper helper) {
-        int delaySeconds = WorldConfig.GARRISON_REFILL_DELAY_SECONDS.get();
-        WorldConfig.GARRISON_REFILL_DELAY_SECONDS.set(20);
+        TestSupport.setConfigForTest(helper, WorldConfig.GARRISON_REFILL_DELAY_SECONDS, 20);
         VillageHeartBlockEntity heart = placeHeart(helper);
         try {
             int expected = fullGarrisonSize(heart);
@@ -147,7 +146,6 @@ public final class GarrisonGameTests {
                     "No replacement before 20 seconds, alive: " + aliveBeforeDelay);
             helper.assertTrue(aliveAfterDelay == expected, "Replacement after 20 seconds, alive: " + aliveAfterDelay);
         } finally {
-            WorldConfig.GARRISON_REFILL_DELAY_SECONDS.set(delaySeconds);
             removeUnits(heart);
         }
         helper.succeed();
