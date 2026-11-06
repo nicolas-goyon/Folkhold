@@ -11,19 +11,26 @@ import org.junit.jupiter.api.Test;
 class RaidEffectsTest {
     @Test
     void villageThatHoldsKeepsItsProgress() {
-        assertFalse(RaidEffects.paysFallPenalty(true, true, false));
+        assertFalse(RaidEffects.paysFallPenalty(true, true, false, true));
+        assertFalse(RaidEffects.paysFallPenalty(true, true, false, false));
     }
 
     @Test
     void lossRemovesTheProgress() {
-        assertTrue(RaidEffects.paysFallPenalty(false, false, false));
-        assertTrue(RaidEffects.paysFallPenalty(false, false, true));
+        assertTrue(RaidEffects.paysFallPenalty(false, false, false, true));
+        assertTrue(RaidEffects.paysFallPenalty(false, false, true, true));
+        assertTrue(RaidEffects.paysFallPenalty(false, false, false, false));
     }
 
     @Test
-    void victoryAfterAFallKeepsTheProgressWhenTheHeartStands() {
-        assertFalse(RaidEffects.paysFallPenalty(false, true, false));
-        assertTrue(RaidEffects.paysFallPenalty(false, true, true));
+    void victoryAfterAFallKeepsTheProgressWhenTheHeartStandsAndAPlayerHelps() {
+        assertFalse(RaidEffects.paysFallPenalty(false, true, false, true));
+        assertTrue(RaidEffects.paysFallPenalty(false, true, true, true));
+    }
+
+    @Test
+    void victoryAfterAFallWithNoHelperRemovesTheProgress() {
+        assertTrue(RaidEffects.paysFallPenalty(false, true, false, false));
     }
 
     @Test

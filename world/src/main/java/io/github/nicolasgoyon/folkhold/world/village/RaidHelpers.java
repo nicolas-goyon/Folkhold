@@ -92,6 +92,8 @@ public final class RaidHelpers {
 
         private Tracked(Raid raid) {
             this.raid = raid;
+            // A record of a raid that is over (a raider that loads after a restart) applies no effect again.
+            this.settled = raid.isOver();
         }
     }
 
@@ -166,7 +168,8 @@ public final class RaidHelpers {
     }
 
     /**
-     * Checks the fall of the village of a raid now. The server tick does this check at each tick.
+     * Checks the fall of the village of a raid now. The server tick does this check at each tick. Used by the
+     * GameTests: this method changes the state of the record outside the server tick.
      *
      * @param level the level of the raid
      * @param raid  the raid

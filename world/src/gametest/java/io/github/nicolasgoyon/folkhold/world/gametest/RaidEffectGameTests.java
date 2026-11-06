@@ -168,6 +168,38 @@ public final class RaidEffectGameTests {
                 .thenSucceed();
     }
 
+    /**
+     * A record that starts for a raid that is over (as a raider that loads after a restart in the 30 seconds after a
+     * loss) applies no effect: the settlement keeps its experience and its stocks.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 100, batch = "raid_effect_once")
+    public static void raidThatIsOverAppliesNoEffect(GameTestHelper helper) {
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_HEART_RADIUS, 96);
+        Scene scene = scene(helper, RaidRewardGameTests.CENTER);
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(RaidRewardGameTests.CENTER).above(RaidRewardGameTests.SKY);
+        Raid[] raid = new Raid[1];
+        waitForHeart(helper, scene)
+                .thenExecute(() -> {
+                    raid[0] = RaidRewardGameTests.raidAt(level, center);
+                    RaidRewardGameTests.tickToEnd(helper, raid[0]);
+                    helper.assertTrue(raid[0].isLoss(), "The raid must end in a loss");
+                    RaidHelpers.track(level, raid[0]);
+                    helper.assertTrue(RaidHelpers.isSettled(level, raid[0]), "The record must start as settled");
+                })
+                .thenIdle(5)
+                .thenExecute(() -> {
+                    try {
+                        assertProgress(helper, scene, LEVEL, EXPERIENCE);
+                        assertStock(helper, scene, DIAMONDS, BREAD);
+                        assertReputation(helper, scene, 0);
+                    } finally {
+                        end(level, raid[0], scene);
+                    }
+                })
+                .thenSucceed();
+    }
+
     /** Makes the village and the players of a test, with the heart at a relative position. */
     private static Scene scene(GameTestHelper helper, BlockPos heartPos) {
         TestSupport.sweep(helper);

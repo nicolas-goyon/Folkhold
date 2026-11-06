@@ -41,16 +41,18 @@ public final class RaidEffects {
     /**
      * True when the settlement of a raid that ends loses experience and stocks. The village falls when it does not
      * hold. A village that falls and wins the raid (the garrison died, also a garrison with no living unit at the
-     * start, and the players killed the raiders) with a heart that is not broken keeps its experience and its stocks:
-     * the players saved it. This village still falls for the rewards and the balance tests.
+     * start), with a heart that is not broken and one helper or more, keeps its experience and its stocks: the players
+     * saved it. This village still falls for the rewards and the balance tests. A victory with no helper (for example
+     * the iron golems kill the last raiders) pays the penalty.
      *
      * @param holds       true when the village holds ({@link VillageRaids#holds})
      * @param victory     true when the raid ends in a victory
      * @param heartBroken true when the heart of the village is broken during the raid
+     * @param hasHelpers  true when one player or more helps the village ({@link RaidHelpers#helpers})
      * @return true when the settlement loses experience and stocks
      */
-    public static boolean paysFallPenalty(boolean holds, boolean victory, boolean heartBroken) {
-        return !holds && (!victory || heartBroken);
+    public static boolean paysFallPenalty(boolean holds, boolean victory, boolean heartBroken, boolean hasHelpers) {
+        return !holds && !(victory && !heartBroken && hasHelpers);
     }
 
     /**
@@ -121,7 +123,7 @@ public final class RaidEffects {
         boolean holds = VillageRaids.holds(level, raid);
         int experience = 0;
         int stocks = 0;
-        if (settlement.isActive() && paysFallPenalty(holds, raid.isVictory(), heartBroken)) {
+        if (settlement.isActive() && paysFallPenalty(holds, raid.isVictory(), heartBroken, !helpers.isEmpty())) {
             experience = experienceLoss(LevelTables.get().traits(settlement.level()).experience(),
                     WorldConfig.RAID_FALL_EXPERIENCE_PERCENT.get());
             SettlementLevels.addExperience(server, settlement, -experience);
