@@ -1,5 +1,5 @@
 {
   "category": "changed",
-  "en_us": "Raiders force the closed gates of a faction village: after 10 seconds at a gate, the gate opens. A palisade slows a raid, but it does not stop it.",
-  "fr_fr": "Les pillards forcent les portes fermées d'un village de faction : après 10 secondes devant une porte, la porte s'ouvre. Une palissade ralentit un raid, mais ne l'arrête pas."
+  "en_us": "Raiders force the closed gates of a faction village: after 10 seconds at a gate, the gate opens. When the units close it again, a raider breaks it as a zombie breaks a door (game rule mobGriefing). A palisade slows a raid, but it does not stop it.",
+  "fr_fr": "Les pillards forcent les portes fermées d'un village de faction : après 10 secondes, la porte s'ouvre. Si les unités la referment, un pillard la casse comme un zombie casse une porte (règle mobGriefing). Une palissade ralentit un raid, mais ne l'arrête pas."
 }

@@ -46,6 +46,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
@@ -436,6 +437,37 @@ final class TestSupport {
             }
         });
         value.set(newValue);
+    }
+
+    /**
+     * Sets a boolean game rule for one test. A listener sets the old value again when the test ends, also after a
+     * failure. The game rule applies to the full level: a test that uses this method goes in its own batch.
+     */
+    static void setGameRuleForTest(GameTestHelper helper, GameRules.Key<GameRules.BooleanValue> key,
+            boolean newValue) {
+        MinecraftServer server = helper.getLevel().getServer();
+        GameRules.BooleanValue rule = helper.getLevel().getGameRules().getRule(key);
+        boolean old = rule.get();
+        helper.testInfo.addListener(new GameTestListener() {
+            @Override
+            public void testStructureLoaded(GameTestInfo info) {
+            }
+
+            @Override
+            public void testPassed(GameTestInfo info, GameTestRunner runner) {
+                rule.set(old, server);
+            }
+
+            @Override
+            public void testFailed(GameTestInfo info, GameTestRunner runner) {
+                rule.set(old, server);
+            }
+
+            @Override
+            public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
+            }
+        });
+        rule.set(newValue, server);
     }
 
     private static void logOut(ServerPlayer player) {

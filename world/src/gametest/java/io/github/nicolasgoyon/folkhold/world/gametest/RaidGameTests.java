@@ -20,15 +20,18 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Pillager;
 import net.minecraft.world.entity.monster.Witch;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.raid.Raid;
 import net.minecraft.world.entity.raid.Raider;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -371,6 +374,134 @@ public final class RaidGameTests {
                     helper.setBlock(heartRelative, Blocks.AIR);
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * A raider breaks a gate that a unit closes again after each force. The palisade of {@link #buildPalisade} has
+     * one closed gate of 2 rows of 3 fence gates, on the north side. The time stays at midnight. At each tick, the test
+     * closes the open fence gates while the raider is outside the palisade, as a unit that goes through the gate. The
+     * config makes the times short: 1 second to force the gate, 4 seconds before the break, 2 seconds to break. The
+     * raider forces the gate, then breaks the middle column (the 2 stacked fence gates), goes through the opening and
+     * arrives at the heart. The 4 other fence gates stay, and the broken fence gates drop no item.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 2400, batch = "raid_gate_break")
+    public static void raiderBreaksAGateThatUnitsCloseAgain(GameTestHelper helper) {
+        TestSupport.setGameRuleForTest(helper, GameRules.RULE_MOBGRIEFING, true);
+        TestSupport.buildFloor(helper, HUGE);
+        BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
+        List<BlockPos> gates = buildPalisade(helper, heartRelative, 2);
+        helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
+        ServerLevel level = helper.getLevel();
+        BlockPos heartPos = helper.absolutePos(heartRelative);
+        List<BlockPos> column = gates.stream().filter(gate -> gate.getX() == heartPos.getX()).toList();
+        List<BlockPos> sides = gates.stream().filter(gate -> gate.getX() != heartPos.getX()).toList();
+        Raider[] raider = new Raider[1];
+        int[] closes = new int[1];
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
+        helper.onEachTick(() -> {
+            level.setDayTime(MIDNIGHT);
+            if (raider[0] != null && RaidMarch.squareDistance(heartPos, raider[0].blockPosition()) > PALISADE
+                    && anyOpen(level, gates)) {
+                setGates(level, gates, false);
+                closes[0]++;
+            }
+        });
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(VillageHearts.findNearest(level, heartPos, 1.0).isPresent(),
+                        "The heart must be in the list of the loaded hearts"))
+                .thenExecute(() -> {
+                    VillageHeartBlockEntity heart = helper.getBlockEntity(heartRelative);
+                    helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
+                    setGates(level, gates, false);
+                    raider[0] = helper.spawn(EntityType.VINDICATOR, heartRelative.east(PALISADE + 5));
+                    raid(level, heartPos).joinRaid(1, raider[0], null, true);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(column.stream().allMatch(gate -> level.getBlockState(gate)
+                        .isAir()), "The raider must break the middle column of the gate"))
+                .thenExecute(() -> {
+                    helper.assertTrue(closes[0] >= 1, "The raider must force the gate before the break");
+                    helper.assertTrue(sides.stream().allMatch(gate -> level.getBlockState(gate).getBlock()
+                            instanceof FenceGateBlock), "The other fence gates must stay");
+                    helper.assertTrue(level.getEntitiesOfClass(ItemEntity.class, new AABB(column.get(0)).inflate(4.0))
+                            .isEmpty(), "The broken fence gates must drop no item");
+                    helper.assertTrue(VillageExits.approaches(level, heartPos, gates).stream()
+                            .anyMatch(approach -> approach.isOpen(level)),
+                            "The broken gate must be an open exit of the village");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(
+                        horizontalDistance(raider[0].blockPosition(), heartPos) <= MarchOnVillageGoal.ARRIVAL,
+                        "The raider must go through the opening and arrive at the heart: "
+                        + helper.relativePos(raider[0].blockPosition())))
+                .thenExecute(() -> {
+                    raider[0].discard();
+                    helper.setBlock(heartRelative, Blocks.AIR);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * With the game rule {@code mobGriefing} false, a raider does not break a gate: it only forces it. The setup is
+     * the setup of {@link #raiderBreaksAGateThatUnitsCloseAgain} with one row of fence gates. The raider forces the
+     * gate 3 times or more, and all the fence gates stay during 300 ticks after the first force: more than the
+     * time before the break plus the time to break.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 2400, batch = "raid_gate_no_griefing")
+    public static void raiderDoesNotBreakAGateWithNoMobGriefing(GameTestHelper helper) {
+        TestSupport.setGameRuleForTest(helper, GameRules.RULE_MOBGRIEFING, false);
+        TestSupport.buildFloor(helper, HUGE);
+        BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
+        List<BlockPos> gates = buildPalisade(helper, heartRelative, 1);
+        helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
+        ServerLevel level = helper.getLevel();
+        BlockPos heartPos = helper.absolutePos(heartRelative);
+        Raider[] raider = new Raider[1];
+        int[] closes = new int[1];
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
+        helper.onEachTick(() -> {
+            level.setDayTime(MIDNIGHT);
+            helper.assertTrue(gates.stream().allMatch(gate -> level.getBlockState(gate).getBlock()
+                    instanceof FenceGateBlock), "With mobGriefing false, the raider must not break the gate");
+            if (raider[0] != null && RaidMarch.squareDistance(heartPos, raider[0].blockPosition()) > PALISADE
+                    && anyOpen(level, gates)) {
+                setGates(level, gates, false);
+                closes[0]++;
+            }
+        });
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(VillageHearts.findNearest(level, heartPos, 1.0).isPresent(),
+                        "The heart must be in the list of the loaded hearts"))
+                .thenExecute(() -> {
+                    VillageHeartBlockEntity heart = helper.getBlockEntity(heartRelative);
+                    helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
+                    setGates(level, gates, false);
+                    raider[0] = helper.spawn(EntityType.VINDICATOR, heartRelative.east(PALISADE + 5));
+                    raid(level, heartPos).joinRaid(1, raider[0], null, true);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(closes[0] >= 1, "The raider must force the gate"))
+                .thenIdle(300)
+                .thenExecute(() -> {
+                    raider[0].discard();
+                    helper.setBlock(heartRelative, Blocks.AIR);
+                    helper.assertTrue(closes[0] >= 3, "The raider must force the gate again: " + closes[0]);
+                })
+                .thenSucceed();
+    }
+
+    /** A new raid at the heart, with an identifier that no other test uses. */
+    private static Raid raid(ServerLevel level, BlockPos heart) {
+        return new Raid(NEXT_RAID_ID.getAndIncrement(), level, heart);
+    }
+
+    /** True if a fence gate of the list is open. */
+    private static boolean anyOpen(ServerLevel level, List<BlockPos> gates) {
+        return gates.stream().map(level::getBlockState).anyMatch(state -> state.getBlock() instanceof FenceGateBlock
+                && state.getValue(FenceGateBlock.OPEN));
     }
 
     /**

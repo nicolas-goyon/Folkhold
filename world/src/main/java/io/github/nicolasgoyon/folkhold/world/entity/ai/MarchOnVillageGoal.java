@@ -21,9 +21,11 @@ import net.minecraft.world.entity.raid.Raider;
 import net.minecraft.world.entity.raid.Raids;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.LevelEvent;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.EventHooks;
 
 /**
  * The march of a raider on a faction village (see {@link VillageRaids}). Near a faction village, it replaces the
@@ -36,6 +38,10 @@ import net.minecraft.world.phys.Vec3;
  *       {@link WorldConfig#RAID_GATE_FORCE_SECONDS} seconds all the fence gates of the gate open. A gate that closes
  *       again is forced again. A knockback does not lose the time when the raider comes back in
  *       {@link WorldConfig#RAID_GATE_FORCE_MEMORY_SECONDS} seconds.</li>
+ *   <li>A raider that forced a gate open and is still in front of the same closed gate
+ *       {@link WorldConfig#RAID_GATE_BREAK_AFTER_SECONDS} seconds after its first hit breaks the middle column of the
+ *       gate, as a zombie breaks a door (see {@link #breakGate}). The break follows the game rule
+ *       {@code mobGriefing}.</li>
  *   <li>At {@link #ARRIVAL} blocks from the heart, the raider arrives and the goal stops: the vanilla goals of the
  *       raid move the raider in the village. After the arrival, the goal starts again only when the raider is
  *       outside the palisade.</li>
@@ -76,6 +82,22 @@ public class MarchOnVillageGoal extends Goal {
     private BlockPos forceGate;
     /** The game time of the last tick that the raider forced its gate. */
     private long lastForce;
+    /** The approach of the gate where the raider is blocked, or null. */
+    @Nullable
+    private BlockPos blockedGate;
+    /** The game time of the first hit of the raider on {@link #blockedGate}. */
+    private long blockedSince;
+    /** True when {@link #blockedGate} was open while the raider was in front of it. */
+    private boolean blockedOpened;
+    /** The fence gates that the raider breaks, or null. */
+    @Nullable
+    private List<BlockPos> breaking;
+    /** The time that the raider broke {@link #breaking}, in ticks. */
+    private int breakTicks;
+    /** The last break progress sent to the clients (0 to 9), or -1. */
+    private int breakProgress = -1;
+    /** The time in front of the closed gate, in ticks: the raider hits the gate at {@link #HIT_INTERVAL}. */
+    private int hitTicks;
     /** True after the arrival of the raider at the heart. */
     private boolean arrived;
     private int nextRecruit;
@@ -126,6 +148,9 @@ public class MarchOnVillageGoal extends Goal {
     @Override
     public void stop() {
         raider.getNavigation().stop();
+        if (raider.level() instanceof ServerLevel level) {
+            clearBreak(level);
+        }
         entering = null;
         forcing = null;
     }
@@ -185,14 +210,25 @@ public class MarchOnVillageGoal extends Goal {
      * zero. A raider forces a gate also when the game rule {@code mobGriefing} is false: the gate opens, and no block
      * breaks.
      *
-     * @return true while the raider stays in front of the closed gate and forces it
+     * <p>The raider is blocked at a gate from its first hit. When the gate was open while the raider was in front of
+     * it, and the raider is in front of the same closed gate {@link WorldConfig#RAID_GATE_BREAK_AFTER_SECONDS} seconds
+     * after its first hit, it breaks the gate (see {@link #breakGate}). A raider that is away from the gate for this
+     * time is not blocked any more.
+     *
+     * @return true while the raider stays in front of the closed gate and forces or breaks it
      */
     private boolean force(ServerLevel level) {
         long now = level.getGameTime();
-        if (forcing == null || forcing.isOpen(level)
-                || horizontalDistanceSqr(RaidMarch.front(forcing)) > FORCE_REACH * FORCE_REACH) {
+        long breakAfter = WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS.get() * 20L;
+        boolean inReach = forcing != null
+                && horizontalDistanceSqr(RaidMarch.front(forcing)) <= FORCE_REACH * FORCE_REACH;
+        if (!inReach || forcing.isOpen(level)) {
+            if (inReach && forcing.point().equals(blockedGate)) {
+                blockedOpened = true;
+            }
             if (now - lastForce > WorldConfig.RAID_GATE_FORCE_MEMORY_SECONDS.get() * 20L) {
                 forceTicks = 0;
+                clearBreak(level);
             }
             return false;
         }
@@ -200,12 +236,21 @@ public class MarchOnVillageGoal extends Goal {
             forceGate = forcing.point();
             forceTicks = 0;
         }
+        if (!forcing.point().equals(blockedGate) || now - lastForce > breakAfter) {
+            blockedGate = forcing.point();
+            blockedSince = now;
+            blockedOpened = false;
+            clearBreak(level);
+        }
         lastForce = now;
         BlockPos middle = forcing.gates().get(forcing.gates().size() / 2);
         raider.getLookControl().setLookAt(Vec3.atCenterOf(middle));
-        if (forceTicks % HIT_INTERVAL == 0) {
+        if (hitTicks++ % HIT_INTERVAL == 0) {
             raider.swing(InteractionHand.MAIN_HAND);
             level.playSound(null, middle, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.0F, 1.0F);
+        }
+        if (blockedOpened && now - blockedSince >= breakAfter && EventHooks.canEntityGrief(level, raider)) {
+            return breakGate(level, middle);
         }
         if (++forceTicks < WorldConfig.RAID_GATE_FORCE_SECONDS.get() * 20) {
             return true;
@@ -220,8 +265,73 @@ public class MarchOnVillageGoal extends Goal {
         level.playSound(null, middle, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, SoundSource.HOSTILE, 1.0F, 1.0F);
         forceTicks = 0;
         forceGate = null;
+        blockedOpened = true;
         nextPath = 0;
         return false;
+    }
+
+    /**
+     * Breaks the middle column of the gate that the raider forces: the fence gate at the floor and the fence gates
+     * stacked on it. The blocks show the break progress (the cracks) during
+     * {@link WorldConfig#RAID_GATE_BREAK_SECONDS} seconds, then they break with the sound of a door that a zombie
+     * breaks. As for a door that a zombie breaks, the broken fence gates drop no item. The opening is then an open
+     * exit of the village (see {@link VillageExits#isBroken}).
+     *
+     * @param middle the middle fence gate at the floor of the gate
+     * @return true while the break continues
+     */
+    private boolean breakGate(ServerLevel level, BlockPos middle) {
+        if (breaking == null) {
+            breaking = forcing.blocks().stream()
+                    .filter(block -> block.getX() == middle.getX() && block.getZ() == middle.getZ())
+                    .toList();
+            breakTicks = 0;
+        }
+        int total = WorldConfig.RAID_GATE_BREAK_SECONDS.get() * 20;
+        int progress = Math.min(9, ++breakTicks * 10 / total);
+        if (progress != breakProgress) {
+            breakProgress = progress;
+            for (int i = 0; i < breaking.size(); i++) {
+                level.destroyBlockProgress(breakerId(i), breaking.get(i), progress);
+            }
+        }
+        if (breakTicks < total) {
+            return true;
+        }
+        List<BlockPos> broken = breaking;
+        clearBreak(level);
+        for (BlockPos gate : broken) {
+            if (level.getBlockState(gate).getBlock() instanceof FenceGateBlock) {
+                level.destroyBlock(gate, false, raider);
+            }
+        }
+        level.levelEvent(LevelEvent.SOUND_ZOMBIE_DOOR_CRASH, middle, 0);
+        forceTicks = 0;
+        forceGate = null;
+        blockedGate = null;
+        nextPath = 0;
+        return false;
+    }
+
+    /** Stops the break: the cracks go away from the blocks, and the break time starts again from zero. */
+    private void clearBreak(ServerLevel level) {
+        if (breaking != null) {
+            for (int i = 0; i < breaking.size(); i++) {
+                level.destroyBlockProgress(breakerId(i), breaking.get(i), -1);
+            }
+        }
+        breaking = null;
+        breakTicks = 0;
+        breakProgress = -1;
+    }
+
+    /**
+     * The identifier of the break progress of one block of the column. Each block needs its own identifier: a client
+     * keeps one break progress for each identifier. The identifiers are negative, so they are not the identifiers of
+     * the players.
+     */
+    private int breakerId(int index) {
+        return -1 - raider.getId() * 16 - index;
     }
 
     private double horizontalDistanceSqr(BlockPos pos) {
