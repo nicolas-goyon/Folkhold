@@ -33,6 +33,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *   <li>Waves: a raid of level 4 or 5 at a faction village gets more raiders. Each wave of the raid gets
  *       {@link #extraRavagers} ravagers more than the vanilla wave (see {@link #reinforce}). The vanilla raids at the
  *       other villages do not change.</li>
+ *   <li>Rewards: only the players who help the village get the effect Hero of the Village after a victory (see
+ *       {@link RaidHelpers}).</li>
  * </ul>
  *
  * <p>The numbers of these rules are in the section {@code raid} of {@link WorldConfig}.
@@ -81,6 +83,20 @@ public final class VillageRaids {
     }
 
     /**
+     * True when the village of a raid holds: the raid ends in a victory, and the village did not fall during the raid
+     * ({@link RaidHelpers#isFallen}). The village of a raid at a vanilla village holds after a victory. Read the
+     * result when the raid ends (victory or loss), not when it stops: the record of a raid stops with the raid, and
+     * after that, this method gives the vanilla result.
+     *
+     * @param level the level of the raid
+     * @param raid  the raid
+     * @return true when the village holds
+     */
+    public static boolean holds(ServerLevel level, Raid raid) {
+        return raid.isVictory() && !RaidHelpers.isFallen(level, raid);
+    }
+
+    /**
      * The approaches of the gates of a village (see {@link VillageExits#approaches}). The method keeps them in a
      * cache for {@link #APPROACH_CACHE_TICKS} ticks.
      *
@@ -104,7 +120,7 @@ public final class VillageRaids {
 
     /**
      * Gives each raider its march, and moves the raiders of a new wave of a raid at a faction village to the spawn
-     * position of the wave.
+     * position of the wave. A raid at a faction village records its helpers ({@link RaidHelpers}).
      */
     public static void onEntityJoin(EntityJoinLevelEvent event) {
         if (!(event.getLevel() instanceof ServerLevel level) || !(event.getEntity() instanceof Raider raider)) {
@@ -116,11 +132,15 @@ public final class VillageRaids {
             raider.goalSelector.addGoal(MARCH_PRIORITY, new MarchOnVillageGoal(raider));
         }
         Raid raid = raider.getCurrentRaid();
-        if (event.loadedFromDisk() || raid == null) {
+        if (raid == null) {
             return;
         }
         Optional<BlockPos> heart = heartOf(raid, level);
         if (heart.isEmpty()) {
+            return;
+        }
+        RaidHelpers.track(level, raid);
+        if (event.loadedFromDisk()) {
             return;
         }
         BlockPos vanillaPos = raider.blockPosition().below();
