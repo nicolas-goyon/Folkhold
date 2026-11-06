@@ -4,9 +4,11 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.village.RaidMarch;
 import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -39,9 +41,11 @@ import net.neoforged.neoforge.event.EventHooks;
  *       again is forced again. A knockback does not lose the time when the raider comes back in
  *       {@link WorldConfig#RAID_GATE_FORCE_MEMORY_SECONDS} seconds.</li>
  *   <li>A raider that forced a gate open and is still in front of the same closed gate
- *       {@link WorldConfig#RAID_GATE_BREAK_AFTER_SECONDS} seconds after its first hit breaks the middle column of the
- *       gate, as a zombie breaks a door (see {@link #breakGate}). The break follows the game rule
- *       {@code mobGriefing}.</li>
+ *       {@link WorldConfig#RAID_GATE_BREAK_AFTER_SECONDS} seconds after its first hit breaks the gate column by
+ *       column, as a zombie breaks a door, until the opening is as wide as the raider (see {@link #breakGate}). The
+ *       break follows the game rule {@code mobGriefing}.</li>
+ *   <li>A gate is open for a raider only when its open columns side by side are as wide as the raider, or as its
+ *       vehicle (see {@link VillageExits.Approach#isOpen(net.minecraft.world.level.Level, double)}).</li>
  *   <li>At {@link #ARRIVAL} blocks from the heart, the raider arrives and the goal stops: the vanilla goals of the
  *       raid move the raider in the village. After the arrival, the goal starts again only when the raider is
  *       outside the palisade.</li>
@@ -189,7 +193,7 @@ public class MarchOnVillageGoal extends Goal {
         }
         nextPath = raider.tickCount + PATH_INTERVAL;
         RaidMarch.Leg leg = RaidMarch.next(heart, VillageRaids.approaches(level, heart),
-                approach -> approach.isOpen(level), raider.blockPosition(), entering);
+                approach -> approach.isOpen(level, width()), raider.blockPosition(), entering);
         entering = leg.entering();
         forcing = leg.forcing();
         BlockPos pos = leg.target();
@@ -222,7 +226,7 @@ public class MarchOnVillageGoal extends Goal {
         long breakAfter = WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS.get() * 20L;
         boolean inReach = forcing != null
                 && horizontalDistanceSqr(RaidMarch.front(forcing)) <= FORCE_REACH * FORCE_REACH;
-        if (!inReach || forcing.isOpen(level)) {
+        if (!inReach || forcing.isOpen(level, width())) {
             if (inReach && forcing.point().equals(blockedGate)) {
                 blockedOpened = true;
             }
@@ -250,7 +254,7 @@ public class MarchOnVillageGoal extends Goal {
             level.playSound(null, middle, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, SoundSource.HOSTILE, 1.0F, 1.0F);
         }
         if (blockedOpened && now - blockedSince >= breakAfter && EventHooks.canEntityGrief(level, raider)) {
-            return breakGate(level, middle);
+            return breakGate(level);
         }
         if (++forceTicks < WorldConfig.RAID_GATE_FORCE_SECONDS.get() * 20) {
             return true;
@@ -271,20 +275,31 @@ public class MarchOnVillageGoal extends Goal {
     }
 
     /**
-     * Breaks the middle column of the gate that the raider forces: the fence gate at the floor and the fence gates
-     * stacked on it. The blocks show the break progress (the cracks) during
-     * {@link WorldConfig#RAID_GATE_BREAK_SECONDS} seconds, then they break with the sound of a door that a zombie
-     * breaks. As for a door that a zombie breaks, the broken fence gates drop no item. The opening is then an open
-     * exit of the village (see {@link VillageExits#isBroken}).
+     * Breaks the gate that the raider forces, one column after the other: the middle column first, then the nearest
+     * columns to the middle. A column is the fence gate at the floor and the fence gates stacked on it. The blocks of a
+     * column show the break progress (the cracks) during {@link WorldConfig#RAID_GATE_BREAK_SECONDS} seconds, then
+     * they break with the sound of a door that a zombie breaks. As for a door that a zombie breaks, the broken fence
+     * gates drop no item. The raider stays blocked after a column breaks: when the gate is not open for its width
+     * (see {@link #width()}), it breaks the next column. The broken columns are open columns of the exit (see
+     * {@link VillageExits#isBroken}).
      *
-     * @param middle the middle fence gate at the floor of the gate
      * @return true while the break continues
      */
-    private boolean breakGate(ServerLevel level, BlockPos middle) {
+    private boolean breakGate(ServerLevel level) {
         if (breaking == null) {
-            breaking = forcing.blocks().stream()
-                    .filter(block -> block.getX() == middle.getX() && block.getZ() == middle.getZ())
-                    .toList();
+            List<BlockPos> floors = forcing.gates();
+            int middle = floors.size() / 2;
+            breaking = IntStream.range(0, floors.size()).boxed()
+                    .sorted(Comparator.comparingInt(index -> Math.abs(index - middle)))
+                    .map(floors::get)
+                    .filter(floor -> forcing.column(floor).stream()
+                            .anyMatch(block -> level.getBlockState(block).getBlock() instanceof FenceGateBlock))
+                    .findFirst()
+                    .map(forcing::column)
+                    .orElse(null);
+            if (breaking == null) {
+                return false;
+            }
             breakTicks = 0;
         }
         int total = WorldConfig.RAID_GATE_BREAK_SECONDS.get() * 20;
@@ -305,15 +320,26 @@ public class MarchOnVillageGoal extends Goal {
                 level.destroyBlock(gate, false, raider);
             }
         }
-        level.levelEvent(LevelEvent.SOUND_ZOMBIE_DOOR_CRASH, middle, 0);
+        level.levelEvent(LevelEvent.SOUND_ZOMBIE_DOOR_CRASH, broken.get(0), 0);
         forceTicks = 0;
         forceGate = null;
-        blockedGate = null;
         nextPath = 0;
         return false;
     }
 
-    /** Stops the break: the cracks go away from the blocks, and the break time starts again from zero. */
+    /**
+     * The width that the raider needs to go through a gate: the width of the raider, or of its vehicle when it rides
+     * one (for example a pillager on a ravager).
+     */
+    private double width() {
+        return Math.max(raider.getBbWidth(), raider.getRootVehicle().getBbWidth());
+    }
+
+    /**
+     * Stops the break: the cracks go away from the blocks, and the break time starts again from zero. A raider that
+     * dies or unloads during a break does not stop it: the clients remove the cracks after some seconds with no
+     * update, as for a zombie that breaks a door.
+     */
     private void clearBreak(ServerLevel level) {
         if (breaking != null) {
             for (int i = 0; i < breaking.size(); i++) {
