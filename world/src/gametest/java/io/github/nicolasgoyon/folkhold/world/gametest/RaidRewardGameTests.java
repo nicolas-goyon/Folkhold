@@ -126,6 +126,9 @@ public final class RaidRewardGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> {
                     helper.assertTrue(level.isVillage(center), "Waiting for the village of the bed");
+                    // The heart registers itself in its first tick: a raid finds its village after this tick.
+                    helper.assertTrue(VillageHearts.findNearest(level, helper.absolutePos(HEART), 1.0).isPresent(),
+                            "Waiting for the registration of the heart");
                     heart.ensureGarrison(level.getGameTime());
                     int alive = heart.getGarrison().aliveCount();
                     helper.assertTrue(alive > 0 && heart.getUnits().size() == alive, "Waiting for the garrison");
@@ -137,7 +140,9 @@ public final class RaidRewardGameTests {
                     heart.getUnits().forEach(LivingEntity::kill);
                 })
                 .thenWaitUntil(() -> helper.assertTrue(RaidHelpers.isFallen(level, raid[0]),
-                        "Waiting for the fall of the village"))
+                        "Waiting for the fall of the village: heart " + VillageRaids.heartOf(raid[0], level)
+                                + ", living units " + heart.getGarrison().aliveCount() + ", loaded units "
+                                + heart.getUnits().size() + ", started " + raid[0].isStarted()))
                 .thenExecute(() -> {
                     try {
                         pillager[0].hurt(level.damageSources().playerAttack(killer), 1000.0F);
