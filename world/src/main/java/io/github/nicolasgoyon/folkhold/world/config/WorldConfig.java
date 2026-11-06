@@ -89,6 +89,10 @@ public final class WorldConfig {
 
     public static final ModConfigSpec.IntValue RAID_REWARD_MIN_KILLS;
     public static final ModConfigSpec.DoubleValue RAID_REWARD_MIN_DAMAGE;
+    public static final ModConfigSpec.IntValue RAID_FALL_EXPERIENCE_PERCENT;
+    public static final ModConfigSpec.IntValue RAID_FALL_STOCK_PERCENT;
+    public static final ModConfigSpec.IntValue RAID_HOLD_REPUTATION;
+    public static final ModConfigSpec.IntValue RAID_FALL_REPUTATION;
 
     public static final ModConfigSpec.IntValue DISCOVERY_RADIUS;
     public static final ModConfigSpec.IntValue ADMIN_DISCOVERY_RADIUS;
@@ -540,6 +544,32 @@ public final class WorldConfig {
                         "village, also with no kill. 0: the damage alone does not make a helper.")
                 .translation(KEY_PREFIX + "raidRewardMinDamage")
                 .defineInRange("minDamage", 40.0, 0.0, 100000.0);
+        builder.pop();
+
+        builder.comment("Effects of the end of a raid at a faction village on its settlement and on the reputation.",
+                        "The village holds when the raid ends in a victory and the garrison did not die. Else the",
+                        "village falls. A fall with a victory and a heart that is not broken (the players saved the",
+                        "village) does not remove experience or stocks. The players who do not help get no change.")
+                .translation(KEY_PREFIX + "raidEffects")
+                .push("raidEffects");
+        RAID_FALL_EXPERIENCE_PERCENT = builder
+                .comment("Experience that a settlement loses when its village falls, in percent of the experience of",
+                        "its current level. When the settlement has less experience, it goes down one level.")
+                .translation(KEY_PREFIX + "raidFallExperiencePercent")
+                .defineInRange("fallExperiencePercent", 50, 0, 100);
+        RAID_FALL_STOCK_PERCENT = builder
+                .comment("Part of each item of the stocks that a settlement loses when its village falls, in percent",
+                        "(rounded down).")
+                .translation(KEY_PREFIX + "raidFallStockPercent")
+                .defineInRange("fallStockPercent", 25, 0, 100);
+        RAID_HOLD_REPUTATION = builder
+                .comment("Reputation change of each helper with the faction and the village when the village holds.")
+                .translation(KEY_PREFIX + "raidHoldReputation")
+                .defineInRange("holdReputation", 50, 0, 1000);
+        RAID_FALL_REPUTATION = builder
+                .comment("Reputation change of each helper with the faction and the village when the village falls.")
+                .translation(KEY_PREFIX + "raidFallReputation")
+                .defineInRange("fallReputation", 15, 0, 1000);
         builder.pop();
 
         builder.comment("Abstract simulation of the settlements.")

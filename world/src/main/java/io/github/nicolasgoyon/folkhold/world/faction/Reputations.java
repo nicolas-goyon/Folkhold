@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import java.util.Optional;
+import java.util.UUID;
 import javax.annotation.Nullable;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.player.Player;
@@ -64,13 +65,27 @@ public final class Reputations {
      */
     public static void apply(MinecraftServer server, Player player, String factionId, @Nullable String villageId,
             int delta) {
+        apply(server, player.getUUID(), factionId, villageId, delta);
+    }
+
+    /**
+     * Applies an action of a player to a faction and a village, with the spread to the other factions. The player
+     * can be offline.
+     *
+     * @param player    the id of the player
+     * @param factionId the faction of the action
+     * @param villageId the village of the action, or null
+     * @param delta     the change of reputation
+     */
+    public static void apply(MinecraftServer server, UUID player, String factionId, @Nullable String villageId,
+            int delta) {
         FactionData factions = FactionData.get(server);
         Optional<FactionSpec> faction = factions.byId(factionId);
         if (faction.isEmpty() || delta == 0) {
             return;
         }
         ReputationData data = ReputationData.get(server);
-        PlayerReputation reputation = data.get(player.getUUID());
+        PlayerReputation reputation = data.get(player);
         reputation.apply(faction.get(), villageId, delta, factions.factions(), factions.relations(), settings());
         data.setDirty();
     }
