@@ -50,7 +50,8 @@ public final class SettlementData extends SavedData {
     private List<Claimant> claimants = List.of();
     private final Map<String, Long> treasuries = new HashMap<>();
 
-    private SettlementData() {
+    /** An empty data. Package-private for the unit tests; the game uses {@link #get}. */
+    SettlementData() {
     }
 
     public static SettlementData get(MinecraftServer server) {
@@ -202,7 +203,8 @@ public final class SettlementData extends SavedData {
         return tag;
     }
 
-    private static SettlementData load(CompoundTag tag, HolderLookup.Provider registries) {
+    /** Reads the data from a saved tag. Package-private for the unit tests. */
+    static SettlementData load(CompoundTag tag, HolderLookup.Provider registries) {
         SettlementData data = new SettlementData();
         int version = tag.getInt("Version");
         if (version > VERSION) {

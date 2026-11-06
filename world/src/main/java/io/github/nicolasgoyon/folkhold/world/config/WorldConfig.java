@@ -574,13 +574,14 @@ public final class WorldConfig {
                 .defineInRange("fallReputation", 15, 0, 1000);
         RAID_FALL_COOLDOWN_TICKS = builder
                 .comment("Time after a fall penalty (the loss of experience and stocks) when the same settlement does",
-                        "not pay a new fall penalty, in ticks (24000 = one game day, 0: no cooldown). The helpers",
-                        "still get the reputation.")
+                        "not pay a new fall penalty, in ticks of game time (24000 = one game day, 0: no cooldown).",
+                        "A sleep or /time set does not end it. The helpers still get the reputation.")
                 .translation(KEY_PREFIX + "raidFallCooldownTicks")
                 .defineInRange("fallCooldownTicks", 24000, 0, 2400000);
         RAID_FALL_FOOD_FLOOR_DAYS = builder
-                .comment("Food that the stock loss of a fall does not remove, in game days of the food need of the",
-                        "population (0: no floor). The other items lose the full part.")
+                .comment("Food that the stock loss of a fall does not remove, in economy cycles of the food need of the",
+                        "population (one cycle is one game day with the default simulation interval; 0: no floor).",
+                        "The other items lose the full part.")
                 .translation(KEY_PREFIX + "raidFallFoodFloorDays")
                 .defineInRange("fallFoodFloorDays", 3, 0, 100);
         builder.pop();

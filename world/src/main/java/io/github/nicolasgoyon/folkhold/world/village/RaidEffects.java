@@ -103,7 +103,8 @@ public final class RaidEffects {
      * Removes a part of each item of a stock. The loss of each item is rounded down: an item with a small count can
      * stay complete. The food items ({@link ItemInfo#isFood}) keep the food floor: when the loss of the food items
      * takes the food points of the stock below the floor, the loss of each food item becomes smaller, in the same
-     * proportion for each food item (rounded down).
+     * proportion for each food item (rounded down). Thus the loss can be smaller than the food points above the floor,
+     * never larger.
      *
      * @param stock     the stock
      * @param percent   the loss, in percent of each item (0 to 100)
