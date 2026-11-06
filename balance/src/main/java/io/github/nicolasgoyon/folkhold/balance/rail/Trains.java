@@ -49,8 +49,15 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
 public final class Trains {
     /** The minecarts with a link in each level that are loaded. */
     private static final Map<ResourceKey<Level>, Set<AbstractMinecart>> LINKED = new HashMap<>();
-    /** The break counter of each follower whose chain is above the break gap (see {@link #pull}). */
+    /**
+     * The break counter of each link whose chain is above the break gap (see {@link #pull}). The key is the UUID of
+     * the back minecart of the link: it does not change when the driver of the train changes.
+     */
     private static final Map<UUID, Integer> STRETCH_TICKS = new HashMap<>();
+    /** The motion of each linked minecart after the correction of the chains in the last tick ({@link TrainPush}). */
+    private static final Map<UUID, Vec3> LAST_MOTION = new HashMap<>();
+    /** The minecarts that drove their trains in the last tick. */
+    private static final Set<UUID> LAST_DRIVERS = new HashSet<>();
     /** The links that the last check found dead: the UUID of a minecart to the UUIDs of its missing partners. */
     private static final Map<UUID, Set<UUID>> DEAD_LINKS = new HashMap<>();
     /** The players that track each minecart. */
@@ -84,6 +91,8 @@ public final class Trains {
             carts.remove(cart);
         }
         STRETCH_TICKS.remove(cart.getUUID());
+        LAST_MOTION.remove(cart.getUUID());
+        LAST_DRIVERS.remove(cart.getUUID());
     }
 
     /** Forgets the break counter of the link between two minecarts. */
@@ -190,19 +199,25 @@ public final class Trains {
         }
         if (waiting || !train.stream().allMatch(cart -> isActive(level, cart))) {
             stop(level, train);
-            return;
-        }
-        int driver = driver(train);
-        // A broken link makes new trains: they move in the next tick.
-        for (int i = driver; i > 0; i--) {
-            if (pull(level, coupling, train.get(i), train.get(i - 1))) {
-                return;
+        } else {
+            int driver = driver(train);
+            train.forEach(cart -> LAST_DRIVERS.remove(cart.getUUID()));
+            LAST_DRIVERS.add(train.get(driver).getUUID());
+            // A broken link makes new trains: they move in the next tick. The part on the side of the driver stays
+            // valid. The key of the counter of a link is its back minecart.
+            for (int i = driver; i > 0; i--) {
+                if (pull(level, coupling, train.get(i), train.get(i - 1), train.get(i).getUUID())) {
+                    break;
+                }
+            }
+            for (int i = driver; i + 1 < train.size(); i++) {
+                if (pull(level, coupling, train.get(i), train.get(i + 1), train.get(i + 1).getUUID())) {
+                    break;
+                }
             }
         }
-        for (int i = driver; i + 1 < train.size(); i++) {
-            if (pull(level, coupling, train.get(i), train.get(i + 1))) {
-                return;
-            }
+        for (AbstractMinecart cart : train) {
+            LAST_MOTION.put(cart.getUUID(), cart.getDeltaMovement());
         }
     }
 
@@ -213,9 +228,10 @@ public final class Trains {
      * <ul>
      *   <li>A locomotive at the front, or a vanilla furnace minecart with a push at the front: the front
      *       minecart.</li>
-     *   <li>Else, the first vanilla furnace minecart with a push. A vanilla furnace minecart moves in the direction of
-     *       its push and has no front end: the player cannot see if it is in front of its wagon or behind it.</li>
-     *   <li>Else, the front minecart.</li>
+     *   <li>If not, the first vanilla furnace minecart with a push. A vanilla furnace minecart moves in the direction
+     *       of its push and has no front end: the player cannot see if it is in front of its wagon or behind it.</li>
+     *   <li>If not, the minecart that gets a push in this tick (see {@link TrainPush}): a player push, a powered rail,
+     *       a slope or a rider.</li>
      * </ul>
      */
     private static int driver(List<AbstractMinecart> train) {
@@ -228,7 +244,17 @@ public final class Trains {
                 return i;
             }
         }
-        return 0;
+        double[] gains = new double[train.size()];
+        int lastDriver = -1;
+        for (int i = 0; i < train.size(); i++) {
+            AbstractMinecart cart = train.get(i);
+            Vec3 last = LAST_MOTION.getOrDefault(cart.getUUID(), Vec3.ZERO);
+            gains[i] = cart.getDeltaMovement().horizontalDistance() - last.horizontalDistance();
+            if (lastDriver < 0 && LAST_DRIVERS.contains(cart.getUUID())) {
+                lastDriver = i;
+            }
+        }
+        return TrainPush.driver(gains, lastDriver);
     }
 
     /** Tells if a minecart is a vanilla furnace minecart with a push: it has fuel and moves by itself. */
@@ -313,23 +339,23 @@ public final class Trains {
      * Applies the chain between two linked minecarts for one tick. The chain changes only the motion of the follower.
      * The leader is the minecart nearer to the driver of the train, and it has its motion for the next tick.
      *
+     * @param linkKey the key of the break counter of the link: the UUID of the back minecart of the link
      * @return true if the link breaks
      */
     private static boolean pull(ServerLevel level, Coupling coupling, AbstractMinecart leader,
-                                AbstractMinecart follower) {
+                                AbstractMinecart follower, UUID linkKey) {
         double dx = leader.getX() - follower.getX();
         double dz = leader.getZ() - follower.getZ();
         double gap = CartEnds.gap(follower, leader);
-        // Each minecart is the follower of one link at most: the counter of a link has the UUID of its follower.
-        int ticks = coupling.nextStretchTicks(STRETCH_TICKS.getOrDefault(follower.getUUID(), 0), gap);
+        int ticks = coupling.nextStretchTicks(STRETCH_TICKS.getOrDefault(linkKey, 0), gap);
         if (coupling.breaks(ticks)) {
             CartLinks.unlink(level, follower, leader.getUUID(), true);
             return true;
         }
         if (ticks > 0) {
-            STRETCH_TICKS.put(follower.getUUID(), ticks);
+            STRETCH_TICKS.put(linkKey, ticks);
         } else {
-            STRETCH_TICKS.remove(follower.getUUID());
+            STRETCH_TICKS.remove(linkKey);
         }
         double horizontal = Math.sqrt(dx * dx + dz * dz);
         if (horizontal < MIN_HORIZONTAL_DISTANCE) {
@@ -484,6 +510,8 @@ public final class Trains {
     public static void onServerStopped(ServerStoppedEvent event) {
         LINKED.clear();
         STRETCH_TICKS.clear();
+        LAST_MOTION.clear();
+        LAST_DRIVERS.clear();
         DEAD_LINKS.clear();
         TRACKERS.clear();
     }
