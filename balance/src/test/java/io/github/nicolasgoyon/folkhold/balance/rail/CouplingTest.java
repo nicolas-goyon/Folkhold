@@ -35,14 +35,25 @@ class CouplingTest {
 
     @Test
     void stretchedChainNeverPushes() {
-        assertEquals(0.0, COUPLING.impulse(COUPLING.restGap() + 0.1, -1.0), EPSILON);
+        // The gap of the next tick stays above the buffer gap: only the spring acts.
+        assertEquals(0.0, COUPLING.impulse(COUPLING.restGap() + 0.1, -0.1), EPSILON);
     }
 
     @Test
     void slackChainBetweenTheBufferAndTheRestGapDoesNothing() {
         double gap = (COUPLING.bufferGap() + COUPLING.restGap()) / 2.0;
-        assertEquals(0.0, COUPLING.impulse(gap, -0.2), EPSILON);
+        assertEquals(0.0, COUPLING.impulse(gap, -0.02), EPSILON);
         assertEquals(0.0, COUPLING.impulse(gap, 0.2), EPSILON);
+    }
+
+    @Test
+    void fastLeaderInTheSlackChainMovesTheFollowerAway() {
+        // The leader comes nearer fast: without a change, the gap of the next tick goes below the buffer gap.
+        double gap = (COUPLING.bufferGap() + COUPLING.restGap()) / 2.0;
+        double separationSpeed = -0.2;
+        double impulse = COUPLING.impulse(gap, separationSpeed);
+        assertTrue(impulse < 0.0);
+        assertEquals(COUPLING.bufferGap(), gap + separationSpeed - impulse, EPSILON);
     }
 
     @Test

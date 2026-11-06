@@ -11,8 +11,9 @@ package io.github.nicolasgoyon.folkhold.balance.rail;
  * minecart (see {@link Trains}). The mod changes only the speed of the follower. Each tick, the follower gets a speed
  * change along the chain, toward the leader:
  * <ul>
- *   <li>below the buffer gap: at most the negative change that brings the gap back to the buffer gap in the next
- *       tick. The two minecarts do not go into each other;</li>
+ *   <li>below the buffer gap, or when the gap of the next tick goes below the buffer gap: at most the negative
+ *       change that makes the gap of the next tick equal to the buffer gap. The two minecarts do not go into each
+ *       other, also when the leader comes nearer fast;</li>
  *   <li>from the buffer gap to the rest gap: no change (the chain is slack);</li>
  *   <li>from the rest gap to the maximum gap: a spring with damping,
  *       {@code stiffness × stretch + damping × separation speed}. The change is not negative;</li>
@@ -63,7 +64,7 @@ public record Coupling(double bufferGap, double restGap, double maxGap, double b
      * @return the speed change, from {@code -MAX_IMPULSE} to {@link #MAX_IMPULSE}, in blocks per tick
      */
     public double impulse(double gap, double separationSpeed) {
-        if (gap < bufferGap) {
+        if (gap < bufferGap || gap + separationSpeed < bufferGap) {
             // The change that makes the gap of the next tick equal to the buffer gap.
             return Math.clamp(Math.min(0.0, gap - bufferGap + separationSpeed), -MAX_IMPULSE, 0.0);
         }
