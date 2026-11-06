@@ -648,7 +648,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     public List<BlockPos> catAnchors() {
         List<BlockPos> anchors = new ArrayList<>();
         List<BlockPos> seen = new ArrayList<>();
-        for (BlockPos gate : layout.gates()) {
+        for (BlockPos gate : floorGates()) {
             boolean sameGate = seen.stream().anyMatch(other -> other.distManhattan(gate) <= 2);
             seen.add(gate);
             if (!sameGate) {
@@ -895,7 +895,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     private void assignGateWatch(boolean night) {
-        List<BlockPos> gates = layout.gates();
+        List<BlockPos> gates = floorGates();
         int index = 0;
         for (FactionUnit unit : getUnits()) {
             if (!(unit instanceof GuardEntity) || unit instanceof CaptainEntity || unit.getPostPos() != null) {
@@ -908,6 +908,15 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 unit.setNightPos(null);
             }
         }
+    }
+
+    /**
+     * The fence gates of the village at the floor level: the fence gates with no fence gate of the village below them.
+     * A gate can have fence gates stacked in its opening, and the stacked fence gates are above the floor.
+     */
+    private List<BlockPos> floorGates() {
+        List<BlockPos> gates = layout.gates();
+        return gates.stream().filter(gate -> !gates.contains(gate.below())).toList();
     }
 
     /** The position at {@link #GATE_WATCH_DISTANCE} blocks from the gate, toward the heart. */

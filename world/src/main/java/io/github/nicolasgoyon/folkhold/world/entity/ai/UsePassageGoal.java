@@ -32,8 +32,9 @@ import net.minecraft.world.phys.AABB;
  *   <li>When the unit is on the other side, the goal waits until no entity is in the passage or next to it, and no
  *       mob near the passage has a path through it. Then it closes the passage. Thus a unit does not close the
  *       passage on the unit behind it, and does not close it in front of a unit that follows.</li>
- *   <li>A gate of the village has several fence gates side by side. The unit opens and closes all the fence gates of
- *       the gate together, so a wide mob (for example a mule) can go through.</li>
+ *   <li>A gate of the village has several fence gates side by side, and can have fence gates stacked on them. The
+ *       unit opens and closes all the fence gates of the gate together, so a wide mob (for example a mule) can go
+ *       through.</li>
  *   <li>A unit can have followers, for example the mules of a caravan merchant. The passage also stays open while a
  *       follower near the passage is still on the side where the unit started.</li>
  *   <li>After {@link #MAX_TICKS}, the goal stops. If an entity is still near, the passage stays open.</li>
@@ -247,7 +248,8 @@ public class UsePassageGoal extends Goal {
 
     /**
      * The fence gates of one gate: the fence gate at the position, and the fence gates next to it in the same line
-     * with the same axis, up to {@link #MAX_GATE_SIDE} on each side.
+     * with the same axis, up to {@link #MAX_GATE_SIDE} on each side. Each of these fence gates adds the fence gates
+     * stacked on it with the same axis: the full column, as in {@code VillageExits}.
      *
      * @param level the level
      * @param pos   the position of a fence gate
@@ -260,16 +262,26 @@ public class UsePassageGoal extends Goal {
         blocks.add(pos);
         for (Direction side : List.of(facing.getClockWise(), facing.getCounterClockWise())) {
             BlockPos next = pos.relative(side);
-            for (int i = 0; i < MAX_GATE_SIDE; i++) {
-                BlockState nextState = level.getBlockState(next);
-                if (!(nextState.getBlock() instanceof FenceGateBlock)
-                        || nextState.getValue(FenceGateBlock.FACING).getAxis() != facing.getAxis()) {
-                    break;
-                }
+            for (int i = 0; i < MAX_GATE_SIDE && isGate(level, next, facing); i++) {
                 blocks.add(next);
                 next = next.relative(side);
             }
         }
+        List<BlockPos> row = List.copyOf(blocks);
+        for (BlockPos column : row) {
+            BlockPos above = column.above();
+            while (isGate(level, above, facing)) {
+                blocks.add(above);
+                above = above.above();
+            }
+        }
         return blocks;
+    }
+
+    /** True if the block at the position is a fence gate on the axis of the facing. */
+    private static boolean isGate(Level level, BlockPos pos, Direction facing) {
+        BlockState state = level.getBlockState(pos);
+        return state.getBlock() instanceof FenceGateBlock
+                && state.getValue(FenceGateBlock.FACING).getAxis() == facing.getAxis();
     }
 }
