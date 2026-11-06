@@ -74,6 +74,11 @@ public class MarchOnVillageGoal extends Goal {
     private static final double SPEED = 1.0;
     /** A raider forces a gate at this horizontal distance from the front of the gate, in blocks. */
     private static final double FORCE_REACH = 2.0;
+    /**
+     * A raider breaks no block with this hardness or more: obsidian (50), crying obsidian and reinforced deepslate
+     * stay.
+     */
+    private static final float MAX_HARDNESS = 50.0F;
     /** The raider hits the gate at this interval, in ticks. */
     private static final int HIT_INTERVAL = 20;
 
@@ -106,6 +111,8 @@ public class MarchOnVillageGoal extends Goal {
     private int breakTicks;
     /** The last break progress sent to the clients (0 to 9), or -1. */
     private int breakProgress = -1;
+    /** The game time before that the raider does not look for a column to break again, after no column could break. */
+    private long noBreakUntil;
     /** The time in front of the closed gate, in ticks: the raider hits the gate at {@link #HIT_INTERVAL}. */
     private int hitTicks;
     /** True after the arrival of the raider at the heart. */
@@ -294,8 +301,12 @@ public class MarchOnVillageGoal extends Goal {
      */
     private boolean breakGate(ServerLevel level) {
         if (breaking == null) {
+            if (level.getGameTime() < noBreakUntil) {
+                return false;
+            }
             breaking = nextBreak(level);
             if (breaking == null) {
+                noBreakUntil = level.getGameTime() + PATH_INTERVAL;
                 return false;
             }
             breakTicks = 0;
@@ -313,6 +324,9 @@ public class MarchOnVillageGoal extends Goal {
         }
         List<BlockPos> broken = breaking;
         clearBreak(level);
+        if (!canBreak(level, broken)) {
+            return false;
+        }
         for (BlockPos pos : broken) {
             if (!level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()) {
                 level.destroyBlock(pos, false, raider);
@@ -358,6 +372,26 @@ public class MarchOnVillageGoal extends Goal {
     }
 
     /**
+     * True if all the blocks of a column can break at the end of the break: each block is a fence gate of the gate,
+     * a wall block (see {@link #isWall}), or a block with no collision. A block that changed during the break, for
+     * example a chest that a player put there, stops the break: the raider then looks for a column again.
+     */
+    private boolean canBreak(ServerLevel level, List<BlockPos> blocks) {
+        if (!(level.getBlockEntity(heart) instanceof VillageHeartBlockEntity entity)) {
+            return false;
+        }
+        BoundingBox area = entity.scanArea(level);
+        for (BlockPos pos : blocks) {
+            BlockState state = level.getBlockState(pos);
+            boolean gate = forcing.blocks().contains(pos) && state.getBlock() instanceof FenceGateBlock;
+            if (!gate && !state.getCollisionShape(level, pos).isEmpty() && !isWall(level, pos, state, area)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * The blocks to break in a column on the line of the gate, or null when a block of the column is not a wall block.
      */
     @Nullable
@@ -387,12 +421,13 @@ public class MarchOnVillageGoal extends Goal {
 
     /**
      * True if the raider can break a block of the palisade at the gate: a block in the scan area of the heart, with no
-     * block entity, that a player can break, and that is not a fence gate out of the gate. The block and the NeoForge
-     * event {@code LivingDestroyBlockEvent} let the raider break it.
+     * block entity, with a hardness from 0 to less than {@link #MAX_HARDNESS}, and that is not a fence gate out of the
+     * gate. The block and the NeoForge event {@code LivingDestroyBlockEvent} let the raider break it.
      */
     private boolean isWall(ServerLevel level, BlockPos pos, BlockState state, BoundingBox area) {
+        float hardness = state.getDestroySpeed(level, pos);
         return area.isInside(pos) && !(state.getBlock() instanceof FenceGateBlock) && !state.hasBlockEntity()
-                && state.getDestroySpeed(level, pos) >= 0 && state.canEntityDestroy(level, pos, raider)
+                && hardness >= 0 && hardness < MAX_HARDNESS && state.canEntityDestroy(level, pos, raider)
                 && EventHooks.onEntityDestroyBlock(raider, pos, state);
     }
 

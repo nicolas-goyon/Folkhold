@@ -128,7 +128,8 @@ public final class VillageExits {
         /**
          * True if the gate can open for an entity of a width and a height: the gate is open for the entity (see
          * {@link #isOpen(Level, double, double)}) when all its fence gates are open. A raider that forces the gate
-         * thus goes through it. The method changes no block.
+         * thus goes through it. A position of the gate with a block that is not a fence gate and has a collision (for
+         * example a block that a player put in a broken gate) does not open. The method changes no block.
          *
          * @param level  the level
          * @param width  the width of the entity, in blocks
@@ -140,7 +141,9 @@ public final class VillageExits {
             return hasRun(line(blocks(width) - 1), blocks(width), pos -> {
                 for (int dy = 0; dy < high; dy++) {
                     BlockPos above = pos.above(dy);
-                    if (!blocks.contains(above) && !isFree(level, above)) {
+                    boolean gate = blocks.contains(above)
+                            && level.getBlockState(above).getBlock() instanceof FenceGateBlock;
+                    if (!gate && !isFree(level, above)) {
                         return false;
                     }
                 }

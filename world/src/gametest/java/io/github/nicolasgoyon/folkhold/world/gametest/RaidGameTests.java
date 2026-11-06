@@ -663,6 +663,15 @@ public final class RaidGameTests {
                 .thenExecute(() -> {
                     helper.assertTrue(walls.stream().anyMatch(wall -> level.getBlockState(wall).isAir()),
                             "The ravager must break the palisade next to a gate");
+                    for (Direction side : Direction.Plane.HORIZONTAL) {
+                        BlockPos gate = heartRelative.relative(side, PALISADE);
+                        for (int d = 2; d <= 3; d++) {
+                            for (Direction along : List.of(side.getClockWise(), side.getCounterClockWise())) {
+                                helper.assertBlockPresent(Blocks.STONE_BRICKS, gate.relative(along, d));
+                            }
+                        }
+                    }
+                    helper.assertBlockPresent(ModBlocks.VILLAGE_HEART.get(), heartRelative);
                     ravager[0].discard();
                     helper.setBlock(heartRelative, Blocks.AIR);
                 })
