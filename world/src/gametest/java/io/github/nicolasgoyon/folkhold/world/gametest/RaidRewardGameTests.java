@@ -15,6 +15,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.entity.raid.Raid;
 import net.minecraft.world.entity.raid.Raider;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -24,7 +25,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * In-game tests for the rewards of the players who help a faction village during a raid ({@link RaidHelpers}). Each
  * test makes a raid at its last wave, with no raider. A raider joins the raid, a mock player kills it, and the test
  * ticks the raid until its end, with a limit of {@link #MAX_RAID_TICKS} ticks. The vanilla raid ends in a victory
- * when a village point of interest (a bed) is near its center, else in a loss. The loss test puts the center
+ * when an occupied village point of interest (a bed) is near its center, else in a loss. The loss test puts the center
  * {@link #SKY} blocks over the test, far from the beds.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
@@ -53,8 +54,9 @@ public final class RaidRewardGameTests {
         TestSupport.placeBed(helper, CENTER, Direction.NORTH);
         ServerLevel level = helper.getLevel();
         BlockPos center = helper.absolutePos(CENTER);
-        // The server adds the point of interest of the bed in a later task: the raid starts when the center is a
-        // village, with the timeout of the test as the limit.
+        // Vanilla counts only the occupied points of interest of a village: the test claims the bed, as a villager
+        // does. The raid starts when the center is a village, with the timeout of the test as the limit.
+        level.getPoiManager().take(type -> type.is(PoiTypes.HOME), (type, pos) -> true, center, 2);
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(level.isVillage(center), "Waiting for the village of the bed"))
                 .thenExecute(() -> raidAtVillage(helper, level, center))
