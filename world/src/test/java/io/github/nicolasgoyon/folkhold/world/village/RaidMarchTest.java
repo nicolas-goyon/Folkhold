@@ -97,6 +97,21 @@ class RaidMarchTest {
         assertEquals(NORTH, leg.forcing());
     }
 
+    /**
+     * A raider goes to the nearest gate that fits it, also when another gate is nearer. When no gate fits, it goes to
+     * the nearest gate.
+     */
+    @Test
+    void theRaiderGoesToTheNearestGateThatFitsIt() {
+        BlockPos pos = new BlockPos(0, 64, -32);
+        RaidMarch.Leg south = RaidMarch.next(HEART, APPROACHES, RaidMarchTest::closed, approach -> approach == SOUTH,
+                pos, null);
+        RaidMarch.Leg none = RaidMarch.next(HEART, APPROACHES, RaidMarchTest::closed, approach -> false, pos, null);
+
+        assertEquals(SOUTH.point(), south.target());
+        assertEquals(NORTH.point(), none.target());
+    }
+
     /** A corner of the palisade is far from the heart, but inside the square of the palisade. */
     @Test
     void insideThePalisadeTheRaiderWalksToTheHeart() {

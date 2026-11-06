@@ -622,6 +622,124 @@ public final class RaidGameTests {
                 .thenSucceed();
     }
 
+    /**
+     * A ravager at a village with only gates of one column breaks the palisade next to a gate and arrives at the heart.
+     * A gate of one column is too narrow for a ravager (1.95 blocks wide), also when it is open. The palisade of
+     * {@link #buildNarrowPalisade} has a closed gate of one fence gate on each side, with 3 blocks of free height. The
+     * time stays at midnight.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 2400, batch = "raid_gate_narrow")
+    public static void ravagerBreaksThePalisadeAtNarrowGates(GameTestHelper helper) {
+        TestSupport.setGameRuleForTest(helper, GameRules.RULE_MOBGRIEFING, true);
+        TestSupport.buildFloor(helper, HUGE);
+        BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
+        List<BlockPos> walls = buildNarrowPalisade(helper, heartRelative);
+        helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
+        ServerLevel level = helper.getLevel();
+        BlockPos heartPos = helper.absolutePos(heartRelative);
+        Raider[] ravager = new Raider[1];
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
+        helper.onEachTick(() -> level.setDayTime(MIDNIGHT));
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(VillageHearts.findNearest(level, heartPos, 1.0).isPresent(),
+                        "The heart must be in the list of the loaded hearts"))
+                .thenExecute(() -> {
+                    VillageHeartBlockEntity heart = helper.getBlockEntity(heartRelative);
+                    helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
+                    List<VillageExits.Approach> approaches = VillageRaids.approaches(level, heartPos);
+                    helper.assertTrue(approaches.size() == 4 && approaches.stream()
+                            .noneMatch(approach -> approach.fits(level, 1.95, 2.2)),
+                            "No gate of one column must fit a ravager");
+                    ravager[0] = helper.spawn(EntityType.RAVAGER, heartRelative.offset(6, 0, -PALISADE - 8));
+                    raid(level, heartPos).joinRaid(1, ravager[0], null, true);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(ravager[0].isAlive()
+                        && horizontalDistance(ravager[0].blockPosition(), heartPos) <= MarchOnVillageGoal.ARRIVAL,
+                        "The ravager must break the palisade and arrive at the heart: "
+                        + helper.relativePos(ravager[0].blockPosition())))
+                .thenExecute(() -> {
+                    helper.assertTrue(walls.stream().anyMatch(wall -> level.getBlockState(wall).isAir()),
+                            "The ravager must break the palisade next to a gate");
+                    ravager[0].discard();
+                    helper.setBlock(heartRelative, Blocks.AIR);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * With the game rule {@code mobGriefing} false and no gate that fits, a ravager breaks nothing. The palisade of
+     * {@link #buildNarrowPalisade} has only gates of one column. The ravager stays at a gate, and all the blocks of
+     * the palisade next to the gates stay during 300 ticks: more than the time before the break plus the time to break.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 2400, batch = "raid_gate_narrow_no_griefing")
+    public static void ravagerBreaksNothingWithNoMobGriefing(GameTestHelper helper) {
+        TestSupport.setGameRuleForTest(helper, GameRules.RULE_MOBGRIEFING, false);
+        TestSupport.buildFloor(helper, HUGE);
+        BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
+        List<BlockPos> walls = buildNarrowPalisade(helper, heartRelative);
+        helper.setBlock(heartRelative, ModBlocks.VILLAGE_HEART.get());
+        ServerLevel level = helper.getLevel();
+        BlockPos heartPos = helper.absolutePos(heartRelative);
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
+        Raider[] ravager = new Raider[1];
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
+        TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
+        helper.onEachTick(() -> {
+            level.setDayTime(MIDNIGHT);
+            helper.assertTrue(walls.stream().noneMatch(wall -> level.getBlockState(wall).isAir()),
+                    "With mobGriefing false, the ravager must not break the palisade");
+        });
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(VillageHearts.findNearest(level, heartPos, 1.0).isPresent(),
+                        "The heart must be in the list of the loaded hearts"))
+                .thenExecute(() -> {
+                    VillageHeartBlockEntity heart = helper.getBlockEntity(heartRelative);
+                    helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
+                    ravager[0] = helper.spawn(EntityType.RAVAGER, heartRelative.offset(6, 0, -PALISADE - 8));
+                    raid(level, heartPos).joinRaid(1, ravager[0], null, true);
+                })
+                .thenWaitUntil(() -> helper.assertTrue(horizontalDistance(ravager[0].blockPosition(), front) <= 3.0,
+                        "The ravager must walk to the front of the north gate: "
+                        + helper.relativePos(ravager[0].blockPosition())))
+                .thenIdle(300)
+                .thenExecute(() -> {
+                    helper.assertTrue(RaidMarch.squareDistance(heartPos, ravager[0].blockPosition()) > PALISADE,
+                            "The ravager must stay outside the palisade");
+                    ravager[0].discard();
+                    helper.setBlock(heartRelative, Blocks.AIR);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A gate with 2 blocks of free height is open for a pillager and closed for a ravager (2.2 blocks high). With 3
+     * blocks of free height, the gate is open for a ravager.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 20, batch = "raid_gate_low")
+    public static void lowGateIsClosedForARavager(GameTestHelper helper) {
+        TestSupport.buildFloor(helper, HUGE);
+        BlockPos heartRelative = new BlockPos(HUGE / 2, 1, HUGE / 2);
+        List<BlockPos> gates = buildPalisade(helper, heartRelative, 1);
+        ServerLevel level = helper.getLevel();
+        BlockPos heartPos = helper.absolutePos(heartRelative);
+        setGates(level, gates, true);
+        VillageExits.Approach low = VillageExits.approaches(level, heartPos, gates).get(0);
+        helper.assertTrue(low.isOpen(level, 0.6, 1.95), "A low open gate must be open for a pillager");
+        helper.assertFalse(low.isOpen(level, 1.95, 2.2), "A low open gate must be closed for a ravager");
+        helper.assertFalse(low.fits(level, 1.95, 2.2), "A low gate must not fit a ravager");
+        for (int dx = -1; dx <= 1; dx++) {
+            helper.setBlock(heartRelative.offset(dx, 2, -PALISADE), Blocks.AIR);
+        }
+        helper.assertTrue(low.isOpen(level, 1.95, 2.2), "An open gate of 3 blocks of free height must be open for"
+                + " a ravager");
+        helper.succeed();
+    }
+
     /** A new raid at the heart, with an identifier that no other test uses. */
     private static Raid raid(ServerLevel level, BlockPos heart) {
         return new Raid(NEXT_RAID_ID.getAndIncrement(), level, heart);
@@ -665,6 +783,37 @@ public final class RaidGameTests {
             }
         }
         return gates;
+    }
+
+    /**
+     * Builds a square palisade of stone bricks around the heart, {@link #PALISADE} blocks from it, 3 blocks high, with
+     * a closed gate of one fence gate in the middle of each side. Each gate has 3 blocks of free height.
+     *
+     * @return the positions of the palisade next to the gates, on the line of the gates
+     */
+    private static List<BlockPos> buildNarrowPalisade(GameTestHelper helper, BlockPos heart) {
+        BlockState wall = Blocks.STONE_BRICKS.defaultBlockState();
+        for (int d = -PALISADE; d <= PALISADE; d++) {
+            for (int y = 0; y < 3; y++) {
+                helper.setBlock(heart.offset(d, y, -PALISADE), wall);
+                helper.setBlock(heart.offset(d, y, PALISADE), wall);
+                helper.setBlock(heart.offset(-PALISADE, y, d), wall);
+                helper.setBlock(heart.offset(PALISADE, y, d), wall);
+            }
+        }
+        List<BlockPos> walls = new ArrayList<>();
+        for (Direction side : Direction.Plane.HORIZONTAL) {
+            BlockPos gate = heart.relative(side, PALISADE);
+            Direction along = side.getClockWise();
+            helper.setBlock(gate, Blocks.SPRUCE_FENCE_GATE.defaultBlockState().setValue(FenceGateBlock.FACING, side));
+            helper.setBlock(gate.above(), Blocks.AIR);
+            helper.setBlock(gate.above(2), Blocks.AIR);
+            for (int y = 0; y < 3; y++) {
+                walls.add(helper.absolutePos(gate.relative(along).above(y)));
+                walls.add(helper.absolutePos(gate.relative(along.getOpposite()).above(y)));
+            }
+        }
+        return walls;
     }
 
     /** Opens or closes fence gates. */

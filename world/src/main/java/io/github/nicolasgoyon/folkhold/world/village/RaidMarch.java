@@ -12,7 +12,9 @@ import net.minecraft.core.BlockPos;
  * square around the heart, and the gates are on the sides of this square.
  *
  * <ul>
- *   <li>Outside the palisade, the raider walks to the approach of the nearest gate.</li>
+ *   <li>Outside the palisade, the raider walks to the approach of the nearest gate that fits it: a gate that is wide
+ *       and high enough for the raider or its vehicle when all its fence gates are open. When no gate fits, the raider
+ *       walks to the approach of the nearest gate.</li>
  *   <li>At the approach of an open gate, the raider goes through this gate to the heart. It keeps this gate until it
  *       is inside the palisade.</li>
  *   <li>At the approach of a closed gate, the raider walks to the front of the gate and forces the gate (see
@@ -39,7 +41,7 @@ public final class RaidMarch {
     }
 
     /**
-     * The next leg of the march.
+     * The next leg of the march, in a village where all the gates fit the raider.
      *
      * @param heart      the position of the heart
      * @param approaches the approaches of the gates of the village
@@ -50,6 +52,23 @@ public final class RaidMarch {
      */
     public static Leg next(BlockPos heart, List<VillageExits.Approach> approaches,
             Predicate<VillageExits.Approach> isOpen, BlockPos pos, @Nullable BlockPos entering) {
+        return next(heart, approaches, isOpen, approach -> true, pos, entering);
+    }
+
+    /**
+     * The next leg of the march.
+     *
+     * @param heart      the position of the heart
+     * @param approaches the approaches of the gates of the village
+     * @param isOpen     true for the approach of an open gate
+     * @param fits       true for the approach of a gate that fits the raider when all its fence gates are open
+     * @param pos        the position of the raider
+     * @param entering   the approach of the gate that the raider goes through, from the previous leg, or null
+     * @return the leg
+     */
+    public static Leg next(BlockPos heart, List<VillageExits.Approach> approaches,
+            Predicate<VillageExits.Approach> isOpen, Predicate<VillageExits.Approach> fits, BlockPos pos,
+            @Nullable BlockPos entering) {
         if (approaches.isEmpty() || isInside(heart, approaches, pos)) {
             return new Leg(heart, null, null);
         }
@@ -60,7 +79,8 @@ public final class RaidMarch {
                 }
             }
         }
-        VillageExits.Approach nearest = approaches.stream()
+        List<VillageExits.Approach> fitting = approaches.stream().filter(fits).toList();
+        VillageExits.Approach nearest = (fitting.isEmpty() ? approaches : fitting).stream()
                 .min(Comparator.comparingDouble(approach -> approach.point().distSqr(pos)))
                 .orElseThrow();
         if (!nearest.point().closerThan(pos, AT_APPROACH)) {
