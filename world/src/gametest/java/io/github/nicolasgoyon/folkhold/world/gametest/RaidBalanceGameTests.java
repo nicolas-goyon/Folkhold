@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import com.google.common.base.Splitter;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
@@ -61,7 +62,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * some of them are near the spawn positions of the raiders. A cage can block the path of a raider.
  *
  * <p>The raid level is the level of the Raid Omen (1 to 5). The GameTest world has the difficulty Normal: a raid has 5
- * waves, and a 6th wave when its level is 2 or more. The result of a trial:
+ * waves, and a 6th wave when its level is 2 or more. At a faction village, each wave of a raid of level 4 or 5 has
+ * extra ravagers ({@code VillageRaids.extraRavagers}). The result of a trial:
  * <ul>
  *   <li>{@link Outcome#HOLDS}: the raid ends in a victory, all the raiders are dead.</li>
  *   <li>{@link Outcome#FALLS}: all the units of the garrison are dead, or the raid ends in a loss. Vanilla sets the
@@ -102,11 +104,17 @@ public final class RaidBalanceGameTests {
     /** The number of trials with the same result that decides an exit test. */
     static final int EXIT_MAJORITY = EXIT_TRIALS / 2 + 1;
     static final String MATRIX_VARIABLE = "FOLKHOLD_RAID_MATRIX";
-    static final int[] MATRIX_RAIDS = {1, 3, 5};
+    /**
+     * The environment variable that selects the cells of the matrix: a list of {@code raid:level} pairs, separated by
+     * commas, for example {@code 3:9,5:9,5:13}. A pair with the suffix {@code :p} has a palisade. With this variable,
+     * the matrix runs only these cells, {@value #MATRIX_VARIABLE} times each.
+     */
+    static final String CELLS_VARIABLE = "FOLKHOLD_RAID_CELLS";
+    static final int[] MATRIX_RAIDS = {1, 3, 4, 5};
     /** The first level of each tier: hamlet, village, town, city, capital. */
     static final int[] MATRIX_LEVELS = {1, 5, 9, 13, 17};
     /** The Falls cells of the targets, {raid level, village level}: the matrix measures them with a palisade. */
-    static final int[][] PALISADE_CELLS = {{1, 1}, {3, 1}, {5, 1}, {3, 5}, {5, 5}, {5, 9}};
+    static final int[][] PALISADE_CELLS = {{1, 1}, {3, 1}, {5, 1}, {3, 5}, {5, 5}, {4, 9}, {5, 9}};
     /** The distance from the heart to the palisade, in blocks. The arena has 27 blocks on each side of the heart. */
     static final int PALISADE = 20;
     /** The free height of a gate, in blocks: one fence gate and 2 blocks of air, as the gate of a generated village. */
@@ -152,7 +160,8 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a hamlet (level 1) falls to a raid of level 1. Cell "raid level 1, hamlet" of the
-     * targets. Measured: falls in 40 of 40 trials. The probability of a wrong majority is below 1 %.
+     * targets. Measured: falls in 40 of 40 trials (the total of all the measures). The 95 % interval of the fall rate
+     * starts at about 0.91, and at this rate a wrong majority occurs in about 0.6 % of the runs. The test is required.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_hamlet")
     public static void smallVillageFalls(GameTestHelper helper) {
@@ -160,9 +169,9 @@ public final class RaidBalanceGameTests {
     }
 
     /**
-     * Cell "raid level 1, village" of the targets: a village (level 5) holds against a raid of level 1. Measured: holds
-     * in 6 of 7 trials, thus a wrong majority in about 2.3 % of the runs. The test is optional until a wrong majority
-     * is below 1 %.
+     * Exit criterion of version 1: a village (level 5) holds against a raid of level 1. Cell "raid level 1, village" of
+     * the targets. Measured: holds in 11 of 16 trials, thus a wrong majority in about 18 % of the runs. The test is
+     * optional until a wrong majority is below 1 % at the low end of the 95 % interval of the hold rate.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_village",
             required = false)
@@ -171,8 +180,10 @@ public final class RaidBalanceGameTests {
     }
 
     /**
-     * Cell "raid level 3, town" of the targets: a town (level 9) holds against a raid of level 3. Measured: holds in 5
-     * of 9 trials. The test is optional until a wrong majority is below 1 %.
+     * Exit criterion of version 1: a town (level 9) holds against a raid of level 3. Cell "raid level 3, town" of the
+     * targets. Measured: holds in 32 of 33 trials, thus a wrong majority in about 0.03 % of the runs. The 95 % interval
+     * of the hold rate is 0.85 to 0.99, and at 0.85 a wrong majority occurs in about 2.8 % of the runs. The test is
+     * optional until a wrong majority is below 1 % at the low end of this interval.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town",
             required = false)
@@ -181,11 +192,10 @@ public final class RaidBalanceGameTests {
     }
 
     /**
-     * Exit criterion of version 1: a city (level 13) holds against a raid of level 5. Cell "raid level 5, city" of the
-     * targets. Measured: holds in 29 of 32 trials. With this point estimate, a wrong majority occurs in about 0.7 % of
-     * the runs. The 95 % interval of the hold rate starts at about 0.76, and at a hold rate of 0.8 a wrong majority
-     * occurs in about 5.8 % of the runs. The test is optional until a wrong majority is below 1 % at the low end of
-     * this interval.
+     * Exit criterion of version 1: a city (level 13) holds against a raid of level 5, with the extra ravagers of
+     * {@code VillageRaids.extraRavagers}. Cell "raid level 5, city" of the targets. Measured: holds in 17 of 21 trials,
+     * thus a wrong majority in about 5.1 % of the runs. The test is optional until a wrong majority is below 1 % at
+     * the low end of the 95 % interval of the hold rate.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_city",
             required = false)
@@ -198,6 +208,18 @@ public final class RaidBalanceGameTests {
     public static List<TestFunction> raidMatrix() {
         int runs = runs(System.getenv(MATRIX_VARIABLE));
         List<TestFunction> tests = new ArrayList<>();
+        List<int[]> cells = cells(System.getenv(CELLS_VARIABLE));
+        if (!cells.isEmpty()) {
+            for (int run = 1; run <= runs; run++) {
+                for (int[] cell : cells) {
+                    boolean palisade = cell[2] != 0;
+                    String name = String.format(Locale.ROOT, "raid%d_level%02d%s_run%d", cell[0], cell[1],
+                            palisade ? "_palisade" : "", run);
+                    tests.add(matrixTrial(name, cell[0], cell[1], palisade));
+                }
+            }
+            return tests;
+        }
         for (int run = 1; run <= runs; run++) {
             for (int raidLevel : MATRIX_RAIDS) {
                 for (int villageLevel : MATRIX_LEVELS) {
@@ -221,6 +243,31 @@ public final class RaidBalanceGameTests {
                                 result.outcome() == Outcome.HOLDS || result.outcome() == Outcome.FALLS,
                                 "The trial must give a result: " + result))
                         .thenSucceed());
+    }
+
+    /**
+     * The cells of the variable {@value #CELLS_VARIABLE}: {raid level, village level, 1 with a palisade or 0}. A pair
+     * that is not valid gives no cell.
+     */
+    static List<int[]> cells(String value) {
+        List<int[]> cells = new ArrayList<>();
+        if (value == null) {
+            return cells;
+        }
+        for (String pair : Splitter.on(',').trimResults().split(value)) {
+            List<String> parts = Splitter.on(':').splitToList(pair);
+            try {
+                int raidLevel = Integer.parseInt(parts.get(0));
+                int villageLevel = Integer.parseInt(parts.get(1));
+                boolean palisade = parts.size() > 2 && parts.get(2).equals("p");
+                if (raidLevel >= 1 && raidLevel <= 5 && villageLevel >= 1 && villageLevel <= 20) {
+                    cells.add(new int[] {raidLevel, villageLevel, palisade ? 1 : 0});
+                }
+            } catch (NumberFormatException | IndexOutOfBoundsException e) {
+                // A pair that is not valid gives no cell.
+            }
+        }
+        return cells;
     }
 
     /** The number of runs of each pair of the matrix: the value of the variable, 0 when it is not a number. */

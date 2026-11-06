@@ -159,7 +159,7 @@ public final class FactionGolemGameTests {
     }
 
     /**
-     * A village has no golem. A town and a city have one golem, and a capital two golems, with an armband in the faction
+     * A village has no golem. A town has one golem, and a city and a capital two golems, with an armband in the faction
      * color.
      */
     @GameTest(template = "arena", batch = "golem_garrison")
@@ -187,7 +187,7 @@ public final class FactionGolemGameTests {
 
         helper.assertTrue(village == 0, "A village must have no golem: " + village);
         helper.assertTrue(town == 1, "A town must have one golem: " + town);
-        helper.assertTrue(city == 1, "A city must have one golem: " + city);
+        helper.assertTrue(city == 2, "A city must have two golems: " + city);
         helper.assertTrue(capital.size() == 2, "A capital must have two golems: " + capital.size());
         helper.assertTrue(armbands, "The armband of a golem must have the color of its faction");
         helper.succeed();
