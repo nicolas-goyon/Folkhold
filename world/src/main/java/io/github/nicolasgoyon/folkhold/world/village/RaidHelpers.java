@@ -41,7 +41,11 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * <p>Fall: the village of a raid falls when the raid starts and the heart is loaded with no living unit in its
  * garrison, when its settlement is ruins, or when its heart is broken. The check stops at the end of the raid (victory
  * or loss). The fall stays until the raid stops, also when units come back. The
- * village holds when the raid ends in a victory and the village did not fall ({@link VillageRaids#holds}).
+ * village holds when the raid ends in a victory and the village did not fall ({@link VillageRaids#holds}). A broken
+ * heart is a loaded position with no heart block entity: a heart that is loaded but not registered yet is not broken.
+ *
+ * <p>End: at the first server tick after the end of the raid, {@link RaidEffects} changes the settlement and the
+ * reputation of the helpers, one time for each raid.
  *
  * <p>Reward: the vanilla raid gives the effect Hero of the Village to its heroes when it ends in a victory, with the
  * level of the raid. For a raid at a faction village, the heroes are the helpers only, and no player when the village
@@ -76,12 +80,20 @@ public final class RaidHelpers {
         private final Raid raid;
         private final Map<UUID, Help> help = new HashMap<>();
         private boolean fallen;
+        private boolean heartBroken;
+        /** True after {@link RaidEffects#apply} for this raid. */
+        private boolean settled;
+        /** The settlement of the village, after the first check of the fall. */
+        @Nullable
+        private String villageId;
         /** The heart of the village, after the first check of the fall. */
         @Nullable
         private BlockPos heartPos;
 
         private Tracked(Raid raid) {
             this.raid = raid;
+            // A record of a raid that is over (a raider that loads after a restart) applies no effect again.
+            this.settled = raid.isOver();
         }
     }
 
@@ -141,6 +153,31 @@ public final class RaidHelpers {
     public static boolean isFallen(ServerLevel level, Raid raid) {
         Tracked tracked = RAIDS.get(key(level, raid));
         return tracked != null && tracked.raid == raid && tracked.fallen;
+    }
+
+    /**
+     * True after the effects of the end of a raid at a faction village (see {@link RaidEffects}).
+     *
+     * @param level the level of the raid
+     * @param raid  the raid
+     * @return true when the effects are applied; false when the raid is not at a faction village
+     */
+    public static boolean isSettled(ServerLevel level, Raid raid) {
+        Tracked tracked = RAIDS.get(key(level, raid));
+        return tracked != null && tracked.raid == raid && tracked.settled;
+    }
+
+    /**
+     * Checks the fall of the village of a raid now. The server tick does this check at each tick. Used by the
+     * GameTests: this method changes the state of the record outside the server tick.
+     *
+     * @param level the level of the raid
+     * @param raid  the raid
+     * @return true when the village falls; false when the raid is not at a faction village
+     */
+    public static boolean updateFall(ServerLevel level, Raid raid) {
+        Tracked tracked = RAIDS.get(key(level, raid));
+        return tracked != null && tracked.raid == raid && checkFall(level, tracked);
     }
 
     /** True when an entity is in the raid area: {@link #RAID_AREA_RADIUS} blocks or less from the center. */
@@ -231,20 +268,29 @@ public final class RaidHelpers {
     }
 
     /**
-     * Records the fall of the villages, and removes the helpers of the raids that stop. Vanilla sets a victory 40
-     * ticks after the death of the last raider: a fall before this death stops the reward.
+     * Records the fall of the villages, applies the effects of the raids that end, and removes the helpers of the
+     * raids that stop. Vanilla sets a victory 40 ticks after the death of the last raider: a fall before this death
+     * stops the reward.
      */
     public static void onServerTick(ServerTickEvent.Post event) {
         if (RAIDS.isEmpty()) {
             return;
         }
-        RAIDS.values().removeIf(tracked -> tracked.raid.isStopped());
         for (Tracked tracked : RAIDS.values()) {
-            if (tracked.raid.getLevel() instanceof ServerLevel level && !tracked.fallen && !tracked.raid.isOver()
-                    && checkFall(level, tracked)) {
+            if (!(tracked.raid.getLevel() instanceof ServerLevel level)) {
+                continue;
+            }
+            if (tracked.raid.isOver()) {
+                if (!tracked.settled) {
+                    tracked.settled = true;
+                    RaidEffects.apply(level, tracked.raid, tracked.villageId, tracked.heartBroken,
+                            helpers(level, tracked.raid));
+                }
+            } else if (!tracked.fallen && checkFall(level, tracked)) {
                 syncHeroes(level, tracked);
             }
         }
+        RAIDS.values().removeIf(tracked -> tracked.raid.isStopped());
     }
 
     /**
@@ -259,10 +305,14 @@ public final class RaidHelpers {
         if (pos.isPresent() && level.isLoaded(pos.get())
                 && level.getBlockEntity(pos.get()) instanceof VillageHeartBlockEntity heart) {
             tracked.heartPos = pos.get();
+            tracked.villageId = heart.getVillageId().toString();
             tracked.fallen = heart.getGarrison().aliveCount() == 0 || isRuins(level, heart.getVillageId().toString());
-        } else if (tracked.heartPos != null && level.isLoaded(tracked.heartPos)) {
-            // The heart of the village is broken: the village is ruins, or becomes ruins when its captain dies.
+        } else if (tracked.heartPos != null && level.isLoaded(tracked.heartPos)
+                && !(level.getBlockEntity(tracked.heartPos) instanceof VillageHeartBlockEntity)) {
+            // The heart of the village is broken: the village is ruins, or becomes ruins when its captain dies. A heart
+            // in a chunk that loads again can be missing from the registry for some ticks: it is not broken.
             tracked.fallen = true;
+            tracked.heartBroken = true;
         }
         return tracked.fallen;
     }

@@ -41,13 +41,13 @@ public final class RaidRewardGameTests {
     private static final int MAX_RAID_TICKS = 200;
     /** The ids of the raids of the tests: each run takes new ids, far from the ids of the raids of the world. */
     private static final AtomicInteger NEXT_RAID_ID = new AtomicInteger(314_159);
-    private static final BlockPos CENTER = new BlockPos(16, 1, 16);
+    static final BlockPos CENTER = new BlockPos(16, 1, 16);
     /** The heart of the fall test, away from the bed at the center. */
-    private static final BlockPos HEART = new BlockPos(6, 1, 6);
+    static final BlockPos HEART = new BlockPos(6, 1, 6);
     /** The distance of a player outside the raid area, on the x axis: more than {@link RaidHelpers#RAID_AREA_RADIUS}. */
     private static final int FAR = 100;
     /** The height of the center of a raid with no village, over the test: no bed of the area is near it. */
-    private static final int SKY = 64;
+    static final int SKY = 64;
 
     private RaidRewardGameTests() {
     }
@@ -189,7 +189,7 @@ public final class RaidRewardGameTests {
      *
      * @return the absolute position of the center
      */
-    private static BlockPos placeVillageBed(GameTestHelper helper) {
+    static BlockPos placeVillageBed(GameTestHelper helper) {
         TestSupport.placeBed(helper, CENTER, Direction.NORTH);
         BlockPos center = helper.absolutePos(CENTER);
         helper.getLevel().getPoiManager().take(type -> type.is(PoiTypes.HOME), (type, pos) -> true, center, 2);
@@ -197,7 +197,7 @@ public final class RaidRewardGameTests {
     }
 
     /** A mock player at a position of the test. The listener of {@link TestSupport#mockPlayer} removes it. */
-    private static ServerPlayer playerAt(GameTestHelper helper, BlockPos relative) {
+    static ServerPlayer playerAt(GameTestHelper helper, BlockPos relative) {
         ServerPlayer player = TestSupport.mockPlayer(helper);
         BlockPos pos = helper.absolutePos(relative);
         player.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
@@ -205,7 +205,7 @@ public final class RaidRewardGameTests {
     }
 
     /** A raid that started, at its last wave, with no raider: it ends when its raiders are dead. */
-    private static Raid raidAt(ServerLevel level, BlockPos center) {
+    static Raid raidAt(ServerLevel level, BlockPos center) {
         CompoundTag tag = new CompoundTag();
         tag.putInt("Id", NEXT_RAID_ID.getAndIncrement());
         tag.putBoolean("Started", true);
@@ -221,7 +221,7 @@ public final class RaidRewardGameTests {
         return new Raid(level, tag);
     }
 
-    private static Raider join(GameTestHelper helper, Raid raid, EntityType<? extends Raider> type) {
+    static Raider join(GameTestHelper helper, Raid raid, EntityType<? extends Raider> type) {
         Raider raider = type.create(helper.getLevel());
         helper.assertTrue(raider != null, "The raider must be created");
         raid.joinRaid(2, raider, helper.absolutePos(new BlockPos(16, 1, 8)), false);
@@ -229,7 +229,7 @@ public final class RaidRewardGameTests {
     }
 
     /** Ticks the raid until it ends, with the limit {@link #MAX_RAID_TICKS}. */
-    private static void tickToEnd(GameTestHelper helper, Raid raid) {
+    static void tickToEnd(GameTestHelper helper, Raid raid) {
         for (int i = 0; i < MAX_RAID_TICKS && !raid.isOver(); i++) {
             raid.tick();
         }
@@ -243,7 +243,7 @@ public final class RaidRewardGameTests {
                 name + " must get the level of the raid: amplifier " + effect.getAmplifier());
     }
 
-    private static void end(ServerLevel level, Raid raid, BlockPos center) {
+    static void end(ServerLevel level, Raid raid, BlockPos center) {
         raid.getAllRaiders().forEach(Raider::discard);
         raid.stop();
         VillageHearts.unregister(level, center);
