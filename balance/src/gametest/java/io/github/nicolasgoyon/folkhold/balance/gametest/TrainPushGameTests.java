@@ -44,6 +44,8 @@ public final class TrainPushGameTests {
     private static final double MOVE_DISTANCE = 4.0;
     /** The number of ticks that the player pushes the back minecart. */
     private static final int PUSH_TICKS = 20;
+    /** The smallest gap between two linked minecarts: the buffer gap minus a margin of 0.1 blocks, in blocks. */
+    private static final double MIN_GAP = 0.05;
     /** The distance from the player to the minecart that it pushes, in blocks. */
     private static final double PUSH_DISTANCE = 0.5;
 
@@ -131,7 +133,7 @@ public final class TrainPushGameTests {
 
     /**
      * Waits until each minecart of the train moves {@link #MOVE_DISTANCE} blocks in a direction, with a real-time
-     * limit of {@link #STATE_SECONDS}. The links stay, and two linked minecarts do not go into each other.
+     * limit of {@link #STATE_SECONDS}. The links stay, and the gap of each link stays at {@link #MIN_GAP} or more.
      *
      * @param direction 1 for the east, -1 for the west
      * @param name      the name of the case in the log line
@@ -150,8 +152,7 @@ public final class TrainPushGameTests {
                 helper.assertTrue(CartLinks.get(train.get(i)).back().equals(Optional.of(train.get(i + 1).getUUID())),
                         "The link " + i + " of the train is broken");
             }
-            helper.assertTrue(smallestGap[0] >= 0.0, "Two linked minecarts go into each other: gap "
-                    + smallestGap[0]);
+            helper.assertTrue(smallestGap[0] >= MIN_GAP, "The smallest gap is " + smallestGap[0] + " blocks");
             for (int i = 0; i < train.size(); i++) {
                 double travel = (train.get(i).getX() - startX[i]) * direction;
                 helper.assertTrue(travel >= MOVE_DISTANCE, "The minecart " + i + " moves " + travel + " blocks");

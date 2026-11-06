@@ -95,10 +95,13 @@ public final class Trains {
         LAST_DRIVERS.remove(cart.getUUID());
     }
 
-    /** Forgets the break counter of the link between two minecarts. */
-    static void forgetStretch(AbstractMinecart cart, UUID partner) {
-        STRETCH_TICKS.remove(cart.getUUID());
-        STRETCH_TICKS.remove(partner);
+    /**
+     * Forgets the break counter of a link.
+     *
+     * @param back the UUID of the back minecart of the link
+     */
+    static void forgetStretch(UUID back) {
+        STRETCH_TICKS.remove(back);
     }
 
     /** The players that track a minecart. */

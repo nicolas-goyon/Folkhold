@@ -18,8 +18,9 @@ package io.github.nicolasgoyon.folkhold.balance.rail;
  *   <li>If no minecart has a gain, the driver of the last tick drives again. Thus a train that a push started
  *       coasts with the same driver. If the train has no driver of the last tick, the front minecart drives.</li>
  * </ul>
- * Two pushes in opposite directions: the larger push drives the train. The chains then move the other minecart with
- * the train, and its push stops.
+ * Two pushes in opposite directions on a train at rest: the larger push drives the train. The chains then move the
+ * other minecart with the train, and its push stops. On a moving train, a push against the motion decreases the speed
+ * of its minecart: it is not a gain, and the train ignores it.
  */
 public final class TrainPush {
     /** A speed gain of this value or less is not a push, in blocks per tick. A slope gives 0.0078 each tick. */

@@ -34,8 +34,7 @@ class CouplingTest {
     }
 
     @Test
-    void stretchedChainNeverPushes() {
-        // The gap of the next tick stays above the buffer gap: only the spring acts.
+    void stretchedChainDoesNotPushWhenTheNextGapStaysAboveTheBuffer() {
         assertEquals(0.0, COUPLING.impulse(COUPLING.restGap() + 0.1, -0.1), EPSILON);
     }
 
