@@ -1,5 +1,5 @@
 {
   "category": "new",
-  "en_us": "When a raid attacks a faction village, only the players who kill raiders or hurt them near the village get the effect Hero of the Village after the victory.",
-  "fr_fr": "Quand un raid attaque un village de faction, seuls les joueurs qui tuent des pillards ou les blessent près du village reçoivent l'effet Héros du village après la victoire."
+  "en_us": "When a raid attacks a faction village, only the players who kill raiders or hurt them near the village get the effect Hero of the Village when the village holds.",
+  "fr_fr": "Quand un raid attaque un village de faction, seuls les joueurs qui tuent des pillards ou les blessent près du village reçoivent l'effet Héros du village quand le village résiste."
 }

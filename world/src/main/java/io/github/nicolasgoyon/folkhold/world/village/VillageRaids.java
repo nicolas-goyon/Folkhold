@@ -84,7 +84,9 @@ public final class VillageRaids {
 
     /**
      * True when the village of a raid holds: the raid ends in a victory, and the village did not fall during the raid
-     * ({@link RaidHelpers#isFallen}). The village of a raid at a vanilla village holds after a victory.
+     * ({@link RaidHelpers#isFallen}). The village of a raid at a vanilla village holds after a victory. Read the
+     * result when the raid ends (victory or loss), not when it stops: the record of a raid stops with the raid, and
+     * after that, this method gives the vanilla result.
      *
      * @param level the level of the raid
      * @param raid  the raid

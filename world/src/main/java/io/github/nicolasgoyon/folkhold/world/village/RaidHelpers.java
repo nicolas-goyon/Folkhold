@@ -39,7 +39,8 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  * the projectiles of the player count, a tamed wolf and the fire do not.
  *
  * <p>Fall: the village of a raid falls when the raid starts and the heart is loaded with no living unit in its
- * garrison, or when its settlement is ruins. The fall stays until the raid stops, also when units come back. The
+ * garrison, when its settlement is ruins, or when its heart is broken. The check stops at the end of the raid (victory
+ * or loss). The fall stays until the raid stops, also when units come back. The
  * village holds when the raid ends in a victory and the village did not fall ({@link VillageRaids#holds}).
  *
  * <p>Reward: the vanilla raid gives the effect Hero of the Village to its heroes when it ends in a victory, with the
@@ -75,6 +76,9 @@ public final class RaidHelpers {
         private final Raid raid;
         private final Map<UUID, Help> help = new HashMap<>();
         private boolean fallen;
+        /** The heart of the village, after the first check of the fall. */
+        @Nullable
+        private BlockPos heartPos;
 
         private Tracked(Raid raid) {
             this.raid = raid;
@@ -243,20 +247,29 @@ public final class RaidHelpers {
         }
     }
 
-    /** Sets the fall of the village of a raid when the raid started and the village has no living unit or is ruins. */
+    /**
+     * Sets the fall of the village of a raid, before the end of the raid: the raid started, and the village has no
+     * living unit, is ruins, or has a broken heart (a loaded position with no heart).
+     */
     private static boolean checkFall(ServerLevel level, Tracked tracked) {
-        if (tracked.fallen || !tracked.raid.isStarted()) {
+        if (tracked.fallen || !tracked.raid.isStarted() || tracked.raid.isOver()) {
             return tracked.fallen;
         }
         Optional<BlockPos> pos = VillageRaids.heartOf(tracked.raid, level);
-        if (pos.isEmpty() || !level.isLoaded(pos.get())
-                || !(level.getBlockEntity(pos.get()) instanceof VillageHeartBlockEntity heart)) {
-            return false;
+        if (pos.isPresent() && level.isLoaded(pos.get())
+                && level.getBlockEntity(pos.get()) instanceof VillageHeartBlockEntity heart) {
+            tracked.heartPos = pos.get();
+            tracked.fallen = heart.getGarrison().aliveCount() == 0 || isRuins(level, heart.getVillageId().toString());
+        } else if (tracked.heartPos != null && level.isLoaded(tracked.heartPos)) {
+            // The heart of the village is broken: the village is ruins, or becomes ruins when its captain dies.
+            tracked.fallen = true;
         }
-        boolean ruins = SettlementData.get(level.getServer()).registry().byId(heart.getVillageId().toString())
-                .filter(settlement -> settlement.state() == SettlementState.RUINS).isPresent();
-        tracked.fallen = ruins || heart.getGarrison().aliveCount() == 0;
         return tracked.fallen;
+    }
+
+    private static boolean isRuins(ServerLevel level, String villageId) {
+        return SettlementData.get(level.getServer()).registry().byId(villageId)
+                .filter(settlement -> settlement.state() == SettlementState.RUINS).isPresent();
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
