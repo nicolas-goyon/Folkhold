@@ -1063,6 +1063,8 @@ def norse_forge():
     rng = random.Random(14)
     t = long_house_shell(rng, "forge", cobble, wide_front=True)
     job_sign(t, 1, 1, 0, *BLACKSMITH)
+    for y in range(1, LONG_WALL_TOP + 1):
+        connect_fences(t, y)
     t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
     t.set(LW - 2, 1, LD - 3, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
     t.set(LW - 2, 1, LD - 4, "minecraft:furnace", {"facing": "west", "lit": "false"})
@@ -1223,8 +1225,8 @@ def flat_house_shell(rng, sign, width, depth, wide_front=False, courtyard=False)
                 else:
                     t.set(x, FLAT_WALL_TOP + 2, z, "minecraft:smooth_sandstone_slab",
                           {"type": "bottom", "waterlogged": "false"})
-    # Lights.
-    for x in (mid - 1, mid + 1):
+    # Lights: on the front wall, next to the door. An open front has no wall there: the torches go outside the awning.
+    for x in ((mid - 3, mid + 3) if wide_front else (mid - 1, mid + 1)):
         t.set(x, 2, 0, *wall_torch("north"))
     building_sign(t, mid + 1, 1, 0, sign)
     # Jigsaw connector in the porch, facing out (north).
@@ -1278,6 +1280,8 @@ def sun_forge():
     rng = random.Random(45)
     t = flat_house_shell(rng, "forge", FW, FD, wide_front=True)
     job_sign(t, FW // 2 - 1, 1, 0, *BLACKSMITH)
+    for y in range(1, FLAT_WALL_TOP):
+        connect_fences(t, y)
     t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
     t.set(FW - 2, 1, FD - 2, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
     t.set(FW - 2, 1, FD - 3, "minecraft:furnace", {"facing": "west", "lit": "false"})
@@ -1455,7 +1459,7 @@ def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"
 # The full blocks that a fence connects to: the blocks of the shell, and the stone and the earth of the job buildings.
 # A fence also connects to a fence, and not to a plant or a fruit.
 FENCE_SUPPORTS = ("cobblestone", "_log", "_planks", "_ore", ":stone", ":andesite", ":sand", ":gravel", ":clay",
-                  ":dirt")
+                  ":dirt", "sandstone")
 
 
 def connect_fences(t, y):
