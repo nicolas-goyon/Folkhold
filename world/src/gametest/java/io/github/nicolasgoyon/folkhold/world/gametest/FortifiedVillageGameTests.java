@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
@@ -42,7 +43,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.biome.FixedBiomeSource;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceGateBlock;
@@ -50,6 +53,7 @@ import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -85,6 +89,14 @@ public final class FortifiedVillageGameTests {
     private static final int MAX_FALL = 8;
     /** A walk of fewer positions did not start correctly. */
     private static final int MIN_WALK = 1000;
+    /** The first candidate chunk on the Z axis of the village on powder snow: far from the other villages. */
+    private static final int SNOW_FIRST_CHUNK = FIRST_CHUNK + 40;
+    /** The powder snow goes this number of blocks around the box of the village: out of the band of the heart. */
+    private static final int SNOW_MARGIN = VillageClearing.SNOW_BAND + 6;
+    /** The depth of the powder snow on the terrain. */
+    private static final int POWDER_DEPTH = 2;
+    /** The flat terrain in front of a gate goes this number of blocks outside the line. */
+    private static final int GATE_APPROACH = 6;
 
     private FortifiedVillageGameTests() {
     }
@@ -237,7 +249,7 @@ public final class FortifiedVillageGameTests {
     /**
      * The biome selects the variant of the village: oak in the plains, the meadow, the cherry grove and the forest,
      * birch in the birch forest, acacia in the savanna, sandstone in the desert, mangrove in the swamps, and the base
-     * variant (spruce) in the taiga, the snowy biomes and the windswept hills. The structure has all these biomes. A generated village in the plains of the test
+     * variant (spruce) in the taiga, the snowy biomes, the grove, the snowy slopes and the windswept hills. The structure has all these biomes. A generated village in the plains of the test
      * world has the pieces, the palisade and the homes of the plains, and the layout of the base variant at the same
      * place.
      */
@@ -257,6 +269,7 @@ public final class FortifiedVillageGameTests {
                 Map.entry(Biomes.SNOWY_PLAINS, "village/plaza"), Map.entry(Biomes.WINDSWEPT_HILLS, "village/plaza"),
                 Map.entry(Biomes.WINDSWEPT_FOREST, "village/plaza"),
                 Map.entry(Biomes.WINDSWEPT_GRAVELLY_HILLS, "village/plaza"),
+                Map.entry(Biomes.GROVE, "village/plaza"), Map.entry(Biomes.SNOWY_SLOPES, "village/plaza"),
                 Map.entry(Biomes.CHERRY_GROVE, "village/plains/plaza"));
         expected.forEach((biome, plaza) -> {
             Holder<Biome> holder = biomes.getHolderOrThrow(biome);
@@ -499,6 +512,79 @@ public final class FortifiedVillageGameTests {
         helper.succeed();
     }
 
+    /**
+     * A village in the grove has no powder snow on its terrain. The test puts a layer of powder snow on the flat
+     * terrain, as the surface of the grove, and generates a village of the grove on it. Under the buildings, the
+     * foundations replace the powder snow. Then the heart replaces the other powder snow of the area and of the band
+     * around it with snow blocks: the streets, the terrain between the buildings, the flat terrain and the approaches of
+     * the gates. A layer of snow stays, the powder snow of a player stays, and the powder snow out of the band stays.
+     * With the gates open, a walk on the ground from the heart goes to the approach of each gate.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_snow")
+    public static void groveVillageHasNoPowderSnow(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Holder<Biome> grove = level.registryAccess().registryOrThrow(Registries.BIOME).getHolderOrThrow(Biomes.GROVE);
+        BlockState powder = Blocks.POWDER_SNOW.defaultBlockState();
+        Village village = generate(helper, level, SNOW_FIRST_CHUNK, new FixedBiomeSource(grove), box -> {
+            for (int x = box.minX() - SNOW_MARGIN; x <= box.maxX() + SNOW_MARGIN; x++) {
+                for (int z = box.minZ() - SNOW_MARGIN; z <= box.maxZ() + SNOW_MARGIN; z++) {
+                    int top = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1;
+                    for (int depth = 0; depth < POWDER_DEPTH; depth++) {
+                        level.setBlock(new BlockPos(x, top - depth, z), powder, Block.UPDATE_CLIENTS);
+                    }
+                }
+            }
+        });
+        VillageReference reference = VillageReference.of(level, village.start().getPieces()).orElseThrow();
+        helper.assertTrue(reference.pieces().stream().noneMatch(piece -> piece.template().getPath()
+                .startsWith("village/plains/")), "The village of the grove must not use the pieces of the plains");
+        BoundingBox area = reference.area().orElseThrow();
+        BoundingBox snowBox = VillageClearing.snowBox(reference).orElseThrow();
+        helper.assertTrue(!blocksIn(level, area, state -> state.is(Blocks.POWDER_SNOW)).isEmpty(),
+                "Before the clearing, the area of the village must have powder snow");
+        BoundingBox plaza = village.start().getPieces().get(0).getBoundingBox();
+        BlockPos underPlaza = new BlockPos(plaza.minX() + 1, plaza.minY() - 1, plaza.minZ() + 1);
+        helper.assertTrue(!level.getBlockState(underPlaza).is(Blocks.POWDER_SNOW),
+                "The foundation of the plaza must replace the powder snow: " + level.getBlockState(underPlaza));
+
+        VillageHeartBlockEntity heart = (VillageHeartBlockEntity) level.getBlockEntity(village.heart());
+        heart.setRepairReference(reference);
+        int edgeZ = village.heart().getZ() + 1;
+        int top = level.getHeight(Heightmap.Types.WORLD_SURFACE, area.maxX() + 3, edgeZ) - 1;
+        BlockPos layerBase = new BlockPos(area.maxX() + 3, top, edgeZ);
+        BlockPos layer = layerBase.above();
+        level.setBlock(layer, Blocks.SNOW.defaultBlockState(), Block.UPDATE_CLIENTS);
+        BlockPos playerPowder = layerBase.south(4);
+        VillageRepairData.get(level).addPlayerBlock(village.heart(), playerPowder);
+        BlockPos outOfBand = new BlockPos(snowBox.maxX() + 2, top, edgeZ);
+        helper.assertTrue(level.getBlockState(layerBase).is(Blocks.POWDER_SNOW)
+                && level.getBlockState(playerPowder).is(Blocks.POWDER_SNOW)
+                && level.getBlockState(outOfBand).is(Blocks.POWDER_SNOW), "The band must have powder snow");
+
+        heart.clearTrees(level);
+
+        List<BlockPos> left = blocksIn(level, snowBox, state -> state.is(Blocks.POWDER_SNOW));
+        helper.assertTrue(left.equals(List.of(playerPowder)), "Only the powder snow of the player must stay: " + left);
+        helper.assertTrue(level.getBlockState(layerBase).is(Blocks.SNOW_BLOCK),
+                "The powder snow must change to a snow block: " + level.getBlockState(layerBase));
+        helper.assertTrue(level.getBlockState(layer).is(Blocks.SNOW), "The layer of snow must stay");
+        helper.assertTrue(level.getBlockState(outOfBand).is(Blocks.POWDER_SNOW),
+                "The powder snow out of the band must stay");
+
+        List<BlockPos> fenceGates = blocksIn(level, area, state -> state.getBlock() instanceof FenceGateBlock);
+        helper.assertTrue(fenceGates.size() == 4 * 3, "Each gate must have 3 fence gates: " + fenceGates.size());
+        for (BlockPos gate : fenceGates) {
+            level.setBlock(gate, level.getBlockState(gate).setValue(FenceGateBlock.OPEN, true), Block.UPDATE_CLIENTS);
+        }
+        Set<Long> reached = reachedColumns(level, village.heart(), snowBox);
+        for (BlockPos gate : fenceGates) {
+            BlockPos approach = approachOf(gate, area);
+            helper.assertTrue(reached.contains(ChunkPos.asLong(approach.getX(), approach.getZ())),
+                    "A walk from the heart must go to the approach of the gate " + gate + ": " + approach);
+        }
+        helper.succeed();
+    }
+
     /** A generated village and the position of its heart. */
     private record Village(StructureStart start, BlockPos heart) {
     }
@@ -512,12 +598,22 @@ public final class FortifiedVillageGameTests {
      * structure is: the GameTest world generates the vanilla villages.
      */
     private static Village generate(GameTestHelper helper, ServerLevel level) {
+        return generate(helper, level, FIRST_CHUNK, level.getChunkSource().getGenerator().getBiomeSource(), box -> {
+        });
+    }
+
+    /**
+     * Generates a village and places it in the level, from a first candidate chunk and with a source of biomes. The
+     * action changes the terrain of the box of the village before the placement of its pieces.
+     */
+    private static Village generate(GameTestHelper helper, ServerLevel level, int firstChunkZ, BiomeSource biomes,
+            Consumer<BoundingBox> beforePlacement) {
         Structure structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
                 .getOrThrow(Settlements.VILLAGE_STRUCTURE);
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         for (int i = 0; i < CANDIDATES; i++) {
-            ChunkPos chunk = new ChunkPos(FIRST_CHUNK + i * CANDIDATE_STEP, FIRST_CHUNK);
-            StructureStart start = structure.generate(level.registryAccess(), generator, generator.getBiomeSource(),
+            ChunkPos chunk = new ChunkPos(FIRST_CHUNK + i * CANDIDATE_STEP, firstChunkZ);
+            StructureStart start = structure.generate(level.registryAccess(), generator, biomes,
                     level.getChunkSource().randomState(), level.getServer().getStructureManager(), level.getSeed(),
                     chunk, 0, level, biome -> true);
             helper.assertTrue(start.isValid(), "The village must start in " + chunk);
@@ -525,6 +621,7 @@ public final class FortifiedVillageGameTests {
             if (hasOtherStructures(level, box)) {
                 continue;
             }
+            beforePlacement.accept(box);
             for (int x = box.minX() >> 4; x <= box.maxX() >> 4; x++) {
                 for (int z = box.minZ() >> 4; z <= box.maxZ() >> 4; z++) {
                     start.placeInChunk(level, level.structureManager(), generator, level.getRandom(),
@@ -539,6 +636,44 @@ public final class FortifiedVillageGameTests {
             return new Village(start, heart);
         }
         throw new IllegalStateException("No candidate chunk is free of other structures");
+    }
+
+    /** The column in front of a gate, {@link #GATE_APPROACH} blocks out of the nearest side of the area. */
+    private static BlockPos approachOf(BlockPos gate, BoundingBox area) {
+        Map<Direction, Integer> distances = Map.of(Direction.WEST, gate.getX() - area.minX(), Direction.EAST,
+                area.maxX() - gate.getX(), Direction.NORTH, gate.getZ() - area.minZ(), Direction.SOUTH,
+                area.maxZ() - gate.getZ());
+        Direction out = distances.entrySet().stream().min(Map.Entry.comparingByValue()).orElseThrow().getKey();
+        int distance = distances.get(out) + GATE_APPROACH;
+        return gate.relative(out, distance);
+    }
+
+    /**
+     * The columns that a walk on the ground from a position next to the heart reaches in a box, as {@link
+     * ChunkPos#asLong} of their X and Z. The steps are the steps of {@link #walk}.
+     */
+    private static Set<Long> reachedColumns(ServerLevel level, BlockPos heart, BoundingBox box) {
+        ArrayDeque<BlockPos> queue = new ArrayDeque<>();
+        Set<BlockPos> seen = new HashSet<>();
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            BlockPos start = heart.relative(direction);
+            if (canStand(level, start) && seen.add(start)) {
+                queue.add(start);
+            }
+        }
+        while (!queue.isEmpty()) {
+            BlockPos pos = queue.poll();
+            for (Direction direction : Direction.Plane.HORIZONTAL) {
+                BlockPos side = pos.relative(direction);
+                if (side.getX() >= box.minX() && side.getX() <= box.maxX() && side.getZ() >= box.minZ()
+                        && side.getZ() <= box.maxZ()) {
+                    step(level, pos, side).filter(seen::add).ifPresent(queue::add);
+                }
+            }
+        }
+        Set<Long> columns = new HashSet<>();
+        seen.forEach(pos -> columns.add(ChunkPos.asLong(pos.getX(), pos.getZ())));
+        return columns;
     }
 
     /** True if a chunk of a box has a structure, or a part of one. The method generates the chunks. */
