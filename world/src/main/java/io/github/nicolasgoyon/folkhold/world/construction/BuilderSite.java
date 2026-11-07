@@ -367,6 +367,21 @@ public final class BuilderSite {
         return schedule;
     }
 
+    /**
+     * The work of a villager on this site as text, for the messages of the tests: the phase, the next step of the
+     * site, and the state of the builder.
+     *
+     * @param builder the UUID of the villager
+     * @return the text
+     */
+    public String describeBuilder(UUID builder) {
+        BuilderWorker worker = workers.get(builder);
+        SiteSchedule<UUID> current = schedule;
+        String next = current == null ? "none" : current.next() + "/" + current.total();
+        return "phase " + phase + ", next step " + next + ", "
+                + (worker == null ? "not a worker" : worker.describe());
+    }
+
     @Nullable
     BuilderWorker worker(UUID builder) {
         return workers.get(builder);
