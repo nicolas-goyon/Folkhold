@@ -310,7 +310,7 @@ public final class FortifiedVillageGameTests {
         helper.succeed();
     }
 
-    /** The blocks of the spruce wood of a job (see job_wood in tools/structures/village.py). */
+    /** The blocks of the spruce wood of a job (see job_material in tools/structures/village.py). */
     private static final Set<String> SPRUCE_JOB_WOOD = Set.of("minecraft:spruce_log", "minecraft:stripped_spruce_log",
             "minecraft:spruce_planks", "minecraft:spruce_slab", "minecraft:potted_spruce_sapling");
 

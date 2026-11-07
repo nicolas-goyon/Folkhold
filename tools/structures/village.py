@@ -1911,8 +1911,8 @@ SMELTERS = {
 
 def smeltery(job):
     """The building of a smelter: a brick house with 2 blast furnaces (the work block of the vanilla armorer) and a
-    furnace for the glass in a brick oven, the raw ore and a block of coal, a barrel of sand, a water cauldron to cool
-    the metal, and the ingots on a counter.
+    furnace in a brick oven, the raw ore and a block of coal, a water cauldron to cool the metal, and the ingots on a
+    counter. The smelter also makes glass: its building has a barrel of sand.
 
     All the smelters have this shape. Only the ore and the ingots change: the weighted pressure plates show the
     ingots (iron for the smelter, gold for the smelter of gold).
@@ -1926,7 +1926,8 @@ def smeltery(job):
     for z, ore in zip((D - 2, D - 3), ores):
         t.set(1, 1, z, ore)
     t.set(1, 1, D - 4, "minecraft:coal_block")
-    t.set(W - 2, 1, D - 2, *BARREL)
+    if job == "smelter":
+        t.set(W - 2, 1, D - 2, *BARREL)
     t.set(W - 2, 1, D - 3, "minecraft:water_cauldron", {"level": "3"})
     for x in (W - 3, W - 2):
         t.set(x, 1, 3, *TOP_SLAB)
