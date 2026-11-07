@@ -90,6 +90,96 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/maritime/plains/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_lumberjack",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_lumberjack_acacia",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_lumberjack_birch",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_lumberjack_cherry",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_lumberjack_dark_oak",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_lumberjack_jungle",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_lumberjack_mangrove",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_lumberjack_spruce",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_sawyer",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_sawyer_spruce",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
     }
   ]
 }

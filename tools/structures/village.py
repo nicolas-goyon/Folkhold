@@ -35,6 +35,7 @@ plaza with the village heart and 4 house plots.
 Conventions: y = 0 is the ground layer (foundations, floors, paths). y = 1 is the first layer above ground.
 The compound gets a foundation of FOUNDATION layers under its ground layer (see with_foundation).
 """
+import functools
 import json
 import os
 import random
@@ -1742,6 +1743,78 @@ def fisher_hut():
     return t
 
 
+# The woods of the jobs of the wood: the wood of each job id.
+LUMBERJACKS = {"lumberjack": "oak", **{f"lumberjack_{wood}": wood for wood in (
+    "acacia", "birch", "cherry", "dark_oak", "jungle", "mangrove", "spruce")}}
+SAWYERS = {"sawyer": "oak", "sawyer_spruce": "spruce"}
+# The potted sapling of each wood: a sapling in a pot does not grow into a tree.
+POTTED = {"mangrove": "minecraft:potted_mangrove_propagule"}
+
+
+def job_wood(t, x, y, z, name, props=None):
+    """A block of the wood of the job. The biome variants do not change it: the lumberjack of spruce keeps its spruce
+    logs in the plains and in the desert."""
+    t.set(x, y, z, name, props)
+    t.fixed.add((x, y, z))
+
+
+def lumber_yard(job, wood):
+    """The building of a lumberjack: the shed with a grindstone for the axes and a potted sapling, and a yard with
+    piles of logs of the wood of the job and a chopping block.
+
+    All the lumberjacks have this shape. Only the wood of the logs, of the chopping block and of the sapling changes.
+    The yard has no sapling in the ground: a sapling grows into a tree.
+    """
+    log = f"minecraft:{wood}_log"
+    rng = random.Random(61)
+
+    def ground(x, z):
+        return GRASS if x in (1, 2, W - 2) else "minecraft:coarse_dirt"
+
+    t = job_building(rng, job, log, ground, lambda x, z: None,
+                     work=("minecraft:grindstone", {"face": "floor", "facing": "north"}))
+    t.set(1, 1, 2, POTTED.get(wood, f"minecraft:potted_{wood}_sapling"))
+    # The west pile: 2 rows of logs along the fence, the row on the fence 2 logs high.
+    for z in GARDEN_Z:
+        for x, top in ((1, 2), (2, 1)):
+            for y in range(1, top + 1):
+                job_wood(t, x, y, z, log, {"axis": "z"})
+    # The chopping block: a log on its end. The split wood: stripped logs in the back corner.
+    job_wood(t, W - 3, 1, WATER[1], log, LOG_Y)
+    for x, y in ((W - 3, 1), (W - 2, 1), (W - 2, 2)):
+        job_wood(t, x, y, D - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
+    t.set(W - 2, 1, SHED_DEPTH, POTTED.get(wood, f"minecraft:potted_{wood}_sapling"))
+    # The fences next to the piles connect to the logs.
+    connect_fences(t, 1)
+    return t
+
+
+def sawmill(job, wood):
+    """The building of a sawyer: a house with a saw bench (a stonecutter between the logs and the slabs), a pile of
+    logs, a stack of planks, a crafting table and a barrel.
+
+    All the sawyers have this shape. Only the wood of the logs, the planks and the slabs changes.
+    """
+    rng = random.Random(62)
+    t = job_house(rng, job, f"minecraft:{wood}_planks", planks)
+    bench = 5
+    for x in (2, 3):
+        job_wood(t, x, 1, bench, f"minecraft:{wood}_log", {"axis": "x"})
+    t.set(4, 1, bench, "minecraft:stonecutter", {"facing": "north"})
+    for x in (5, 6):
+        job_wood(t, x, 1, bench, f"minecraft:{wood}_slab", {"type": "bottom", "waterlogged": "false"})
+    # The logs to saw (west) and the planks (east) on the back wall. The middle of the room stays free.
+    for x, y in ((1, 1), (2, 1), (3, 1), (1, 2), (2, 2)):
+        job_wood(t, x, y, D - 2, f"minecraft:{wood}_log", {"axis": "x"})
+    for x, y, z in ((6, 1, D - 2), (7, 1, D - 2), (7, 2, D - 2), (7, 1, D - 3)):
+        job_wood(t, x, y, z, f"minecraft:{wood}_planks")
+    t.set(1, 1, 3, "minecraft:crafting_table")
+    t.set(W - 2, 1, 2, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, W - 2, 1, 3)
+    return t
+
+
 # The job buildings: the piece job_<id> of each job, in the pool village/jobs of each variant. The id is the name of
 # the job file.
 JOBS = {
@@ -1755,6 +1828,8 @@ JOBS = {
     "rancher": ranch,
     "butcher": butchery,
     "fisher": fisher_hut,
+    **{job: functools.partial(lumber_yard, job, wood) for job, wood in LUMBERJACKS.items()},
+    **{job: functools.partial(sawmill, job, wood) for job, wood in SAWYERS.items()},
 }
 
 PIECES = {
@@ -1941,13 +2016,14 @@ class Variant:
         return state
 
     def apply(self, t):
-        """The template with the materials of this variant. The jigsaw connectors use the pools of the variant."""
+        """The template with the materials of this variant. The jigsaw connectors use the pools of the variant. The
+        fixed positions of the template (see job_wood) keep their blocks."""
         out = Template(*t.size)
         prefix = f"{NS}:village/"
         for pos, ((name, props), nbt) in t.blocks.items():
             if nbt is not None and nbt.get("id") == "minecraft:jigsaw" and nbt["pool"].startswith(prefix):
                 nbt = dict(nbt, pool=self.id(nbt["pool"][len(prefix):]))
-            out.blocks[pos] = (self.replace(name, props), nbt)
+            out.blocks[pos] = ((name, props) if pos in t.fixed else self.replace(name, props), nbt)
         return out
 
 

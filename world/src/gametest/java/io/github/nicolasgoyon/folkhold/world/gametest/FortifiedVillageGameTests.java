@@ -310,6 +310,10 @@ public final class FortifiedVillageGameTests {
         helper.succeed();
     }
 
+    /** The blocks of the spruce wood of a job (see job_wood in tools/structures/village.py). */
+    private static final Set<String> SPRUCE_JOB_WOOD = Set.of("minecraft:spruce_log", "minecraft:stripped_spruce_log",
+            "minecraft:spruce_planks", "minecraft:spruce_slab", "minecraft:potted_spruce_sapling");
+
     /**
      * Each variant has all the pieces of the base variant (the style of a culture can have more pieces), with its
      * materials: no piece of a biome variant has a block of the spruce wood of the base variant. The base variant of a
@@ -341,7 +345,11 @@ public final class FortifiedVillageGameTests {
                         Tag.TAG_COMPOUND);
                 for (int i = 0; i < palette.size(); i++) {
                     String block = palette.getCompound(i).getString("Name");
-                    helper.assertFalse(block.contains("spruce"), "The piece " + id + " must not have " + block);
+                    // A job of the spruce wood keeps the spruce of its job in all the variants.
+                    boolean jobWood = piece.startsWith("job_") && piece.endsWith("_spruce")
+                            && SPRUCE_JOB_WOOD.contains(block);
+                    helper.assertFalse(block.contains("spruce") && !jobWood, "The piece " + id + " must not have "
+                            + block);
                 }
             }
         }
