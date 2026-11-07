@@ -15,6 +15,7 @@
     "minecraft:dragon_head",
     "minecraft:dragon_wall_head",
     "minecraft:piglin_head",
-    "minecraft:piglin_wall_head"
+    "minecraft:piglin_wall_head",
+    "folkhold_blocks:job_sign"
   ]
 }
