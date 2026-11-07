@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.config;
 
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
+import io.github.nicolasgoyon.folkhold.core.sim.schedule.DaySchedule;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -152,6 +153,15 @@ public final class WorldConfig {
 
     public static final ModConfigSpec.DoubleValue MERCHANT_FRIEND_FACTOR;
     public static final ModConfigSpec.DoubleValue MERCHANT_ALLY_FACTOR;
+    public static final ModConfigSpec.IntValue SCHEDULE_WORK_START;
+    public static final ModConfigSpec.IntValue SCHEDULE_MARKET_START;
+    public static final ModConfigSpec.IntValue SCHEDULE_MARKET_END;
+    public static final ModConfigSpec.IntValue SCHEDULE_HOME_START;
+    public static final ModConfigSpec.IntValue SCHEDULE_SLEEP_START;
+    public static final ModConfigSpec.IntValue SCHEDULE_MARKET_DAY_PERIOD;
+    public static final ModConfigSpec.IntValue SCHEDULE_MARKET_DAY_OFFERS;
+    public static final ModConfigSpec.BooleanValue SCHEDULE_VILLAGE_MARKET_DAYS;
+    public static final ModConfigSpec.IntValue SCHEDULE_WORKER_SPREAD_TICKS;
     public static final ModConfigSpec.IntValue BANK_PILLAGE_VALUE;
     public static final ModConfigSpec.IntValue BANK_PILLAGE_LOSS;
     public static final ModConfigSpec.DoubleValue BANK_TREASURY_SHARE;
@@ -843,6 +853,53 @@ public final class WorldConfig {
                 .comment("Factor of the sell prices for a player in the tier ally.")
                 .translation(KEY_PREFIX + "merchantAllyFactor")
                 .defineInRange("allyFactor", 0.8, 0.1, 1.0);
+        builder.pop();
+
+        builder.comment("Daily schedule of the workers of the faction villages, and the market day. The times are",
+                        "times of the day in ticks: 0 is the sunrise, 6000 is noon, 18000 is midnight. The bounds",
+                        "must be in this order: workStart <= marketStart < marketEnd <= homeStart <= sleepStart. If",
+                        "they are not, the villages use the default values.")
+                .translation(KEY_PREFIX + "schedule")
+                .push("schedule");
+        SCHEDULE_WORK_START = builder
+                .comment("The workers go to the building of their job at this time.")
+                .translation(KEY_PREFIX + "scheduleWorkStart")
+                .defineInRange("workStart", DaySchedule.DEFAULT.workStart(), 0, DaySchedule.DAY_TICKS - 1);
+        SCHEDULE_MARKET_START = builder
+                .comment("The workers go to the market at this time. The players can trade with them until",
+                        "marketEnd.")
+                .translation(KEY_PREFIX + "scheduleMarketStart")
+                .defineInRange("marketStart", DaySchedule.DEFAULT.marketStart(), 0, DaySchedule.DAY_TICKS - 1);
+        SCHEDULE_MARKET_END = builder
+                .comment("The market closes at this time, and the workers go back to the building of their job.")
+                .translation(KEY_PREFIX + "scheduleMarketEnd")
+                .defineInRange("marketEnd", DaySchedule.DEFAULT.marketEnd(), 0, DaySchedule.DAY_TICKS - 1);
+        SCHEDULE_HOME_START = builder
+                .comment("The workers stop the work and go home at this time.")
+                .translation(KEY_PREFIX + "scheduleHomeStart")
+                .defineInRange("homeStart", DaySchedule.DEFAULT.homeStart(), 0, DaySchedule.DAY_TICKS - 1);
+        SCHEDULE_SLEEP_START = builder
+                .comment("The workers go to bed at this time. They sleep until the sunrise.")
+                .translation(KEY_PREFIX + "scheduleSleepStart")
+                .defineInRange("sleepStart", DaySchedule.DEFAULT.sleepStart(), 0, DaySchedule.DAY_TICKS - 1);
+        SCHEDULE_MARKET_DAY_PERIOD = builder
+                .comment("Number of days from one market day to the next. 1: each day is a market day.")
+                .translation(KEY_PREFIX + "scheduleMarketDayPeriod")
+                .defineInRange("marketDayPeriod", DaySchedule.DEFAULT.marketDayPeriod(), 1, 365);
+        SCHEDULE_MARKET_DAY_OFFERS = builder
+                .comment("Number of offers that each worker adds on a market day.")
+                .translation(KEY_PREFIX + "scheduleMarketDayOffers")
+                .defineInRange("marketDayOffers", DaySchedule.DEFAULT.marketDayOffers(), 0, 64);
+        SCHEDULE_VILLAGE_MARKET_DAYS = builder
+                .comment("True: each village has its market day on a different day of the period, from the position",
+                        "of the village. False: all the villages have the market day on the same day.")
+                .translation(KEY_PREFIX + "scheduleVillageMarketDays")
+                .define("marketDayForEachVillage", true);
+        SCHEDULE_WORKER_SPREAD_TICKS = builder
+                .comment("Each worker changes its phase from 0 to this number of ticks after the time of the phase,",
+                        "so that the workers of a village do not all start to walk in the same tick.")
+                .translation(KEY_PREFIX + "scheduleWorkerSpreadTicks")
+                .defineInRange("workerSpreadTicks", DaySchedule.DEFAULT.workerSpreadTicks(), 0, 2000);
         builder.pop();
 
         builder.comment("Bank of the faction villages.")
