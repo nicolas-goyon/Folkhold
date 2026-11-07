@@ -13,8 +13,12 @@ Examples:
 Default size: 1 1 1. Default data version: 3955 (Minecraft 1.21.1).
 """
 import argparse
-import gzip
+import os
 import struct
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "structures"))
+from nbt import gzip_bytes, read_nbt_bytes  # noqa: E402
 
 TAG_END, TAG_INT, TAG_STRING, TAG_LIST, TAG_COMPOUND = 0, 3, 8, 9, 10
 
@@ -73,8 +77,11 @@ def main():
         + compound_list("entities", [])
     )
     data = bytes([TAG_COMPOUND]) + name("") + root + bytes([TAG_END])
-    with gzip.GzipFile(args.output, "wb", mtime=0) as f:
-        f.write(data)
+    # Same rule as nbt.write_nbt: do not write the file when its uncompressed content does not change.
+    if os.path.exists(args.output) and read_nbt_bytes(args.output) == data:
+        return
+    with open(args.output, "wb") as f:
+        f.write(gzip_bytes(data))
 
 
 if __name__ == "__main__":
