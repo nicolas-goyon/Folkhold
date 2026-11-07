@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlock;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
@@ -82,14 +83,14 @@ public final class VillageBeds {
         return VillagePlaces.places(settlement.beds(), staff());
     }
 
-    /** A player places a bed: the village of the bed scans its blocks again. */
+    /** A player places a bed or a job sign: the village of the block scans its blocks again. */
     public static void onBlockPlaced(BlockEvent.EntityPlaceEvent event) {
         if (!event.isCanceled() && event.getLevel() instanceof ServerLevel level) {
             requestScan(level, event.getPos(), event.getPlacedBlock());
         }
     }
 
-    /** A player breaks a bed: the village of the bed scans its blocks again. */
+    /** A player breaks a bed or a job sign: the village of the block scans its blocks again. */
     public static void onBlockBroken(BlockEvent.BreakEvent event) {
         if (!event.isCanceled() && event.getLevel() instanceof ServerLevel level) {
             requestScan(level, event.getPos(), event.getState());
@@ -97,7 +98,7 @@ public final class VillageBeds {
     }
 
     private static void requestScan(ServerLevel level, BlockPos pos, BlockState state) {
-        if (!(state.getBlock() instanceof BedBlock)) {
+        if (!(state.getBlock() instanceof BedBlock) && !(state.getBlock() instanceof JobSignBlock)) {
             return;
         }
         VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get())

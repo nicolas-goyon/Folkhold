@@ -1,0 +1,12 @@
+{
+  "inputs": [
+    {"item": "minecraft:iron_ingot", "count": 2}
+  ],
+  "outputs": [
+    {"item": "minecraft:iron_sword", "count": 1}
+  ],
+  "min_level": 21,
+  "weight": 1,
+  "profession": "minecraft:weaponsmith",
+  "building": true
+}

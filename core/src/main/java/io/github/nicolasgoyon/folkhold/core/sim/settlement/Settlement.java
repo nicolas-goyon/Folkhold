@@ -3,7 +3,9 @@ package io.github.nicolasgoyon.folkhold.core.sim.settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Abstract state of one village. The simulation uses it also when the chunks of the village are not loaded.
@@ -34,6 +36,7 @@ public final class Settlement {
     private final EconomyState economy = new EconomyState();
     private List<Gate> gates = List.of();
     private int beds = VillagePlaces.UNKNOWN;
+    private Map<String, Integer> jobBuildings;
     private long lastFallPenalty = NO_FALL_PENALTY;
 
     /**
@@ -225,6 +228,29 @@ public final class Settlement {
             return false;
         }
         this.beds = value;
+        return true;
+    }
+
+    /**
+     * The number of buildings of each job id, as the heart counted the job signs the last time (see
+     * {@link io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings}). Empty if the heart did not count them.
+     */
+    public Optional<Map<String, Integer>> jobBuildings() {
+        return Optional.ofNullable(jobBuildings);
+    }
+
+    /**
+     * Sets the number of buildings of each job id.
+     *
+     * @param counts the counts, or empty if the counts are unknown
+     * @return true if the counts changed
+     */
+    public boolean setJobBuildings(Optional<Map<String, Integer>> counts) {
+        Map<String, Integer> value = counts.map(Map::copyOf).orElse(null);
+        if (Objects.equals(value, jobBuildings)) {
+            return false;
+        }
+        jobBuildings = value;
         return true;
     }
 

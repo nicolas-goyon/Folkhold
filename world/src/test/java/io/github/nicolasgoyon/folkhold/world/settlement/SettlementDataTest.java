@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
+import java.util.Map;
+import java.util.Optional;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -40,6 +42,37 @@ class SettlementDataTest {
         SettlementData loaded = SettlementData.load(tag, null);
 
         assertEquals(Settlement.NO_FALL_PENALTY, loaded.registry().byId("fallen").orElseThrow().lastFallPenalty());
+    }
+
+    @Test
+    void jobBuildingsSurviveSaveAndLoad() {
+        SettlementData data = new SettlementData();
+        Settlement scanned = settlement("scanned");
+        scanned.setJobBuildings(Optional.of(Map.of("folkhold_world:blacksmith", 1)));
+        Settlement empty = settlement("empty");
+        empty.setJobBuildings(Optional.of(Map.of()));
+        data.registry().add(scanned);
+        data.registry().add(empty);
+        data.registry().add(settlement("abstract"));
+
+        SettlementData loaded = SettlementData.load(data.save(new CompoundTag(), null), null);
+
+        assertEquals(Optional.of(Map.of("folkhold_world:blacksmith", 1)),
+                loaded.registry().byId("scanned").orElseThrow().jobBuildings());
+        assertEquals(Optional.of(Map.of()), loaded.registry().byId("empty").orElseThrow().jobBuildings());
+        assertEquals(Optional.empty(), loaded.registry().byId("abstract").orElseThrow().jobBuildings());
+    }
+
+    @Test
+    void settlementOfAnEarlierVersionHasUnknownJobBuildings() {
+        SettlementData data = new SettlementData();
+        data.registry().add(settlement("old"));
+        CompoundTag tag = data.save(new CompoundTag(), null);
+        tag.putInt("Version", 1);
+
+        SettlementData loaded = SettlementData.load(tag, null);
+
+        assertEquals(Optional.empty(), loaded.registry().byId("old").orElseThrow().jobBuildings());
     }
 
     private static Settlement settlement(String id) {
