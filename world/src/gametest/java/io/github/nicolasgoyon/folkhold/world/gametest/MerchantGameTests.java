@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
@@ -16,6 +17,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -25,6 +27,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.Item;
@@ -41,14 +44,19 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
- * In-game tests for the merchants of the villages. See {@link TestSupport} for the templates and the helpers.
+ * In-game tests for the villagers of the villages and the trades of the workers. See {@link TestSupport} for the templates and the helpers.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class MerchantGameTests {
-    /** The treasury of the faction in the test of a purchase: the merchants can pay. */
+    /** The treasury of the faction in the test of a purchase: the workers can pay. */
     private static final long BUYER_TREASURY = 1_000L;
     private static final BlockPos HEART = new BlockPos(8, 1, 8);
+    private static final String BAKER = "folkhold_world:baker";
+    private static final String BLACKSMITH = "folkhold_world:blacksmith";
+    private static final String MINER = "folkhold_world:miner";
+    /** The test job of the GameTest data: it needs its building and shows the weaponsmith profession. */
+    private static final String TEST_SMITH = "folkhold_world:test_smith";
     /** The tests call the checks of the heart this number of times to create all the villagers. */
     private static final int FILL_CHECKS = 30;
 
@@ -73,21 +81,17 @@ public final class MerchantGameTests {
     }
 
     /**
-     * The heart creates the merchants and the inhabitants of the village, in groups: one check creates
-     * {@link VillageHeartBlockEntity#VILLAGER_GROUP} villagers at most, and the next checks create the others.
+     * The heart creates the inhabitants of the village, in groups: one check creates
+     * {@link VillageHeartBlockEntity#VILLAGER_GROUP} villagers at most, and the next checks create the others. No
+     * villager is a merchant.
      */
     @GameTest(template = "arena", timeoutTicks = 40, batch = "merchant_spawn")
-    public static void heartCreatesItsMerchants(GameTestHelper helper) {
+    public static void heartCreatesItsInhabitants(GameTestHelper helper) {
         Village village = village(helper);
         village.heart().ensureGarrison(helper.getLevel().getGameTime());
-        int firstGroup = Merchants.merchantsOf(helper.getLevel(), village.heart().getBlockPos()).size()
-                + VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos()).size();
+        int firstGroup = VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos()).size();
         fill(helper, village);
 
-        List<Villager> merchants = Merchants.merchantsOf(helper.getLevel(), village.heart().getBlockPos());
-        boolean professions = merchants.stream()
-                .allMatch(villager -> villager.getVillagerData().getProfession() == ModProfessions.MERCHANT.get());
-        int expected = Merchants.merchantCount(village.settlement());
         List<Villager> inhabitants = VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos());
         int expectedInhabitants = VillageFolk.inhabitantCount(village.settlement());
         List<VillagerProfession> found = inhabitants.stream()
@@ -96,13 +100,11 @@ public final class MerchantGameTests {
                 .sorted(BY_ID).toList();
         village.heart().getUnits().forEach(Entity::discard);
         village.heart().getCats().forEach(Entity::discard);
-        merchants.forEach(Entity::discard);
         inhabitants.forEach(Entity::discard);
 
         helper.assertTrue(firstGroup > 0 && firstGroup <= VillageHeartBlockEntity.VILLAGER_GROUP,
                 "The first check must create a group of villagers, not " + firstGroup);
-        helper.assertTrue(merchants.size() == expected, "Expected " + expected + " merchants, found " + merchants.size());
-        helper.assertTrue(professions, "Each merchant must have the merchant profession");
+        helper.assertTrue(!found.contains(ModProfessions.MERCHANT.get()), "No villager must be a merchant");
         helper.assertTrue(inhabitants.size() == expectedInhabitants && expectedInhabitants > 0,
                 "Expected " + expectedInhabitants + " inhabitants, found " + inhabitants.size());
         helper.assertTrue(found.equals(wanted), "Expected the professions " + wanted + ", found " + found);
@@ -122,11 +124,10 @@ public final class MerchantGameTests {
         village.settlement().economy().setPopulation(population);
         village.settlement().economy().setJobs(Collections.nCopies(jobSlots, "folkhold_world:farmer"));
         // The hall gives places to the builders and the handymen. The beds give the other places.
-        TestSupport.placeBeds(helper, population - Merchants.merchantCount(village.settlement()) - VillageBeds.staff());
+        TestSupport.placeBeds(helper, population - VillageBeds.staff());
         fill(helper, village);
 
         BlockPos heartPos = village.heart().getBlockPos();
-        List<Villager> merchants = Merchants.merchantsOf(helper.getLevel(), heartPos);
         List<Villager> inhabitants = VillageFolk.inhabitants(helper.getLevel(), heartPos);
         long farmers = inhabitants.stream()
                 .filter(villager -> villager.getVillagerData().getProfession() == VillagerProfession.FARMER).count();
@@ -136,11 +137,10 @@ public final class MerchantGameTests {
                 == ModProfessions.BUILDER.get()).count();
         long handymen = inhabitants.stream().filter(villager -> villager.getVillagerData().getProfession()
                 == ModProfessions.HANDYMAN.get()).count();
-        int expected = population - Merchants.merchantCount(village.settlement());
+        int expected = population;
         int workers = VillageFolk.workerCount(jobSlots, population, WorldConfig.ECONOMY_WORKERS_PER_JOB.get());
         village.heart().getUnits().forEach(Entity::discard);
         village.heart().getCats().forEach(Entity::discard);
-        merchants.forEach(Entity::discard);
         inhabitants.forEach(Entity::discard);
 
         helper.assertTrue(inhabitants.size() == expected,
@@ -165,19 +165,21 @@ public final class MerchantGameTests {
         }
     }
 
-    /** The player buys bread: the bread leaves the stock and the emeralds go into the treasury. */
+    /** The player buys bread from the baker: the bread leaves the stock and the emeralds go into the treasury. */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "merchant_sell")
     public static void playerBuysFromTheStock(GameTestHelper helper) {
         Village village = village(helper);
         MinecraftServer server = helper.getLevel().getServer();
+        village.settlement().economy().setJobs(List.of(BAKER));
         village.settlement().economy().stock().set("minecraft:bread", 64);
         SettlementData data = SettlementData.get(server);
         long treasury = data.treasury(village.settlement().factionId());
 
-        MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL);
+        MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
+                ModProfessions.BAKER.get());
         MerchantOffer bread = offers.stream().filter(offer -> offer.getResult().is(Items.BREAD)).findFirst()
                 .orElse(null);
-        helper.assertTrue(bread != null, "The merchant must sell the bread of the stock");
+        helper.assertTrue(bread != null, "The baker must sell the bread of the stock");
         Merchants.applyTrade(server, village.settlement(), bread);
 
         int stock = village.settlement().economy().stock().count("minecraft:bread");
@@ -187,12 +189,13 @@ public final class MerchantGameTests {
         helper.succeed();
     }
 
-    /** The player sells an item that the village needs: the item goes into the stock, the treasury pays. */
+    /** The player sells wheat to the baker: the wheat goes into the stock, the treasury pays. */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "merchant_buy")
     public static void playerSellsWhatTheVillageNeeds(GameTestHelper helper) {
         Village village = village(helper);
         MinecraftServer server = helper.getLevel().getServer();
         village.settlement().setProgress(20, 0);
+        village.settlement().economy().setJobs(List.of(BAKER));
         SettlementData data = SettlementData.get(server);
         String faction = village.settlement().factionId();
         // The other tests use the same factions: a known treasury, put back at the end.
@@ -200,7 +203,8 @@ public final class MerchantGameTests {
         data.addTreasury(faction, BUYER_TREASURY - original);
         long treasury = data.treasury(faction);
 
-        MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL);
+        MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
+                ModProfessions.BAKER.get());
         MerchantOffer purchase = offers.stream().filter(offer -> offer.getResult().is(Items.EMERALD)).findFirst()
                 .orElse(null);
         String item = purchase == null ? "" : BuiltInRegistries.ITEM.getKey(purchase.getCostA().getItem()).toString();
@@ -212,22 +216,22 @@ public final class MerchantGameTests {
         int stock = village.settlement().economy().stock().count(item);
         long after = data.treasury(faction);
         data.addTreasury(faction, original - data.treasury(faction));
-        helper.assertTrue(purchase != null, "The merchant must buy an item that the village needs");
+        helper.assertTrue(purchase != null && purchase.getCostA().is(Items.WHEAT), "The baker must buy wheat");
         helper.assertTrue(stock == before + purchase.getCostA().getCount(), "The item must go into the stock");
         helper.assertTrue(after == treasury - purchase.getResult().getCount(), "The treasury must pay the emeralds");
         helper.succeed();
     }
 
-    /** The offer of an item in the offers of a merchant, or null. */
+    /** The offer of an item in the offers of a worker, or null. */
     private static MerchantOffer offerOf(MerchantOffers offers, Item item) {
         return offers.stream().filter(offer -> offer.getResult().is(item)).findFirst().orElse(null);
     }
 
-    /** A merchant of the village, with offers, that trades with a player: the player has the trade screen open. */
+    /** A miner of the village, with offers, that trades with a player: the player has the trade screen open. */
     private static Villager tradingMerchant(GameTestHelper helper, Village village, ServerPlayer player,
             MerchantOffers offers) {
         Villager merchant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
-                ModProfessions.MERCHANT.get());
+                VillagerProfession.TOOLSMITH);
         merchant.setOffers(offers);
         merchant.setTradingPlayer(player);
         merchant.openTradingScreen(player, merchant.getDisplayName(), 1);
@@ -243,18 +247,19 @@ public final class MerchantGameTests {
     public static void onlyOneTradeTakesTheLastItem(GameTestHelper helper) {
         Village village = village(helper);
         MinecraftServer server = helper.getLevel().getServer();
+        village.settlement().economy().setJobs(List.of(MINER));
         village.settlement().economy().stock().set("minecraft:diamond", 1);
         SettlementData data = SettlementData.get(server);
         long treasury = data.treasury(village.settlement().factionId());
         ServerPlayer first = TestSupport.mockPlayer(helper);
         ServerPlayer second = TestSupport.mockPlayer(helper);
-        Villager firstMerchant = tradingMerchant(helper, village, first,
-                Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL));
-        Villager secondMerchant = tradingMerchant(helper, village, second,
-                Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL));
+        Villager firstMerchant = tradingMerchant(helper, village, first, Merchants.offers(server,
+                village.settlement(), ReputationTier.NEUTRAL, VillagerProfession.TOOLSMITH));
+        Villager secondMerchant = tradingMerchant(helper, village, second, Merchants.offers(server,
+                village.settlement(), ReputationTier.NEUTRAL, VillagerProfession.TOOLSMITH));
         MerchantOffer firstDiamond = offerOf(firstMerchant.getOffers(), Items.DIAMOND);
         MerchantOffer secondDiamond = offerOf(secondMerchant.getOffers(), Items.DIAMOND);
-        helper.assertTrue(firstDiamond != null && secondDiamond != null, "The two merchants must sell the diamond");
+        helper.assertTrue(firstDiamond != null && secondDiamond != null, "The two miners must sell the diamond");
 
         firstDiamond.increaseUses();
         NeoForge.EVENT_BUS.post(new TradeWithVillagerEvent(first, firstDiamond, firstMerchant));
@@ -383,7 +388,6 @@ public final class MerchantGameTests {
                 .allMatch(villager -> working.contains(villager.getVillagerData().getProfession()));
         village.heart().getUnits().forEach(Entity::discard);
         village.heart().getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), village.heart().getBlockPos()).forEach(Entity::discard);
         inhabitants.forEach(Entity::discard);
 
         helper.assertTrue(profession != ModProfessions.INHABITANT.get(),
@@ -392,33 +396,125 @@ public final class MerchantGameTests {
         helper.succeed();
     }
 
-    /** A player cannot trade with an inhabitant. A player can trade with a merchant. */
+    /**
+     * A player can trade with the worker of an active job. A player cannot trade with an inhabitant with no job,
+     * with the worker of a job that the village does not have, or with a villager with the merchant profession.
+     */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "village_folk_trade")
     public static void inhabitantDoesNotTrade(GameTestHelper helper) {
         Village village = village(helper);
+        village.settlement().economy().setJobs(List.of(BAKER));
         ServerPlayer player = TestSupport.mockPlayer(helper);
         // A mock player has a new UUID and the start reputation of the faction: a hostile faction refuses the
-        // trade. The test sets a neutral reputation, so the merchant trades.
+        // trade. The test sets a neutral reputation, so the baker trades.
         ReputationData reputation = ReputationData.get(helper.getLevel().getServer());
         reputation.get(player.getUUID()).setFaction(village.settlement().factionId(), 0);
         reputation.get(player.getUUID()).setVillage(village.settlement().id(), 0);
-        Villager inhabitant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
-                VillagerProfession.FARMER);
-        Villager merchant = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(),
-                ModProfessions.MERCHANT.get());
+        List<VillagerProfession> professions = List.of(ModProfessions.BAKER.get(), ModProfessions.INHABITANT.get(),
+                VillagerProfession.FARMER, ModProfessions.MERCHANT.get());
+        List<Boolean> canceled = professions.stream().map(profession -> {
+            Villager villager = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(), profession);
+            PlayerInteractEvent.EntityInteract event =
+                    new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, villager);
+            NeoForge.EVENT_BUS.post(event);
+            villager.discard();
+            return event.isCanceled();
+        }).toList();
 
-        PlayerInteractEvent.EntityInteract withInhabitant =
-                new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, inhabitant);
-        PlayerInteractEvent.EntityInteract withMerchant =
-                new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, merchant);
-        NeoForge.EVENT_BUS.post(withInhabitant);
-        NeoForge.EVENT_BUS.post(withMerchant);
-
-        inhabitant.discard();
-        merchant.discard();
         helper.getLevel().getServer().getPlayerList().remove(player);
-        helper.assertTrue(withInhabitant.isCanceled(), "The interaction with an inhabitant must be canceled");
-        helper.assertTrue(!withMerchant.isCanceled(), "The interaction with a merchant must not be canceled");
+        helper.assertTrue(canceled.equals(List.of(false, true, true, true)),
+                "Only the baker must trade: canceled " + canceled + " for " + professions);
+        helper.succeed();
+    }
+
+    /**
+     * A blacksmith sells only the outputs of the blacksmith job in stock, and buys only its inputs. A trade with
+     * the blacksmith changes the stock and the treasury.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "worker_offers")
+    public static void workerTradesTheGoodsOfItsJob(GameTestHelper helper) {
+        Village village = village(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        village.settlement().setProgress(20, 0);
+        village.settlement().economy().setJobs(List.of(BLACKSMITH, BAKER));
+        village.settlement().economy().stock().set("minecraft:iron_sword", 5);
+        village.settlement().economy().stock().set("minecraft:bread", 64);
+        SettlementData data = SettlementData.get(server);
+        String faction = village.settlement().factionId();
+        long original = data.treasury(faction);
+        data.addTreasury(faction, BUYER_TREASURY - original);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
+        MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
+                VillagerProfession.WEAPONSMITH);
+        Villager smith = tradingMerchant(helper, village, player, offers);
+        List<Item> sold = offers.stream().map(offer -> offer.getResult().getItem())
+                .filter(item -> item != Items.EMERALD).toList();
+        List<String> bought = offers.stream().filter(offer -> offer.getResult().is(Items.EMERALD))
+                .map(offer -> BuiltInRegistries.ITEM.getKey(offer.getCostA().getItem()).toString()).toList();
+        List<String> inputs = Economies.jobs(village.settlement()).get(0).recipe().inputs().stream()
+                .map(input -> input.item()).toList();
+        MerchantOffer sword = offerOf(offers, Items.IRON_SWORD);
+        if (sword != null) {
+            sword.increaseUses();
+            NeoForge.EVENT_BUS.post(new TradeWithVillagerEvent(player, sword, smith));
+        }
+        int stock = village.settlement().economy().stock().count("minecraft:iron_sword");
+        long treasury = data.treasury(faction);
+
+        smith.discard();
+        server.getPlayerList().remove(player);
+        data.addTreasury(faction, original - treasury);
+        helper.assertTrue(sold.equals(List.of(Items.IRON_SWORD)), "The blacksmith must sell only swords: " + sold);
+        helper.assertTrue(!bought.isEmpty() && inputs.containsAll(bought),
+                "The blacksmith must buy only its inputs: " + bought);
+        helper.assertTrue(sword != null && stock == 4, "The sword must leave the stock, found " + stock);
+        helper.assertTrue(treasury == BUYER_TREASURY + sword.getCostA().getCount(),
+                "The emeralds must go into the treasury, found " + treasury);
+        helper.succeed();
+    }
+
+    /**
+     * The worker of a job with no building offers nothing. A villager with the merchant profession offers nothing. A
+     * village with no active job gets no prosperity share for the jobs.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "worker_inactive")
+    public static void workerOfAnInactiveJobDoesNotTrade(GameTestHelper helper) {
+        Village village = village(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        village.settlement().economy().setJobs(List.of(TEST_SMITH));
+        village.settlement().economy().stock().set("minecraft:iron_sword", 5);
+        village.settlement().economy().setInitialized(true);
+        village.settlement().economy().setLastCycle(1.0, 1.0);
+        boolean unknownEmpty = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
+                VillagerProfession.WEAPONSMITH).isEmpty();
+        double activeProsperity = Economies.prosperity(server, village.settlement());
+        village.settlement().setJobBuildings(Optional.of(Map.of()));
+        double inactiveProsperity = Economies.prosperity(server, village.settlement());
+        MerchantOffers inactive = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
+                VillagerProfession.WEAPONSMITH);
+        MerchantOffers merchant = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
+                ModProfessions.MERCHANT.get());
+        village.settlement().setJobBuildings(Optional.empty());
+
+        helper.assertTrue(!unknownEmpty, "With unknown building counts, the smith must sell its swords");
+        helper.assertTrue(inactive.isEmpty(), "The smith of an inactive job must offer nothing");
+        helper.assertTrue(merchant.isEmpty(), "A villager with the merchant profession must offer nothing");
+        helper.assertTrue(Math.abs(activeProsperity - inactiveProsperity - 0.3) < 1e-9,
+                "No active job must remove the jobs share: " + activeProsperity + " -> " + inactiveProsperity);
+        helper.succeed();
+    }
+
+    /** A villager with the merchant profession becomes an inhabitant at the check of the heart. */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "village_folk_merchant")
+    public static void merchantBecomesAnInhabitant(GameTestHelper helper) {
+        Villager merchant = new Villager(EntityType.VILLAGER, helper.getLevel());
+        merchant.setVillagerData(merchant.getVillagerData().setProfession(ModProfessions.MERCHANT.get()));
+
+        List<VillagerProfession> missing = VillageFolk.assign(List.of(merchant), List.of());
+
+        helper.assertTrue(missing.isEmpty(), "No profession must be missing");
+        helper.assertTrue(merchant.getVillagerData().getProfession() == ModProfessions.INHABITANT.get(),
+                "The merchant must become an inhabitant, not " + merchant.getVillagerData().getProfession());
         helper.succeed();
     }
 }

@@ -51,7 +51,7 @@ import net.minecraft.world.item.Item;
  * <ul>
  *   <li>the welcome line, for the reputation tier of the player;</li>
  *   <li>the reputation: tier, effective value, village value and faction value with their weights;</li>
- *   <li>what the player can do here: quests (with a link to the quest board), trade (discount, merchants, the items
+ *   <li>what the player can do here: quests (with a link to the quest board), trade (discount, jobs that trade, the items
  *       that the village looks for), shelter at night, inn;</li>
  *   <li>an advice: what not to do, or how to improve a bad reputation.</li>
  * </ul>
@@ -185,7 +185,7 @@ public final class VillageInfo {
         Component state = factor < 1.0
                 ? available(Component.translatable(KEY + "trade.discount", Merchants.priceText(factor)))
                 : available(Component.translatable(KEY + "trade.normal"));
-        Component details = Component.translatable(KEY + "trade.merchants", Merchants.merchantCount(settlement));
+        Component details = Component.translatable(KEY + "trade.jobs", Merchants.traderCount(settlement));
         List<String> needs = List.of();
         if (EconomyData.isActive()) {
             EconomyState economy = settlement.economy();

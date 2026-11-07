@@ -6,7 +6,6 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
@@ -89,7 +88,6 @@ public final class VillageStructureGameTests {
                         && helper.getLevel().canSeeSky(unit.blockPosition()));
         units.forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
 
         helper.assertTrue(layout.posts().size() == TOWERS, "Expected " + TOWERS + " posts, found " + layout.posts().size());
@@ -111,7 +109,6 @@ public final class VillageStructureGameTests {
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         List<BlockPos> banners = heart.getLayout().banners();
         DyeColor expected = FactionVisuals.faction(helper.getLevel().getServer(), heart.getFactionId())
@@ -139,7 +136,6 @@ public final class VillageStructureGameTests {
         List<GuardEntity> guards = heart.getUnits().stream()
                 .filter(unit -> unit instanceof GuardEntity && !(unit instanceof CaptainEntity))
                 .map(GuardEntity.class::cast).toList();
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
 
         heart.applyDayNight(true);
@@ -159,7 +155,6 @@ public final class VillageStructureGameTests {
         boolean guardsOffWatch = guards.stream().allMatch(guard -> guard.getNightPos() == null);
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
 
         helper.assertTrue(gatesClosed, "At night, all gates must be closed");
@@ -220,7 +215,6 @@ public final class VillageStructureGameTests {
         boolean valid = archers.stream().allMatch(archer -> validPosts.contains(archer.getPostPos()));
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         helper.assertTrue(archers.size() >= 2, "The garrison must have 2 archers or more");
         helper.assertTrue(distinct == archers.size(), "Each archer must have its own tower");
@@ -249,7 +243,6 @@ public final class VillageStructureGameTests {
         long distinct = after.stream().distinct().count();
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         helper.assertTrue(moved, "Each archer must move to another tower: " + before + " -> " + after);
         helper.assertTrue(distinct == archers.size(), "Two archers must not share a tower");
@@ -263,7 +256,6 @@ public final class VillageStructureGameTests {
         heart.ensureGarrison(helper.getLevel().getGameTime());
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         List<BlockPos> bells = heart.getLayout().bells();
 
@@ -295,7 +287,6 @@ public final class VillageStructureGameTests {
         boolean anchored = cats.stream().allMatch(cat -> anchors.contains(cat.getAnchorPos()));
         int expected = heart.catCount();
         cats.forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         helper.getLevel().getServer().getPlayerList().remove(player);
 
@@ -324,7 +315,6 @@ public final class VillageStructureGameTests {
         ArcherEntity archer = archers.get(0);
         heart.getUnits().stream().filter(unit -> unit != archer).forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         BlockPos start = archer.getPostPos();
         // The rotation occurs when the archer stands on its post (after the first ticks).
         helper.runAfterDelay(10, () -> {

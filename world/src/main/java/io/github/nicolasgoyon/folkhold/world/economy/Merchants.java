@@ -2,6 +2,8 @@ package io.github.nicolasgoyon.folkhold.world.economy;
 
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomySettings;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemInfo;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobTrades;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Stock;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
@@ -31,9 +33,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -45,23 +47,28 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
 
 /**
- * The merchants of the faction villages.
+ * The trades of the workers of the faction villages: each worker sells the goods of its job.
  *
- * <p>A merchant is a vanilla villager with the profession {@link ModProfessions#MERCHANT}. So the vanilla systems
- * work with it: raids, Hero of the Village, zombie conversion and cure, iron golems, gossip, the bell, and the other
- * mods that use the villagers.
+ * <p>A worker is a vanilla villager with the profession of its job (see {@link VillageFolk#professionOf}). So the
+ * vanilla systems work with it: raids, Hero of the Village, zombie conversion and cure, iron golems, gossip, the
+ * bell, and the other mods that use the villagers.
  *
  * <ul>
- *   <li>When a player starts to trade, the offers come from the stocks of the village: the merchant sells the
- *       items in stock (price {@code P × 1.15}) and buys the items that the village needs (price
- *       {@code P × 0.85}). The treasury of the faction limits the purchases. The number of offers comes from the
- *       level.</li>
+ *   <li>A worker trades when the settlement has an active job with its profession (see
+ *       {@link Economies#activeJobIds}). The builders, the handymen and the inhabitants with no job do not trade.</li>
+ *   <li>When a player starts to trade, the offers come from the stock of the village (see {@link JobTrades}): the
+ *       worker sells the outputs of its jobs in stock (price {@code P × 1.15}) and buys the inputs of its jobs that
+ *       the village needs (price {@code P × 0.85}). The treasury of the faction limits the purchases. The offer
+ *       count of the level divides between the traders of the village.</li>
  *   <li>Each trade changes the stock and the treasury.</li>
- *   <li>The merchant does not trade with a player below the neutral tier. Friends and allies get a discount.</li>
+ *   <li>A worker does not trade with a player below the neutral tier. Friends and allies get a discount.</li>
  * </ul>
+ *
+ * <p>The profession {@link ModProfessions#MERCHANT} does not trade: a villager with this profession becomes an
+ * inhabitant at the next check of the heart (see {@link VillageFolk#inhabitants}).
  */
 public final class Merchants {
-    /** Persistent data key: the position of the heart of the village of a merchant. */
+    /** Persistent data key: the position of the heart of the village of a villager. */
     public static final String VILLAGE_TAG = "folkhold_world:village";
     /** Maximum uses of one offer. */
     private static final int MAX_USES = 64;
@@ -71,13 +78,57 @@ public final class Merchants {
     private Merchants() {
     }
 
-    /** True if the entity is a villager with the merchant profession. */
-    public static boolean isMerchant(Entity entity) {
-        return entity instanceof Villager villager
-                && villager.getVillagerData().getProfession() == ModProfessions.MERCHANT.get();
+    /**
+     * The active jobs that a worker of a settlement trades: the active jobs with the profession of the worker. The
+     * inhabitant profession trades no job.
+     *
+     * @param settlement the settlement
+     * @param profession the profession of the worker
+     * @return the jobs, or no job if the worker does not trade
+     */
+    public static List<Job> tradedJobs(Settlement settlement, VillagerProfession profession) {
+        if (profession == ModProfessions.INHABITANT.get()) {
+            return List.of();
+        }
+        return Economies.activeJobs(settlement).stream()
+                .filter(job -> VillageFolk.professionOf(job.id()) == profession)
+                .distinct()
+                .toList();
     }
 
-    /** The heart of the village of a merchant: the heart that it records, or the nearest heart. */
+    /**
+     * The number of traders of a settlement: the different professions of its active jobs. The workers with the
+     * same profession show the same offers.
+     */
+    public static int traderCount(Settlement settlement) {
+        return (int) Economies.activeJobIds(settlement).stream()
+                .map(VillageFolk::professionOf)
+                .filter(profession -> profession != ModProfessions.INHABITANT.get())
+                .distinct()
+                .count();
+    }
+
+    /** The active settlement of a villager of a faction village, or empty. */
+    private static Optional<Settlement> settlementOf(ServerLevel level, Villager villager) {
+        if (!VillageFolk.isVillageFolk(villager)) {
+            return Optional.empty();
+        }
+        VillageHeartBlockEntity heart = heartOf(level, villager);
+        return heart == null ? Optional.empty()
+                : Settlements.of(level.getServer(), heart).filter(Settlement::isActive);
+    }
+
+    /**
+     * True if a villager of a faction village trades: its settlement is active and has an active job with the
+     * profession of the villager.
+     */
+    public static boolean isTrader(ServerLevel level, Villager villager) {
+        return settlementOf(level, villager)
+                .filter(settlement -> !tradedJobs(settlement, villager.getVillagerData().getProfession()).isEmpty())
+                .isPresent();
+    }
+
+    /** The heart of the village of a villager: the heart that it records, or the nearest heart. */
     @Nullable
     public static VillageHeartBlockEntity heartOf(ServerLevel level, AbstractVillager villager) {
         if (villager.getPersistentData().contains(VILLAGE_TAG)) {
@@ -93,27 +144,22 @@ public final class Merchants {
                 .orElse(null);
     }
 
-    /** True if the merchants of the village trade with the player: neutral tier or better. */
+    /** True if the workers of the village trade with the player: neutral tier or better. */
     public static boolean canTrade(MinecraftServer server, ServerPlayer player, VillageHeartBlockEntity heart) {
         return !Reputations.tier(server, player, heart).isHostile();
     }
 
-    /** A player interacts with a merchant: the offers come from the stocks, or the merchant refuses. */
+    /**
+     * A player interacts with a worker that trades: the offers come from the stock, or the worker refuses. The other
+     * villagers of the village do not trade (see {@link VillageFolk#onEntityInteract}).
+     */
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        if (!(event.getEntity() instanceof ServerPlayer player) || !isMerchant(event.getTarget())
-                || !(player.level() instanceof ServerLevel level)) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || !(event.getTarget() instanceof Villager villager)
+                || !(player.level() instanceof ServerLevel level) || !isTrader(level, villager)) {
             return;
         }
-        Villager villager = (Villager) event.getTarget();
         VillageHeartBlockEntity heart = heartOf(level, villager);
-        if (heart == null) {
-            return;
-        }
-        Optional<Settlement> settlement = Settlements.of(level.getServer(), heart).filter(Settlement::isActive);
-        if (settlement.isEmpty()) {
-            villager.setOffers(new MerchantOffers());
-            return;
-        }
+        Settlement settlement = settlementOf(level, villager).orElseThrow();
         if (!canTrade(level.getServer(), player, heart)) {
             player.displayClientMessage(Component.translatable("message.folkhold_world.merchant_refuses",
                     villager.getDisplayName()), true);
@@ -123,17 +169,18 @@ public final class Merchants {
             return;
         }
         ReputationTier tier = Reputations.tier(level.getServer(), player, heart);
-        villager.setOffers(offers(level.getServer(), settlement.get(), tier));
+        villager.setOffers(offers(level.getServer(), settlement, tier, villager.getVillagerData().getProfession()));
     }
 
     /**
-     * A trade with a merchant changes the stock and the treasury. A trade that the stock or the treasury cannot pay
-     * is canceled. After the trade, the open screens of the merchants of the village show what the stock and the
-     * treasury can pay now.
+     * A trade with a worker changes the stock and the treasury. A trade that the stock or the treasury cannot pay is
+     * canceled. After the trade, the open screens of the workers of the village show what the stock and the treasury
+     * can pay now.
      */
     public static void onTrade(TradeWithVillagerEvent event) {
         AbstractVillager villager = event.getAbstractVillager();
-        if (!isMerchant(villager) || !(villager.level() instanceof ServerLevel level)) {
+        if (!(villager instanceof Villager worker) || !VillageFolk.isVillageFolk(worker)
+                || !(villager.level() instanceof ServerLevel level)) {
             return;
         }
         VillageHeartBlockEntity heart = heartOf(level, villager);
@@ -148,8 +195,8 @@ public final class Merchants {
             }
             Stock stock = settlement.economy().stock();
             long treasury = SettlementData.get(server).treasury(settlement.factionId());
-            for (Villager merchant : merchantsOf(level, heart.getBlockPos())) {
-                syncOffers(merchant, stock::count, treasury);
+            for (Villager other : VillageFolk.inhabitants(level, heart.getBlockPos())) {
+                syncOffers(other, stock::count, treasury);
             }
         });
     }
@@ -169,51 +216,52 @@ public final class Merchants {
     }
 
     /**
-     * The offers of the merchants of a settlement for a player.
+     * The offers of a worker of a settlement for a player: the goods of its active jobs (see {@link JobTrades}).
      *
      * @param server     the server
      * @param settlement the settlement
      * @param tier       the reputation tier of the player
-     * @return the offers
+     * @param profession the profession of the worker
+     * @return the offers, empty if the worker does not trade
      */
-    public static MerchantOffers offers(MinecraftServer server, Settlement settlement, ReputationTier tier) {
+    public static MerchantOffers offers(MinecraftServer server, Settlement settlement, ReputationTier tier,
+            VillagerProfession profession) {
         MerchantOffers offers = new MerchantOffers();
-        int maxOffers = LevelTables.get().traits(settlement.level()).tradeOffers();
-        int sellSlots = Math.max(1, (maxOffers * 2 + 2) / 3);
-        int buySlots = Math.max(0, maxOffers - sellSlots);
+        List<Job> jobs = tradedJobs(settlement, profession);
+        if (jobs.isEmpty()) {
+            return offers;
+        }
+        int count = JobTrades.share(LevelTables.get().traits(settlement.level()).tradeOffers(),
+                traderCount(settlement));
         EconomySettings settings = Economies.settings();
         Stock stock = settlement.economy().stock();
         int population = settlement.economy().population();
+        JobTrades.Plan plan = JobTrades.plan(jobs, stock.asMap(), EconomyData.catalog(), population, count,
+                id -> ItemIds.item(id).filter(item -> item != Items.EMERALD).isPresent());
         double factor = priceFactor(tier);
 
-        for (Map.Entry<String, Integer> entry : sellable(stock.asMap())) {
-            if (offers.size() >= sellSlots) {
+        for (String id : plan.sells()) {
+            if (offers.size() >= plan.sellSlots()) {
                 break;
             }
-            ItemInfo info = EconomyData.catalog().info(entry.getKey());
-            double price = Prices.sellPrice(info, entry.getValue(), population, settings) * factor;
-            sellOffer(ItemIds.item(entry.getKey()).orElseThrow(), entry.getValue(), price, MAX_USES)
-                    .ifPresent(offers::add);
+            ItemInfo info = EconomyData.catalog().info(id);
+            double price = Prices.sellPrice(info, stock.count(id), population, settings) * factor;
+            sellOffer(ItemIds.item(id).orElseThrow(), stock.count(id), price, MAX_USES).ifPresent(offers::add);
         }
 
         long treasury = SettlementData.get(server).treasury(settlement.factionId());
-        List<ItemInfo> needs = EconomyData.catalog().all().stream()
-                .filter(info -> ItemIds.item(info.id()).isPresent()
-                        && stock.count(info.id()) < Prices.target(info, population) / 2)
-                .sorted(Comparator.comparingInt((ItemInfo info) ->
-                        stock.count(info.id()) - Prices.target(info, population)).thenComparing(ItemInfo::id))
-                .toList();
         int bought = 0;
-        for (ItemInfo info : needs) {
-            if (bought >= buySlots) {
+        for (String id : plan.buys()) {
+            if (bought >= plan.buySlots()) {
                 break;
             }
-            Item item = ItemIds.item(info.id()).orElseThrow();
-            double price = Prices.buyPrice(info, stock.count(info.id()), population, settings);
+            ItemInfo info = EconomyData.catalog().info(id);
+            Item item = ItemIds.item(id).orElseThrow();
+            double price = Prices.buyPrice(info, stock.count(id), population, settings);
             int maxStack = new ItemStack(item).getMaxStackSize();
             int emeralds = price >= 1.0 ? (int) Math.min(64, Math.floor(price)) : 1;
             int quantity = price >= 1.0 ? 1 : (int) Math.max(1, Math.min(maxStack, Math.ceil(1.0 / price)));
-            int wanted = (Prices.target(info, population) - stock.count(info.id())) / quantity;
+            int wanted = (Prices.target(info, population) - stock.count(id)) / quantity;
             int uses = (int) Math.min(MAX_USES, Math.min(wanted, treasury / emeralds));
             if (uses > 0) {
                 offers.add(new MerchantOffer(new ItemCost(item, quantity), Optional.empty(),
@@ -237,8 +285,8 @@ public final class Merchants {
     }
 
     /**
-     * The items of a stock that a merchant sells, with the most valuable stock first: the known items except the
-     * emeralds.
+     * The items of a stock that a caravan merchant sells, with the most valuable stock first: the known items except
+     * the emeralds.
      *
      * @param stock the stock, by item id
      * @return the entries of the stock, sorted
@@ -283,7 +331,7 @@ public final class Merchants {
      * </ul>
      *
      * @param server     the server
-     * @param settlement the settlement of the merchant
+     * @param settlement the settlement of the worker
      * @param offer      the offer of the trade
      * @return true if the trade applied. False when the stock does not have the items or the treasury does not have
      *         the emeralds: the stock and the treasury do not change.
@@ -377,15 +425,4 @@ public final class Merchants {
         }
     }
 
-
-
-    /** The target number of merchants of a settlement: 1, plus 1 for each 8 levels. */
-    public static int merchantCount(Settlement settlement) {
-        return 1 + settlement.level() / 8;
-    }
-
-    /** A list of the loaded merchants of a village. */
-    public static List<Villager> merchantsOf(ServerLevel level, BlockPos heartPos) {
-        return VillageFolk.of(level, heartPos, ModProfessions.MERCHANT.get());
-    }
 }

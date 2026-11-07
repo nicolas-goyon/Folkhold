@@ -118,7 +118,10 @@ public final class Economies {
         return report;
     }
 
-    /** The prosperity of a settlement (0 to 1): 50 % food, 30 % working jobs, 20 % faction treasury. */
+    /**
+     * The prosperity of a settlement (0 to 1): 50 % food, 30 % working jobs, 20 % faction treasury. A settlement with
+     * jobs and no active job (no job building) gets no share for the jobs.
+     */
     public static double prosperity(MinecraftServer server, Settlement settlement) {
         EconomyState state = settlement.economy();
         if (!state.isInitialized()) {
@@ -126,7 +129,8 @@ public final class Economies {
         }
         long treasury = SettlementData.get(server).treasury(settlement.factionId());
         double treasuryScore = treasury >= WorldConfig.ECONOMY_TREASURY_MINIMUM.get() ? 1.0 : 0.0;
-        return 0.5 * state.foodCovered() + 0.3 * state.jobsWorking() + 0.2 * treasuryScore;
+        double jobsScore = !state.jobs().isEmpty() && activeJobIds(settlement).isEmpty() ? 0.0 : state.jobsWorking();
+        return 0.5 * state.foodCovered() + 0.3 * jobsScore + 0.2 * treasuryScore;
     }
 
     /** Gives the settlement the number of jobs of its level. The settlement keeps its valid jobs. */

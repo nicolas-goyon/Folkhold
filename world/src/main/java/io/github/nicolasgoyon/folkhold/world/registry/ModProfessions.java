@@ -13,14 +13,19 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * Villager professions of the world mod.
  *
  * <p>These professions have no job site block (see {@link io.github.nicolasgoyon.folkhold.world.village.VillageFolk}).
- * The trades of the merchant come from the stocks of its village (see
- * {@link io.github.nicolasgoyon.folkhold.world.economy.Merchants}). The other professions show the jobs of the
- * economy that no vanilla profession shows (the {@code profession} of a job file).
+ * The other professions show the jobs of the economy that no vanilla profession shows (the {@code profession} of a
+ * job file). The workers of the active jobs trade the goods of their jobs (see
+ * {@link io.github.nicolasgoyon.folkhold.world.economy.Merchants}).
  */
 public final class ModProfessions {
     private static final DeferredRegister<VillagerProfession> PROFESSIONS =
             DeferredRegister.create(Registries.VILLAGER_PROFESSION, FolkholdWorld.MOD_ID);
 
+    /**
+     * Merchant: no trades, no job site block. No villager gets this profession. The registry keeps it, so that a save
+     * with a villager of this profession loads with no error. The heart gives this villager a profession of the
+     * settlement (see {@link io.github.nicolasgoyon.folkhold.world.village.VillageFolk#assign}).
+     */
     public static final DeferredHolder<VillagerProfession, VillagerProfession> MERCHANT = PROFESSIONS.register(
             "merchant", () -> new VillagerProfession("merchant", holder -> false, holder -> false, ImmutableSet.of(),
                     ImmutableSet.of(), SoundEvents.VILLAGER_WORK_CARTOGRAPHER));

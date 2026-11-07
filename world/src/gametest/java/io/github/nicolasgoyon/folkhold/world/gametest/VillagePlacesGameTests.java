@@ -4,7 +4,6 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
-import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
@@ -61,7 +60,6 @@ public final class VillagePlacesGameTests {
     private static void clear(GameTestHelper helper, VillageHeartBlockEntity heart) {
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
     }
 

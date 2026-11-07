@@ -4,7 +4,6 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionHorseEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
@@ -256,7 +255,6 @@ public final class RiderGameTests {
                 .findFirst().orElseThrow();
         units.stream().filter(unit -> unit != rider).forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         List<BlockPos> gates = heart.getLayout().gates();
         BlockPos[] gate = new BlockPos[1];

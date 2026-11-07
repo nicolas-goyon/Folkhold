@@ -5,7 +5,6 @@ import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
@@ -206,7 +205,6 @@ public final class FactionGolemGameTests {
         heart.applyDayNight(false);
         heart.getUnits().stream().filter(unit -> !(unit instanceof FactionGolemEntity)).forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heart.getBlockPos()).forEach(Entity::discard);
         List<FactionGolemEntity> golems = golems(heart);
         List<BlockPos> posts = heart.golemPosts();

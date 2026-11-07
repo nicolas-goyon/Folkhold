@@ -7,7 +7,6 @@ import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
-import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
@@ -21,7 +20,6 @@ import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.notice.Notices;
 import io.github.nicolasgoyon.folkhold.world.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
-import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
@@ -156,7 +154,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean snowCleared;
     /** Game time of the last creation of cats. */
     private long lastCatSpawn;
-    /** True after the first villagers (merchants and inhabitants) of the village appeared. */
+    /** True after the first inhabitants of the village appeared. */
     private boolean villagersSpawned;
     /** True while the heart creates the villagers of an incomplete fill (see {@link #ensureVillagers}). */
     private boolean villagersFilling;
@@ -732,10 +730,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Creates the missing villagers of the village: the merchants ({@link Merchants#merchantCount}), then the
-     * inhabitants ({@link VillageFolk#inhabitantCount}) with the professions of the settlement
-     * ({@link VillageFolk#professions}). When the jobs change, the inhabitants get the new professions at once
-     * ({@link VillageFolk#assign}).
+     * Creates the missing villagers of the village: the inhabitants ({@link VillageFolk#inhabitantCount}) with the
+     * professions of the settlement ({@link VillageFolk#professions}). When the jobs change, the inhabitants get the
+     * new professions at once ({@link VillageFolk#assign}).
      *
      * <ul>
      *   <li>The villagers appear in groups of {@link #VILLAGER_GROUP} at most, one group at each call. A large
@@ -754,13 +751,11 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (settlement.isEmpty()) {
             return false;
         }
-        int missingMerchants = Merchants.merchantCount(settlement.get())
-                - VillageFolk.of(serverLevel, worldPosition, ModProfessions.MERCHANT.get()).size();
         List<VillagerProfession> wanted = VillageFolk.professions(settlement.get(),
                 VillageFolk.inhabitantCount(settlement.get()));
         List<VillagerProfession> missingInhabitants =
                 VillageFolk.assign(VillageFolk.inhabitants(serverLevel, worldPosition), wanted);
-        int missing = Math.max(0, missingMerchants) + missingInhabitants.size();
+        int missing = missingInhabitants.size();
         if (missing == 0) {
             boolean changed = villagersFilling;
             villagersFilling = false;
@@ -771,10 +766,6 @@ public class VillageHeartBlockEntity extends BlockEntity {
             return false;
         }
         int spawned = 0;
-        for (int i = 0; i < missingMerchants && spawned < VILLAGER_GROUP; i++) {
-            VillageFolk.spawn(serverLevel, worldPosition, ModProfessions.MERCHANT.get());
-            spawned++;
-        }
         for (VillagerProfession profession : missingInhabitants) {
             if (spawned >= VILLAGER_GROUP) {
                 break;

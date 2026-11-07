@@ -37,12 +37,12 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 /**
- * The villagers of a faction village: the merchants and the inhabitants. They are vanilla villagers with a
- * Folkhold profession, so the vanilla systems work with them (raids, bell, beds, iron golems, zombies).
+ * The villagers of a faction village: the inhabitants. They are vanilla villagers with a Folkhold profession or the
+ * profession of a job, so the vanilla systems work with them (raids, bell, beds, iron golems, zombies).
  *
  * <ul>
  *   <li>Each villager records the position of the heart of its village ({@link Merchants#VILLAGE_TAG}).</li>
- *   <li>The number of inhabitants is the population of the settlement, minus the merchants. The places of the
+ *   <li>The number of inhabitants is the population of the settlement. The places of the
  *       village are the maximum: the beds of its homes and the places of the hall (see {@link VillageBeds}). The
  *       setting {@link WorldConfig#INHABITANT_LIMIT} can set a lower maximum.</li>
  *   <li>The first inhabitants are the builders and the handymen of the village ({@link WorldConfig#BUILDERS},
@@ -52,8 +52,11 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
  *       (see {@link EconomyData#profession(String)}). A job with no building is not active (see
  *       {@link Economies#activeJobIds}): its workers have no job. The other inhabitants have the inhabitant
  *       profession: they give life to the village (see {@link #professions(Settlement, int)}).</li>
- *   <li>Only the merchants trade. A player cannot trade with an inhabitant: the vanilla trades of its profession
- *       would bypass the economy of the village.</li>
+ *   <li>Only the workers of the active jobs trade, with the goods of their jobs (see {@link Merchants}). A player
+ *       cannot trade with the other inhabitants. The vanilla trades of a profession do not apply: they would bypass
+ *       the economy of the village.</li>
+ *   <li>A villager with the profession {@link ModProfessions#MERCHANT} is an inhabitant: the next check of the heart
+ *       gives it a profession of the settlement (see {@link #assign}).</li>
  *   <li>A villager has 1 experience point, so it keeps its profession with no job site block and does not take
  *       the workstations of the village.</li>
  *   <li>The simulation sets the population: the villagers of a faction village do not breed, and a dead villager
@@ -78,11 +81,10 @@ public final class VillageFolk {
                         && isVillageFolk(villager));
     }
 
-    /** The loaded inhabitants of a village: its villagers that are not merchants. */
+    /** The loaded inhabitants of a village: all its villagers. */
     public static List<Villager> inhabitants(ServerLevel level, BlockPos heartPos) {
         return level.getEntitiesOfClass(Villager.class, VillageHearts.area(heartPos),
-                villager -> villager.getVillagerData().getProfession() != ModProfessions.MERCHANT.get()
-                        && villager.getPersistentData().getLong(Merchants.VILLAGE_TAG) == heartPos.asLong()
+                villager -> villager.getPersistentData().getLong(Merchants.VILLAGE_TAG) == heartPos.asLong()
                         && isVillageFolk(villager));
     }
 
@@ -170,7 +172,8 @@ public final class VillageFolk {
 
     /**
      * Gives the wanted professions to the inhabitants. An inhabitant with a wanted profession keeps it. The other
-     * inhabitants get the wanted professions that no inhabitant has. An inhabitant in excess keeps its profession.
+     * inhabitants get the wanted professions that no inhabitant has. An inhabitant in excess keeps its profession,
+     * but a villager with the profession {@link ModProfessions#MERCHANT} becomes an inhabitant with no job.
      *
      * @param inhabitants the inhabitants
      * @param wanted      the wanted professions
@@ -185,10 +188,11 @@ public final class VillageFolk {
             }
         }
         for (Villager inhabitant : others) {
-            if (missing.isEmpty()) {
-                break;
+            if (!missing.isEmpty()) {
+                setProfession(inhabitant, missing.remove(0));
+            } else if (inhabitant.getVillagerData().getProfession() == ModProfessions.MERCHANT.get()) {
+                setProfession(inhabitant, ModProfessions.INHABITANT.get());
             }
-            setProfession(inhabitant, missing.remove(0));
         }
         return missing;
     }
@@ -200,7 +204,7 @@ public final class VillageFolk {
     }
 
     /**
-     * The target number of inhabitants: the population minus the merchants, with the places of the village as the
+     * The target number of inhabitants: the population, with the places of the village as the
      * maximum (see {@link VillagePlaces}). The setting {@link WorldConfig#INHABITANT_LIMIT} can set a lower maximum
      * (0: no maximum).
      *
@@ -209,8 +213,7 @@ public final class VillageFolk {
      */
     public static int inhabitantCount(Settlement settlement) {
         int count = VillagePlaces.inhabitants(
-                settlement.economy().population() - Merchants.merchantCount(settlement), settlement.beds(),
-                VillageBeds.staff());
+                settlement.economy().population(), settlement.beds(), VillageBeds.staff());
         int limit = WorldConfig.INHABITANT_LIMIT.get();
         return limit > 0 ? Math.min(limit, count) : count;
     }
@@ -255,12 +258,13 @@ public final class VillageFolk {
     }
 
     /**
-     * A player cannot trade with an inhabitant. The player can still use a name tag or a lead on it.
+     * A player cannot trade with an inhabitant that is not a trader (see {@link Merchants#isTrader}). The player can
+     * still use a name tag or a lead on it.
      */
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || !(event.getTarget() instanceof Villager villager)
-                || !isVillageFolk(villager)
-                || villager.getVillagerData().getProfession() == ModProfessions.MERCHANT.get()) {
+                || !isVillageFolk(villager) || !(player.level() instanceof ServerLevel level)
+                || Merchants.isTrader(level, villager)) {
             return;
         }
         ItemStack stack = player.getItemInHand(event.getHand());
