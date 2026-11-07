@@ -154,12 +154,20 @@ public final class RaidEffectGameTests {
                     helper.setBlock(OTHER_HEART, ModBlocks.VILLAGE_HEART.get());
                     VillageHearts.register(level, otherPos);
                     VillageHearts.unregister(level, heartPos);
-                    VillageHeartBlockEntity other = helper.getBlockEntity(OTHER_HEART);
-                    helper.assertTrue(other.getGarrison().aliveCount() == 0, "The other heart must have no garrison");
-                    helper.assertTrue(VillageRaids.heartOf(raid[0], level).equals(Optional.of(otherPos)),
-                            "The other heart must be the nearest registered heart");
-                    helper.assertFalse(RaidHelpers.updateFall(level, raid[0]),
-                            "The raid must keep its heart when the heart is not in the registry");
+                    try {
+                        VillageHeartBlockEntity other = helper.getBlockEntity(OTHER_HEART);
+                        helper.assertTrue(other.getGarrison().aliveCount() == 0,
+                                "The other heart must have no garrison");
+                        helper.assertTrue(VillageRaids.heartOf(raid[0], level).equals(Optional.of(otherPos)),
+                                "The other heart must be the nearest registered heart");
+                        helper.assertFalse(RaidHelpers.updateFall(level, raid[0]),
+                                "The raid must keep its heart when the heart is not in the registry");
+                    } catch (RuntimeException e) {
+                        VillageHearts.register(level, heartPos);
+                        end(level, raid[0], scene);
+                        helper.setBlock(OTHER_HEART, Blocks.AIR);
+                        throw e;
+                    }
                 })
                 .thenIdle(5)
                 .thenExecute(() -> {
