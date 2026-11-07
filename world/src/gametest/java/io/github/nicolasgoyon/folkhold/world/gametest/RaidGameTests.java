@@ -33,6 +33,9 @@ import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.BooleanOp;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -400,11 +403,10 @@ public final class RaidGameTests {
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
         helper.onEachTick(() -> {
             level.setDayTime(MIDNIGHT);
-            if (raider[0] != null && RaidMarch.squareDistance(heartPos, raider[0].blockPosition()) > PALISADE
-                    && anyOpen(level, gates)) {
-                setGates(level, gates, false);
+            if (raider[0] != null && closeGateOnRaider(level, gates, heartPos, front, raider[0])) {
                 closes[0]++;
             }
         });
@@ -459,6 +461,7 @@ public final class RaidGameTests {
         BlockPos heartPos = helper.absolutePos(heartRelative);
         Raider[] raider = new Raider[1];
         int[] closes = new int[1];
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
@@ -466,9 +469,7 @@ public final class RaidGameTests {
             level.setDayTime(MIDNIGHT);
             helper.assertTrue(gates.stream().allMatch(gate -> level.getBlockState(gate).getBlock()
                     instanceof FenceGateBlock), "With mobGriefing false, the raider must not break the gate");
-            if (raider[0] != null && RaidMarch.squareDistance(heartPos, raider[0].blockPosition()) > PALISADE
-                    && anyOpen(level, gates)) {
-                setGates(level, gates, false);
+            if (raider[0] != null && closeGateOnRaider(level, gates, heartPos, front, raider[0])) {
                 closes[0]++;
             }
         });
@@ -519,12 +520,10 @@ public final class RaidGameTests {
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
         helper.onEachTick(() -> {
             level.setDayTime(MIDNIGHT);
-            if (ravagers.stream().anyMatch(raider -> RaidMarch.squareDistance(heartPos, raider.blockPosition())
-                    > PALISADE) && anyOpen(level, gates)) {
-                setGates(level, gates, false);
-            }
+            closeGateOnRaiders(level, gates, heartPos, front, ravagers);
             long broken = gates.stream().filter(gate -> level.getBlockState(gate).isAir()).count();
             if (broken == 1 && !narrow[0]) {
                 VillageExits.Approach approach = VillageExits.approaches(level, heartPos, gates).get(0);
@@ -597,9 +596,8 @@ public final class RaidGameTests {
             }
             if (inFront[0] == 40) {
                 setGates(level, gates, true);
-            } else if (inFront[0] > 42 && anyOpen(level, gates)
-                    && RaidMarch.squareDistance(heartPos, raider[0].blockPosition()) > PALISADE) {
-                setGates(level, gates, false);
+            } else if (inFront[0] > 42) {
+                closeGateOnRaider(level, gates, heartPos, front, raider[0]);
             }
         });
 
@@ -752,6 +750,58 @@ public final class RaidGameTests {
     /** A new raid at the heart, with an identifier that no other test uses. */
     private static Raid raid(ServerLevel level, BlockPos heart) {
         return new Raid(NEXT_RAID_ID.getAndIncrement(), level, heart);
+    }
+
+    /**
+     * Closes the open fence gates of a gate while the raider is outside the palisade or in the row of the gate, as a
+     * unit that goes through the gate (see {@link #closeGateOnRaiders}).
+     *
+     * @param front the position in front of the gate, outside the palisade
+     * @return true if the fence gates close
+     */
+    private static boolean closeGateOnRaider(ServerLevel level, List<BlockPos> gates, BlockPos heartPos,
+            BlockPos front, Raider raider) {
+        return closeGateOnRaiders(level, gates, heartPos, front, List.of(raider));
+    }
+
+    /**
+     * Closes the open fence gates of a gate while a raider of the list is outside the palisade or in the row of the
+     * gate, as a unit that goes through the gate. A raider that walks against the closed gate stands in the row of the
+     * gate and can force the gate from there. When the gate opens, the raider moves into the fence gates before the
+     * next tick of the test, and a fence gate that closes on a raider does not stop it. Thus the test moves each raider
+     * that touches a closed fence gate back to the front of the gate before it closes the gate. This move is a part of
+     * the test only: in the game, a raider in a forced gate goes through it.
+     *
+     * @param front the position in front of the gate, outside the palisade
+     * @return true if the fence gates close
+     */
+    private static boolean closeGateOnRaiders(ServerLevel level, List<BlockPos> gates, BlockPos heartPos,
+            BlockPos front, List<? extends Raider> raiders) {
+        if (!anyOpen(level, gates) || raiders.stream()
+                .noneMatch(raider -> RaidMarch.squareDistance(heartPos, raider.blockPosition()) >= PALISADE)) {
+            return false;
+        }
+        for (Raider raider : raiders) {
+            if (touchesClosedGate(level, gates, raider)) {
+                raider.teleportTo(front.getX() + 0.5, front.getY(), front.getZ() + 0.5);
+            }
+        }
+        setGates(level, gates, false);
+        return true;
+    }
+
+    /** True if the box of the raider touches the collision of a fence gate of the list in its closed state. */
+    private static boolean touchesClosedGate(ServerLevel level, List<BlockPos> gates, Raider raider) {
+        VoxelShape box = Shapes.create(raider.getBoundingBox());
+        for (BlockPos gate : gates) {
+            BlockState state = level.getBlockState(gate);
+            if (state.getBlock() instanceof FenceGateBlock && Shapes.joinIsNotEmpty(box, state
+                    .setValue(FenceGateBlock.OPEN, false).getCollisionShape(level, gate)
+                    .move(gate.getX(), gate.getY(), gate.getZ()), BooleanOp.AND)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** True if a fence gate of the list is open. */
