@@ -81,6 +81,7 @@ public final class VillageStructureGameTests {
         boolean archersOnPosts = !archers.isEmpty() && archers.stream()
                 .allMatch(archer -> archer.getPostPos() != null && layout.posts().contains(archer.getPostPos())
                         && archer.blockPosition().equals(archer.getPostPos()));
+        long distinctPosts = archers.stream().map(FactionUnit::getPostPos).distinct().count();
         int heartY = heart.getBlockPos().getY();
         boolean othersOnGround = units.stream()
                 .filter(unit -> unit.getPostPos() == null)
@@ -96,6 +97,8 @@ public final class VillageStructureGameTests {
                 "Expected " + GATE_BLOCKS + " gate blocks, found " + layout.gates().size());
         helper.assertTrue(layout.braziers().size() == BRAZIERS,
                 "Expected " + BRAZIERS + " braziers, found " + layout.braziers().size());
+        helper.assertTrue(archers.size() == TOWERS, "Expected " + TOWERS + " archers, found " + archers.size());
+        helper.assertTrue(distinctPosts == archers.size(), "Each archer must have its own post");
         helper.assertTrue(archersOnPosts, "Each archer must spawn on a post of the village");
         helper.assertTrue(othersOnGround, "Each unit without a post must spawn on the ground near the heart");
         helper.succeed();
