@@ -45,6 +45,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/valeholm/swamp/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/swamp/job_baker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/swamp/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/swamp/job_pastry_cook",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/swamp/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/swamp/job_rancher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/swamp/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/swamp/job_butcher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/swamp/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/swamp/job_fisher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/swamp/foundation"
+      }
     }
   ]
 }
