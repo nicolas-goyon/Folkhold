@@ -2042,6 +2042,94 @@ def tannery():
     return t
 
 
+LOOM = ("minecraft:loom", {"facing": "north"})
+WATER_CAULDRON = ("minecraft:water_cauldron", {"level": "3"})
+
+
+def sheepfold():
+    """The building of the shepherd: the shed with a loom (the work block of the vanilla shepherd) and bales of wool,
+    and a pen behind it with hay, a water trough and a salt lick (a block of calcite). The doors of the shed and the
+    fence keep the sheep in the pen. The template has no animals (see ranch). The hay, the trough and the salt lick are
+    not next to the fence."""
+    rng = random.Random(71)
+    row = SHED_DEPTH + 1
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if (x, z) == (W // 2, SHED_DEPTH) else GRASS
+
+    def plants(x, z):
+        return {(2, row): ("minecraft:hay_block", LOG_Y), (W - 3, row): WATER_CAULDRON,
+                (W // 2, row): "minecraft:calcite"}.get((x, z))
+
+    t = job_building(rng, "shepherd", "minecraft:shears", ground, plants, work=LOOM)
+    t.set(1, 1, 2, "minecraft:white_wool")
+    t.set(1, 2, 2, "minecraft:white_wool")
+    t.set(2, 1, 3, "minecraft:white_wool")
+    return t
+
+
+def weaving_house():
+    """The building of the weaver: a house with 2 looms (the work block of the vanilla shepherd), stacks of white wool,
+    a crafting table for the beds, a barrel, and a counter with rolls of cloth (white carpets)."""
+    rng = random.Random(72)
+    t = job_house(rng, "weaver", "minecraft:white_carpet", planks)
+    for x in (2, W - 3):
+        t.set(x, 1, D - 2, *LOOM)
+    for x, y, z in ((1, 1, D - 2), (1, 2, D - 2), (1, 1, D - 3)):
+        t.set(x, y, z, "minecraft:white_wool")
+    t.set(W - 2, 1, D - 2, "minecraft:crafting_table")
+    t.set(W - 2, 1, D - 3, *BARREL)
+    for x in (W - 3, W - 2):
+        t.set(x, 1, 4, *TOP_SLAB)
+        t.set(x, 2, 4, "minecraft:white_carpet")
+    lantern(t, 1, 1, 2)
+    lantern(t, W - 2, 1, 2)
+    return t
+
+
+def dye_works():
+    """The building of the dyer: the shed with a loom (the work block of the vanilla shepherd) and bales of dyed wool,
+    and a yard with beds of dandelions, poppies and cornflowers (the colors of the dyes) and 2 dye vats (water
+    cauldrons). A path of coarse dirt goes from the back door to the back fence. The vats are not next to the fence."""
+    rng = random.Random(73)
+    flowers = {1: "minecraft:dandelion", 2: "minecraft:poppy", W - 3: "minecraft:poppy", W - 2: "minecraft:cornflower"}
+    vats = ((3, SHED_DEPTH + 1), (W - 4, SHED_DEPTH + 1))
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == W // 2 else GRASS
+
+    def plants(x, z):
+        return WATER_CAULDRON if (x, z) in vats else flowers.get(x)
+
+    t = job_building(rng, "dyer", "minecraft:red_dye", ground, plants, work=LOOM)
+    t.set(1, 1, 2, "minecraft:red_wool")
+    t.set(1, 2, 2, "minecraft:yellow_wool")
+    t.set(2, 1, 3, "minecraft:blue_wool")
+    return t
+
+
+def paper_mill():
+    """The building of the papermaker: a house with a lectern (the work block of the vanilla librarian), 2 vats of
+    pulp (water cauldrons), barrels of sugar cane, a crafting table, bookshelves, and a counter with sheets of paper
+    to dry (white carpets). The path from the door to the lectern stays free."""
+    rng = random.Random(74)
+    t = job_house(rng, "papermaker", "minecraft:paper", planks)
+    t.set(W // 2, 1, D - 3, "minecraft:lectern", {"facing": "north", "has_book": "false", "powered": "false"})
+    for x in (3, W - 4):
+        t.set(x, 1, D - 2, *WATER_CAULDRON)
+    for z in (D - 2, D - 3):
+        t.set(1, 1, z, *BARREL)
+    t.set(2, 1, D - 2, "minecraft:crafting_table")
+    for x, y, z in ((W - 2, 1, D - 2), (W - 2, 2, D - 2), (W - 2, 1, D - 3)):
+        t.set(x, y, z, "minecraft:bookshelf")
+    for x in (1, 2):
+        t.set(x, 1, 4, *TOP_SLAB)
+        t.set(x, 2, 4, "minecraft:white_carpet")
+    lantern(t, 1, 1, 2)
+    lantern(t, W - 2, 1, 2)
+    return t
+
+
 # The job buildings: the piece job_<id> of each job, in the pool village/jobs of each variant. The id is the name of
 # the job file.
 JOBS = {
@@ -2066,6 +2154,10 @@ JOBS = {
     "fletcher": fletcher_range,
     "carpenter": carpenter_workshop,
     "tanner": tannery,
+    "shepherd": sheepfold,
+    "weaver": weaving_house,
+    "dyer": dye_works,
+    "papermaker": paper_mill,
 }
 
 PIECES = {

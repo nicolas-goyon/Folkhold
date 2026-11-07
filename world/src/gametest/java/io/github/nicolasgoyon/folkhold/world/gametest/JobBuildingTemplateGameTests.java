@@ -60,9 +60,11 @@ public final class JobBuildingTemplateGameTests {
     private static final List<String> STONE = List.of("miner", "digger", "mason", "smelter", "gold_smelter");
     /** The jobs of the crafts. The building of the blacksmith is the forge. */
     private static final List<String> CRAFTS = List.of("blacksmith", "tinker", "fletcher", "carpenter", "tanner");
+    /** The jobs of the cloth and the paper. */
+    private static final List<String> CLOTH = List.of("shepherd", "weaver", "dyer", "papermaker");
     /** The jobs with a building template. */
-    private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD, STONE, CRAFTS).stream().flatMap(List::stream)
-            .toList();
+    private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD, STONE, CRAFTS, CLOTH).stream()
+            .flatMap(List::stream).toList();
     /** The origin of the template of each job of a group: 3 buildings north of the heart, 2 south of it. */
     private static final List<BlockPos> ORIGINS = List.of(new BlockPos(1, 1, 1), new BlockPos(11, 1, 1),
             new BlockPos(21, 1, 1), new BlockPos(6, 1, 21), new BlockPos(16, 1, 21));
@@ -159,6 +161,12 @@ public final class JobBuildingTemplateGameTests {
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_crafts", skyAccess = true)
     public static void heartCountsTheCraftJobBuildings(GameTestHelper helper) {
         checkScan(helper, CRAFTS);
+    }
+
+    /** The 4 job buildings of the cloth and the paper: see {@link #checkScan}. */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_cloth", skyAccess = true)
+    public static void heartCountsTheClothJobBuildings(GameTestHelper helper) {
+        checkScan(helper, CLOTH);
     }
 
     /**
