@@ -296,12 +296,18 @@ public final class RaidHelpers {
     /**
      * Sets the fall of the village of a raid, before the end of the raid: the raid started, and the village has no
      * living unit, is ruins, or has a broken heart (a loaded position with no heart).
+     *
+     * <p>The first check finds the heart of the village: the nearest registered heart (see
+     * {@link VillageRaids#heartOf}). After that, the raid keeps this heart. Thus a heart of an other village near the
+     * raid does not become the heart of the raid, also when the heart of the raid is not in the registry for some
+     * ticks.
      */
     private static boolean checkFall(ServerLevel level, Tracked tracked) {
         if (tracked.fallen || !tracked.raid.isStarted() || tracked.raid.isOver()) {
             return tracked.fallen;
         }
-        Optional<BlockPos> pos = VillageRaids.heartOf(tracked.raid, level);
+        Optional<BlockPos> pos = tracked.heartPos != null ? Optional.of(tracked.heartPos)
+                : VillageRaids.heartOf(tracked.raid, level);
         if (pos.isPresent() && level.isLoaded(pos.get())
                 && level.getBlockEntity(pos.get()) instanceof VillageHeartBlockEntity heart) {
             tracked.heartPos = pos.get();

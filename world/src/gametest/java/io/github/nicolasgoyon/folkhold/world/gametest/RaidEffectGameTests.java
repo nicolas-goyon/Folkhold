@@ -17,6 +17,7 @@ import io.github.nicolasgoyon.folkhold.world.village.RaidEffects;
 import io.github.nicolasgoyon.folkhold.world.village.RaidHelpers;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
+import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -29,6 +30,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.raid.Raid;
 import net.minecraft.world.entity.raid.Raider;
+import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -47,6 +49,8 @@ public final class RaidEffectGameTests {
     private static final int EXPERIENCE = 30;
     private static final int DIAMONDS = 40;
     private static final int BREAD = 3;
+    /** A heart of an other village: farther from the center of the raid than the heart of the test. */
+    private static final BlockPos OTHER_HEART = new BlockPos(26, 1, 28);
 
     private RaidEffectGameTests() {
     }
@@ -124,6 +128,57 @@ public final class RaidEffectGameTests {
                         assertReputation(helper, scene, WorldConfig.RAID_HOLD_REPUTATION.get());
                     } finally {
                         end(level, raid[0], scene);
+                    }
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A raid keeps the heart of its village. A heart of an other village with no garrison is near the raid, and the
+     * heart of the raid is not in the registry for some ticks: the raid does not take the other heart, and the village
+     * does not fall.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 200, batch = "raid_effect_other_heart")
+    public static void raidKeepsTheHeartOfItsVillage(GameTestHelper helper) {
+        Scene scene = scene(helper, RaidRewardGameTests.HEART);
+        ServerLevel level = helper.getLevel();
+        BlockPos center = RaidRewardGameTests.placeVillageBed(helper);
+        BlockPos heartPos = helper.absolutePos(RaidRewardGameTests.HEART);
+        BlockPos otherPos = helper.absolutePos(OTHER_HEART);
+        Raid[] raid = new Raid[1];
+        waitForGarrison(helper, scene, center)
+                .thenExecute(() -> {
+                    raid[0] = RaidRewardGameTests.raidAt(level, center);
+                    RaidRewardGameTests.join(helper, raid[0], EntityType.PILLAGER);
+                    helper.assertFalse(RaidHelpers.updateFall(level, raid[0]), "The village must stand at the start");
+                    helper.setBlock(OTHER_HEART, ModBlocks.VILLAGE_HEART.get());
+                    VillageHearts.register(level, otherPos);
+                    VillageHearts.unregister(level, heartPos);
+                    try {
+                        VillageHeartBlockEntity other = helper.getBlockEntity(OTHER_HEART);
+                        helper.assertTrue(other.getGarrison().aliveCount() == 0,
+                                "The other heart must have no garrison");
+                        helper.assertTrue(VillageRaids.heartOf(raid[0], level).equals(Optional.of(otherPos)),
+                                "The other heart must be the nearest registered heart");
+                        helper.assertFalse(RaidHelpers.updateFall(level, raid[0]),
+                                "The raid must keep its heart when the heart is not in the registry");
+                    } catch (RuntimeException e) {
+                        VillageHearts.register(level, heartPos);
+                        end(level, raid[0], scene);
+                        helper.setBlock(OTHER_HEART, Blocks.AIR);
+                        throw e;
+                    }
+                })
+                .thenIdle(5)
+                .thenExecute(() -> {
+                    VillageHearts.unregister(level, heartPos);
+                    boolean fallen = RaidHelpers.updateFall(level, raid[0]);
+                    VillageHearts.register(level, heartPos);
+                    try {
+                        helper.assertFalse(fallen, "The village must not fall after some ticks");
+                    } finally {
+                        end(level, raid[0], scene);
+                        helper.setBlock(OTHER_HEART, Blocks.AIR);
                     }
                 })
                 .thenSucceed();
