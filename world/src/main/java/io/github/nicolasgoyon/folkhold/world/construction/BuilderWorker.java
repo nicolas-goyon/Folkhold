@@ -137,6 +137,11 @@ final class BuilderWorker {
         return id;
     }
 
+    /** The state of the builder as text: the state, the step, the position to stand and the bottom of the column. */
+    String describe() {
+        return "state " + state + ", step " + step + ", stand " + stand + ", column " + climbBase;
+    }
+
     /** True if the builder climbs or goes down a column: it must not stop on the way. */
     boolean isOnTheWay() {
         return state == State.CLIMB || state == State.DESCEND;

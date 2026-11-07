@@ -31,7 +31,9 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -46,6 +48,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
@@ -544,6 +547,8 @@ public final class BuilderSiteGameTests {
 
         BuilderSite site = BuilderSites.start(level, COTTAGE, origin, Rotation.NONE, Mirror.NONE,
                 helper.absolutePos(HEART), null);
+        List<String> hurts = new ArrayList<>();
+        recordHurts(helper, site, builders, hurts);
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
                         + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
@@ -560,9 +565,40 @@ public final class BuilderSiteGameTests {
                     helper.assertTrue(differences.isEmpty(), "Blocks different from the template: " + differences);
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
                     helper.assertTrue(alive, "The builders must stay alive");
-                    helper.assertTrue(healthy, "The builders must not fall: their health is " + health);
+                    helper.assertTrue(healthy, "The builders must not fall: their health is " + health
+                            + ", damage: " + hurts);
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * Records each loss of health of the builders: the damage source, the position relative to the test, the block
+     * below, the fall distance of the tick before, and the work of the builder on the site. The failure message of the
+     * test shows these records.
+     */
+    private static void recordHurts(GameTestHelper helper, BuilderSite site, List<Villager> builders,
+            List<String> hurts) {
+        Map<Villager, Float> health = new HashMap<>();
+        Map<Villager, Float> falls = new HashMap<>();
+        helper.onEachTick(() -> {
+            ServerLevel level = helper.getLevel();
+            for (Villager builder : builders) {
+                float before = health.getOrDefault(builder, builder.getMaxHealth());
+                if (builder.getHealth() < before) {
+                    DamageSource source = builder.getLastDamageSource();
+                    BlockPos below = builder.blockPosition().below();
+                    hurts.add(String.format(Locale.ROOT,
+                            "{builder %d, health %.1f to %.1f, source %s, position %s, block below %s, fall %.2f, %s}",
+                            builder.getId(), before, builder.getHealth(),
+                            source == null ? "none" : source.getMsgId(),
+                            helper.relativeVec(builder.position()),
+                            BuiltInRegistries.BLOCK.getKey(level.getBlockState(below).getBlock()),
+                            falls.getOrDefault(builder, 0.0F), site.describeBuilder(builder.getUUID())));
+                }
+                health.put(builder, builder.getHealth());
+                falls.put(builder, builder.fallDistance);
+            }
+        });
     }
 
     /**
