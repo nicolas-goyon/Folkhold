@@ -1,5 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BlockKind;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildBlock;
@@ -31,7 +33,9 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
@@ -80,6 +84,8 @@ public final class BuilderSiteGameTests {
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/house_cottage");
     private static final String PLANKS = "minecraft:oak_planks";
     private static final String CALCITE = "minecraft:calcite";
+    /** The job of the job sign of the tests. */
+    private static final String JOB = "blacksmith";
     /** The number of blocks of the wall of the tests: 4 × 2. */
     private static final int WALL_BLOCKS = 8;
     private static final int CALCITE_BLOCKS = 4;
@@ -145,6 +151,24 @@ public final class BuilderSiteGameTests {
             helper.setBlock(pos, Blocks.AIR);
         }
         return id;
+    }
+
+    /** The job sign at a position of the test. */
+    private static JobSignBlockEntity jobSign(GameTestHelper helper, BlockPos pos) {
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(pos)) instanceof JobSignBlockEntity sign) {
+            return sign;
+        }
+        throw new GameTestAssertException("No job sign at " + helper.absolutePos(pos));
+    }
+
+    /** Checks the block, the job id and the icon of the job sign at a position of the test. */
+    private static void checkJobSign(GameTestHelper helper, BlockPos pos, ResourceLocation icon, String when) {
+        helper.assertTrue(helper.getBlockState(pos).getValue(JobSignBlock.FACING) == Direction.EAST,
+                "The job sign must face east " + when);
+        JobSignBlockEntity sign = jobSign(helper, pos);
+        helper.assertTrue(sign.job().equals(JOB), "The job sign must keep its job " + when + ": " + sign.job());
+        helper.assertTrue(sign.icon().equals(Optional.of(icon)),
+                "The job sign must keep its icon " + when + ": " + sign.icon());
     }
 
     /** The end of a test: no site, no builders, no structure, the normal work time. */
@@ -276,6 +300,48 @@ public final class BuilderSiteGameTests {
                     helper.assertTrue(kept, "The block of the player must stay");
                     helper.assertTrue(missing.equals(List.of(playerBlock)),
                             "Only the block of the player must not be a plank: " + missing);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A job sign keeps its job id and its icon in a structure template. The test captures a job sign as a template.
+     * The placement of the template gives the data, and the builders of the village build the sign with its data.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_job_sign", skyAccess = true)
+    public static void jobSignKeepsItsDataInATemplate(GameTestHelper helper) {
+        List<Villager> builders = village(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos placed = new BlockPos(14, 1, 24);
+        ResourceLocation icon = ResourceLocation.withDefaultNamespace("anvil");
+        helper.setBlock(from, ModBlocks.JOB_SIGN.get().defaultBlockState().setValue(JobSignBlock.FACING,
+                Direction.EAST));
+        jobSign(helper, from).setJob(JOB, icon);
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "test/job_sign");
+        StructureTemplate template = level.getStructureManager().getOrCreate(id);
+        BlockPos origin = helper.absolutePos(from);
+        template.fillFromWorld(level, origin, new Vec3i(1, 1, 1), false, null);
+        helper.setBlock(from, Blocks.AIR);
+
+        BlockPos placedOrigin = helper.absolutePos(placed);
+        template.placeInWorld(level, placedOrigin, placedOrigin, new StructurePlaceSettings(), level.getRandom(),
+                Block.UPDATE_CLIENTS);
+        checkJobSign(helper, placed, icon, "after the placement of the template");
+        helper.setBlock(placed, Blocks.AIR);
+
+        BoundingBox box = BoundingBox.fromCorners(origin, origin);
+        ConstructionPlacement.BuildersAnswer answer = ConstructionPlacement.startBuilders(level, id, origin,
+                Rotation.NONE, Mirror.NONE, box, null);
+        helper.assertTrue(answer.started(), "The builders of the village must start the site: " + answer.message());
+        BuilderSite site = siteAt(helper, origin);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin),
+                        "The site must end: " + site.phase() + " " + site.status() + " " + site.appliedSteps() + "/"
+                                + site.totalSteps()))
+                .thenExecute(() -> {
+                    checkJobSign(helper, from, icon, "after the construction of the builders");
+                    cleanUp(helper, builders, from, from);
                 })
                 .thenSucceed();
     }
