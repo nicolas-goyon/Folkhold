@@ -222,6 +222,7 @@
   "folkhold_world.configuration.economyStartTreasury": "Trésor de départ d'une faction",
   "folkhold_world.configuration.economyTreasuryMinimum": "Trésor minimum",
   "folkhold_world.configuration.economyFoodShortageLoss": "Perte d'expérience en cas de famine",
+  "folkhold_world.configuration.economyAllJobsNeedBuildings": "Tous les métiers exigent leur bâtiment",
   "message.folkhold_world.territory_entry": "Vous y êtes %s",
   "message.folkhold_world.unclaimed_territory": "Territoire non revendiqué",
   "message.folkhold_world.village_destroyed": "%s de %s est détruit.",

@@ -222,6 +222,7 @@
   "folkhold_world.configuration.economyStartTreasury": "Start treasury of a faction",
   "folkhold_world.configuration.economyTreasuryMinimum": "Minimum treasury",
   "folkhold_world.configuration.economyFoodShortageLoss": "Experience loss for a food shortage",
+  "folkhold_world.configuration.economyAllJobsNeedBuildings": "All jobs need their buildings",
   "message.folkhold_world.territory_entry": "Here you are %s",
   "message.folkhold_world.unclaimed_territory": "Unclaimed territory",
   "message.folkhold_world.village_destroyed": "%s of %s is destroyed.",

@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
@@ -543,6 +544,21 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
+     * Records the job buildings of the village in the settlement (see {@link JobBuildings}), from the last scan of the
+     * village.
+     */
+    public void recordJobBuildings() {
+        if (!(level instanceof ServerLevel serverLevel) || !layout.isScanned()) {
+            return;
+        }
+        Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
+            if (settlement.setJobBuildings(Optional.of(layout.jobBuildings()))) {
+                SettlementData.get(serverLevel.getServer()).setDirty();
+            }
+        });
+    }
+
+    /**
      * Removes the trees of the village and replaces its powder snow with snow blocks, once, before its first garrison
      * (see {@link VillageClearing}). Each of the 2 steps occurs once, and a call does one step at most: the 2 large
      * reads of blocks do not occur in the same tick. A heart with no village structure has nothing to clear. The heart
@@ -613,6 +629,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         recordGates();
         recordBeds();
+        recordJobBuildings();
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }

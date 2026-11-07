@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 import net.minecraft.core.HolderLookup;
@@ -37,8 +38,10 @@ public final class SettlementData extends SavedData {
     /**
      * The version of the saved format. {@code load} reads the tag of an earlier version (a tag with no version is
      * version 0) and the data saves with the current version. A tag of a later version loads with a warning.
+     * Version 2 adds the counts of the job buildings ({@code JobBuildings}). A settlement with no counts has unknown
+     * counts: all its jobs are active until the next scan of its heart.
      */
-    static final int VERSION = 1;
+    static final int VERSION = 2;
 
     private final SettlementRegistry registry = new SettlementRegistry();
     private final Set<Long> checkedRegions = new HashSet<>();
@@ -187,6 +190,11 @@ public final class SettlementData extends SavedData {
                 entry.putIntArray("Gates", gates);
             }
             entry.putInt("Beds", settlement.beds());
+            settlement.jobBuildings().ifPresent(counts -> {
+                CompoundTag jobs = new CompoundTag();
+                counts.forEach(jobs::putInt);
+                entry.put("JobBuildings", jobs);
+            });
             if (settlement.lastFallPenalty() != Settlement.NO_FALL_PENALTY) {
                 entry.putLong("LastFallPenalty", settlement.lastFallPenalty());
             }
@@ -238,6 +246,12 @@ public final class SettlementData extends SavedData {
             }
             settlement.setGates(loadedGates);
             settlement.setBeds(entry.contains("Beds") ? entry.getInt("Beds") : VillagePlaces.UNKNOWN);
+            if (entry.contains("JobBuildings", Tag.TAG_COMPOUND)) {
+                CompoundTag jobs = entry.getCompound("JobBuildings");
+                Map<String, Integer> counts = new HashMap<>();
+                jobs.getAllKeys().forEach(job -> counts.put(job, jobs.getInt(job)));
+                settlement.setJobBuildings(Optional.of(counts));
+            }
             settlement.setLastFallPenalty(entry.contains("LastFallPenalty") ? entry.getLong("LastFallPenalty")
                     : Settlement.NO_FALL_PENALTY);
             loadEconomy(settlement.economy(), entry.getCompound("Economy"));

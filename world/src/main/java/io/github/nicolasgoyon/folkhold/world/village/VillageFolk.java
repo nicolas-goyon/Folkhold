@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
@@ -47,9 +48,10 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
  *   <li>The first inhabitants are the builders and the handymen of the village ({@link WorldConfig#BUILDERS},
  *       {@link WorldConfig#HANDYMEN}): they work for the village, also in a small village. The builders build the
  *       construction sites of the village (see {@link BuilderSites}).</li>
- *   <li>The workers of the settlement show its jobs: the profession of a worker is the profession of its job (see
- *       {@link EconomyData#profession(String)}). The other inhabitants have the inhabitant profession: they give life
- *       to the village (see {@link #professions(Settlement, int)}).</li>
+ *   <li>The workers of the settlement show its active jobs: the profession of a worker is the profession of its job
+ *       (see {@link EconomyData#profession(String)}). A job with no building is not active (see
+ *       {@link Economies#activeJobIds}): its workers have no job. The other inhabitants have the inhabitant
+ *       profession: they give life to the village (see {@link #professions(Settlement, int)}).</li>
  *   <li>Only the merchants trade. A player cannot trade with an inhabitant: the vanilla trades of its profession
  *       would bypass the economy of the village.</li>
  *   <li>A villager has 1 experience point, so it keeps its profession with no job site block and does not take
@@ -123,8 +125,8 @@ public final class VillageFolk {
 
     /**
      * The professions of the inhabitants of a settlement: one for each inhabitant. The builders and the handymen come
-     * first. Then the workers of the settlement (see {@link #workerCount}) show its jobs, in proportion to the job
-     * slots. The other inhabitants have the inhabitant profession.
+     * first. Then the workers of the settlement (see {@link #workerCount}) show its active jobs, in proportion to the
+     * active job slots. The other inhabitants have the inhabitant profession.
      *
      * @param settlement the settlement
      * @param count      the number of inhabitants
@@ -134,7 +136,7 @@ public final class VillageFolk {
         List<VillagerProfession> professions = new ArrayList<>(Math.max(0, count));
         addUpTo(professions, count, ModProfessions.BUILDER.get(), WorldConfig.BUILDERS.get());
         addUpTo(professions, count, ModProfessions.HANDYMAN.get(), WorldConfig.HANDYMEN.get());
-        List<String> jobs = settlement.economy().jobs();
+        List<String> jobs = Economies.activeJobIds(settlement);
         int workers = Math.min(count - professions.size(), workerCount(jobs.size(),
                 settlement.economy().population(), WorldConfig.ECONOMY_WORKERS_PER_JOB.get()));
         for (String job : pickJobs(jobs, workers)) {

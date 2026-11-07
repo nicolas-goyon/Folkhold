@@ -202,7 +202,7 @@ Each faction village has fortifications and guards. A player in iron armor with 
 - Villagers: the villagers of a village are its population: the merchants, and the inhabitants for the rest of the population. The setting `inhabitantLimit` can set a maximum (0: no maximum), and the server and the other mods can limit the entities.
   - Places (`VillagePlaces`, `VillageBeds`): the places of a village are the maximum of its inhabitants, as the buildings in a real-time strategy game. Each bed of the homes of the village gives one place: the beds of the structure and the beds that a player places. The beds of a garrison building (a template with a name that ends with `barracks`) are for the garrison: they give no place. The hall gives one place to each builder and each handyman, thus a village with no bed keeps its workers. A village with fewer places than inhabitants keeps its inhabitants, and gets no new inhabitant. Each cottage of the village structure has 3 beds.
   - The heart counts the beds with each scan of the village. It scans the village again after a finished construction site, and when a player places or breaks a bed in the village. The settlement keeps the number of beds (`Beds`). The heart screen and the journal show the inhabitants and the places ("Housing").
-  - The first inhabitants are 2 builders and 1 handyman (settings `builders` and `handymen`), also in a small village. The builders build the construction sites of the village (see Construction). The handymen light the braziers in the evening and put them out in the morning (see Shelter at night). Then the workers show the jobs of the settlement: 2 inhabitants (`workersPerJob`) for each active job. The rest have no job: they give life to the village.
+  - The first inhabitants are 2 builders and 1 handyman (settings `builders` and `handymen`), also in a small village. The builders build the construction sites of the village (see Construction). The handymen light the braziers in the evening and put them out in the morning (see Shelter at night). Then the workers show the active jobs of the settlement (see Job buildings): 2 inhabitants (`workersPerJob`) for each active job. The rest have no job: they give life to the village.
   - The builders and the handymen stay vanilla villagers (bed, bell, raids, zombies), with no trades. Only their model changes: a GeckoLib model with arms that move (place a block, use a brazier). It uses the vanilla textures of the villagers: the skin, the type and the profession. The other villagers keep the vanilla model.
   - The heart creates the villagers in groups of 4, one group every 2 seconds while a player is near.
 
@@ -534,6 +534,13 @@ The specialties of the cultures:
 | Sunreach | dyer, gold smelter, gardener, gardener of the jungle, papermaker, beekeeper, pastry cook | dyes, gold, sugar cane and cocoa, paper, honey, pastries |
 
 A recipe with no inputs produces nothing. The job goes into "need" state and buys.
+
+**Job buildings.** A job that needs a building works only when the village has the building of the job. A job sign (`folkhold_blocks:job_sign`) in a building names its job: the sign value `blacksmith` is the job `folkhold_world:blacksmith`. The rules:
+
+- The scan of the heart counts the job signs of each job. The settlement keeps the counts (`JobBuildings` in the saved settlements).
+- A job with no building is inactive: it does not produce and does not consume, and its workers are inhabitants with no job. One building serves all the slots of its job.
+- Before the first scan of the heart, the counts are unknown and all the jobs are active. Thus a village in a part of the world that no player visited keeps all its production.
+- A job needs its building when its job file sets `"building": true`. The setting `allJobsNeedBuildings` (default false) applies the rule to all the jobs. A job file without `"building"` keeps its job active, so a village with no job building keeps its production until the job buildings of its culture exist.
 
 The population consumes food at each cycle.
 

@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomySettings;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.JobAssignment;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -38,7 +39,8 @@ import net.minecraft.world.level.biome.Biome;
  *   <li>The first abstract tick of a settlement sets its population, its jobs and its start stock. A settlement
  *       with a higher level starts with more stock.</li>
  *   <li>At each cycle: the jobs follow the level (more slots, new jobs), then the settlement runs one
- *       economic cycle (see {@link Economy}).</li>
+ *       economic cycle (see {@link Economy}). Only the active jobs work: a job that needs a building works only when
+ *       the village has the building of the job (see {@link #activeJobs}).</li>
  *   <li>A food shortage removes experience.</li>
  *   <li>The prosperity of a settlement comes from its food, its jobs and the treasury of its faction.</li>
  * </ul>
@@ -107,7 +109,7 @@ public final class Economies {
     public static CycleReport runCycle(MinecraftServer server, Settlement settlement, SplittableRandom random) {
         updateJobs(server, settlement);
         LevelTraits traits = LevelTables.get().traits(settlement.level());
-        CycleReport report = Economy.runCycle(settlement.economy(), jobs(settlement), traits.maxPopulation(),
+        CycleReport report = Economy.runCycle(settlement.economy(), activeJobs(settlement), traits.maxPopulation(),
                 traits.stockCapacity(), EconomyData.catalog(), settings(), random);
         SettlementData.get(server).setDirty();
         if (report.foodCovered() < SHORTAGE) {
@@ -160,6 +162,43 @@ public final class Economies {
     public static List<Job> jobs(Settlement settlement) {
         List<Job> result = new ArrayList<>();
         for (String id : settlement.economy().jobs()) {
+            Job job = EconomyData.jobs().get(id);
+            if (job != null) {
+                result.add(job);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * True if a job works only when the village has the building of the job: the job file sets
+     * {@code "building": true}, or the setting {@link WorldConfig#ECONOMY_ALL_JOBS_NEED_BUILDINGS} is true.
+     *
+     * @param jobId the job id
+     * @return true if the job needs its building
+     */
+    public static boolean needsBuilding(String jobId) {
+        return WorldConfig.ECONOMY_ALL_JOBS_NEED_BUILDINGS.get() || EconomyData.hasBuilding(jobId);
+    }
+
+    /**
+     * The job ids of the active job slots of a settlement, in its order (see {@link JobBuildings#active}). Before the
+     * first scan of the heart, all the jobs are active.
+     *
+     * @param settlement the settlement
+     * @return the job ids
+     */
+    public static List<String> activeJobIds(Settlement settlement) {
+        return JobBuildings.active(settlement.economy().jobs(), settlement.jobBuildings(), Economies::needsBuilding);
+    }
+
+    /**
+     * The active jobs of a settlement, in its order (see {@link #activeJobIds}). A job id with no definition is
+     * skipped.
+     */
+    public static List<Job> activeJobs(Settlement settlement) {
+        List<Job> result = new ArrayList<>();
+        for (String id : activeJobIds(settlement)) {
             Job job = EconomyData.jobs().get(id);
             if (job != null) {
                 result.add(job);
