@@ -15,8 +15,6 @@ import io.github.nicolasgoyon.folkhold.world.entity.VillageCat;
 import io.github.nicolasgoyon.folkhold.world.faction.Culture;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
 import io.github.nicolasgoyon.folkhold.world.faction.FactionVisuals;
-import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
-import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import java.util.ArrayDeque;
@@ -27,7 +25,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -67,10 +64,15 @@ public final class VillageStructureGameTests {
     private VillageStructureGameTests() {
     }
 
-    /** The heart finds the posts, gates and braziers, and puts the archers on the posts. */
+    /**
+     * The heart finds the posts, gates and braziers, and puts the archers on the posts. The test sets the level 9: the
+     * start level of a new settlement comes from its random id. At the level 9, the garrison has 4 archers for the 4
+     * towers and has each role. At the levels 13 to 16, the garrison has 5 archers for the 4 towers.
+     */
     @GameTest(template = "village/center", timeoutTicks = 100, batch = "village_structure")
     public static void heartFindsLayoutAndPostsArchers(GameTestHelper helper) {
         VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
+        TestSupport.setLevel(helper, heart, 9);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         VillageLayout layout = heart.getLayout();
         List<FactionUnit> units = heart.getUnits();
@@ -228,9 +230,7 @@ public final class VillageStructureGameTests {
     public static void calmRotationMovesTheArchers(GameTestHelper helper) {
         VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         // At the level 1, the garrison has 2 archers for the 4 towers: each archer has a free tower to go to.
-        MinecraftServer server = helper.getLevel().getServer();
-        heart.ensureSettlement();
-        SettlementLevels.setProgress(server, Settlements.of(server, heart).orElseThrow(), 1, 0);
+        TestSupport.setLevel(helper, heart, 1);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         List<ArcherEntity> archers = heart.getUnits().stream()
                 .filter(ArcherEntity.class::isInstance).map(ArcherEntity.class::cast).toList();
