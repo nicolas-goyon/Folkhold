@@ -1440,8 +1440,10 @@ def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"
     return t
 
 
-# The blocks of the shell that a fence connects to. A fence also connects to a fence, and not to a plant or a fruit.
-FENCE_SUPPORTS = ("cobblestone", "_log", "_planks")
+# The full blocks that a fence connects to: the blocks of the shell, and the stone and the earth of the job buildings.
+# A fence also connects to a fence, and not to a plant or a fruit.
+FENCE_SUPPORTS = ("cobblestone", "_log", "_planks", "_ore", ":stone", ":andesite", ":sand", ":gravel", ":clay",
+                  ":dirt")
 
 
 def connect_fences(t, y):
@@ -1751,9 +1753,9 @@ SAWYERS = {"sawyer": "oak", "sawyer_spruce": "spruce"}
 POTTED = {"mangrove": "minecraft:potted_mangrove_propagule"}
 
 
-def job_wood(t, x, y, z, name, props=None):
-    """A block of the wood of the job. The biome variants do not change it: the lumberjack of spruce keeps its spruce
-    logs in the plains and in the desert."""
+def job_material(t, x, y, z, name, props=None):
+    """A block of the material of the job. The biome variants do not change it: the lumberjack of spruce keeps its
+    spruce logs in the plains, and the mason keeps its stone bricks in the desert."""
     t.set(x, y, z, name, props)
     t.fixed.add((x, y, z))
 
@@ -1778,11 +1780,11 @@ def lumber_yard(job, wood):
     for z in GARDEN_Z:
         for x, top in ((1, 2), (2, 1)):
             for y in range(1, top + 1):
-                job_wood(t, x, y, z, log, {"axis": "z"})
+                job_material(t, x, y, z, log, {"axis": "z"})
     # The chopping block: a log on its end. The split wood: stripped logs in the back corner.
-    job_wood(t, W - 3, 1, WATER[1], log, LOG_Y)
+    job_material(t, W - 3, 1, WATER[1], log, LOG_Y)
     for x, y in ((W - 3, 1), (W - 2, 1), (W - 2, 2)):
-        job_wood(t, x, y, D - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
+        job_material(t, x, y, D - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
     t.set(W - 2, 1, SHED_DEPTH, POTTED.get(wood, f"minecraft:potted_{wood}_sapling"))
     # The fences next to the piles connect to the logs.
     connect_fences(t, 1)
@@ -1799,19 +1801,137 @@ def sawmill(job, wood):
     t = job_house(rng, job, f"minecraft:{wood}_planks", planks)
     bench = 5
     for x in (2, 3):
-        job_wood(t, x, 1, bench, f"minecraft:{wood}_log", {"axis": "x"})
+        job_material(t, x, 1, bench, f"minecraft:{wood}_log", {"axis": "x"})
     t.set(4, 1, bench, "minecraft:stonecutter", {"facing": "north"})
     for x in (5, 6):
-        job_wood(t, x, 1, bench, f"minecraft:{wood}_slab", {"type": "bottom", "waterlogged": "false"})
+        job_material(t, x, 1, bench, f"minecraft:{wood}_slab", {"type": "bottom", "waterlogged": "false"})
     # The logs to saw (west) and the planks (east) on the back wall. The middle of the room stays free.
     for x, y in ((1, 1), (2, 1), (3, 1), (1, 2), (2, 2)):
-        job_wood(t, x, y, D - 2, f"minecraft:{wood}_log", {"axis": "x"})
+        job_material(t, x, y, D - 2, f"minecraft:{wood}_log", {"axis": "x"})
     for x, y, z in ((6, 1, D - 2), (7, 1, D - 2), (7, 2, D - 2), (7, 1, D - 3)):
-        job_wood(t, x, y, z, f"minecraft:{wood}_planks")
+        job_material(t, x, y, z, f"minecraft:{wood}_planks")
     t.set(1, 1, 3, "minecraft:crafting_table")
     t.set(W - 2, 1, 2, *BARREL)
     lantern(t, 1, 1, 2)
     lantern(t, W - 2, 1, 3)
+    return t
+
+
+def mine():
+    """The building of the miner: the shed with a smithing table (the work block of the vanilla toolsmith), and a
+    yard with a rock face at the back. A timber frame in the rock face makes the mouth of the mine, with a lantern under
+    the beam. A rail goes from the back door to the mouth. A pile of cobblestone stands next to the rail.
+
+    The rock face has stone, andesite and ores. The cobblestone of the pile stays cobblestone in all the variants.
+    """
+    rng = random.Random(63)
+    mid = W // 2
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == mid else "minecraft:gravel"
+
+    def plants(x, z):
+        return ("minecraft:rail", {"shape": "north_south", "waterlogged": "false"}) if x == mid else None
+
+    t = job_building(rng, "miner", "minecraft:iron_pickaxe", ground, plants, work=("minecraft:smithing_table", None))
+    rock = {1: ("minecraft:stone", "minecraft:andesite"), 2: ("minecraft:coal_ore", "minecraft:stone"),
+            W - 3: ("minecraft:iron_ore", "minecraft:stone"), W - 2: ("minecraft:andesite", "minecraft:copper_ore")}
+    for x, column in rock.items():
+        for y, name in enumerate(column, 1):
+            t.set(x, y, D - 2, name)
+    # The mouth: 2 posts and a beam in the rock face, and the rock behind it in place of the back fence.
+    for x in (mid - 1, mid + 1):
+        for y in (1, 2):
+            t.set(x, y, D - 2, "minecraft:spruce_log", LOG_Y)
+    for x in (mid - 1, mid, mid + 1):
+        t.set(x, 3, D - 2, "minecraft:spruce_log", {"axis": "x"})
+        for y in (1, 2, 3):
+            t.set(x, y, D - 1, "minecraft:stone")
+    t.set(mid, 2, D - 2, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    for x, z in ((1, SHED_DEPTH), (2, SHED_DEPTH), (1, SHED_DEPTH + 1)):
+        job_material(t, x, 1, z, "minecraft:cobblestone")
+    t.set(1, 1, 2, *BARREL)
+    connect_fences(t, 1)
+    return t
+
+
+def dig_yard():
+    """The building of the digger: the shed with a stonecutter (the work block of the vanilla mason), and a yard with
+    heaps of sand, gravel, clay and dirt along the fence. A path of coarse dirt goes from the back door to the back
+    fence."""
+    rng = random.Random(64)
+    heaps = {(1, D - 2): "sand", (2, D - 2): "sand", (1, D - 3): "sand", (3, D - 2): "gravel",
+             (W - 4, D - 2): "clay", (W - 3, D - 2): "dirt", (W - 2, D - 2): "dirt", (W - 2, D - 3): "gravel"}
+
+    def plants(x, z):
+        return f"minecraft:{heaps[(x, z)]}" if (x, z) in heaps else None
+
+    t = job_building(rng, "digger", "minecraft:iron_shovel", lambda x, z: "minecraft:coarse_dirt", plants,
+                     work=("minecraft:stonecutter", {"facing": "east"}))
+    t.set(1, 2, D - 2, "minecraft:sand")
+    t.set(W - 2, 2, D - 2, "minecraft:dirt")
+    t.set(1, 1, 2, *BARREL)
+    connect_fences(t, 1)
+    return t
+
+
+def stone_bricks(_rng):
+    return "minecraft:stone_bricks"
+
+
+def mason_workshop():
+    """The building of the mason: a house of stone bricks with a stonecutter (the work block of the vanilla mason) and
+    a block of stone to cut, a brick kiln on the back wall, and stacks of stone bricks, bricks, smooth stone and
+    terracotta. The stacks of stone bricks stay stone bricks in all the variants."""
+    rng = random.Random(65)
+    t = job_house(rng, "mason", "minecraft:stone_bricks", stone_bricks)
+    oven(t, 4)
+    for x, y, z in ((1, 1, D - 2), (1, 2, D - 2), (2, 1, D - 2), (1, 1, D - 3)):
+        job_material(t, x, y, z, "minecraft:stone_bricks")
+    for x, y, z in ((W - 2, 1, D - 2), (W - 2, 2, D - 2)):
+        t.set(x, y, z, "minecraft:bricks")
+    t.set(W - 3, 1, D - 2, "minecraft:smooth_stone")
+    t.set(W - 2, 1, D - 3, "minecraft:terracotta")
+    t.set(2, 1, 4, "minecraft:stonecutter", {"facing": "east"})
+    t.set(2, 1, 3, "minecraft:stone")
+    t.set(W - 2, 1, 3, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, W - 2, 1, 5)
+    return t
+
+
+# The metals of the smelters: the raw blocks of the ores, and the weighted pressure plate that shows the ingots.
+SMELTERS = {
+    "smelter": ("minecraft:iron_ingot", ("minecraft:raw_iron_block", "minecraft:raw_copper_block"),
+                "minecraft:heavy_weighted_pressure_plate"),
+    "gold_smelter": ("minecraft:gold_ingot", ("minecraft:raw_gold_block", "minecraft:raw_gold_block"),
+                     "minecraft:light_weighted_pressure_plate"),
+}
+
+
+def smeltery(job):
+    """The building of a smelter: a brick house with 2 blast furnaces (the work block of the vanilla armorer) and a
+    furnace for the glass in a brick oven, the raw ore and a block of coal, a barrel of sand, a water cauldron to cool
+    the metal, and the ingots on a counter.
+
+    All the smelters have this shape. Only the ore and the ingots change: the weighted pressure plates show the
+    ingots (iron for the smelter, gold for the smelter of gold).
+    """
+    icon, ores, plate = SMELTERS[job]
+    rng = random.Random(66)
+    t = job_house(rng, job, icon, lambda r: "minecraft:bricks")
+    oven(t, 4)
+    for x in (2, W - 3):
+        t.set(x, 1, D - 2, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
+    for z, ore in zip((D - 2, D - 3), ores):
+        t.set(1, 1, z, ore)
+    t.set(1, 1, D - 4, "minecraft:coal_block")
+    t.set(W - 2, 1, D - 2, *BARREL)
+    t.set(W - 2, 1, D - 3, "minecraft:water_cauldron", {"level": "3"})
+    for x in (W - 3, W - 2):
+        t.set(x, 1, 3, *TOP_SLAB)
+        t.set(x, 2, 3, plate, {"power": "0"})
+    lantern(t, 1, 1, 2)
     return t
 
 
@@ -1830,6 +1950,10 @@ JOBS = {
     "fisher": fisher_hut,
     **{job: functools.partial(lumber_yard, job, wood) for job, wood in LUMBERJACKS.items()},
     **{job: functools.partial(sawmill, job, wood) for job, wood in SAWYERS.items()},
+    "miner": mine,
+    "digger": dig_yard,
+    "mason": mason_workshop,
+    **{job: functools.partial(smeltery, job) for job in SMELTERS},
 }
 
 PIECES = {
@@ -2017,7 +2141,7 @@ class Variant:
 
     def apply(self, t):
         """The template with the materials of this variant. The jigsaw connectors use the pools of the variant. The
-        fixed positions of the template (see job_wood) keep their blocks."""
+        fixed positions of the template (see job_material) keep their blocks."""
         out = Template(*t.size)
         prefix = f"{NS}:village/"
         for pos, ((name, props), nbt) in t.blocks.items():

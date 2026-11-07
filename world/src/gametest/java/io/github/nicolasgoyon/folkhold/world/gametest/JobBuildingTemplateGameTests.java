@@ -55,8 +55,10 @@ public final class JobBuildingTemplateGameTests {
     private static final List<String> WOOD = List.of("lumberjack", "lumberjack_acacia", "lumberjack_birch",
             "lumberjack_cherry", "lumberjack_dark_oak", "lumberjack_jungle", "lumberjack_mangrove",
             "lumberjack_spruce", "sawyer", "sawyer_spruce");
+    /** The jobs of the stone, the earth and the metal. */
+    private static final List<String> STONE = List.of("miner", "digger", "mason", "smelter", "gold_smelter");
     /** The jobs with a building template. */
-    private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD).stream().flatMap(List::stream).toList();
+    private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD, STONE).stream().flatMap(List::stream).toList();
     /** The origin of the template of each job of a group: 3 buildings north of the heart, 2 south of it. */
     private static final List<BlockPos> ORIGINS = List.of(new BlockPos(1, 1, 1), new BlockPos(11, 1, 1),
             new BlockPos(21, 1, 1), new BlockPos(6, 1, 21), new BlockPos(16, 1, 21));
@@ -137,6 +139,12 @@ public final class JobBuildingTemplateGameTests {
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_wood_2", skyAccess = true)
     public static void heartCountsTheOtherWoodJobBuildings(GameTestHelper helper) {
         checkScan(helper, WOOD.subList(5, 10));
+    }
+
+    /** The 5 job buildings of the stone, the earth and the metal: see {@link #checkScan}. */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_stone", skyAccess = true)
+    public static void heartCountsTheStoneJobBuildings(GameTestHelper helper) {
+        checkScan(helper, STONE);
     }
 
     /**
