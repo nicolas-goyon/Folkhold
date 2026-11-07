@@ -127,7 +127,8 @@ public final class VillageClearing {
 
     /**
      * Replaces the powder snow of a village with snow blocks (see {@link #snowBox}). The method keeps the blocks of the
-     * structure pieces and the blocks of the players and of the construction sites. Under a building, the foundation
+     * structure pieces (a position where a piece has air changes) and the blocks of the players and of the construction
+     * sites (see {@link VillageRepairData#keeps}). Under a building, the foundation
      * of the building already replaces the powder snow. The method does nothing while a chunk of the box is not ready.
      *
      * @param level     the level
@@ -151,8 +152,11 @@ public final class VillageClearing {
         int maxY = Math.min(box.maxY(), level.getMaxBuildHeight() - 1);
         int replaced = 0;
         for (BlockPos pos : BlockPos.betweenClosed(box.minX(), minY, box.minZ(), box.maxX(), maxY, box.maxZ())) {
-            if (!level.getBlockState(pos).is(Blocks.POWDER_SNOW) || expected.containsKey(pos)
-                    || data.keeps(heart, pos)) {
+            if (!level.getBlockState(pos).is(Blocks.POWDER_SNOW) || data.keeps(heart, pos)) {
+                continue;
+            }
+            BlockState wanted = expected.get(pos);
+            if (wanted != null && !wanted.isAir()) {
                 continue;
             }
             level.setBlock(pos, snow, Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);

@@ -91,6 +91,8 @@ public final class FortifiedVillageGameTests {
     private static final int MIN_WALK = 1000;
     /** The first candidate chunk on the Z axis of the village on powder snow: far from the other villages. */
     private static final int SNOW_FIRST_CHUNK = FIRST_CHUNK + 40;
+    /** The first candidate chunk on the Z axis of the village of an earlier save. */
+    private static final int OLD_SAVE_FIRST_CHUNK = SNOW_FIRST_CHUNK + 40;
     /** The powder snow goes this number of blocks around the box of the village: out of the band of the heart. */
     private static final int SNOW_MARGIN = VillageClearing.SNOW_BAND + 6;
     /** The depth of the powder snow on the terrain. */
@@ -249,8 +251,8 @@ public final class FortifiedVillageGameTests {
     /**
      * The biome selects the variant of the village: oak in the plains, the meadow, the cherry grove and the forest,
      * birch in the birch forest, acacia in the savanna, sandstone in the desert, mangrove in the swamps, and the base
-     * variant (spruce) in the taiga, the snowy biomes, the grove, the snowy slopes and the windswept hills. The structure has all these biomes. A generated village in the plains of the test
-     * world has the pieces, the palisade and the homes of the plains, and the layout of the base variant at the same
+     * variant (spruce) in the taiga, the snowy biomes, the grove, the snowy slopes and the windswept hills. The structure
+     * has all these biomes. A generated village in the plains of the test world has the pieces, the palisade and the homes of the plains, and the layout of the base variant at the same
      * place.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_variants")
@@ -562,6 +564,9 @@ public final class FortifiedVillageGameTests {
                 && level.getBlockState(outOfBand).is(Blocks.POWDER_SNOW), "The band must have powder snow");
 
         heart.clearTrees(level);
+        helper.assertTrue(level.getBlockState(layerBase).is(Blocks.POWDER_SNOW),
+                "The removal of the trees and the replacement of the powder snow must occur in 2 calls");
+        heart.clearTrees(level);
 
         List<BlockPos> left = blocksIn(level, snowBox, state -> state.is(Blocks.POWDER_SNOW));
         helper.assertTrue(left.equals(List.of(playerPowder)), "Only the powder snow of the player must stay: " + left);
@@ -582,6 +587,45 @@ public final class FortifiedVillageGameTests {
             helper.assertTrue(reached.contains(ChunkPos.asLong(approach.getX(), approach.getZ())),
                     "A walk from the heart must go to the approach of the gate " + gate + ": " + approach);
         }
+        helper.succeed();
+    }
+
+    /**
+     * A heart of an earlier save removed its trees and has no flag of the powder snow. The next clearing replaces the
+     * powder snow once and does not remove the trees again.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_old_save")
+    public static void oldHeartReplacesThePowderSnowOnce(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Village village = generate(helper, level, OLD_SAVE_FIRST_CHUNK,
+                level.getChunkSource().getGenerator().getBiomeSource(), box -> {
+                });
+        VillageReference reference = VillageReference.of(level, village.start().getPieces()).orElseThrow();
+        BoundingBox area = reference.area().orElseThrow();
+        VillageHeartBlockEntity heart = (VillageHeartBlockEntity) level.getBlockEntity(village.heart());
+        CompoundTag tag = heart.saveWithoutMetadata(level.registryAccess());
+        tag.putBoolean("Cleared", true);
+        tag.remove("SnowCleared");
+        heart.loadWithComponents(tag, level.registryAccess());
+        heart.setRepairReference(reference);
+        int z = village.heart().getZ() + 1;
+        int top = level.getHeight(Heightmap.Types.WORLD_SURFACE, area.maxX() + 3, z) - 1;
+        BlockPos powder = new BlockPos(area.maxX() + 3, top, z);
+        BlockPos log = powder.above(3);
+        level.setBlock(powder, Blocks.POWDER_SNOW.defaultBlockState(), Block.UPDATE_CLIENTS);
+        level.setBlock(log, Blocks.OAK_LOG.defaultBlockState(), Block.UPDATE_CLIENTS);
+
+        heart.clearTrees(level);
+        helper.assertTrue(level.getBlockState(powder).is(Blocks.SNOW_BLOCK),
+                "The heart must replace the powder snow: " + level.getBlockState(powder));
+        helper.assertTrue(level.getBlockState(log).is(Blocks.OAK_LOG), "The heart must not remove the trees again");
+
+        level.setBlock(powder, Blocks.POWDER_SNOW.defaultBlockState(), Block.UPDATE_CLIENTS);
+        heart.clearTrees(level);
+        helper.assertTrue(level.getBlockState(powder).is(Blocks.POWDER_SNOW),
+                "The heart must replace the powder snow once");
+        level.setBlock(powder, Blocks.GRASS_BLOCK.defaultBlockState(), Block.UPDATE_CLIENTS);
+        level.removeBlock(log, false);
         helper.succeed();
     }
 

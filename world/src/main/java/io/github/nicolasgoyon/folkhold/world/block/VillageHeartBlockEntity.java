@@ -543,9 +543,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Removes the trees of the village and replaces its powder snow with snow blocks, once, before its first activation
-     * (see {@link VillageClearing}). Each of the 2 steps occurs once. A heart with no village structure has nothing to
-     * clear. The heart waits while a chunk of a step is not ready.
+     * Removes the trees of the village and replaces its powder snow with snow blocks, once, before its first garrison
+     * (see {@link VillageClearing}). Each of the 2 steps occurs once, and a call does one step at most: the 2 large
+     * reads of blocks do not occur in the same tick. A heart with no village structure has nothing to clear. The heart
+     * waits while a chunk of a step is not ready.
      *
      * @param serverLevel the level of the heart
      */
@@ -564,6 +565,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 cleared = true;
                 setChanged();
             }
+            return;
         }
         if (!snowCleared) {
             Optional<Integer> replaced = VillageClearing.replacePowderSnow(serverLevel, worldPosition,
@@ -1062,7 +1064,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (!heart.cleared || !heart.snowCleared) {
             heart.clearTrees(areaLevel);
         }
-        if (time % GARRISON_INTERVAL == 0) {
+        // The first garrison waits for the clearing: the units do not appear on powder snow.
+        if (time % GARRISON_INTERVAL == 0 && heart.cleared && heart.snowCleared) {
             double activation = WorldConfig.GARRISON_ACTIVATION_RADIUS.get();
             if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {
                 heart.ensureGarrison(level.getGameTime());
