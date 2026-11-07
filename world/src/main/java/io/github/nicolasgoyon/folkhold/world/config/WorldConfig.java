@@ -114,7 +114,6 @@ public final class WorldConfig {
     public static final ModConfigSpec.IntValue ECONOMY_START_TREASURY;
     public static final ModConfigSpec.IntValue ECONOMY_TREASURY_MINIMUM;
     public static final ModConfigSpec.IntValue ECONOMY_FOOD_SHORTAGE_LOSS;
-    public static final ModConfigSpec.BooleanValue ECONOMY_ALL_JOBS_NEED_BUILDINGS;
 
     public static final ModConfigSpec.IntValue GROUP_BLOCKS_PER_TICK;
     public static final ModConfigSpec.IntValue GROUP_MAX_GROUPS;
@@ -678,13 +677,6 @@ public final class WorldConfig {
                 .comment("Experience that a settlement loses in a cycle with a food shortage (less than half of its need).")
                 .translation(KEY_PREFIX + "economyFoodShortageLoss")
                 .defineInRange("foodShortageLoss", 10, 0, 10000);
-        ECONOMY_ALL_JOBS_NEED_BUILDINGS = builder
-                .comment("true: each job works only when the village has the building of the job (a job sign of",
-                        "the job).",
-                        "false: only the jobs with \"building\": true in their job file need their building.",
-                        "A village that its heart did not scan keeps all its jobs.")
-                .translation(KEY_PREFIX + "economyAllJobsNeedBuildings")
-                .define("allJobsNeedBuildings", false);
         builder.pop();
 
         builder.comment("Mobile groups: caravans and traveling merchants.")

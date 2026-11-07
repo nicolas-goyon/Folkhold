@@ -54,7 +54,7 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  * shows the job: an inhabitant with this job has this profession (see
  * {@link io.github.nicolasgoyon.folkhold.world.village.VillageFolk}). With no profession, the inhabitant has the
  * inhabitant profession. With {@code "building": true}, the job works only when the village has the building of the
- * job (see {@link Economies#needsBuilding(String)}). An input with a chance below 1 is a tool: the job needs it and
+ * job (see {@link Economies#activeJobIds}). An input with a chance below 1 is a tool: the job needs it and
  * uses it up sometimes. Items format: {@code {"minecraft:bread": {"price": 1.0, "food": 5, "target": 32}, ...}}.
  *
  * <p>A file that is not valid is ignored, with an error in the log.

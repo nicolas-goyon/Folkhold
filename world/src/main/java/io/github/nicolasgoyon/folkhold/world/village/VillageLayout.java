@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
 import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -306,7 +307,7 @@ public final class VillageLayout {
                 beds.add(pos.immutable());
             } else if (state.getBlock() instanceof JobSignBlock) {
                 if (level.getBlockEntity(pos) instanceof JobSignBlockEntity sign) {
-                    String job = JobBuildings.jobId(sign.job());
+                    String job = JobBuildings.jobId(sign.job(), FolkholdWorld.MOD_ID);
                     if (!job.isEmpty()) {
                         jobBuildings.merge(job, 1, Integer::sum);
                     }

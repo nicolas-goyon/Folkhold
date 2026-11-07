@@ -21,25 +21,22 @@ import java.util.function.Predicate;
  * <p>The workers of an inactive job have no job: they are inhabitants.
  */
 public final class JobBuildings {
-    /** The namespace of a job id with no namespace, for example the job {@code blacksmith} of a job sign. */
-    public static final String DEFAULT_NAMESPACE = "folkhold_world";
-
     private JobBuildings() {
     }
 
     /**
-     * The job id of the job of a job sign: the sign value with the namespace {@link #DEFAULT_NAMESPACE} if it has no
-     * namespace.
+     * The job id of the job of a job sign: the sign value, with a default namespace if it has no namespace.
      *
-     * @param signJob the job of the sign, for example {@code blacksmith}
+     * @param signJob   the job of the sign, for example {@code blacksmith}
+     * @param namespace the default namespace, for example {@code folkhold_world}
      * @return the job id, for example {@code folkhold_world:blacksmith}, or an empty text for an empty sign
      */
-    public static String jobId(String signJob) {
+    public static String jobId(String signJob, String namespace) {
         String job = signJob.trim();
         if (job.isEmpty() || job.contains(":")) {
             return job;
         }
-        return DEFAULT_NAMESPACE + ":" + job;
+        return namespace + ":" + job;
     }
 
     /**

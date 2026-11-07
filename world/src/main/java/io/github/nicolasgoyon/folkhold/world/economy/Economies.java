@@ -171,17 +171,6 @@ public final class Economies {
     }
 
     /**
-     * True if a job works only when the village has the building of the job: the job file sets
-     * {@code "building": true}, or the setting {@link WorldConfig#ECONOMY_ALL_JOBS_NEED_BUILDINGS} is true.
-     *
-     * @param jobId the job id
-     * @return true if the job needs its building
-     */
-    public static boolean needsBuilding(String jobId) {
-        return WorldConfig.ECONOMY_ALL_JOBS_NEED_BUILDINGS.get() || EconomyData.hasBuilding(jobId);
-    }
-
-    /**
      * The job ids of the active job slots of a settlement, in its order (see {@link JobBuildings#active}). Before the
      * first scan of the heart, all the jobs are active.
      *
@@ -189,7 +178,7 @@ public final class Economies {
      * @return the job ids
      */
     public static List<String> activeJobIds(Settlement settlement) {
-        return JobBuildings.active(settlement.economy().jobs(), settlement.jobBuildings(), Economies::needsBuilding);
+        return JobBuildings.active(settlement.economy().jobs(), settlement.jobBuildings(), EconomyData::hasBuilding);
     }
 
     /**

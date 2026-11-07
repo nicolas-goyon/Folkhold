@@ -47,8 +47,8 @@ class JobBuildingsTest {
 
     @Test
     void signJobGetsTheDefaultNamespace() {
-        assertEquals("folkhold_world:blacksmith", JobBuildings.jobId("blacksmith"));
-        assertEquals("other:smith", JobBuildings.jobId("other:smith"));
-        assertEquals("", JobBuildings.jobId(" "));
+        assertEquals("mod:blacksmith", JobBuildings.jobId("blacksmith", "mod"));
+        assertEquals("other:smith", JobBuildings.jobId("other:smith", "mod"));
+        assertEquals("", JobBuildings.jobId(" ", "mod"));
     }
 }

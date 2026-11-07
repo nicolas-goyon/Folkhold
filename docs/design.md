@@ -540,7 +540,7 @@ A recipe with no inputs produces nothing. The job goes into "need" state and buy
 - The scan of the heart counts the job signs of each job. The settlement keeps the counts (`JobBuildings` in the saved settlements).
 - A job with no building is inactive: it does not produce and does not consume, and its workers are inhabitants with no job. One building serves all the slots of its job.
 - Before the first scan of the heart, the counts are unknown and all the jobs are active. Thus a village in a part of the world that no player visited keeps all its production.
-- A job needs its building when its job file sets `"building": true`. The setting `allJobsNeedBuildings` (default false) applies the rule to all the jobs. A job file without `"building"` keeps its job active, so a village with no job building keeps its production until the job buildings of its culture exist.
+- A job needs its building when its job file sets `"building": true`. A job file without `"building"` keeps its job active, so a village with no job building keeps its production until the job buildings of its culture exist.
 
 The population consumes food at each cycle.
 
