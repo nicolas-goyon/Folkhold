@@ -26,10 +26,11 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  *
  * <p>Format:
  * <pre>
- * {"buildings": [{"kind": "storehouse", "min_level": 2}, {"kind": "forge", "min_level": 5}, ...]}
+ * {"buildings": [{"kind": "storehouse", "min_level": 3}, {"kind": "barracks", "min_level": 9}, ...]}
  * </pre>
  * {@code kind} is the kind of the building sign of the building. The template of the building is the piece
- * {@code house_<kind>} of the variant of the village.
+ * {@code house_<kind>} of the variant of the village. The forge is not in the file: it is the building of the blacksmith
+ * (a job building, see {@link VillageLayout#BUILDING_JOBS}).
  */
 public final class VillageBuildingTable extends SimplePreparableReloadListener<List<Requirement>> {
     public static final ResourceLocation FILE =

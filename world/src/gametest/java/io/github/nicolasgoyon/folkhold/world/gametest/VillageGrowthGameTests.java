@@ -43,8 +43,8 @@ public final class VillageGrowthGameTests {
             "village/homes");
     private static final ResourceLocation COTTAGE = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
             "village/house_cottage");
-    private static final ResourceLocation FORGE = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
-            "village/house_forge");
+    private static final ResourceLocation BARRACKS = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
+            "village/house_barracks");
 
     private VillageGrowthGameTests() {
     }
@@ -98,8 +98,8 @@ public final class VillageGrowthGameTests {
 
     /**
      * A village with enough places and a missing building of its level: its builders start this building on the free
-     * plot. The village of the level 5 has a storehouse sign, so the forge comes first. A village of the level 1 needs
-     * no building.
+     * plot. The village has a storehouse sign, so the barracks of the level 9 comes first. A village of the level 1 or
+     * of the level 5 needs no building: the forge is the building of the blacksmith, not a building of a level.
      */
     @GameTest(template = "arena_large", timeoutTicks = 20, batch = "village_growth_building")
     public static void buildersStartAMissingBuildingOfTheLevel(GameTestHelper helper) {
@@ -120,8 +120,11 @@ public final class VillageGrowthGameTests {
         settlement.economy().setPopulation(3);
         heart.ensureGarrison(level.getGameTime());
         boolean lowLevel = VillageGrowth.check(level, heart).isEmpty();
-
         settlement.setProgress(5, 0);
+        settlement.economy().setPopulation(3);
+        boolean noForge = VillageGrowth.check(level, heart).isEmpty();
+
+        settlement.setProgress(9, 0);
         settlement.economy().setPopulation(3);
         Optional<BuilderSite> site = VillageGrowth.check(level, heart);
 
@@ -132,8 +135,9 @@ public final class VillageGrowthGameTests {
         helper.assertTrue(heart.getLayout().buildings().getOrDefault("storehouse", 0) == 1,
                 "The scan must count the storehouse sign: " + heart.getLayout().buildings());
         helper.assertTrue(lowLevel, "A village of the level 1 must build nothing");
+        helper.assertTrue(noForge, "A village of the level 5 must build no forge");
         helper.assertTrue(site.isPresent(), "A village with a missing building must start it on the free plot");
-        helper.assertTrue(site.get().template().equals(FORGE), "The building must be the forge: "
+        helper.assertTrue(site.get().template().equals(BARRACKS), "The building must be the barracks: "
                 + site.get().template());
         helper.succeed();
     }

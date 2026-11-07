@@ -710,9 +710,19 @@ def barracks():
     return t
 
 
+# The job sign of the blacksmith: each forge is the building of the blacksmith.
+BLACKSMITH = ("blacksmith", "minecraft:anvil")
+
+
 def forge():
+    """The forge: an open front, an anvil, a blast furnace, a furnace, a smithing table, a grindstone (the work block
+    of the vanilla weaponsmith) and a water cauldron to cool the metal. The forge is the building of the blacksmith:
+    the job sign stands next to the west porch post, and the building sign of the forge next to the east porch post."""
     rng = random.Random(4)
     t = house_shell(rng, cobble, cobble, "forge", wide_front=True)
+    job_sign(t, 1, 1, 0, *BLACKSMITH)
+    for y in range(1, 5):
+        connect_fences(t, y)
     t.set(2, 1, 5, "minecraft:anvil", {"facing": "east"})
     t.set(5, 1, 7, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
     t.set(6, 1, 7, "minecraft:furnace", {"facing": "north", "lit": "false"})
@@ -1052,6 +1062,9 @@ def norse_barracks():
 def norse_forge():
     rng = random.Random(14)
     t = long_house_shell(rng, "forge", cobble, wide_front=True)
+    job_sign(t, 1, 1, 0, *BLACKSMITH)
+    for y in range(1, LONG_WALL_TOP + 1):
+        connect_fences(t, y)
     t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
     t.set(LW - 2, 1, LD - 3, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
     t.set(LW - 2, 1, LD - 4, "minecraft:furnace", {"facing": "west", "lit": "false"})
@@ -1212,8 +1225,8 @@ def flat_house_shell(rng, sign, width, depth, wide_front=False, courtyard=False)
                 else:
                     t.set(x, FLAT_WALL_TOP + 2, z, "minecraft:smooth_sandstone_slab",
                           {"type": "bottom", "waterlogged": "false"})
-    # Lights.
-    for x in (mid - 1, mid + 1):
+    # Lights: on the front wall, next to the door. An open front has no wall there: the torches go outside the awning.
+    for x in ((mid - 3, mid + 3) if wide_front else (mid - 1, mid + 1)):
         t.set(x, 2, 0, *wall_torch("north"))
     building_sign(t, mid + 1, 1, 0, sign)
     # Jigsaw connector in the porch, facing out (north).
@@ -1266,6 +1279,9 @@ def sun_barracks():
 def sun_forge():
     rng = random.Random(45)
     t = flat_house_shell(rng, "forge", FW, FD, wide_front=True)
+    job_sign(t, FW // 2 - 1, 1, 0, *BLACKSMITH)
+    for y in range(1, FLAT_WALL_TOP):
+        connect_fences(t, y)
     t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
     t.set(FW - 2, 1, FD - 2, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
     t.set(FW - 2, 1, FD - 3, "minecraft:furnace", {"facing": "west", "lit": "false"})
@@ -1443,7 +1459,7 @@ def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"
 # The full blocks that a fence connects to: the blocks of the shell, and the stone and the earth of the job buildings.
 # A fence also connects to a fence, and not to a plant or a fruit.
 FENCE_SUPPORTS = ("cobblestone", "_log", "_planks", "_ore", ":stone", ":andesite", ":sand", ":gravel", ":clay",
-                  ":dirt")
+                  ":dirt", "sandstone")
 
 
 def connect_fences(t, y):
@@ -1936,6 +1952,96 @@ def smeltery(job):
     return t
 
 
+def tinker_workshop():
+    """The building of the tinker: a house with a smithing table (the work block of the vanilla toolsmith), blocks of
+    iron and copper, a crafting table, a short track of rails, and a counter with lanterns and a lightning rod (the
+    goods of the job)."""
+    rng = random.Random(67)
+    t = job_house(rng, "tinker", "minecraft:bucket", planks)
+    t.set(W - 3, 1, D - 2, "minecraft:smithing_table")
+    t.set(1, 1, D - 2, "minecraft:iron_block")
+    t.set(1, 2, D - 2, "minecraft:waxed_copper_block")
+    t.set(1, 1, D - 3, "minecraft:waxed_copper_block")
+    t.set(2, 1, D - 2, "minecraft:crafting_table")
+    t.set(W - 2, 1, D - 2, *BARREL)
+    for z in range(3, 6):
+        t.set(1, 1, z, "minecraft:rail", {"shape": "north_south", "waterlogged": "false"})
+    for x in (W - 3, W - 2):
+        t.set(x, 1, 4, *TOP_SLAB)
+    lantern(t, W - 3, 2, 4)
+    t.set(W - 2, 2, 4, "minecraft:lightning_rod", {"facing": "up", "powered": "false", "waterlogged": "false"})
+    lantern(t, 1, 1, 2)
+    lantern(t, W - 2, 1, D - 3)
+    return t
+
+
+def fletcher_range():
+    """The building of the fletcher: the shed with a fletching table (the work block of the vanilla fletcher), and a
+    yard with 2 targets on hay bales and a heap of gravel (the flint of the arrows). A path of coarse dirt goes from
+    the back door to the back fence. The targets and the hay bales are not next to the fence."""
+    rng = random.Random(68)
+    targets = (2, W - 3)
+    row = SHED_DEPTH + 1
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == W // 2 else GRASS
+
+    def plants(x, z):
+        if x in targets and z == row:
+            return "minecraft:hay_block", LOG_Y
+        return "minecraft:gravel" if (x, z) == (1, D - 2) else None
+
+    t = job_building(rng, "fletcher", "minecraft:arrow", ground, plants, work=("minecraft:fletching_table", None))
+    for x in targets:
+        t.set(x, 2, row, "minecraft:target", {"power": "0"})
+    t.set(1, 1, 2, *BARREL)
+    connect_fences(t, 1)
+    return t
+
+
+def carpenter_workshop():
+    """The building of the carpenter: a house with 2 crafting tables, a bench of oak slabs, a stack of oak planks, and
+    chests and barrels (the goods of the job). The oak planks and the oak slabs stay oak in all the variants."""
+    rng = random.Random(69)
+    t = job_house(rng, "carpenter", "minecraft:crafting_table", planks)
+    t.set(2, 1, 4, "minecraft:crafting_table")
+    t.set(W - 3, 1, 4, "minecraft:crafting_table")
+    for x in (3, W - 2):
+        job_material(t, x, 1, 4, "minecraft:oak_slab", {"type": "top", "waterlogged": "false"})
+    for x, y, z in ((W - 2, 1, D - 2), (W - 2, 2, D - 2), (W - 3, 1, D - 2), (W - 2, 1, D - 3)):
+        job_material(t, x, y, z, "minecraft:oak_planks")
+    for x in (1, 2):
+        t.set(x, 1, D - 2, "minecraft:chest", {"facing": "north", "type": "single", "waterlogged": "false"})
+    t.set(1, 1, D - 3, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, W - 2, 1, 2)
+    return t
+
+
+def tannery():
+    """The building of the tanner: the shed with a cauldron (the work block of the vanilla leatherworker), and a yard
+    with 2 vats of water (water cauldrons) and a rack of fences with hides (brown carpets) on it. A path of coarse dirt
+    goes from the back door to the back fence. The vats are not next to the fence."""
+    rng = random.Random(70)
+    vats = ((2, SHED_DEPTH + 1), (3, SHED_DEPTH + 1))
+    rack = ((W - 3, SHED_DEPTH + 1), (W - 3, D - 2))
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x in (W // 2, W - 3) else GRASS
+
+    def plants(x, z):
+        if (x, z) in vats:
+            return "minecraft:water_cauldron", {"level": "3"}
+        return "minecraft:spruce_fence" if (x, z) in rack else None
+
+    t = job_building(rng, "tanner", "minecraft:leather", ground, plants, work=("minecraft:cauldron", None))
+    for x, z in rack:
+        t.set(x, 2, z, "minecraft:brown_carpet")
+    t.set(1, 1, 2, *BARREL)
+    connect_fences(t, 1)
+    return t
+
+
 # The job buildings: the piece job_<id> of each job, in the pool village/jobs of each variant. The id is the name of
 # the job file.
 JOBS = {
@@ -1955,6 +2061,11 @@ JOBS = {
     "digger": dig_yard,
     "mason": mason_workshop,
     **{job: functools.partial(smeltery, job) for job in SMELTERS},
+    "blacksmith": forge,
+    "tinker": tinker_workshop,
+    "fletcher": fletcher_range,
+    "carpenter": carpenter_workshop,
+    "tanner": tannery,
 }
 
 PIECES = {

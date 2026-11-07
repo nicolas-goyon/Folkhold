@@ -225,6 +225,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/valeholm/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/job_blacksmith",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/job_tinker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/job_fletcher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/job_carpenter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/job_tanner",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/foundation"
+      }
     }
   ]
 }
