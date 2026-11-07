@@ -34,10 +34,21 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  *   <li>the logs in the boxes of the piers: their posts;</li>
  *   <li>the blocks of the players and of the construction sites (see {@link VillageRepairData#keeps}).</li>
  * </ul>
+ *
+ * <p>The heart also replaces the powder snow of the terrain with snow blocks (see {@link #replacePowderSnow}): in the
+ * grove and the snowy slopes, the surface of the terrain has powder snow, and the villagers, the units and the
+ * merchants sink in it. This replacement covers the area of the village and a band of {@link #SNOW_BAND} blocks around
+ * it: the streets, the flat terrain in front of the gates, the stairs of the gates and their approaches. The layers of
+ * snow stay. The blocks of the players and of the construction sites stay.
  */
 public final class VillageClearing {
     /** The clearing goes this number of blocks around the area of the village, on the horizontal plane. */
     public static final int BAND = 6;
+    /**
+     * The replacement of the powder snow goes this number of blocks around the area of the village, on the horizontal
+     * plane: the stairs of the gates and their approaches.
+     */
+    public static final int SNOW_BAND = VillageExits.APPROACH_DISTANCE;
     /** The clearing goes this number of blocks below the area of the village. */
     private static final int BELOW = 8;
     /** The clearing goes this number of blocks above the area of the village: the tall trees. */
@@ -100,6 +111,58 @@ public final class VillageClearing {
             removed++;
         }
         return Optional.of(removed);
+    }
+
+    /**
+     * The box of the replacement of the powder snow of a village: its area, larger by {@link #SNOW_BAND} blocks on the
+     * horizontal plane, from {@link #BELOW} blocks below the area to {@link #ABOVE} blocks above it.
+     *
+     * @param reference the reference of the village structure
+     * @return the box, or empty for a village with no area
+     */
+    public static Optional<BoundingBox> snowBox(VillageReference reference) {
+        return reference.area().map(area -> new BoundingBox(area.minX() - SNOW_BAND, area.minY() - BELOW,
+                area.minZ() - SNOW_BAND, area.maxX() + SNOW_BAND, area.maxY() + ABOVE, area.maxZ() + SNOW_BAND));
+    }
+
+    /**
+     * Replaces the powder snow of a village with snow blocks (see {@link #snowBox}). The method keeps the blocks of the
+     * structure pieces (a position where a piece has air changes) and the blocks of the players and of the construction
+     * sites (see {@link VillageRepairData#keeps}). Under a building, the foundation
+     * of the building already replaces the powder snow. The method does nothing while a chunk of the box is not ready.
+     *
+     * @param level     the level
+     * @param heart     the position of the village heart
+     * @param reference the reference of the village structure
+     * @return the number of replaced blocks, or empty if a chunk is not ready
+     */
+    public static Optional<Integer> replacePowderSnow(ServerLevel level, BlockPos heart, VillageReference reference) {
+        Optional<BoundingBox> found = snowBox(reference);
+        if (found.isEmpty()) {
+            return Optional.of(0);
+        }
+        BoundingBox box = found.get();
+        if (!ReadyChunks.isAreaReady(level, box.minX(), box.minZ(), box.maxX(), box.maxZ())) {
+            return Optional.empty();
+        }
+        Map<BlockPos, BlockState> expected = VillageRepairs.expectedBlocks(level, reference);
+        VillageRepairData data = VillageRepairData.get(level);
+        BlockState snow = Blocks.SNOW_BLOCK.defaultBlockState();
+        int minY = Math.max(box.minY(), level.getMinBuildHeight());
+        int maxY = Math.min(box.maxY(), level.getMaxBuildHeight() - 1);
+        int replaced = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(box.minX(), minY, box.minZ(), box.maxX(), maxY, box.maxZ())) {
+            if (!level.getBlockState(pos).is(Blocks.POWDER_SNOW) || data.keeps(heart, pos)) {
+                continue;
+            }
+            BlockState wanted = expected.get(pos);
+            if (wanted != null && !wanted.isAir()) {
+                continue;
+            }
+            level.setBlock(pos, snow, Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+            replaced++;
+        }
+        return Optional.of(replaced);
     }
 
     /** The boxes of the template pieces of a village. */
