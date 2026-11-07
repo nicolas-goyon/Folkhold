@@ -1453,8 +1453,11 @@ def connect_fences(t, y):
 
 
 def field_ground(x, z):
-    """Farmland around the water of the field."""
-    return "minecraft:water" if (x, z) == WATER else FARMLAND
+    """Farmland around the water of the field, and a path of coarse dirt from the back door to the water: a builder
+    stands on the path to add the water."""
+    if (x, z) == WATER:
+        return "minecraft:water"
+    return "minecraft:coarse_dirt" if x == WATER[0] else FARMLAND
 
 
 def crop(name, rng, top=7):
@@ -1466,10 +1469,10 @@ def farm():
     """The building of the farmer: a field of wheat, carrots, potatoes and beetroots around the water, and hay bales
     in the shed."""
     rng = random.Random(51)
-    rows = {1: "wheat", 2: "wheat", 3: "carrots", 4: "wheat", 5: "potatoes", 6: "beetroots", 7: "beetroots"}
+    rows = {1: "wheat", 2: "wheat", 3: "carrots", 5: "potatoes", 6: "beetroots", 7: "beetroots"}
 
     def plants(x, z):
-        if (x, z) == WATER:
+        if x == WATER[0]:
             return None
         return crop(f"minecraft:{rows[x]}", rng, 3 if rows[x] == "beetroots" else 7)
 
@@ -1487,8 +1490,8 @@ def garden():
     berries = WATER[1]
 
     def ground(x, z):
-        if (x, z) == WATER:
-            return "minecraft:water"
+        if x == mid:
+            return field_ground(x, z)
         # A fruit on farmland makes the farmland dirt: the fruits stand on grass.
         return GRASS if z == berries or abs(x - mid) == 3 else FARMLAND
 
