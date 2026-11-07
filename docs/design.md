@@ -573,6 +573,16 @@ A recipe with no inputs produces nothing. The job goes into "need" state and buy
   - **Planned**: the generation and the growth of a village do not place the job buildings yet (#635), and the growth does not build a forge. Thus no job of the fields, the gardens, the food, the animals, the wood, the stone, the earth, the metal, the crafts, the cloth and the paper sets `"building": true`. The generation puts a forge on some plots of the streets (pool `houses`).
 - A job needs its building when its job file sets `"building": true`. A job file without `"building"` keeps its job active, so a village with no job building keeps its production until the job buildings of its culture exist.
 
+**Market square.** The market is the place where the workers of the village trade, and where a caravan stops during its stay. The piece `village/market` (pool `village/market` of each variant, all the cultures and the maritime villages) is a square of 15 × 15 blocks, the size of the plaza:
+
+- It takes one plot of a street: the connector `house_front` is in the middle of the street side. The square is 6 blocks wider and deeper than a house of 9 × 9 blocks. On a street of the base style, the plots are 13 blocks apart, so 1 block stays free between the square and a house on the next plot.
+- A paved square, open on all the sides. The market post stands in the middle (a log with a lantern on it), with the market sign (`building_sign_market`) on its side to the street.
+- 6 stalls along the 2 sides: fence posts, an awning of wool stripes, a counter that faces the middle with a lantern on it, and a barrel. The middle of the square (7 × 11 blocks around the market post) stays free for the workers: about 26 workers at the level 12 (2 workers for each of 13 job slots).
+- A caravan yard at the back: a hitching rail with lanterns, hay bales and 2 water troughs (water cauldrons) for the mules.
+- A lamp post at each corner. No block that hurts, no water source, no bell: the heart rings each bell in its scan area in an alert.
+- The scan of the heart keeps the positions of the market signs (`VillageLayout.markets`). The fish market of a maritime village also has the market sign.
+- **Planned**: the village builds its market at the level 5, and a hamlet trades at the plaza (#637). The workers go to the market sign at the market hours (#642).
+
 The population consumes food at each cycle.
 
 ### Price formula

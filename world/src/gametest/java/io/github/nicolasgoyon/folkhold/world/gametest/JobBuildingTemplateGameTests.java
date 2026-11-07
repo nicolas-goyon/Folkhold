@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
@@ -41,7 +42,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * In-game tests for the templates of the job buildings ({@code village/job_<id>}, written by
  * {@code tools/structures/village.py}): each template has the job sign of its job, the construction plan of each
  * template has no warning, the fences have the shape that the game gives them, and the scan of the heart counts the
- * job sign of each building. The templates have no entities.
+ * job sign of each building. The templates have no entities. The market square ({@code village/market}) has the
+ * market sign, and the scan of the heart finds the market by this sign.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -281,8 +283,77 @@ public final class JobBuildingTemplateGameTests {
                 }
             }
         }
-        helper.assertTrue(fences > 0, "The job buildings must have fences");
+        helper.assertTrue(fences > 0, "The buildings must have fences");
         helper.assertTrue(wrong.isEmpty(), "Fences with a wrong shape: " + wrong);
+    }
+
+    /**
+     * Each variant of the market square has one market sign, no job sign and no entities.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "market_templates")
+    public static void eachVariantHasTheMarketSign(GameTestHelper helper) {
+        StructureTemplateManager templates = helper.getLevel().getStructureManager();
+        Block marketSign = ModBlocks.BUILDING_SIGNS.get(BuildingSignKind.MARKET).get();
+        List<String> problems = new ArrayList<>();
+        for (String style : STYLES) {
+            for (String variant : VARIANTS) {
+                ResourceLocation id = piece(style + variant, "market");
+                Optional<StructureTemplate> template = templates.get(id);
+                if (template.isEmpty()) {
+                    problems.add("no template " + id);
+                    continue;
+                }
+                StructurePlaceSettings settings = new StructurePlaceSettings();
+                int signs = template.get().filterBlocks(BlockPos.ZERO, settings, marketSign).size();
+                int jobSigns = template.get().filterBlocks(BlockPos.ZERO, settings, ModBlocks.JOB_SIGN.get()).size();
+                if (signs != 1 || jobSigns != 0) {
+                    problems.add(id + " has " + signs + " market signs and " + jobSigns + " job signs");
+                }
+                if (!template.get().save(new CompoundTag()).getList("entities", Tag.TAG_COMPOUND).isEmpty()) {
+                    problems.add(id + " has entities");
+                }
+            }
+        }
+        helper.assertTrue(problems.isEmpty(), "Problems of the market templates: " + problems);
+        helper.succeed();
+    }
+
+    /**
+     * The market square of the base variant: the plan of the template has no warning. After the placement, each
+     * fence has the shape of its neighbors, and the scan of the heart finds the market sign and counts 1 market.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "market_scan", skyAccess = true)
+    public static void heartFindsTheMarket(GameTestHelper helper) {
+        TestSupport.buildFloor(helper, ARENA);
+        ServerLevel level = helper.getLevel();
+        StructureTemplate template = level.getStructureManager().get(piece("", "market")).orElseThrow();
+        BlockPos origin = helper.absolutePos(new BlockPos(1, 1, 1));
+        BlockPos heartPos = new BlockPos(24, 1, 24);
+        Plan plan = ConstructionPlanner.plan(ConstructionTargets.fromTemplate(level, template, origin,
+                new StructurePlaceSettings()), ConstructionTargets.view(level), Reach.DEFAULT);
+        helper.assertTrue(plan.warnings().isEmpty(), "The plan of the market must have no warnings: "
+                + plan.warnings());
+        StructurePlaceSettings settings = new StructurePlaceSettings()
+                .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true);
+        BoundingBox box = template.getBoundingBox(settings, origin);
+        try {
+            template.placeInWorld(level, origin, origin, settings, level.getRandom(), Block.UPDATE_CLIENTS);
+            checkFences(helper, List.of(box));
+            BlockPos sign = template.filterBlocks(origin, new StructurePlaceSettings(),
+                    ModBlocks.BUILDING_SIGNS.get(BuildingSignKind.MARKET).get()).get(0).pos();
+            helper.setBlock(heartPos, ModBlocks.VILLAGE_HEART.get());
+            VillageHeartBlockEntity heart = helper.getBlockEntity(heartPos);
+            helper.assertTrue(heart.getLayout().scan(level, heart.getBlockPos()), "The scan area must be ready");
+            helper.assertTrue(heart.getLayout().markets().equals(List.of(sign)),
+                    "The scan must find the market sign at " + sign + ": " + heart.getLayout().markets());
+            helper.assertTrue(heart.getLayout().buildings().getOrDefault("market", 0) == 1,
+                    "The scan must count 1 market: " + heart.getLayout().buildings());
+        } finally {
+            helper.setBlock(heartPos, Blocks.AIR);
+            BlockPos.betweenClosedStream(box).forEach(pos ->
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS));
+        }
+        helper.succeed();
     }
 
     private static ResourceLocation piece(String folder, String name) {

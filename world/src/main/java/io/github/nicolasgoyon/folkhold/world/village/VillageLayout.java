@@ -55,6 +55,8 @@ import net.neoforged.neoforge.registries.DeferredBlock;
  *       job does not count. A building sign of a kind in {@link #BUILDING_JOBS} also counts as a building of its job:
  *       the count of the job is the larger of its job signs and these building signs. Thus a forge with no job sign is
  *       a building of the blacksmith, and a forge with the 2 signs counts once.</li>
+ *   <li><b>markets</b>: the market signs (building signs of the kind {@code market}). A market sign marks the market
+ *       of the village: the market square and the fish market of a maritime village.</li>
  * </ul>
  *
  * <p>The scan area is the area of the village structure (see {@link VillageReference#area()}), larger by
@@ -74,7 +76,7 @@ public final class VillageLayout {
     /** The scan area is larger than the area of the village structure by this number of blocks on each side. */
     static final int AREA_MARGIN = 1;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 11;
+    static final int VERSION = 12;
     /**
      * The kinds of building signs that also name a job: the job id of each kind. Each forge is a building of the
      * blacksmith, also a forge with no job sign.
@@ -100,6 +102,7 @@ public final class VillageLayout {
     private final List<BlockPos> bells = new ArrayList<>();
     private final List<BlockPos> questBoards = new ArrayList<>();
     private final List<BlockPos> beds = new ArrayList<>();
+    private final List<BlockPos> markets = new ArrayList<>();
     private final Map<String, Integer> buildings = new HashMap<>();
     private final Map<String, Integer> jobBuildings = new HashMap<>();
 
@@ -200,6 +203,11 @@ public final class VillageLayout {
         return Collections.unmodifiableList(beds);
     }
 
+    /** The market signs, in the scan order. */
+    public List<BlockPos> markets() {
+        return Collections.unmodifiableList(markets);
+    }
+
     /** The number of building signs of each kind, for example {@code forge}. */
     public Map<String, Integer> buildings() {
         return Collections.unmodifiableMap(buildings);
@@ -290,6 +298,7 @@ public final class VillageLayout {
         bells.clear();
         questBoards.clear();
         beds.clear();
+        markets.clear();
         buildings.clear();
         jobBuildings.clear();
         BlockPos min = new BlockPos(area.minX(), area.minY(), area.minZ());
@@ -324,6 +333,9 @@ public final class VillageLayout {
                         : ModBlocks.BUILDING_SIGNS.entrySet()) {
                     if (state.is(sign.getValue().get())) {
                         buildings.merge(sign.getKey().serializedName(), 1, Integer::sum);
+                        if (sign.getKey() == BuildingSignKind.MARKET) {
+                            markets.add(pos.immutable());
+                        }
                     }
                 }
             }
@@ -354,6 +366,7 @@ public final class VillageLayout {
         tag.put("Bells", savePositions(bells));
         tag.put("QuestBoards", savePositions(questBoards));
         tag.put("Beds", savePositions(beds));
+        tag.put("Markets", savePositions(markets));
         CompoundTag kinds = new CompoundTag();
         buildings.forEach(kinds::putInt);
         tag.put("Buildings", kinds);
@@ -377,6 +390,7 @@ public final class VillageLayout {
         loadPositions(tag, "Bells", bells);
         loadPositions(tag, "QuestBoards", questBoards);
         loadPositions(tag, "Beds", beds);
+        loadPositions(tag, "Markets", markets);
         buildings.clear();
         CompoundTag kinds = tag.getCompound("Buildings");
         for (String kind : kinds.getAllKeys()) {
