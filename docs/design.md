@@ -456,18 +456,18 @@ The workers of a village follow one schedule each day. The core class `DaySchedu
 
 | Day time (ticks) | Phase | Config key |
 | --- | --- | --- |
-| 0 to 2000 | Home | |
+| 0 to 2000 | Home | (end of `sleepStart`) |
 | 2000 to 5000 | Work at the building of the job | `workStart` |
 | 5000 to 8000 | Market: the players trade with the workers | `marketStart`, `marketEnd` |
-| 8000 to 11000 | Work | |
+| 8000 to 11000 | Work | `marketEnd` |
 | 11000 to 12000 | Home | `homeStart` |
 | 12000 to 24000 | Sleep | `sleepStart` |
 
-- The phase comes only from the time of the day (day time modulo 24000). The schedule keeps no state, so `/time set` and `/time add` change the phase at once.
+- The phase comes only from the time of the day (day time modulo 24000). The schedule keeps no state, so `/time set` and `/time add` change the phase at once. With the game rule `doDaylightCycle` false, the day time does not change: the phase and the day number stay the same, so the market stays open or closed, and a village keeps the same days to its next market day.
 - The markets have the same hours each day. An invalid order of the bounds gives the default schedule and a warning in the log.
 - **Market day**: one day in `marketDayPeriod` (default 7). The day number is the day time divided by 24000. On a market day, each worker has `marketDayOffers` more offers (default 2).
-- **Market day for each village** (`marketDayForEachVillage`, default true): each village has a shift of 0 to 6 days from the chunk of its structure start. Thus each day of the week is the market day of some villages, and a player has a reason to travel. False: day 0, 7, 14… is the market day of all the villages. `/time set` sets the day number to 0, so it also moves the market days.
-- **Spread of the workers** (`workerSpreadTicks`, default 400): each worker changes its phase 0 to 400 ticks after the bound, from its UUID. The path calculations of the workers of a village do not all occur in the same tick. The market hours of the village (the rule of the trade) do not have this delay.
+- **Market day for each village** (`marketDayForEachVillage`, default true): each village has a shift of 0 to `marketDayPeriod` - 1 days (0 to 6 with the default) from the chunk of its structure start. Thus each day of the period is the market day of some villages, and a player has a reason to travel. False: the days 0, `marketDayPeriod`, 2 × `marketDayPeriod`… are the market days of all the villages. `/time set <value>` sets the day number to `value` / 24000: `/time set day` or `/time set noon` sets it to 0, so it also moves the market days.
+- **Spread of the workers** (`workerSpreadTicks`, default 400): each worker changes its phase 0 to `workerSpreadTicks` ticks after the bound. The UUID of the worker gives one of 4 steps (`DaySchedule.WORKER_STEPS`) with equal delays, so the workers of a village need at most 4 brain schedules (`DaySchedule.bounds(step)` gives the moved bounds, wrapped at 24000). The path calculations of the workers of a village do not all occur in the same tick. The market hours of the village (the rule of the trade) do not have this delay. `DaySchedule.clock` gives the clock time of a day time (0 is 06:00).
 
 ### Balancing
 

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class DayScheduleTest {
@@ -76,6 +78,58 @@ class DayScheduleTest {
         }
         DaySchedule noSpread = new DaySchedule(2000, 5000, 8000, 11000, 12000, 7, 2, 0);
         assertEquals(0, noSpread.workerDelay(123456789L));
+    }
+
+    @Test
+    void workerDelayHasFewSteps() {
+        assertEquals(0, SCHEDULE.stepDelay(0));
+        assertEquals(133, SCHEDULE.stepDelay(1));
+        assertEquals(266, SCHEDULE.stepDelay(2));
+        assertEquals(400, SCHEDULE.stepDelay(3));
+        assertThrows(IllegalArgumentException.class, () -> SCHEDULE.stepDelay(DaySchedule.WORKER_STEPS));
+        Set<Integer> delays = new HashSet<>();
+        for (long seed = -500; seed < 500; seed++) {
+            delays.add(SCHEDULE.workerDelay(seed));
+        }
+        assertEquals(Set.of(0, 133, 266, 400), delays);
+    }
+
+    @Test
+    void boundsOfAStepAreThePhaseChanges() {
+        for (int step = 0; step < DaySchedule.WORKER_STEPS; step++) {
+            int delay = SCHEDULE.stepDelay(step);
+            DaySchedule.Bounds bounds = SCHEDULE.bounds(step);
+            assertChange(bounds.homeStartMorning(), delay, DayPhase.SLEEP, DayPhase.HOME);
+            assertChange(bounds.workStart(), delay, DayPhase.HOME, DayPhase.WORK);
+            assertChange(bounds.marketStart(), delay, DayPhase.WORK, DayPhase.MARKET);
+            assertChange(bounds.marketEnd(), delay, DayPhase.MARKET, DayPhase.WORK);
+            assertChange(bounds.homeStart(), delay, DayPhase.WORK, DayPhase.HOME);
+            assertChange(bounds.sleepStart(), delay, DayPhase.HOME, DayPhase.SLEEP);
+        }
+    }
+
+    @Test
+    void boundsWrapAtTheEndOfTheDay() {
+        DaySchedule late = new DaySchedule(2000, 5000, 8000, 11000, 23900, 7, 2, 300);
+        DaySchedule.Bounds bounds = late.bounds(3);
+        assertEquals(200, bounds.sleepStart());
+        assertEquals(300, bounds.homeStartMorning());
+        assertEquals(DayPhase.SLEEP, late.phaseAt(DAY + 250, 300));
+    }
+
+    private static void assertChange(int bound, int delay, DayPhase before, DayPhase after) {
+        assertEquals(before, SCHEDULE.phaseAt(DAY + bound - 1, delay), "before " + bound);
+        assertEquals(after, SCHEDULE.phaseAt(DAY + bound, delay), "at " + bound);
+    }
+
+    @Test
+    void clockOfTheDayTime() {
+        assertEquals("06:00", DaySchedule.clock(0));
+        assertEquals("11:00", DaySchedule.clock(5000));
+        assertEquals("12:30", DaySchedule.clock(6500));
+        assertEquals("00:00", DaySchedule.clock(18000));
+        assertEquals("05:59", DaySchedule.clock(23999));
+        assertEquals("08:00", DaySchedule.clock(3 * DAY + 2000));
     }
 
     @Test

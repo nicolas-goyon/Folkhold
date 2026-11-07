@@ -1,5 +1,7 @@
 package io.github.nicolasgoyon.folkhold.core.sim.schedule;
 
+import java.util.Locale;
+
 /**
  * The daily schedule of the workers of a village, and the market day. The values are times of the day in ticks
  * (0 to 23999, 0 is the sunrise), as the day time of a Minecraft world.
@@ -27,14 +29,20 @@ package io.github.nicolasgoyon.folkhold.core.sim.schedule;
  * @param marketDayPeriod    the number of days from one market day to the next, 1 or more. 1: each day is a market
  *                           day
  * @param marketDayOffers    the number of offers that each worker adds on a market day, 0 or more
- * @param workerSpreadTicks  the maximum delay of the phase changes of one worker, 0 or more. Each worker gets a
- *                           delay from 0 to this value, so that the workers of a village do not all move in the
- *                           same tick
+ * @param workerSpreadTicks  the maximum delay of the phase changes of one worker, 0 or more. Each worker gets one
+ *                           of {@link #WORKER_STEPS} delays from 0 to this value, so that the workers of a village
+ *                           do not all move in the same tick
  */
 public record DaySchedule(int workStart, int marketStart, int marketEnd, int homeStart, int sleepStart,
         int marketDayPeriod, int marketDayOffers, int workerSpreadTicks) {
     /** The length of one Minecraft day in ticks. */
     public static final int DAY_TICKS = 24000;
+
+    /**
+     * The number of delay steps of the workers. All the workers of one step have the same delay, so the brains of
+     * the workers need at most this number of schedules.
+     */
+    public static final int WORKER_STEPS = 4;
 
     /** The default schedule: work from 2000, market from 5000 to 8000, work to 11000, home, sleep from 12000. */
     public static final DaySchedule DEFAULT = new DaySchedule(2000, 5000, 8000, 11000, 12000, 7, 2, 400);
@@ -109,7 +117,7 @@ public record DaySchedule(int workStart, int marketStart, int marketEnd, int hom
      * phase changes of the village.
      *
      * @param dayTime the day time of the world
-     * @param delay   the delay of the worker, from {@link #workerDelay(long)}
+     * @param delay   the delay of the worker, from {@link #workerDelay(long)} or {@link #stepDelay(int)}
      * @return the phase of the worker
      */
     public DayPhase phaseAt(long dayTime, int delay) {
@@ -117,14 +125,85 @@ public record DaySchedule(int workStart, int marketStart, int marketEnd, int hom
     }
 
     /**
-     * The delay of the phase changes of one worker: a value from 0 to {@code workerSpreadTicks} that comes from a
-     * stable value of the worker, for example the bits of its UUID.
+     * The delay step of one worker: a value from 0 to {@link #WORKER_STEPS} - 1 that comes from a stable value of
+     * the worker, for example the bits of its UUID. The workers with the same step have the same delay, so that one
+     * vanilla brain schedule can serve all of them.
+     *
+     * @param seed a stable value of the worker
+     * @return the step
+     */
+    public int workerStep(long seed) {
+        return (int) Math.floorMod(mix(seed), (long) WORKER_STEPS);
+    }
+
+    /**
+     * The delay of a step: the steps divide {@code workerSpreadTicks} in equal parts. Step 0 has no delay, and the
+     * last step has the delay {@code workerSpreadTicks}.
+     *
+     * @param step the step, from 0 to {@link #WORKER_STEPS} - 1
+     * @return the delay in ticks
+     * @throws IllegalArgumentException if the step is not valid
+     */
+    public int stepDelay(int step) {
+        if (step < 0 || step >= WORKER_STEPS) {
+            throw new IllegalArgumentException("The step must be from 0 to " + (WORKER_STEPS - 1) + ": " + step);
+        }
+        return (int) ((long) workerSpreadTicks * step / (WORKER_STEPS - 1));
+    }
+
+    /**
+     * The delay of the phase changes of one worker: the delay of its step, from 0 to {@code workerSpreadTicks}.
      *
      * @param seed a stable value of the worker
      * @return the delay in ticks
      */
     public int workerDelay(long seed) {
-        return (int) Math.floorMod(mix(seed), (long) workerSpreadTicks + 1);
+        return stepDelay(workerStep(seed));
+    }
+
+    /**
+     * The phase bounds of the workers of a step: each bound of this schedule plus the delay of the step, wrapped at
+     * {@link #DAY_TICKS}. A bound near the end of the day can thus go to the start of the next day. The phase that
+     * starts at each bound is the phase of {@link #phaseAt(long, int)} at this time, with the delay of the step.
+     *
+     * @param step the step, from 0 to {@link #WORKER_STEPS} - 1
+     * @return the moved bounds
+     */
+    public Bounds bounds(int step) {
+        int delay = stepDelay(step);
+        return new Bounds(wrap(delay), wrap(workStart + delay), wrap(marketStart + delay), wrap(marketEnd + delay),
+                wrap(homeStart + delay), wrap(sleepStart + delay));
+    }
+
+    /**
+     * The phase bounds of the workers of one step, as times of the day from 0 to 23999.
+     *
+     * @param homeStartMorning the start of {@link DayPhase#HOME} in the morning: the end of the sleep
+     * @param workStart        the start of {@link DayPhase#WORK} in the morning
+     * @param marketStart      the start of {@link DayPhase#MARKET}
+     * @param marketEnd        the start of {@link DayPhase#WORK} in the afternoon
+     * @param homeStart        the start of {@link DayPhase#HOME} in the evening
+     * @param sleepStart       the start of {@link DayPhase#SLEEP}
+     */
+    public record Bounds(int homeStartMorning, int workStart, int marketStart, int marketEnd, int homeStart,
+            int sleepStart) {
+    }
+
+    /**
+     * The clock time of a day time, as in the game: the day time 0 is 06:00, 6000 is 12:00 and 18000 is 00:00.
+     *
+     * @param dayTime the day time of the world
+     * @return the time as {@code HH:MM}
+     */
+    public static String clock(long dayTime) {
+        int time = timeOfDay(dayTime);
+        int hour = (time / 1000 + 6) % 24;
+        int minute = time % 1000 * 60 / 1000;
+        return String.format(Locale.ROOT, "%02d:%02d", hour, minute);
+    }
+
+    private static int wrap(int time) {
+        return Math.floorMod(time, DAY_TICKS);
     }
 
     /**
