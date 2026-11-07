@@ -23,6 +23,7 @@ adds the palisade, the towers and the gates around them. Pieces:
   plot on each side, and a connector for the end of the street. The end has a lamp post on each edge.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
 - bank.nbt: the village bank. Its walls and its chests resist explosions.
+- job_<id>.nbt: the building of a job (see JOBS), in the pool village/jobs. Each building has the job sign of its job.
 - tower.nbt: a tower of the palisade, with the stair along the palisade. The outside of the template is to the west
   and to the north: the shape of a corner tower. The towers between the corners use the same template.
 - gate.nbt: a gate of 3 blocks in the palisade. The outside of the template is to the north.
@@ -592,39 +593,41 @@ def building_sign(t, x, y, z, kind, facing="north"):
     t.set(x, y, z, f"{BLOCKS}:building_sign_{kind}", {"facing": facing})
 
 
-def house_shell(rng, wall_lower, wall_upper, sign, door=True, wide_front=False):
+def house_shell(rng, wall_lower, wall_upper, sign, door=True, wide_front=False, depth=D):
     """Timber frame house: cobblestone base, frame of stripped spruce logs, gable roof over the porch.
 
-    The building sign of the kind stands on the porch, next to the east porch post.
+    The building sign of the kind stands on the porch, next to the east porch post. With no sign kind, the porch has
+    no sign. The body goes from z = 1 to z = depth - 1. A depth less than D leaves the back of the plot empty.
     """
     t = Template(W, H, D)
     t.fill(0, 1, 0, W - 1, H - 1, D - 1, "minecraft:air")
     # Porch and floor.
     for x in range(W):
         t.set(x, 0, 0, "minecraft:cobblestone" if x in (0, W - 1) else "minecraft:spruce_planks")
-        for z in range(1, D):
-            edge = x in (0, W - 1) or z in (1, D - 1)
+        for z in range(1, depth):
+            edge = x in (0, W - 1) or z in (1, depth - 1)
             t.set(x, 0, z, cobble(rng) if edge else "minecraft:spruce_planks")
     # Walls.
     for x in range(W):
-        for z in range(1, D):
-            if not (x in (0, W - 1) or z in (1, D - 1)):
+        for z in range(1, depth):
+            if not (x in (0, W - 1) or z in (1, depth - 1)):
                 continue
-            corner = x in (0, W - 1) and z in (1, D - 1)
+            corner = x in (0, W - 1) and z in (1, depth - 1)
             for y in range(1, 5):
                 if corner or y == 4:
                     t.set(x, y, z, "minecraft:stripped_spruce_log",
-                          LOG_Y if corner else {"axis": "x" if z in (1, D - 1) else "z"})
+                          LOG_Y if corner else {"axis": "x" if z in (1, depth - 1) else "z"})
                 elif y == 1:
                     t.set(x, y, z, wall_lower(rng))
                 else:
                     t.set(x, y, z, wall_upper(rng))
     # Windows.
     for z in (3, 6):
-        t.set(0, 2, z, "minecraft:glass_pane")
-        t.set(W - 1, 2, z, "minecraft:glass_pane")
+        if z < depth - 1:
+            t.set(0, 2, z, "minecraft:glass_pane")
+            t.set(W - 1, 2, z, "minecraft:glass_pane")
     for x in (2, 6):
-        t.set(x, 2, D - 1, "minecraft:glass_pane")
+        t.set(x, 2, depth - 1, "minecraft:glass_pane")
     # Front opening.
     mid = W // 2
     if wide_front:
@@ -648,7 +651,7 @@ def house_shell(rng, wall_lower, wall_upper, sign, door=True, wide_front=False):
     for step in range(5):
         y = 5 + step
         left, right = step, W - 1 - step
-        for z in range(D):
+        for z in range(depth):
             if left < right:
                 t.set(left, y, z, "minecraft:dark_oak_stairs", stairs("east"))
                 t.set(right, y, z, "minecraft:dark_oak_stairs", stairs("west"))
@@ -656,9 +659,10 @@ def house_shell(rng, wall_lower, wall_upper, sign, door=True, wide_front=False):
                 t.set(left, y, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
         # Gable walls under the roof, at the front and the back of the body.
         for x in range(left + 1, right):
-            for z in (1, D - 1):
+            for z in (1, depth - 1):
                 t.set(x, y, z, wall_upper(rng))
-    building_sign(t, W - 2, 1, 0, sign)
+    if sign:
+        building_sign(t, W - 2, 1, 0, sign)
     # Jigsaw connector in the porch, facing out (north).
     t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
     return t
@@ -1368,6 +1372,250 @@ def smokehouse():
     stone_base(t)
     return t
 
+# ---------------------------------------------------------------- job buildings
+
+JOB_SIGN = f"{BLOCKS}:job_sign"
+# A job building: a shed on the street (z = 0 is the porch, z = 1..SHED_DEPTH - 1 is the body) and a garden behind it,
+# with a fence around the garden.
+SHED_DEPTH = 5
+GARDEN_Z = range(SHED_DEPTH, D - 1)
+GARDEN_X = range(1, W - 1)
+# The water of a field, in the middle of the garden.
+WATER = (W // 2, SHED_DEPTH + 1)
+GRASS = ("minecraft:grass_block", {"snowy": "false"})
+FARMLAND = ("minecraft:farmland", {"moisture": "7"})
+# The direction of a cocoa pod to its log, for a pod on each side of the log.
+TOWARD = {"north": "south", "south": "north", "west": "east", "east": "west"}
+
+
+def job_sign(t, x, y, z, job, icon, facing="north"):
+    """The job sign of a building: the job id (the name of the job file) and the icon item (see JobSignBlockEntity)."""
+    t.set(x, y, z, JOB_SIGN, {"facing": facing}, {"id": JOB_SIGN, "job": job, "icon": icon})
+
+
+def block(entry):
+    """The name and the properties of a block: a name alone, or a pair (name, properties)."""
+    return entry if isinstance(entry, tuple) else (entry, None)
+
+
+def job_building(rng, job, icon, ground, plants):
+    """The building of a job of the fields and the gardens: a timber frame shed and a garden behind it.
+
+    - The shed: the house shell (see house_shell) with a body of SHED_DEPTH - 1 rows, a door on the street and a back
+      door to the garden. The job sign stands on the porch, next to the east porch post.
+    - The work blocks: a composter (the work block of the vanilla farmer) and a barrel in the shed.
+    - The garden: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
+      None. A fence goes around the garden, with a lantern on each back corner.
+    """
+    t = house_shell(rng, cobble, planks, None, depth=SHED_DEPTH)
+    mid = W // 2
+    back = SHED_DEPTH - 1
+    for y, half in ((1, "lower"), (2, "upper")):
+        t.set(mid, y, back, "minecraft:spruce_door",
+              {"facing": "south", "half": half, "hinge": "left", "open": "false", "powered": "false"})
+    t.set(mid, 3, back, "minecraft:stripped_spruce_log", {"axis": "x"})
+    t.set(1, 1, back - 1, "minecraft:composter", {"level": "0"})
+    t.set(W - 2, 1, back - 1, "minecraft:barrel", {"facing": "up", "open": "false"})
+    lantern(t, W - 2, 1, 2)
+    job_sign(t, W - 2, 1, 0, job, icon)
+    for x in range(W):
+        for z in range(SHED_DEPTH, D):
+            if x in GARDEN_X and z in GARDEN_Z:
+                t.set(x, 0, z, *block(ground(x, z)))
+                plant = plants(x, z)
+                if plant:
+                    t.set(x, 1, z, *block(plant))
+            else:
+                t.set(x, 0, z, cobble(rng))
+                t.set(x, 1, z, "minecraft:spruce_fence")
+    for x in (0, W - 1):
+        lantern(t, x, 2, D - 1)
+    # The fences of the garden and the porch posts.
+    for y in range(1, 5):
+        connect_fences(t, y)
+    return t
+
+
+# The blocks of the shell that a fence connects to. A fence also connects to a fence, and not to a plant or a fruit.
+FENCE_SUPPORTS = ("cobblestone", "_log", "_planks")
+
+
+def connect_fences(t, y):
+    """Sets the north, south, east and west properties of each spruce fence of a layer from its neighbors: a fence,
+    a fence gate or a block of the shell."""
+    for (x, fy, z), ((name, _props), nbt) in list(t.blocks.items()):
+        if fy != y or name != "minecraft:spruce_fence":
+            continue
+        props = {"waterlogged": "false"}
+        for side, (dx, dz) in SIDES.items():
+            other = t.get(x + dx, y, z + dz) if t.inside(x + dx, y, z + dz) else None
+            connects = other is not None and other.endswith(("_fence", "_fence_gate") + FENCE_SUPPORTS)
+            props[side] = "true" if connects else "false"
+        t.set(x, y, z, name, props, nbt)
+
+
+# The water of a field: a waterlogged slab. The slab holds the water on uneven ground, and the foundation goes under
+# it. Farmland and sugar cane get their water from the slab.
+WATER_SLAB = ("minecraft:spruce_slab", {"type": "bottom", "waterlogged": "true"})
+
+
+def field_ground(x, z):
+    """Farmland around the water of the field, and a path of coarse dirt from the back door to the water: a builder
+    stands on the path to add the water."""
+    if (x, z) == WATER:
+        return WATER_SLAB
+    return "minecraft:coarse_dirt" if x == WATER[0] else FARMLAND
+
+
+def crop(name, rng, top=7):
+    """A crop of a random age, near the end of its growth."""
+    return name, {"age": str(rng.randint(top - 3, top))}
+
+
+def farm():
+    """The building of the farmer: a field of wheat, carrots, potatoes and beetroots around the water, and hay bales
+    in the shed."""
+    rng = random.Random(51)
+    rows = {1: "wheat", 2: "wheat", 3: "carrots", 5: "potatoes", 6: "beetroots", 7: "beetroots"}
+
+    def plants(x, z):
+        if x == WATER[0]:
+            return None
+        return crop(f"minecraft:{rows[x]}", rng, 3 if rows[x] == "beetroots" else 7)
+
+    t = job_building(rng, "farmer", "minecraft:wheat", field_ground, plants)
+    for (x, y) in ((1, 1), (2, 1), (1, 2)):
+        t.set(x, y, 2, "minecraft:hay_block", LOG_Y)
+    return t
+
+
+def garden():
+    """The building of the gardener: pumpkins and melons on their stems, sugar cane next to the water, and sweet
+    berry bushes on the side edges, out of the path.
+
+    The sugar cane is 1 block high, with no block next to it: a builder places it before the water, and no later
+    block next to it makes it check its water.
+    """
+    rng = random.Random(52)
+    mid, row = WATER
+    stems = {(2, row - 1), (2, row + 1), (W - 3, row - 1), (W - 3, row + 1)}
+
+    def ground(x, z):
+        if x == mid:
+            return field_ground(x, z)
+        # A fruit on farmland makes the farmland dirt: the fruits stand on grass.
+        return FARMLAND if (x, z) in stems else GRASS
+
+    def plants(x, z):
+        side = x - mid
+        fruit = "pumpkin" if side < 0 else "melon"
+        if z == row:
+            if abs(side) == 3:
+                return "minecraft:sweet_berry_bush", {"age": "3"}
+            if abs(side) == 1:
+                return "minecraft:sugar_cane", {"age": "0"}
+            return None
+        if abs(side) == 3:
+            return f"minecraft:{fruit}"
+        if abs(side) == 2:
+            return f"minecraft:attached_{fruit}_stem", {"facing": "west" if side < 0 else "east"}
+        return None
+
+    t = job_building(rng, "gardener", "minecraft:pumpkin", ground, plants)
+    t.set(1, 1, 2, "minecraft:pumpkin")
+    t.set(2, 1, 2, "minecraft:melon")
+    return t
+
+
+def jungle_garden():
+    """The building of the gardener of the jungle: cocoa pods on 2 posts of jungle logs, melons and ferns."""
+    rng = random.Random(53)
+    mid = W // 2
+    posts = ((2, WATER[1]), (W - 3, WATER[1]))
+
+    def ground(x, z):
+        if (x, z) == WATER:
+            return WATER_SLAB
+        return FARMLAND if x == mid else GRASS
+
+    def plants(x, z):
+        if (x, z) == WATER:
+            return None
+        if (x, z) in posts:
+            return "minecraft:jungle_log", LOG_Y
+        if x == mid:
+            return "minecraft:attached_melon_stem", {"facing": "west" if z < WATER[1] else "east"}
+        if (x - mid, z - WATER[1]) in ((-1, -1), (1, 1)):
+            return "minecraft:melon"
+        if abs(x - mid) == 2:
+            return None
+        return "minecraft:fern" if rng.random() < 0.5 else None
+
+    t = job_building(rng, "gardener_jungle", "minecraft:cocoa_beans", ground, plants)
+    # The posts: 3 jungle logs high, with a cocoa pod on each side. A pod faces its log.
+    for px, pz in posts:
+        for y in (2, 3):
+            t.set(px, y, pz, "minecraft:jungle_log", LOG_Y)
+        for side, (dx, dz) in SIDES.items():
+            t.set(px + dx, 2, pz + dz, "minecraft:cocoa", {"age": str(rng.randint(1, 2)), "facing": TOWARD[side]})
+    t.set(1, 1, 2, "minecraft:melon")
+    return t
+
+
+def forager_hut():
+    """The building of the forager: mushrooms on podzol, wild flowers on grass, and the finds in a barrel."""
+    rng = random.Random(54)
+    mid = W // 2
+    flowers = ("minecraft:dandelion", "minecraft:poppy", "minecraft:cornflower")
+
+    def ground(x, z):
+        if x == mid:
+            return "minecraft:coarse_dirt"
+        return "minecraft:podzol" if x < mid else GRASS
+
+    def plants(x, z):
+        if x == mid:
+            return None
+        if x < mid:
+            return "minecraft:brown_mushroom" if (x + z) % 2 == 0 else "minecraft:red_mushroom"
+        return flowers[(x + z) % len(flowers)]
+
+    t = job_building(rng, "forager", "minecraft:red_mushroom", ground, plants)
+    t.set(1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(2, 1, 2, "minecraft:moss_block")
+    return t
+
+
+def apiary():
+    """The building of the beekeeper: 2 beehives among the flowers. A lit campfire under each hive gives the smoke that
+    calms the bees."""
+    rng = random.Random(55)
+    hives = ((2, WATER[1]), (W - 3, WATER[1]))
+    flowers = ("minecraft:dandelion", "minecraft:poppy", "minecraft:cornflower", "minecraft:oxeye_daisy",
+               "minecraft:allium")
+
+    def plants(x, z):
+        if (x, z) in hives:
+            return "minecraft:campfire", {"facing": "south", "lit": "true", "signal_fire": "false",
+                                          "waterlogged": "false"}
+        return flowers[rng.randrange(len(flowers))] if (x + z) % 2 == 0 else None
+
+    t = job_building(rng, "beekeeper", "minecraft:honeycomb", lambda x, z: GRASS, plants)
+    for x, z in hives:
+        t.set(x, 2, z, "minecraft:beehive", {"facing": "south", "honey_level": str(rng.randint(2, 5))})
+    return t
+
+
+# The job buildings: the piece job_<id> of each job, in the pool village/jobs of each variant. The id is the name of
+# the job file.
+JOBS = {
+    "farmer": farm,
+    "gardener": garden,
+    "gardener_jungle": jungle_garden,
+    "forager": forager_hut,
+    "beekeeper": apiary,
+}
+
 PIECES = {
     "plaza": plaza,
     "street": street,
@@ -1380,6 +1628,7 @@ PIECES = {
     "house_forge": forge,
     "house_storehouse": storehouse,
     "bank": bank,
+    **{f"job_{job}": build for job, build in JOBS.items()},
 }
 
 
@@ -1609,6 +1858,7 @@ def pools(v):
                        + [(1, {"element_type": "minecraft:empty_pool_element"})]),
         "homes": pool([(1, house("house_cottage"))]),
         "bank": pool([(1, house("bank"))]),
+        "jobs": pool([(1, house(f"job_{job}")) for job in JOBS]),
         "streets_first": pool([(1, street("street"))], v.id("street_ends")),
         "streets_bank": pool([(1, street("street_bank"))], v.id("street_ends")),
         "street_ends": pool([(1, street("street_end"))]),
