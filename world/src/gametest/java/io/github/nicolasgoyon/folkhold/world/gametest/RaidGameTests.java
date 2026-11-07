@@ -400,11 +400,10 @@ public final class RaidGameTests {
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
         helper.onEachTick(() -> {
             level.setDayTime(MIDNIGHT);
-            if (raider[0] != null && RaidMarch.squareDistance(heartPos, raider[0].blockPosition()) > PALISADE
-                    && anyOpen(level, gates)) {
-                setGates(level, gates, false);
+            if (raider[0] != null && closeGateOnRaider(level, gates, heartPos, front, raider[0])) {
                 closes[0]++;
             }
         });
@@ -459,6 +458,7 @@ public final class RaidGameTests {
         BlockPos heartPos = helper.absolutePos(heartRelative);
         Raider[] raider = new Raider[1];
         int[] closes = new int[1];
+        BlockPos front = helper.absolutePos(heartRelative.north(PALISADE + 1));
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_FORCE_SECONDS, 1);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_AFTER_SECONDS, 4);
         TestSupport.setConfigForTest(helper, WorldConfig.RAID_GATE_BREAK_SECONDS, 2);
@@ -466,9 +466,7 @@ public final class RaidGameTests {
             level.setDayTime(MIDNIGHT);
             helper.assertTrue(gates.stream().allMatch(gate -> level.getBlockState(gate).getBlock()
                     instanceof FenceGateBlock), "With mobGriefing false, the raider must not break the gate");
-            if (raider[0] != null && RaidMarch.squareDistance(heartPos, raider[0].blockPosition()) > PALISADE
-                    && anyOpen(level, gates)) {
-                setGates(level, gates, false);
+            if (raider[0] != null && closeGateOnRaider(level, gates, heartPos, front, raider[0])) {
                 closes[0]++;
             }
         });
@@ -752,6 +750,29 @@ public final class RaidGameTests {
     /** A new raid at the heart, with an identifier that no other test uses. */
     private static Raid raid(ServerLevel level, BlockPos heart) {
         return new Raid(NEXT_RAID_ID.getAndIncrement(), level, heart);
+    }
+
+    /**
+     * Closes the open fence gates of a gate while the raider is outside the palisade, as a unit that goes through the
+     * gate. A raider that walks against the closed gate stands in the row of the gate, and it can force the gate from
+     * there. When the gate opens, the raider moves into the fence gates before the next tick of the test, and a fence
+     * gate that closes on it does not stop it. Thus, when the raider is in the row of the gate, the unit pushes it
+     * back to the front of the gate before it closes the gate.
+     *
+     * @param front the position in front of the gate, outside the palisade
+     * @return true if the fence gates close
+     */
+    private static boolean closeGateOnRaider(ServerLevel level, List<BlockPos> gates, BlockPos heartPos,
+            BlockPos front, Raider raider) {
+        int distance = RaidMarch.squareDistance(heartPos, raider.blockPosition());
+        if (distance < PALISADE || !anyOpen(level, gates)) {
+            return false;
+        }
+        if (distance == PALISADE) {
+            raider.teleportTo(front.getX() + 0.5, front.getY(), front.getZ() + 0.5);
+        }
+        setGates(level, gates, false);
+        return true;
     }
 
     /** True if a fence gate of the list is open. */
