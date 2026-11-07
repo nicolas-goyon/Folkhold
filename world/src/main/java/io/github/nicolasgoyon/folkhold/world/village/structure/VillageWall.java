@@ -54,6 +54,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>{@link TerrainPiece}s make the terrain flat near the wall: along the palisade, in sections of
  *       {@link #SECTION} columns at their highest base, and in front of the gates, at the level of the gate. The flat
  *       terrain of a gate also clears its space: no terrain above the level of the gate.</li>
+ *   <li>A {@link GroundFillPiece} on each tower and each gate fills the small gaps of air under the surface of the
+ *       terrain near it.</li>
  *   <li>The water side: the top block of the terrain is water at the sea level or lower (see {@link #isWater}). On
  *       water, the palisade stands on its foundation, with no flat terrain along it. A gate that opens on water gets a
  *       {@link PierPiece} in front of it, and no flat terrain there.</li>
@@ -174,7 +176,18 @@ public final class VillageWall {
             }
         }
         pieces.addAll(terrain(layout, smooth, gateLevels, water, waterGates));
+        pieces.addAll(fills(pieces));
         return pieces;
+    }
+
+    /**
+     * The pieces that fill the gaps under the surface near the towers and the gates: one {@link GroundFillPiece} for
+     * each template of the wall. They come after the other pieces, thus they fill the terrain after the blocks of the
+     * templates and the foundations.
+     */
+    static List<GroundFillPiece> fills(List<StructurePiece> pieces) {
+        return pieces.stream().filter(PoolElementStructurePiece.class::isInstance)
+                .map(piece -> new GroundFillPiece(piece.getBoundingBox())).toList();
     }
 
     /** All the columns of a ring keep the palisade. */
