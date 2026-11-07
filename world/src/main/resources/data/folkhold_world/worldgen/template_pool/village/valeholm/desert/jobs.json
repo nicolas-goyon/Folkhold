@@ -180,6 +180,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/valeholm/desert/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_miner",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_digger",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_mason",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_smelter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_gold_smelter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
     }
   ]
 }
