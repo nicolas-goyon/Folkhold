@@ -7,7 +7,6 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
-import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
@@ -70,7 +69,7 @@ public final class VillageGrowthGameTests {
         // The first check of the garrison scans the village (no bed) and creates the builders. The level 1 needs no
         // building.
         settlement.setProgress(1, 0);
-        settlement.economy().setPopulation(Merchants.merchantCount(settlement) + 3);
+        settlement.economy().setPopulation(3);
         heart.ensureGarrison(level.getGameTime());
         boolean enoughPlaces = VillageGrowth.check(level, heart).isEmpty();
 
@@ -80,7 +79,6 @@ public final class VillageGrowthGameTests {
         BuilderSites.stop(level);
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(level, heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(level, heart.getBlockPos()).forEach(Entity::discard);
         helper.assertTrue(enoughPlaces, "A village with enough places must build no home");
         helper.assertTrue(site.isPresent(), "A village that needs places must start a home on the free plot");
@@ -119,18 +117,17 @@ public final class VillageGrowthGameTests {
         // The first check of the garrison scans the village and creates the builders. The population fills the
         // places of the staff: the village needs no home.
         settlement.setProgress(1, 0);
-        settlement.economy().setPopulation(Merchants.merchantCount(settlement) + 3);
+        settlement.economy().setPopulation(3);
         heart.ensureGarrison(level.getGameTime());
         boolean lowLevel = VillageGrowth.check(level, heart).isEmpty();
 
         settlement.setProgress(5, 0);
-        settlement.economy().setPopulation(Merchants.merchantCount(settlement) + 3);
+        settlement.economy().setPopulation(3);
         Optional<BuilderSite> site = VillageGrowth.check(level, heart);
 
         BuilderSites.stop(level);
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(level, heart.getBlockPos()).forEach(Entity::discard);
         VillageFolk.inhabitants(level, heart.getBlockPos()).forEach(Entity::discard);
         helper.assertTrue(heart.getLayout().buildings().getOrDefault("storehouse", 0) == 1,
                 "The scan must count the storehouse sign: " + heart.getLayout().buildings());

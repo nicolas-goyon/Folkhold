@@ -177,10 +177,13 @@ public final class VillageTrade {
         factions.setDirty();
     }
 
-    /** The items that a settlement uses: the inputs of its jobs and the food. */
+    /**
+     * The items that a settlement uses: the inputs of its active jobs (see {@link Economies#activeJobs}) and the
+     * food. The caravans and the delivery quests bring no input of an inactive job.
+     */
     public static Set<String> usedItems(Settlement settlement, ItemCatalog catalog) {
         Set<String> items = new LinkedHashSet<>();
-        for (Job job : Economies.jobs(settlement)) {
+        for (Job job : Economies.activeJobs(settlement)) {
             for (Recipe.Input input : job.recipe().inputs()) {
                 items.add(input.item());
             }

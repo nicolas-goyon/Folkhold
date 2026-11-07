@@ -11,7 +11,6 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
-import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
@@ -128,7 +127,7 @@ public final class JobBuildingGameTests {
         int slots = LevelTables.get().traits(LEVEL).jobSlots();
         settlement.economy().setJobs(Collections.nCopies(slots, JOB));
         TestSupport.emptyStock(settlement);
-        int inhabitants = POPULATION - Merchants.merchantCount(settlement);
+        int inhabitants = POPULATION;
         TestSupport.placeBeds(helper, inhabitants - VillageBeds.staff());
         int workers = Math.min(inhabitants - WorldConfig.BUILDERS.get() - WorldConfig.HANDYMEN.get(),
                 VillageFolk.workerCount(slots, POPULATION, WorldConfig.ECONOMY_WORKERS_PER_JOB.get()));
@@ -171,7 +170,6 @@ public final class JobBuildingGameTests {
         BlockPos heartPos = village.heart().getBlockPos();
         village.heart().getUnits().forEach(Entity::discard);
         village.heart().getCats().forEach(Entity::discard);
-        Merchants.merchantsOf(helper.getLevel(), heartPos).forEach(Entity::discard);
         VillageFolk.inhabitants(helper.getLevel(), heartPos).forEach(Entity::discard);
         helper.setBlock(HEART, Blocks.AIR);
     }

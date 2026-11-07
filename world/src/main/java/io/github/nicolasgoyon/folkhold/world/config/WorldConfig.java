@@ -277,7 +277,7 @@ public final class WorldConfig {
                 .defineInRange("activationRadius", 64, 16, 256);
         INHABITANT_LIMIT = builder
                 .comment("Maximum number of inhabitants (villagers with no trades) in the world for each village.",
-                        "0: no maximum. The number comes from the population of the settlement, minus the merchants.",
+                        "0: no maximum. The number comes from the population of the settlement.",
                         "The places of the village (the beds of its homes, and a place in the hall for each builder",
                         "and handyman) are also a maximum. The server and the other mods can limit the number of",
                         "entities.")
@@ -842,7 +842,7 @@ public final class WorldConfig {
                 .defineInRange("escortReputation", 30, 0, 1000);
         builder.pop();
 
-        builder.comment("Merchants of the faction villages.")
+        builder.comment("Trades of the workers of the faction villages.")
                 .translation(KEY_PREFIX + "merchant")
                 .push("merchant");
         MERCHANT_FRIEND_FACTOR = builder
