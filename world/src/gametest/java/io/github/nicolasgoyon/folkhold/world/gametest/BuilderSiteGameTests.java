@@ -37,9 +37,11 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -169,6 +171,13 @@ public final class BuilderSiteGameTests {
         helper.assertTrue(sign.job().equals(JOB), "The job sign must keep its job " + when + ": " + sign.job());
         helper.assertTrue(sign.icon().equals(Optional.of(icon)),
                 "The job sign must keep its icon " + when + ": " + sign.icon());
+        helper.assertTrue(sign.iconStack().is(BuiltInRegistries.ITEM.get(icon)),
+                "The job sign must give the icon item " + when + ": " + sign.iconStack());
+        // The data for the clients.
+        CompoundTag update = sign.getUpdateTag(helper.getLevel().registryAccess());
+        helper.assertTrue(update.getString(JobSignBlockEntity.JOB).equals(JOB)
+                && update.getString(JobSignBlockEntity.ICON).equals(icon.toString()),
+                "The update of the clients must have the job and the icon " + when + ": " + update);
     }
 
     /** The end of a test: no site, no builders, no structure, the normal work time. */
