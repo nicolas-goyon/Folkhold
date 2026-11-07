@@ -270,6 +270,42 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/valeholm/savanna/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/savanna/job_shepherd",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/savanna/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/savanna/job_weaver",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/savanna/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/savanna/job_dyer",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/savanna/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/savanna/job_papermaker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/savanna/foundation"
+      }
     }
   ]
 }
