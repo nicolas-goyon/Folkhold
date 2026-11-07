@@ -1,5 +1,5 @@
 {
   "category": "fixed",
-  "en_us": "The terrain near the towers and the gates of a village has no hollow of air under its surface.",
-  "fr_fr": "Le terrain près des tours et des portes d'un village n'a pas de creux d'air sous sa surface."
+  "en_us": "The terrain near the towers and the gates of a village has no hollow of air under its surface (only the villages in new chunks).",
+  "fr_fr": "Le terrain près des tours et des portes d'un village n'a pas de creux d'air sous sa surface (seulement les villages des nouveaux chunks)."
 }

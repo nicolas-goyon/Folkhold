@@ -183,11 +183,14 @@ public final class VillageWall {
     /**
      * The pieces that fill the gaps under the surface near the towers and the gates: one {@link GroundFillPiece} for
      * each template of the wall. They come after the other pieces, thus they fill the terrain after the blocks of the
-     * templates and the foundations.
+     * templates and the foundations. They do not fill the space that the flat terrain of a gate clears.
      */
     static List<GroundFillPiece> fills(List<StructurePiece> pieces) {
+        List<BoundingBox> cleared = pieces.stream()
+                .filter(piece -> piece instanceof TerrainPiece terrain && terrain.clears())
+                .map(StructurePiece::getBoundingBox).toList();
         return pieces.stream().filter(PoolElementStructurePiece.class::isInstance)
-                .map(piece -> new GroundFillPiece(piece.getBoundingBox())).toList();
+                .map(piece -> new GroundFillPiece(piece.getBoundingBox(), cleared)).toList();
     }
 
     /** All the columns of a ring keep the palisade. */
