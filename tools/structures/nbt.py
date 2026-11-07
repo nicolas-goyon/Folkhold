@@ -102,6 +102,8 @@ class Template:
     def __init__(self, size_x, size_y, size_z):
         self.size = (size_x, size_y, size_z)
         self.blocks = {}
+        # The positions that the biome variants do not change (see village.py, Variant.apply).
+        self.fixed = set()
 
     def inside(self, x, y, z):
         sx, sy, sz = self.size
