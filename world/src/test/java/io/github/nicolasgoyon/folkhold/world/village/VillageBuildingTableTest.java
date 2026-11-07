@@ -18,8 +18,9 @@ import org.junit.jupiter.api.Test;
 
 class VillageBuildingTableTest {
     /**
-     * The data file of the mod gives a storehouse from the level 3 and a forge from the level 5. Each kind is a kind of
-     * building sign, with a piece in the base variant of the village.
+     * The data file of the mod gives a storehouse from the level 3 and a barracks from the level 9. Each kind is a kind
+     * of building sign, with a piece in the base variant of the village. The forge is the building of the blacksmith,
+     * not a building of a level.
      */
     @Test
     void dataFileHasTheBuildingsOfTheLevels() throws IOException {
@@ -30,7 +31,9 @@ class VillageBuildingTableTest {
                     JsonParser.parseReader(reader).getAsJsonObject());
 
             assertEquals(new Requirement("storehouse", 3), requirements.get(0));
-            assertEquals(new Requirement("forge", 5), requirements.get(1));
+            assertEquals(new Requirement("barracks", 9), requirements.get(1));
+            assertTrue(requirements.stream().noneMatch(requirement -> requirement.kind().equals("forge")),
+                    "The forge is a job building: " + requirements);
             List<String> kinds = Arrays.stream(BuildingSignKind.values()).map(BuildingSignKind::serializedName)
                     .toList();
             for (Requirement requirement : requirements) {

@@ -52,7 +52,9 @@ import net.neoforged.neoforge.registries.DeferredBlock;
  *   <li><b>buildings</b>: the number of building signs of each kind. The growth builds the missing buildings of the
  *       level (see {@link VillageGrowth}).</li>
  *   <li><b>job buildings</b>: the number of job signs of each job id (see {@link JobBuildings}). A job sign with no
- *       job does not count.</li>
+ *       job does not count. A building sign of a kind in {@link #BUILDING_JOBS} also counts as a building of its job:
+ *       the count of the job is the larger of its job signs and these building signs. Thus a forge with no job sign is
+ *       a building of the blacksmith, and a forge with the 2 signs counts once.</li>
  * </ul>
  *
  * <p>The scan area is the area of the village structure (see {@link VillageReference#area()}), larger by
@@ -72,7 +74,12 @@ public final class VillageLayout {
     /** The scan area is larger than the area of the village structure by this number of blocks on each side. */
     static final int AREA_MARGIN = 1;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 10;
+    static final int VERSION = 11;
+    /**
+     * The kinds of building signs that also name a job: the job id of each kind. Each forge is a building of the
+     * blacksmith, also a forge with no job sign.
+     */
+    static final Map<String, String> BUILDING_JOBS = Map.of("forge", FolkholdWorld.MOD_ID + ":blacksmith");
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -321,6 +328,12 @@ public final class VillageLayout {
                 }
             }
         }
+        BUILDING_JOBS.forEach((kind, job) -> {
+            int signs = buildings.getOrDefault(kind, 0);
+            if (signs > 0) {
+                jobBuildings.merge(job, signs, Math::max);
+            }
+        });
         for (BlockPos post : posts) {
             views.add(viewScore(level, post));
         }

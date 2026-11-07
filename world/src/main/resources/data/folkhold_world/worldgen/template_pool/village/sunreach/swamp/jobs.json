@@ -225,6 +225,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/sunreach/swamp/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/swamp/job_blacksmith",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/swamp/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/swamp/job_tinker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/swamp/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/swamp/job_fletcher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/swamp/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/swamp/job_carpenter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/swamp/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/swamp/job_tanner",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/swamp/foundation"
+      }
     }
   ]
 }

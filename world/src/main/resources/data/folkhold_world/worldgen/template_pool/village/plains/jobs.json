@@ -225,6 +225,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/plains/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/plains/job_blacksmith",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/plains/job_tinker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/plains/job_fletcher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/plains/job_carpenter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/plains/job_tanner",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/plains/foundation"
+      }
     }
   ]
 }

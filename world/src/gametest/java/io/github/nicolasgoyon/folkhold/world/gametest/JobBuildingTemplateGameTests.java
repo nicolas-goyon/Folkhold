@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
@@ -57,8 +58,11 @@ public final class JobBuildingTemplateGameTests {
             "lumberjack_spruce", "sawyer", "sawyer_spruce");
     /** The jobs of the stone, the earth and the metal. */
     private static final List<String> STONE = List.of("miner", "digger", "mason", "smelter", "gold_smelter");
+    /** The jobs of the crafts. The building of the blacksmith is the forge. */
+    private static final List<String> CRAFTS = List.of("blacksmith", "tinker", "fletcher", "carpenter", "tanner");
     /** The jobs with a building template. */
-    private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD, STONE).stream().flatMap(List::stream).toList();
+    private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD, STONE, CRAFTS).stream().flatMap(List::stream)
+            .toList();
     /** The origin of the template of each job of a group: 3 buildings north of the heart, 2 south of it. */
     private static final List<BlockPos> ORIGINS = List.of(new BlockPos(1, 1, 1), new BlockPos(11, 1, 1),
             new BlockPos(21, 1, 1), new BlockPos(6, 1, 21), new BlockPos(16, 1, 21));
@@ -73,7 +77,8 @@ public final class JobBuildingTemplateGameTests {
 
     /**
      * Each variant of each job building has one job sign, with the job id and an icon, and no entities: a template
-     * with entities adds them again at each placement. The maritime fishing hut has the job sign of the fisher.
+     * with entities adds them again at each placement. The maritime fishing hut has the job sign of the fisher, and
+     * the forge of each style has the job sign of the blacksmith.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "job_building_templates")
     public static void eachVariantHasItsJobSign(GameTestHelper helper) {
@@ -91,6 +96,9 @@ public final class JobBuildingTemplateGameTests {
         }
         for (String variant : VARIANTS) {
             checkTemplate(templates, piece("maritime/" + variant, "house_fishing_hut"), "fisher", problems);
+            for (String style : STYLES) {
+                checkTemplate(templates, piece(style + variant, "house_forge"), "blacksmith", problems);
+            }
         }
         helper.assertTrue(problems.isEmpty(), "Problems of the job building templates: " + problems);
         helper.succeed();
@@ -145,6 +153,56 @@ public final class JobBuildingTemplateGameTests {
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_stone", skyAccess = true)
     public static void heartCountsTheStoneJobBuildings(GameTestHelper helper) {
         checkScan(helper, STONE);
+    }
+
+    /** The 5 job buildings of the crafts: see {@link #checkScan}. */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_crafts", skyAccess = true)
+    public static void heartCountsTheCraftJobBuildings(GameTestHelper helper) {
+        checkScan(helper, CRAFTS);
+    }
+
+    /**
+     * A forge with no job sign (a forge of an earlier version of the template, built by the generation or by the
+     * growth) is a building of the blacksmith: the scan counts its building sign. A forge with the 2 signs counts once.
+     * Thus the blacksmith stays active when its job needs a building.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_forge", skyAccess = true)
+    public static void forgeWithNoJobSignIsABlacksmithBuilding(GameTestHelper helper) {
+        TestSupport.buildFloor(helper, ARENA);
+        ServerLevel level = helper.getLevel();
+        StructureTemplate template = level.getStructureManager().getOrCreate(piece("", "house_forge"));
+        StructurePlaceSettings settings = new StructurePlaceSettings()
+                .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true);
+        List<BoundingBox> boxes = new ArrayList<>();
+        String blacksmith = "folkhold_world:blacksmith";
+        try {
+            for (BlockPos relative : List.of(ORIGINS.get(0), ORIGINS.get(1))) {
+                BlockPos origin = helper.absolutePos(relative);
+                template.placeInWorld(level, origin, origin, settings, level.getRandom(), Block.UPDATE_CLIENTS);
+                boxes.add(template.getBoundingBox(settings, origin));
+            }
+            // The first forge has no job sign.
+            BlockPos oldSign = template.filterBlocks(helper.absolutePos(ORIGINS.get(0)), new StructurePlaceSettings(),
+                    ModBlocks.JOB_SIGN.get()).get(0).pos();
+            level.setBlock(oldSign, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+            helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
+            VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+            heart.ensureSettlement();
+            helper.assertTrue(heart.getLayout().scan(level, heart.getBlockPos()), "The scan area must be ready");
+            heart.recordJobBuildings();
+            Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
+            helper.assertTrue(heart.getLayout().buildings().getOrDefault("forge", 0) == 2,
+                    "The scan must count 2 forges: " + heart.getLayout().buildings());
+            helper.assertTrue(settlement.jobBuildings().equals(Optional.of(Map.of(blacksmith, 2))),
+                    "Each forge must be 1 building of the blacksmith: " + settlement.jobBuildings());
+            helper.assertTrue(JobBuildings.active(List.of(blacksmith), settlement.jobBuildings(), job -> true)
+                    .equals(List.of(blacksmith)), "The blacksmith must be active with the forges");
+        } finally {
+            helper.setBlock(HEART, Blocks.AIR);
+            boxes.forEach(box -> BlockPos.betweenClosedStream(box).forEach(pos ->
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS)));
+        }
+        helper.succeed();
     }
 
     /**

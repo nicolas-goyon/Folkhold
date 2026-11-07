@@ -225,6 +225,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/maritime/desert/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_blacksmith",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_tinker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_fletcher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_carpenter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_tanner",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
     }
   ]
 }

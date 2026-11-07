@@ -225,6 +225,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/sunreach/savanna/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/savanna/job_blacksmith",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/savanna/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/savanna/job_tinker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/savanna/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/savanna/job_fletcher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/savanna/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/savanna/job_carpenter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/savanna/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/sunreach/savanna/job_tanner",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/sunreach/savanna/foundation"
+      }
     }
   ]
 }
