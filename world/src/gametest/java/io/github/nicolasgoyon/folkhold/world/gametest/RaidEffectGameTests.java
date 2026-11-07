@@ -17,6 +17,9 @@ import io.github.nicolasgoyon.folkhold.world.village.RaidEffects;
 import io.github.nicolasgoyon.folkhold.world.village.RaidHelpers;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -47,6 +50,8 @@ public final class RaidEffectGameTests {
     private static final int EXPERIENCE = 30;
     private static final int DIAMONDS = 40;
     private static final int BREAD = 3;
+    /** The check of a heart out of the registry removes this number of hearts at most from the registry. */
+    private static final int MAX_HEARTS = 16;
 
     private RaidEffectGameTests() {
     }
@@ -106,9 +111,18 @@ public final class RaidEffectGameTests {
                     raid[0] = RaidRewardGameTests.raidAt(level, center);
                     Raider pillager = RaidRewardGameTests.join(helper, raid[0], EntityType.PILLAGER);
                     helper.assertFalse(RaidHelpers.updateFall(level, raid[0]), "The village must stand at the start");
+                    // The hearts of the tests near this test are also out of the registry during the check: the
+                    // raid must find no heart.
+                    List<BlockPos> hearts = new ArrayList<>(List.of(heartPos));
                     VillageHearts.unregister(level, heartPos);
+                    for (Optional<BlockPos> other = VillageRaids.heartOf(raid[0], level);
+                            other.isPresent() && hearts.size() < MAX_HEARTS;
+                            other = VillageRaids.heartOf(raid[0], level)) {
+                        hearts.add(other.get());
+                        VillageHearts.unregister(level, other.get());
+                    }
                     boolean fallen = RaidHelpers.updateFall(level, raid[0]);
-                    VillageHearts.register(level, heartPos);
+                    hearts.forEach(pos -> VillageHearts.register(level, pos));
                     helper.assertFalse(fallen, "A heart that is not in the registry must not be a broken heart");
                     pillager.hurt(level.damageSources().playerAttack(scene.helper()), 1000.0F);
                     RaidRewardGameTests.tickToEnd(helper, raid[0]);
