@@ -9,6 +9,7 @@
     "folkhold_blocks:building_sign_hall",
     "folkhold_blocks:building_sign_farm",
     "folkhold_blocks:building_sign_market",
-    "folkhold_blocks:quest_board"
+    "folkhold_blocks:quest_board",
+    "folkhold_blocks:job_sign"
   ]
 }

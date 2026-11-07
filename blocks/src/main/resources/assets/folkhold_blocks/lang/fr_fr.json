@@ -13,5 +13,6 @@
   "block.folkhold_blocks.building_sign_bank": "Panneau de banque",
   "block.folkhold_blocks.building_sign_hall": "Panneau de maison commune",
   "block.folkhold_blocks.building_sign_farm": "Panneau de ferme",
-  "block.folkhold_blocks.building_sign_market": "Panneau de marché"
+  "block.folkhold_blocks.building_sign_market": "Panneau de marché",
+  "block.folkhold_blocks.job_sign": "Panneau de métier"
 }

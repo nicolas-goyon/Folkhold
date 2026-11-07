@@ -112,6 +112,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String NIGHT_TAG = "NightMode";
     private static final String CATS_TAG = "CatsSpawned";
     private static final String CLEARED_TAG = "Cleared";
+    private static final String SNOW_CLEARED_TAG = "SnowCleared";
     private static final String CAT_SPAWN_TAG = "LastCatSpawn";
     private static final String VILLAGERS_TAG = "VillagersSpawned";
     private static final String VILLAGER_SPAWN_TAG = "LastVillagerSpawn";
@@ -150,6 +151,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean catsSpawned;
     /** True after the heart removed the trees of the village (see {@link VillageClearing}). */
     private boolean cleared;
+    /** True after the heart replaced the powder snow of the village (see {@link VillageClearing}). */
+    private boolean snowCleared;
     /** Game time of the last creation of cats. */
     private long lastCatSpawn;
     /** True after the first villagers (merchants and inhabitants) of the village appeared. */
@@ -540,22 +543,40 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Removes the trees of the village once, before its first activation (see {@link VillageClearing}). A heart with no
-     * village structure has nothing to clear. The heart waits while a chunk of the clearing is not ready.
+     * Removes the trees of the village and replaces its powder snow with snow blocks, once, before its first garrison
+     * (see {@link VillageClearing}). Each of the 2 steps occurs once, and a call does one step at most: the 2 large
+     * reads of blocks do not occur in the same tick. A heart with no village structure has nothing to clear. The heart
+     * waits while a chunk of a step is not ready.
      *
      * @param serverLevel the level of the heart
      */
     public void clearTrees(ServerLevel serverLevel) {
         Optional<VillageReference> reference = repairReference(serverLevel);
-        if (reference.isPresent()) {
-            Optional<Integer> removed = VillageClearing.clear(serverLevel, worldPosition, reference.get());
-            if (removed.isEmpty()) {
-                return;
-            }
-            FolkholdWorld.LOGGER.debug("Village {}: {} blocks of trees removed", worldPosition, removed.get());
+        if (reference.isEmpty()) {
+            cleared = true;
+            snowCleared = true;
+            setChanged();
+            return;
         }
-        cleared = true;
-        setChanged();
+        if (!cleared) {
+            Optional<Integer> removed = VillageClearing.clear(serverLevel, worldPosition, reference.get());
+            if (removed.isPresent()) {
+                FolkholdWorld.LOGGER.debug("Village {}: {} blocks of trees removed", worldPosition, removed.get());
+                cleared = true;
+                setChanged();
+            }
+            return;
+        }
+        if (!snowCleared) {
+            Optional<Integer> replaced = VillageClearing.replacePowderSnow(serverLevel, worldPosition,
+                    reference.get());
+            if (replaced.isPresent()) {
+                FolkholdWorld.LOGGER.debug("Village {}: {} blocks of powder snow replaced", worldPosition,
+                        replaced.get());
+                snowCleared = true;
+                setChanged();
+            }
+        }
     }
 
     /**
@@ -1040,10 +1061,11 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (!(level instanceof ServerLevel areaLevel) || !VillageLayout.isAreaReady(level, heart.scanArea(areaLevel))) {
             return;
         }
-        if (!heart.cleared) {
+        if (!heart.cleared || !heart.snowCleared) {
             heart.clearTrees(areaLevel);
         }
-        if (time % GARRISON_INTERVAL == 0) {
+        // The first garrison waits for the clearing: the units do not appear on powder snow.
+        if (time % GARRISON_INTERVAL == 0 && heart.cleared && heart.snowCleared) {
             double activation = WorldConfig.GARRISON_ACTIVATION_RADIUS.get();
             if (level.hasNearbyAlivePlayer(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, activation)) {
                 heart.ensureGarrison(level.getGameTime());
@@ -1116,6 +1138,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         tag.putBoolean(EXITS_TAG, exitStairs);
         tag.putBoolean(CATS_TAG, catsSpawned);
         tag.putBoolean(CLEARED_TAG, cleared);
+        tag.putBoolean(SNOW_CLEARED_TAG, snowCleared);
         tag.putLong(CAT_SPAWN_TAG, lastCatSpawn);
         tag.putBoolean(VILLAGERS_TAG, villagersSpawned);
         tag.putLong(VILLAGER_SPAWN_TAG, lastVillagerSpawn);
@@ -1148,6 +1171,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         exitStairs = tag.getBoolean(EXITS_TAG);
         catsSpawned = tag.getBoolean(CATS_TAG);
         cleared = tag.getBoolean(CLEARED_TAG);
+        snowCleared = tag.getBoolean(SNOW_CLEARED_TAG);
         lastCatSpawn = tag.getLong(CAT_SPAWN_TAG);
         villagersSpawned = tag.getBoolean(VILLAGERS_TAG);
         lastVillagerSpawn = tag.getLong(VILLAGER_SPAWN_TAG);

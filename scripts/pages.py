@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Builds the site of the project for GitHub Pages.
 
-The site shows the downloads of the latest release and the notes of all the releases. It has one page for each
-language file of site/lang/. The script reads the releases from the GitHub API. It reads the versions of Minecraft,
-NeoForge and GeckoLib from gradle.properties at the tag of the latest release. It writes these files to the output
-folder:
+The site shows the presentation of Folkhold, the downloads of the latest release and the notes of all the releases.
+It has one page for each language file of site/lang/. The script reads the releases from the GitHub API. It reads the
+versions of Minecraft, NeoForge, GeckoLib and Cartofold from gradle.properties at the tag of the latest release. The
+notes of a release start with the player-facing changes of its version (the entries of changelog/, see
+scripts/changelog.py) in the language of the page. It writes these files to the output folder:
 
 - index.html: the page in the default language (en_us).
 - <code>/index.html: the page in each other language, with the code of the language. Example: fr/index.html.
 - The files of site/static/, with no change.
+- images/: the screenshots of site/images/. The page shows the screenshot of each slot of IMAGES, for example
+  site/images/villages.webp. A slot with no screenshot shows an icon, and the hero shows no image.
 - version.json: the tag of the latest release, in the format of the endpoint badges of shields.io. The version badge
   of the README reads this file.
 
@@ -36,6 +39,8 @@ import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
+import changelog
+
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 DEFAULT_LANGUAGE = "en_us"
@@ -44,6 +49,11 @@ API = "https://api.github.com"
 ACCEPT = "application/vnd.github.html+json"
 # The values for the downloads, and their keys in gradle.properties.
 REQUIREMENTS = {"minecraft": "minecraft_version", "neoforge": "neo_version", "geckolib": "geckolib_version"}
+# The values that a release can have, and their keys in gradle.properties.
+OPTIONAL_REQUIREMENTS = {"cartofold": "cartofold_version"}
+# The slots of the screenshots, and the file types of site/images/. The text of the key image.<slot> is the alt text.
+IMAGES = ("hero", "factions", "villages", "caravans", "quests")
+IMAGE_TYPES = (".webp", ".png", ".jpg", ".jpeg")
 
 
 def load_languages(folder):
@@ -105,7 +115,7 @@ def read_properties(text):
 
 
 def requirements_of(tag):
-    """The versions of Minecraft, NeoForge and GeckoLib in gradle.properties at a tag."""
+    """The versions of Minecraft, NeoForge and GeckoLib in gradle.properties at a tag, and Cartofold if present."""
     try:
         text = subprocess.run(("git", "show", f"refs/tags/{tag}:gradle.properties"), cwd=ROOT, check=True,
                               capture_output=True, text=True).stdout
@@ -116,7 +126,9 @@ def requirements_of(tag):
     missing = [key for key in REQUIREMENTS.values() if key not in properties]
     if missing:
         raise SystemExit(f"gradle.properties at the tag {tag} has no {', '.join(missing)}.")
-    return {name: properties[key] for name, key in REQUIREMENTS.items()}
+    found = {name: properties[key] for name, key in REQUIREMENTS.items()}
+    found.update({name: properties[key] for name, key in OPTIONAL_REQUIREMENTS.items() if key in properties})
+    return found
 
 
 def safe_url(url):
@@ -274,6 +286,7 @@ def render_downloads(latest, requirements, texts, repo):
     if latest is None:
         return f'<p>{texts["download.none"]}</p>'
     values = {name: escape(value) for name, value in requirements.items()}
+    cartofold = " " + texts["download.mods.cartofold"].format(**values) if "cartofold" in values else ""
     version = escape(latest["tag_name"].removeprefix("v"))
     date = format_date(latest["published_at"], texts)
     assets = sorted(latest.get("assets", []), key=lambda asset: asset["name"])
@@ -293,7 +306,15 @@ def render_downloads(latest, requirements, texts, repo):
                      f'<p>{texts["download.modpack.text"]}</p><p>{buttons}</p><ol>{steps}</ol></div>')
     if jars:
         parts.append(f'<div class="card"><h3>{texts["download.mods.title"]}</h3>{file_list(jars, texts)}'
-                     f'<p>{texts["download.mods.text"].format(**values)}</p></div>')
+                     f'<p>{texts["download.mods.text"].format(**values)}{cartofold}</p></div>')
+        # The server card names the jars of the release, and gives the URL of the modpack for Docker.
+        server = values | {"count": len(jars), "cartofold": cartofold,
+                           "jars": ", ".join(f"<code>{escape(asset['name'])}</code>" for asset in jars)}
+        steps = "".join(f"<li>{step.format(**server)}</li>" for step in numbered(texts, "download.server.step"))
+        docker = "".join(f'<p>{texts["download.server.docker"].format(mrpack=escape(asset["browser_download_url"]))}'
+                         "</p>" for asset in modpacks[:1])
+        parts.append(f'<div class="card card-wide"><h3>{texts["download.server.title"]}</h3>'
+                     f'<p>{texts["download.server.text"]}</p><ol>{steps}</ol>{docker}</div>')
     if others:
         parts.append(f'<div class="card"><h3>{texts["download.other.title"]}</h3>{file_list(others, texts)}</div>')
     parts.append("</div>")
@@ -302,8 +323,24 @@ def render_downloads(latest, requirements, texts, repo):
     return "\n".join(parts)
 
 
-def render_releases(releases, latest, texts):
-    """The notes of all the releases, the newest first. The newest release is open."""
+def render_changes(entries, code, texts):
+    """The player-facing changes of a version, by category, in a language (else in English)."""
+    parts = []
+    for category in changelog.CATEGORIES:
+        items = "".join(f"<li>{escape(entry.get(code) or entry[DEFAULT_LANGUAGE])}</li>"
+                        for entry in entries if entry["category"] == category)
+        if items:
+            parts.append(f'<h4>{texts["changes." + category]}</h4><ul>{items}</ul>')
+    return "".join(parts)
+
+
+def render_releases(releases, latest, texts, code=DEFAULT_LANGUAGE, changes=None):
+    """The notes of all the releases, the newest first. The newest release is open.
+
+    changes gives the player-facing changes of each version (without the "v"). The notes of a release with changes
+    show these changes, then the notes of GitHub in a closed section.
+    """
+    changes = changes or {}
     releases = published(releases)
     if not releases:
         return f'<p>{texts["releases.none"]}</p>'
@@ -317,17 +354,41 @@ def render_releases(releases, latest, texts):
         if release.get("prerelease"):
             badges += f'<span class="badge badge-pre">{texts["releases.prerelease"]}</span>'
         date = release.get("published_at") or release["created_at"]
+        notes = f'<div class="notes">{clean_notes(release.get("body_html"))}</div>'
+        entries = changes.get(tag.removeprefix("v"))
+        if entries:
+            notes = (f'<div class="changes">{render_changes(entries, code, texts)}</div>'
+                     f'<details class="details"><summary>{texts["releases.details"]}</summary>{notes}</details>')
         parts.append(
             f'<article class="release" id="{escape(tag)}"><details{" open" if index == 0 else ""}>'
             f'<summary><h3>{escape(release.get("name") or tag)}</h3>'
             f'<time datetime="{escape(date[:10])}">{format_date(date, texts)}</time>{badges}</summary>'
-            f'<div class="notes">{clean_notes(release.get("body_html"))}</div>'
+            f'{notes}'
             f'<p class="release-link"><a href="{escape(release["html_url"])}">{texts["releases.open"]}</a></p>'
             "</details></article>")
     return "\n".join(parts)
 
 
-def render_page(template, code, languages, repo, releases, latest, requirements):
+def image_files(folder):
+    """The file name of the screenshot of each slot of IMAGES in the folder. The first type of IMAGE_TYPES wins."""
+    found = {}
+    for suffix in IMAGE_TYPES:
+        for slot in IMAGES:
+            if slot not in found and (folder / (slot + suffix)).is_file():
+                found[slot] = slot + suffix
+    return found
+
+
+def render_image(slot, images, texts, prefix):
+    """The img tag of the screenshot of a slot, or "" when the slot has no screenshot."""
+    if slot not in images:
+        return ""
+    loading = "eager" if slot == "hero" else "lazy"
+    return (f'<img src="{escape(prefix + "images/" + images[slot])}" alt="{escape(texts["image." + slot])}"'
+            f' loading="{loading}" decoding="async">')
+
+
+def render_page(template, code, languages, repo, releases, latest, requirements, changes=None, images=None):
     """The page of a language."""
     texts = languages[code]
     prefix = "../" * page_folder(code, texts).count("/")
@@ -350,13 +411,14 @@ def render_page(template, code, languages, repo, releases, latest, requirements)
         "part_languages": "".join(links),
         "part_download_button": f'<a class="button" href="#download">{button}</a>',
         "part_downloads": render_downloads(latest, requirements, texts, repo),
-        "part_releases": render_releases(releases, latest, texts),
+        "part_releases": render_releases(releases, latest, texts, code, changes),
         "part_license": texts["footer.license"].format(**licenses),
         "url_stylesheet": prefix + "style.css",
         "url_repository": escape(github),
         "url_issues": escape(f"{github}/issues"),
         "url_contributing": escape(f"{github}/blob/HEAD/CONTRIBUTING.md"),
     }
+    values.update({f"part_image_{slot}": render_image(slot, images or {}, texts, prefix) for slot in IMAGES})
     words = {key.replace(".", "_"): value for key, value in texts.items()}
     clash = sorted(words.keys() & values.keys())
     if clash:
@@ -371,8 +433,16 @@ def version_badge(latest):
     return json.dumps(badge, separators=(",", ":")) + "\n"
 
 
-def build(out, repo, releases, latest, requirements):
-    """Writes the site to the folder out. requirements is None when there is no latest release."""
+def changes_by_version(groups):
+    """The player-facing changes of each version, from the groups of changelog.entries."""
+    return {group["version"]: group["entries"] for group in groups}
+
+
+def build(out, repo, releases, latest, requirements, changes=None, images_folder=SITE / "images"):
+    """Writes the site to the folder out. requirements is None when there is no latest release.
+
+    changes gives the player-facing changes of each version (see changes_by_version).
+    """
     languages = load_languages(SITE / "lang")
     problems = missing_keys(languages)
     if problems:
@@ -381,11 +451,16 @@ def build(out, repo, releases, latest, requirements):
     out.mkdir(parents=True, exist_ok=True)
     if (SITE / "static").is_dir():
         shutil.copytree(SITE / "static", out, dirs_exist_ok=True)
+    images = image_files(images_folder) if images_folder.is_dir() else {}
+    if images:
+        (out / "images").mkdir(exist_ok=True)
+        for name in images.values():
+            shutil.copyfile(images_folder / name, out / "images" / name)
     for code, texts in languages.items():
         page = out / page_folder(code, texts) / "index.html"
         page.parent.mkdir(parents=True, exist_ok=True)
-        page.write_text(render_page(template, code, languages, repo, releases, latest, requirements),
-                        encoding="utf-8")
+        page.write_text(render_page(template, code, languages, repo, releases, latest, requirements, changes,
+                                    images), encoding="utf-8")
     (out / "version.json").write_text(version_badge(latest), encoding="utf-8")
 
 
@@ -399,7 +474,13 @@ def main(argv=None):
     releases = fetch_releases(args.repo, token)
     latest = fetch_latest(args.repo, token)
     requirements = requirements_of(latest["tag_name"]) if latest else None
-    build(Path(args.out), args.repo, releases, latest, requirements)
+    # The changelog script reads the entries and the Git history from the current folder.
+    os.chdir(ROOT)
+    try:
+        changes = changes_by_version(changelog.entries("HEAD")[1])
+    except changelog.EntryError as error:
+        raise SystemExit(f"The changelog entries are not valid:\n{error}") from error
+    build(Path(args.out), args.repo, releases, latest, requirements, changes)
     count = len(published(releases))
     tag = latest["tag_name"] if latest else "none"
     summary = (f"The site shows the notes of {count} release{'' if count == 1 else 's'}. "

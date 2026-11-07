@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierWater;
 import io.github.nicolasgoyon.folkhold.blocks.feature.BlockFeature;
 import io.github.nicolasgoyon.folkhold.blocks.feature.BlockFeatures;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlockEntities;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModItems;
 import net.neoforged.bus.api.IEventBus;
@@ -31,6 +32,7 @@ public final class FolkholdBlocks {
     public FolkholdBlocks(IEventBus modEventBus, ModContainer modContainer) {
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
+        ModBlockEntities.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(BrazierWater::onProjectileImpact);
         LOGGER.info("{} {} loaded", MOD_ID, modContainer.getModInfo().getVersion());
     }

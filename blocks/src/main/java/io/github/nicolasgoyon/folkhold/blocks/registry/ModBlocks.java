@@ -5,6 +5,7 @@ import io.github.nicolasgoyon.folkhold.blocks.block.BankChestBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
+import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.VillageHeartBlock;
 import io.github.nicolasgoyon.folkhold.blocks.feature.FeatureBlock;
@@ -76,6 +77,14 @@ public final class ModBlocks {
 
     /** The building signs, one block for each kind. */
     public static final Map<BuildingSignKind, DeferredBlock<BuildingSignBlock>> BUILDING_SIGNS = buildingSigns();
+
+    /** The sign of the building of a job. Its block entity keeps the job id and the icon item. */
+    public static final DeferredBlock<JobSignBlock> JOB_SIGN = BLOCKS.register("job_sign",
+            () -> new JobSignBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.WOOD)
+                    .strength(1.5F, 3.0F)
+                    .sound(SoundType.WOOD)
+                    .noOcclusion()));
 
     private ModBlocks() {
     }
