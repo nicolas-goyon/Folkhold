@@ -16,6 +16,7 @@
     {"id": "folkhold_blocks:building_sign_bank", "required": false},
     {"id": "folkhold_blocks:building_sign_hall", "required": false},
     {"id": "folkhold_blocks:building_sign_farm", "required": false},
-    {"id": "folkhold_blocks:building_sign_market", "required": false}
+    {"id": "folkhold_blocks:building_sign_market", "required": false},
+    {"id": "folkhold_blocks:job_sign", "required": false}
   ]
 }

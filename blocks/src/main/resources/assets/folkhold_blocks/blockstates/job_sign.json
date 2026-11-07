@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "folkhold_blocks:block/job_sign"
+    },
+    "facing=east": {
+      "model": "folkhold_blocks:block/job_sign",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "folkhold_blocks:block/job_sign",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "folkhold_blocks:block/job_sign",
+      "y": 270
+    }
+  }
+}
