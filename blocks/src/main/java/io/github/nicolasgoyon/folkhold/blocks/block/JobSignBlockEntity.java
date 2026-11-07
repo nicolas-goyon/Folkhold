@@ -33,6 +33,8 @@ public class JobSignBlockEntity extends BlockEntity {
     private String job = "";
     @Nullable
     private ResourceLocation icon;
+    /** The icon item for the renderer. It changes with {@link #icon}. */
+    private ItemStack iconStack = ItemStack.EMPTY;
 
     public JobSignBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.JOB_SIGN.get(), pos, state);
@@ -50,13 +52,18 @@ public class JobSignBlockEntity extends BlockEntity {
 
     /** The icon item, or an empty stack when the sign has no icon or the item does not exist. */
     public ItemStack iconStack() {
-        return icon().flatMap(BuiltInRegistries.ITEM::getOptional).map(ItemStack::new).orElse(ItemStack.EMPTY);
+        return iconStack;
+    }
+
+    private void updateIconStack() {
+        iconStack = icon().flatMap(BuiltInRegistries.ITEM::getOptional).map(ItemStack::new).orElse(ItemStack.EMPTY);
     }
 
     /** Sets the job id and the icon item id, and sends them to the clients. */
     public void setJob(String job, @Nullable ResourceLocation icon) {
         this.job = job;
         this.icon = icon;
+        updateIconStack();
         setChanged();
         if (level != null) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
@@ -79,6 +86,7 @@ public class JobSignBlockEntity extends BlockEntity {
         super.loadAdditional(tag, registries);
         job = tag.getString(JOB);
         icon = tag.contains(ICON, Tag.TAG_STRING) ? ResourceLocation.tryParse(tag.getString(ICON)) : null;
+        updateIconStack();
     }
 
     @Override
