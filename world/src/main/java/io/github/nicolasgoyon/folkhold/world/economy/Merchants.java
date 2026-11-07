@@ -59,7 +59,7 @@ import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
  *   <li>When a player starts to trade, the offers come from the stock of the village (see {@link JobTrades}): the
  *       worker sells the outputs of its jobs in stock (price {@code P × 1.15}) and buys the inputs of its jobs that
  *       the village needs (price {@code P × 0.85}). The treasury of the faction limits the purchases. The offer
- *       count of the level divides between the traders of the village.</li>
+ *       count of the level divides between the traders of the village, with 2 offers or more for each trader.</li>
  *   <li>Each trade changes the stock and the treasury.</li>
  *   <li>A worker does not trade with a player below the neutral tier. Friends and allies get a discount.</li>
  * </ul>
@@ -97,13 +97,21 @@ public final class Merchants {
     }
 
     /**
-     * The number of traders of a settlement: the different professions of its active jobs. The workers with the
-     * same profession show the same offers.
+     * The traders of a settlement: the different professions of its active jobs, in the order of the jobs. The
+     * workers with the same profession show the same offers.
      */
-    public static int traderCount(Settlement settlement) {
-        return (int) Economies.activeJobIds(settlement).stream()
+    public static List<VillagerProfession> traders(Settlement settlement) {
+        return Economies.activeJobIds(settlement).stream()
                 .map(VillageFolk::professionOf)
                 .filter(profession -> profession != ModProfessions.INHABITANT.get())
+                .distinct()
+                .toList();
+    }
+
+    /** The number of different active jobs of a settlement that trade: the jobs of the traders. */
+    public static int tradingJobCount(Settlement settlement) {
+        return (int) Economies.activeJobIds(settlement).stream()
+                .filter(job -> VillageFolk.professionOf(job) != ModProfessions.INHABITANT.get())
                 .distinct()
                 .count();
     }
@@ -231,8 +239,9 @@ public final class Merchants {
         if (jobs.isEmpty()) {
             return offers;
         }
-        int count = JobTrades.share(LevelTables.get().traits(settlement.level()).tradeOffers(),
-                traderCount(settlement));
+        List<VillagerProfession> traders = traders(settlement);
+        int count = JobTrades.share(LevelTables.get().traits(settlement.level()).tradeOffers(), traders.size(),
+                traders.indexOf(profession));
         EconomySettings settings = Economies.settings();
         Stock stock = settlement.economy().stock();
         int population = settlement.economy().population();
@@ -240,13 +249,18 @@ public final class Merchants {
                 id -> ItemIds.item(id).filter(item -> item != Items.EMERALD).isPresent());
         double factor = priceFactor(tier);
 
+        int sold = 0;
         for (String id : plan.sells()) {
-            if (offers.size() >= plan.sellSlots()) {
+            if (sold >= plan.sellSlots()) {
                 break;
             }
             ItemInfo info = EconomyData.catalog().info(id);
             double price = Prices.sellPrice(info, stock.count(id), population, settings) * factor;
-            sellOffer(ItemIds.item(id).orElseThrow(), stock.count(id), price, MAX_USES).ifPresent(offers::add);
+            Optional<MerchantOffer> offer = sellOffer(ItemIds.item(id).orElseThrow(), stock.count(id), price, MAX_USES);
+            if (offer.isPresent()) {
+                offers.add(offer.get());
+                sold++;
+            }
         }
 
         long treasury = SettlementData.get(server).treasury(settlement.factionId());

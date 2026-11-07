@@ -7,13 +7,16 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.faction.ReputationData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
+import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -55,6 +58,7 @@ public final class MerchantGameTests {
     private static final String BAKER = "folkhold_world:baker";
     private static final String BLACKSMITH = "folkhold_world:blacksmith";
     private static final String MINER = "folkhold_world:miner";
+    private static final String FISHER = "folkhold_world:fisher";
     /** The test job of the GameTest data: it needs its building and shows the weaponsmith profession. */
     private static final String TEST_SMITH = "folkhold_world:test_smith";
     /** The tests call the checks of the heart this number of times to create all the villagers. */
@@ -428,8 +432,8 @@ public final class MerchantGameTests {
     }
 
     /**
-     * A blacksmith sells only the outputs of the blacksmith job in stock, and buys only its inputs. A trade with
-     * the blacksmith changes the stock and the treasury.
+     * A blacksmith sells only the outputs of the blacksmith job in stock, and buys only its inputs and the food that
+     * the village needs most. A trade with the blacksmith changes the stock and the treasury.
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "worker_offers")
     public static void workerTradesTheGoodsOfItsJob(GameTestHelper helper) {
@@ -465,8 +469,10 @@ public final class MerchantGameTests {
         server.getPlayerList().remove(player);
         data.addTreasury(faction, original - treasury);
         helper.assertTrue(sold.equals(List.of(Items.IRON_SWORD)), "The blacksmith must sell only swords: " + sold);
-        helper.assertTrue(!bought.isEmpty() && inputs.containsAll(bought),
-                "The blacksmith must buy only its inputs: " + bought);
+        List<String> otherBuys = bought.stream().filter(item -> !inputs.contains(item)).toList();
+        helper.assertTrue(!bought.isEmpty() && otherBuys.size() <= 1
+                        && otherBuys.stream().allMatch(item -> EconomyData.catalog().info(item).isFood()),
+                "The blacksmith must buy only its inputs and one food item: " + bought);
         helper.assertTrue(sword != null && stock == 4, "The sword must leave the stock, found " + stock);
         helper.assertTrue(treasury == BUYER_TREASURY + sword.getCostA().getCount(),
                 "The emeralds must go into the treasury, found " + treasury);
@@ -515,6 +521,68 @@ public final class MerchantGameTests {
         helper.assertTrue(missing.isEmpty(), "No profession must be missing");
         helper.assertTrue(merchant.getVillagerData().getProfession() == ModProfessions.INHABITANT.get(),
                 "The merchant must become an inhabitant, not " + merchant.getVillagerData().getProfession());
+        helper.succeed();
+    }
+
+    /** A hamlet with a population of 1 to 3 has one worker that trades: it has the first place of the village. */
+    @GameTest(template = "arena", timeoutTicks = 40, batch = "worker_small_village")
+    public static void smallVillageHasOneTrader(GameTestHelper helper) {
+        Village village = village(helper);
+        village.settlement().setProgress(1, 0);
+        village.settlement().economy().setJobs(List.of(BAKER, FISHER));
+        List<Integer> traders = new ArrayList<>();
+        for (int population = 1; population <= 3; population++) {
+            village.settlement().economy().setPopulation(population);
+            // A later time for each population: the refill delay of the heart does not stop the fill.
+            long start = helper.getLevel().getGameTime() + population * 1_000_000L;
+            for (int i = 0; i < FILL_CHECKS; i++) {
+                village.heart().ensureGarrison(start + i);
+            }
+            List<Villager> inhabitants = VillageFolk.inhabitants(helper.getLevel(), village.heart().getBlockPos());
+            traders.add((int) inhabitants.stream().filter(villager -> Merchants.isTrader(helper.getLevel(), villager))
+                    .count());
+            inhabitants.forEach(Entity::discard);
+        }
+        village.heart().getUnits().forEach(Entity::discard);
+        village.heart().getCats().forEach(Entity::discard);
+
+        helper.assertTrue(traders.equals(List.of(1, 1, 1)),
+                "A population of 1, 2 and 3 must have 1 trader, found " + traders);
+        helper.succeed();
+    }
+
+    /**
+     * At level 1 and at level 5, each of the 2 traders has 1 sell offer or more and 1 buy offer or more, and not more
+     * offers than the level. The fisher has no input: it buys the food that the village needs most.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "worker_low_level")
+    public static void eachTraderSellsAndBuysAtALowLevel(GameTestHelper helper) {
+        Village village = village(helper);
+        MinecraftServer server = helper.getLevel().getServer();
+        village.settlement().economy().setJobs(List.of(BAKER, FISHER));
+        village.settlement().economy().stock().set("minecraft:bread", 64);
+        village.settlement().economy().stock().set("minecraft:cod", 64);
+        SettlementData data = SettlementData.get(server);
+        String faction = village.settlement().factionId();
+        long original = data.treasury(faction);
+        data.addTreasury(faction, BUYER_TREASURY - original);
+        List<String> failures = new ArrayList<>();
+        for (int level : List.of(1, 5)) {
+            village.settlement().setProgress(level, 0);
+            int maxOffers = LevelTables.get().traits(level).tradeOffers();
+            for (VillagerProfession profession : List.of(ModProfessions.BAKER.get(), VillagerProfession.FISHERMAN)) {
+                MerchantOffers offers = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
+                        profession);
+                long buys = offers.stream().filter(offer -> offer.getResult().is(Items.EMERALD)).count();
+                long sells = offers.size() - buys;
+                if (sells < 1 || buys < 1 || offers.size() > maxOffers) {
+                    failures.add("level " + level + " " + profession + ": " + sells + " sell, " + buys + " buy");
+                }
+            }
+        }
+        data.addTreasury(faction, original - data.treasury(faction));
+
+        helper.assertTrue(failures.isEmpty(), "Each trader must sell and buy: " + failures);
         helper.succeed();
     }
 }

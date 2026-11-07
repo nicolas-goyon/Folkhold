@@ -126,9 +126,16 @@ public final class VillageFolk {
     }
 
     /**
-     * The professions of the inhabitants of a settlement: one for each inhabitant. The builders and the handymen come
-     * first. Then the workers of the settlement (see {@link #workerCount}) show its active jobs, in proportion to the
-     * active job slots. The other inhabitants have the inhabitant profession.
+     * The professions of the inhabitants of a settlement: one for each inhabitant, in this order.
+     *
+     * <ol>
+     *   <li>One worker of an active job that trades (see {@link Merchants#traders}), so that a small village has a
+     *       trader. It is the first job of {@link #pickJobs} with a profession that trades.</li>
+     *   <li>The builders and the handymen.</li>
+     *   <li>The other workers of the settlement (see {@link #workerCount}): they show its active jobs, in proportion
+     *       to the active job slots.</li>
+     *   <li>The inhabitant profession for the other inhabitants.</li>
+     * </ol>
      *
      * @param settlement the settlement
      * @param count      the number of inhabitants
@@ -136,13 +143,22 @@ public final class VillageFolk {
      */
     public static List<VillagerProfession> professions(Settlement settlement, int count) {
         List<VillagerProfession> professions = new ArrayList<>(Math.max(0, count));
+        List<String> jobs = Economies.activeJobIds(settlement);
+        int workers = workerCount(jobs.size(), settlement.economy().population(),
+                WorldConfig.ECONOMY_WORKERS_PER_JOB.get());
+        List<VillagerProfession> picked = new ArrayList<>(pickJobs(jobs, Math.max(1, workers)).stream()
+                .map(VillageFolk::professionOf).toList());
+        picked.stream().filter(profession -> profession != ModProfessions.INHABITANT.get()).findFirst()
+                .ifPresent(trader -> {
+                    picked.remove(trader);
+                    addUpTo(professions, count, trader, 1);
+                });
+        int firstWorkers = professions.size();
         addUpTo(professions, count, ModProfessions.BUILDER.get(), WorldConfig.BUILDERS.get());
         addUpTo(professions, count, ModProfessions.HANDYMAN.get(), WorldConfig.HANDYMEN.get());
-        List<String> jobs = Economies.activeJobIds(settlement);
-        int workers = Math.min(count - professions.size(), workerCount(jobs.size(),
-                settlement.economy().population(), WorldConfig.ECONOMY_WORKERS_PER_JOB.get()));
-        for (String job : pickJobs(jobs, workers)) {
-            professions.add(professionOf(job));
+        for (VillagerProfession profession : picked.subList(0, Math.max(0, Math.min(picked.size(),
+                workers - firstWorkers)))) {
+            addUpTo(professions, count, profession, 1);
         }
         addUpTo(professions, count, ModProfessions.INHABITANT.get(), count);
         return professions;

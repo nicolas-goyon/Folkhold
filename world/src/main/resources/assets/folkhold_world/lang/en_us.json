@@ -675,6 +675,7 @@
   "screen.folkhold_world.village_heart.trade.discount": "discount ×%s",
   "screen.folkhold_world.village_heart.trade.normal": "normal prices",
   "screen.folkhold_world.village_heart.chip": "%s · %s",
+  "screen.folkhold_world.village_heart.trade.job": "%s job sells its goods",
   "screen.folkhold_world.village_heart.trade.jobs": "%s jobs sell their goods",
   "screen.folkhold_world.village_heart.shelter.open": "gates open",
   "screen.folkhold_world.village_heart.shelter.closed": "gates closed",

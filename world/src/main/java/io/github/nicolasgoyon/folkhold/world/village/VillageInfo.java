@@ -185,7 +185,8 @@ public final class VillageInfo {
         Component state = factor < 1.0
                 ? available(Component.translatable(KEY + "trade.discount", Merchants.priceText(factor)))
                 : available(Component.translatable(KEY + "trade.normal"));
-        Component details = Component.translatable(KEY + "trade.jobs", Merchants.traderCount(settlement));
+        int jobs = Merchants.tradingJobCount(settlement);
+        Component details = Component.translatable(KEY + (jobs == 1 ? "trade.job" : "trade.jobs"), jobs);
         List<String> needs = List.of();
         if (EconomyData.isActive()) {
             EconomyState economy = settlement.economy();
