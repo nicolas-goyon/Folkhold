@@ -45,6 +45,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/valeholm/desert/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_baker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_pastry_cook",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_rancher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_butcher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/valeholm/desert/job_fisher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/valeholm/desert/foundation"
+      }
     }
   ]
 }

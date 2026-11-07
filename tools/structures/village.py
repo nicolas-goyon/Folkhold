@@ -1316,7 +1316,8 @@ def iron_windows(t):
 
 
 def fishing_hut():
-    """The home of a family of fishers: 2 beds, the barrels of the catch, a smoker and the nets on the walls."""
+    """The home of a family of fishers: 2 beds, the barrels of the catch, a smoker and the nets on the walls. The job sign
+    of the fisher stands next to the west porch post: the hut is also the building of the fisher."""
     rng = random.Random(21)
     t = house_shell(rng, weathered, planks, "house")
     iron_windows(t)
@@ -1332,6 +1333,7 @@ def fishing_hut():
     lantern(t, 4, 1, 7)
     lantern(t, 1, 1, 2)
     stone_base(t)
+    job_sign(t, 1, 1, 0, "fisher", "minecraft:cod")
     return t
 
 
@@ -1398,12 +1400,13 @@ def block(entry):
     return entry if isinstance(entry, tuple) else (entry, None)
 
 
-def job_building(rng, job, icon, ground, plants):
+def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"level": "0"})):
     """The building of a job of the fields and the gardens: a timber frame shed and a garden behind it.
 
     - The shed: the house shell (see house_shell) with a body of SHED_DEPTH - 1 rows, a door on the street and a back
       door to the garden. The job sign stands on the porch, next to the east porch post.
-    - The work blocks: a composter (the work block of the vanilla farmer) and a barrel in the shed.
+    - The work blocks: the work block of the vanilla profession of the job (a composter for the farmer) and a barrel in
+      the shed.
     - The garden: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
       None. A fence goes around the garden, with a lantern on each back corner.
     """
@@ -1414,7 +1417,7 @@ def job_building(rng, job, icon, ground, plants):
         t.set(mid, y, back, "minecraft:spruce_door",
               {"facing": "south", "half": half, "hinge": "left", "open": "false", "powered": "false"})
     t.set(mid, 3, back, "minecraft:stripped_spruce_log", {"axis": "x"})
-    t.set(1, 1, back - 1, "minecraft:composter", {"level": "0"})
+    t.set(1, 1, back - 1, *work)
     t.set(W - 2, 1, back - 1, "minecraft:barrel", {"facing": "up", "open": "false"})
     lantern(t, W - 2, 1, 2)
     job_sign(t, W - 2, 1, 0, job, icon)
@@ -1606,6 +1609,139 @@ def apiary():
     return t
 
 
+def job_house(rng, job, icon, wall_upper, wide_front=False):
+    """The building of a job of the food: the house shell with a door on the street, or an open shop front. The job
+    sign stands on the porch, next to the east porch post."""
+    t = house_shell(rng, cobble, wall_upper, None, wide_front=wide_front)
+    job_sign(t, W - 2, 1, 0, job, icon)
+    for y in range(1, 5):
+        connect_fences(t, y)
+    return t
+
+
+def oven(t, x):
+    """A brick oven on the back wall: a furnace in bricks, with a chimney of bricks through the roof."""
+    z = D - 2
+    t.set(x, 1, z, "minecraft:furnace", {"facing": "north", "lit": "false"})
+    for dx in (-1, 0, 1):
+        t.set(x + dx, 2, z, "minecraft:bricks")
+        if dx:
+            t.set(x + dx, 1, z, "minecraft:bricks")
+    for y in range(3, H):
+        t.set(x + 1, y, z, "minecraft:bricks")
+
+
+BARREL = ("minecraft:barrel", {"facing": "up", "open": "false"})
+TOP_SLAB = ("minecraft:spruce_slab", {"type": "top", "waterlogged": "false"})
+
+
+def bakery():
+    """The building of the baker: a brick oven, a crafting table to knead the dough, barrels of flour, the wheat on
+    hay bales and a cake on the counter."""
+    rng = random.Random(56)
+    t = job_house(rng, "baker", "minecraft:bread", planks)
+    oven(t, 4)
+    t.set(1, 1, 7, "minecraft:crafting_table")
+    for x, z in ((1, 6), (2, 7)):
+        t.set(x, 1, z, *BARREL)
+    for x, y, z in ((7, 1, 7), (7, 1, 6), (7, 2, 7)):
+        t.set(x, y, z, "minecraft:hay_block", LOG_Y)
+    t.set(7, 1, 2, *TOP_SLAB)
+    t.set(7, 2, 2, "minecraft:cake", {"bites": "0"})
+    lantern(t, 1, 1, 2)
+    return t
+
+
+def pastry_shop():
+    """The building of the pastry cook: an open shop front, a counter with cakes, a brick oven, pumpkins and barrels
+    of sugar."""
+    rng = random.Random(57)
+    t = job_house(rng, "pastry_cook", "minecraft:pumpkin_pie", calcite, wide_front=True)
+    oven(t, 4)
+    # The counter behind the open front, with a free passage in the middle.
+    for x in (1, 2, 6, 7):
+        t.set(x, 1, 3, *TOP_SLAB)
+    for x in (2, 6):
+        t.set(x, 2, 3, "minecraft:candle_cake", {"lit": "false"})
+    for x, y, z in ((1, 1, 7), (2, 1, 7), (1, 2, 7)):
+        t.set(x, y, z, "minecraft:pumpkin")
+    for x, z in ((7, 7), (7, 6)):
+        t.set(x, 1, z, *BARREL)
+    lantern(t, 1, 1, 5)
+    return t
+
+
+def butchery():
+    """The building of the butcher: 2 smokers (the work block of the vanilla butcher), a block of coal, a chopping
+    block, and a rack of chains on a beam across the room. The chains leave 2 blocks of space under them."""
+    rng = random.Random(58)
+    t = job_house(rng, "butcher", "minecraft:cooked_beef", planks)
+    for x in (5, 6):
+        t.set(x, 1, 7, "minecraft:smoker", {"facing": "north", "lit": "false"})
+    t.set(7, 1, 7, "minecraft:coal_block")
+    for x in range(1, W - 1):
+        t.set(x, 4, 5, "minecraft:stripped_spruce_log", {"axis": "x"})
+    for x in (2, 3, 6):
+        t.set(x, 3, 5, "minecraft:chain", {"axis": "y", "waterlogged": "false"})
+    t.set(2, 1, 3, "minecraft:stripped_oak_log", LOG_Y)
+    for x, z in ((1, 7), (1, 6)):
+        t.set(x, 1, z, *BARREL)
+    t.set(7, 1, 3, "minecraft:water_cauldron", {"level": "3"})
+    lantern(t, 1, 1, 2)
+    return t
+
+
+def ranch():
+    """The building of the rancher: a shed with a smoker (the work block of the vanilla butcher) and a pen behind it,
+    with hay and a water trough. The doors of the shed and the fence keep the animals in the pen.
+
+    The template has no animals: a template with entities adds them again at each placement (the village structure
+    and each construction of the builders). The job produces its goods in the economy, and a player can bring
+    animals into the pen.
+    """
+    rng = random.Random(59)
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if (x, z) == (W // 2, SHED_DEPTH) else GRASS
+
+    def plants(x, z):
+        # The hay and the trough are not next to the fence: a fence connects to a full block.
+        if (x, z) == (2, SHED_DEPTH + 1):
+            return "minecraft:hay_block", LOG_Y
+        if (x, z) == (W - 3, SHED_DEPTH + 1):
+            return "minecraft:water_cauldron", {"level": "3"}
+        return None
+
+    t = job_building(rng, "rancher", "minecraft:lead", ground, plants,
+                     work=("minecraft:smoker", {"facing": "east", "lit": "false"}))
+    t.set(1, 1, 2, "minecraft:hay_block", LOG_Y)
+    return t
+
+
+def fisher_hut():
+    """The building of the fisher: a shed with barrels (the work block of the vanilla fisherman), the nets and a
+    tub, and a yard with a pond for the live catch. The pond is a row of waterlogged slabs, with a path of coarse
+    dirt next to it: a builder stands on the path to add the water."""
+    rng = random.Random(60)
+    pond = range(2, W - 2)
+    row = D - 2
+
+    def ground(x, z):
+        if z == row and x in pond:
+            return WATER_SLAB
+        return "minecraft:coarse_dirt" if z == row - 1 or x == W // 2 else GRASS
+
+    def plants(x, z):
+        return BARREL if (x, z) in ((2, SHED_DEPTH), (W - 3, SHED_DEPTH)) else None
+
+    t = job_building(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
+    t.set(1, 1, 2, "minecraft:water_cauldron", {"level": "3"})
+    # The nets: cobwebs high on the side wall, out of the way.
+    for z in (2, 3):
+        t.set(1, 3, z, "minecraft:cobweb")
+    return t
+
+
 # The job buildings: the piece job_<id> of each job, in the pool village/jobs of each variant. The id is the name of
 # the job file.
 JOBS = {
@@ -1614,6 +1750,11 @@ JOBS = {
     "gardener_jungle": jungle_garden,
     "forager": forager_hut,
     "beekeeper": apiary,
+    "baker": bakery,
+    "pastry_cook": pastry_shop,
+    "rancher": ranch,
+    "butcher": butchery,
+    "fisher": fisher_hut,
 }
 
 PIECES = {

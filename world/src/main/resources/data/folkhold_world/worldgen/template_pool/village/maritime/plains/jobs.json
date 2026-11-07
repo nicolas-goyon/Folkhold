@@ -45,6 +45,51 @@
         "projection": "rigid",
         "processors": "folkhold_world:village/maritime/plains/foundation"
       }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_baker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_pastry_cook",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_rancher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_butcher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
+    },
+    {
+      "weight": 1,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/plains/job_fisher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/plains/foundation"
+      }
     }
   ]
 }
