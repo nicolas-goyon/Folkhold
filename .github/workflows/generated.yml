@@ -1,6 +1,9 @@
 # Checks the scripts. The tests of scripts/ run, and the generated files are up to date: the structures,
 # the block models and the textures come from the scripts of tools/. A change to a script or to a generated file must
 # come with the output of the scripts.
+# The generators of .nbt files do not write a file when its uncompressed content does not change (nbt.write_nbt).
+# Thus the byte comparison below does not depend on the zlib of the machine, and it fails when the content of a
+# template changes.
 name: Generated files
 
 on:
@@ -50,4 +53,16 @@ jobs:
         run: |
           git add --all
           git status --short
-          git diff --cached --exit-code --stat
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git diff --cached --stat
+          # For each changed .nbt file, tell if the uncompressed content changes or only the gzip bytes.
+          git diff --cached --name-only --diff-filter=M -- '*.nbt' | while read -r f; do
+            if cmp -s <(git show "HEAD:$f" | gzip -dc) <(gzip -dc "$f"); then
+              echo "::error file=$f::Same content, other gzip bytes. Write this file with nbt.write_nbt."
+            else
+              echo "::error file=$f::The content changes. Run the generators and commit their output."
+            fi
+          done
+          exit 1
