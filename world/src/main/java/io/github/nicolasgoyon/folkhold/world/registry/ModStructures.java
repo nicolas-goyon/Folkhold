@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.world.registry;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FoundationProcessor;
+import io.github.nicolasgoyon.folkhold.world.village.structure.GroundFillPiece;
 import io.github.nicolasgoyon.folkhold.world.village.structure.OptionalReplaceProcessor;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PierPiece;
@@ -46,6 +47,10 @@ public final class ModStructures {
     /** A piece with no blocks that changes the shape of the terrain ({@link TerrainPiece}). */
     public static final DeferredHolder<StructurePieceType, StructurePieceType> TERRAIN =
             PIECES.register("terrain", () -> (StructurePieceType.ContextlessType) TerrainPiece::new);
+
+    /** A piece that fills the gaps under the surface near a tower or a gate ({@link GroundFillPiece}). */
+    public static final DeferredHolder<StructurePieceType, StructurePieceType> GROUND_FILL =
+            PIECES.register("ground_fill", () -> (StructurePieceType.ContextlessType) GroundFillPiece::new);
 
     /** A foundation under a structure template ({@link FoundationProcessor}). */
     public static final DeferredHolder<StructureProcessorType<?>, StructureProcessorType<FoundationProcessor>>
