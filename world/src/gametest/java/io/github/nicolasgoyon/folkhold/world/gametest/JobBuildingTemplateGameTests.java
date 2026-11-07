@@ -24,6 +24,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.JigsawReplacementProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -35,7 +37,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 /**
  * In-game tests for the templates of the job buildings ({@code village/job_<id>}, written by
  * {@code tools/structures/village.py}): each template has the job sign of its job, the construction plan of each
- * template has no warning, and the scan of the heart counts the job sign of each building.
+ * template has no warning, the fences have the shape that the game gives them, and the scan of the heart counts the
+ * job sign of each building.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -90,7 +93,8 @@ public final class JobBuildingTemplateGameTests {
 
     /**
      * The 5 job buildings of the base variant: the plan of each template has no warning. After the placement of the
-     * templates, each job sign has its job and its icon item, and the scan of the heart counts 1 building for each job.
+     * templates, each job sign has its job and its icon item, each fence has the shape of its neighbors, and the scan
+     * of the heart counts 1 building for each job.
      */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan", skyAccess = true)
     public static void heartCountsTheJobBuildings(GameTestHelper helper) {
@@ -108,13 +112,15 @@ public final class JobBuildingTemplateGameTests {
                         new StructurePlaceSettings()), ConstructionTargets.view(level), Reach.DEFAULT);
                 helper.assertTrue(plan.warnings().isEmpty(), "The plan of " + job + " must have no warnings: "
                         + plan.warnings());
+                // As a piece of the village structure: the placement does not change the shapes of the blocks.
                 StructurePlaceSettings settings = new StructurePlaceSettings()
-                        .addProcessor(JigsawReplacementProcessor.INSTANCE);
+                        .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true);
                 template.placeInWorld(level, origin, origin, settings, level.getRandom(), Block.UPDATE_CLIENTS);
                 boxes.add(template.getBoundingBox(settings, origin));
                 checkSign(helper, template, origin, job);
                 expected.put("folkhold_world:" + job, 1);
             }
+            checkFences(helper, boxes);
             helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
             VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
             heart.ensureSettlement();
@@ -130,6 +136,32 @@ public final class JobBuildingTemplateGameTests {
                     level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS)));
         }
         helper.succeed();
+    }
+
+    /**
+     * The template gives each fence the shape that the game gives it from its neighbors: a fence connects to the
+     * fences and to the shed, not to the plants.
+     */
+    private static void checkFences(GameTestHelper helper, List<BoundingBox> boxes) {
+        ServerLevel level = helper.getLevel();
+        List<String> wrong = new ArrayList<>();
+        int fences = 0;
+        for (BoundingBox box : boxes) {
+            for (BlockPos pos : BlockPos.betweenClosed(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(),
+                    box.maxZ())) {
+                BlockState state = level.getBlockState(pos);
+                if (!(state.getBlock() instanceof FenceBlock)) {
+                    continue;
+                }
+                fences++;
+                BlockState shaped = Block.updateFromNeighbourShapes(state, level, pos);
+                if (!shaped.equals(state)) {
+                    wrong.add(helper.relativePos(pos) + " " + state + " -> " + shaped);
+                }
+            }
+        }
+        helper.assertTrue(fences > 0, "The job buildings must have fences");
+        helper.assertTrue(wrong.isEmpty(), "Fences with a wrong shape: " + wrong);
     }
 
     private static ResourceLocation piece(String folder, String job) {

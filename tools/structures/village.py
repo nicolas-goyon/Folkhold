@@ -1430,33 +1430,40 @@ def job_building(rng, job, icon, ground, plants):
                 t.set(x, 1, z, "minecraft:spruce_fence")
     for x in (0, W - 1):
         lantern(t, x, 2, D - 1)
-    connect_fences(t, 1)
+    # The fences of the garden and the porch posts.
+    for y in range(1, 5):
+        connect_fences(t, y)
     return t
 
 
-# Full blocks that a fence does not connect to.
-NO_FENCE = ("pumpkin", "melon")
+# The blocks of the shell that a fence connects to. A fence also connects to a fence, and not to a plant or a fruit.
+FENCE_SUPPORTS = ("cobblestone", "_log", "_planks")
 
 
 def connect_fences(t, y):
-    """Sets the north, south, east and west properties of each spruce fence of a layer from its neighbors."""
+    """Sets the north, south, east and west properties of each spruce fence of a layer from its neighbors: a fence,
+    a fence gate or a block of the shell."""
     for (x, fy, z), ((name, _props), nbt) in list(t.blocks.items()):
         if fy != y or name != "minecraft:spruce_fence":
             continue
         props = {"waterlogged": "false"}
         for side, (dx, dz) in SIDES.items():
             other = t.get(x + dx, y, z + dz) if t.inside(x + dx, y, z + dz) else None
-            fence = other is not None and other.endswith("_fence")
-            solid = is_full(other) and not any(part in other for part in NO_FENCE)
-            props[side] = "true" if fence or solid else "false"
+            connects = other is not None and other.endswith(("_fence", "_fence_gate") + FENCE_SUPPORTS)
+            props[side] = "true" if connects else "false"
         t.set(x, y, z, name, props, nbt)
+
+
+# The water of a field: a waterlogged slab. The slab holds the water on uneven ground, and the foundation goes under
+# it. Farmland and sugar cane get their water from the slab.
+WATER_SLAB = ("minecraft:spruce_slab", {"type": "bottom", "waterlogged": "true"})
 
 
 def field_ground(x, z):
     """Farmland around the water of the field, and a path of coarse dirt from the back door to the water: a builder
     stands on the path to add the water."""
     if (x, z) == WATER:
-        return "minecraft:water"
+        return WATER_SLAB
     return "minecraft:coarse_dirt" if x == WATER[0] else FARMLAND
 
 
@@ -1483,28 +1490,36 @@ def farm():
 
 
 def garden():
-    """The building of the gardener: pumpkins and melons on their stems, and a row of sweet berry bushes through the
-    water."""
+    """The building of the gardener: pumpkins and melons on their stems, sugar cane next to the water, and sweet
+    berry bushes on the side edges, out of the path.
+
+    The sugar cane is 1 block high, with no block next to it: a builder places it before the water, and no later
+    block next to it makes it check its water.
+    """
     rng = random.Random(52)
-    mid = W // 2
-    berries = WATER[1]
+    mid, row = WATER
+    stems = {(2, row - 1), (2, row + 1), (W - 3, row - 1), (W - 3, row + 1)}
 
     def ground(x, z):
         if x == mid:
             return field_ground(x, z)
         # A fruit on farmland makes the farmland dirt: the fruits stand on grass.
-        return GRASS if z == berries or abs(x - mid) == 3 else FARMLAND
+        return FARMLAND if (x, z) in stems else GRASS
 
     def plants(x, z):
         side = x - mid
-        if z == berries:
-            return ("minecraft:sweet_berry_bush", {"age": "3"}) if side else None
         fruit = "pumpkin" if side < 0 else "melon"
+        if z == row:
+            if abs(side) == 3:
+                return "minecraft:sweet_berry_bush", {"age": "3"}
+            if abs(side) == 1:
+                return "minecraft:sugar_cane", {"age": "0"}
+            return None
         if abs(side) == 3:
             return f"minecraft:{fruit}"
         if abs(side) == 2:
             return f"minecraft:attached_{fruit}_stem", {"facing": "west" if side < 0 else "east"}
-        return crop(f"minecraft:{fruit}_stem", rng) if side else None
+        return None
 
     t = job_building(rng, "gardener", "minecraft:pumpkin", ground, plants)
     t.set(1, 1, 2, "minecraft:pumpkin")
@@ -1520,7 +1535,7 @@ def jungle_garden():
 
     def ground(x, z):
         if (x, z) == WATER:
-            return "minecraft:water"
+            return WATER_SLAB
         return FARMLAND if x == mid else GRASS
 
     def plants(x, z):
@@ -1572,7 +1587,8 @@ def forager_hut():
 
 
 def apiary():
-    """The building of the beekeeper: 2 beehives among the flowers, and a campfire (not lit) for the smoke."""
+    """The building of the beekeeper: 2 beehives among the flowers. A lit campfire under each hive gives the smoke that
+    calms the bees."""
     rng = random.Random(55)
     hives = ((2, WATER[1]), (W - 3, WATER[1]))
     flowers = ("minecraft:dandelion", "minecraft:poppy", "minecraft:cornflower", "minecraft:oxeye_daisy",
@@ -1580,11 +1596,13 @@ def apiary():
 
     def plants(x, z):
         if (x, z) in hives:
-            return "minecraft:beehive", {"facing": "south", "honey_level": str(rng.randint(2, 5))}
+            return "minecraft:campfire", {"facing": "south", "lit": "true", "signal_fire": "false",
+                                          "waterlogged": "false"}
         return flowers[rng.randrange(len(flowers))] if (x + z) % 2 == 0 else None
 
     t = job_building(rng, "beekeeper", "minecraft:honeycomb", lambda x, z: GRASS, plants)
-    t.set(1, 1, 2, *unlit_campfire("east"))
+    for x, z in hives:
+        t.set(x, 2, z, "minecraft:beehive", {"facing": "south", "honey_level": str(rng.randint(2, 5))})
     return t
 
 
