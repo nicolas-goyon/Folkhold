@@ -24,6 +24,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -65,7 +66,10 @@ public final class JobBuildingGameTests {
             check(helper, building);
         } finally {
             WorldConfig.ECONOMY_ALL_JOBS_NEED_BUILDINGS.set(allJobs);
+            // The heart has no garrison: other tests near this test must not find it.
+            helper.setBlock(HEART, Blocks.AIR);
         }
+        helper.succeed();
     }
 
     private static void check(GameTestHelper helper, boolean building) {
@@ -121,6 +125,5 @@ public final class JobBuildingGameTests {
             helper.assertTrue(report.activeJobs() == 0 && report.produced().isEmpty(),
                     "A job with no building must not produce: " + report);
         }
-        helper.succeed();
     }
 }
