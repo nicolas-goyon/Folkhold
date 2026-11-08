@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -480,7 +479,7 @@ public final class MerchantGameTests {
     }
 
     /**
-     * The worker of a job with no building offers nothing. A villager with the merchant profession offers nothing. A
+     * The worker of a job with no active post offers nothing. A villager with the merchant profession offers nothing. A
      * village with no active job gets no prosperity share for the jobs.
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "worker_inactive")
@@ -494,15 +493,15 @@ public final class MerchantGameTests {
         boolean unknownEmpty = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
                 VillagerProfession.WEAPONSMITH).isEmpty();
         double activeProsperity = Economies.prosperity(server, village.settlement());
-        village.settlement().setJobBuildings(Optional.of(Map.of()));
+        village.settlement().setJobPosts(Optional.of(List.of()));
         double inactiveProsperity = Economies.prosperity(server, village.settlement());
         MerchantOffers inactive = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
                 VillagerProfession.WEAPONSMITH);
         MerchantOffers merchant = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
                 ModProfessions.MERCHANT.get());
-        village.settlement().setJobBuildings(Optional.empty());
+        village.settlement().setJobPosts(Optional.empty());
 
-        helper.assertTrue(!unknownEmpty, "With unknown building counts, the smith must sell its swords");
+        helper.assertTrue(!unknownEmpty, "With unknown posts, the smith must sell its swords");
         helper.assertTrue(inactive.isEmpty(), "The smith of an inactive job must offer nothing");
         helper.assertTrue(merchant.isEmpty(), "A villager with the merchant profession must offer nothing");
         helper.assertTrue(Math.abs(activeProsperity - inactiveProsperity - 0.3) < 1e-9,

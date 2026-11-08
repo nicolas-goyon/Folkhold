@@ -49,9 +49,10 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
  *       {@link WorldConfig#HANDYMEN}): they work for the village, also in a small village. The builders build the
  *       construction sites of the village (see {@link BuilderSites}).</li>
  *   <li>The workers of the settlement show its active jobs: the profession of a worker is the profession of its job
- *       (see {@link EconomyData#profession(String)}). A job with no building is not active (see
- *       {@link Economies#activeJobIds}): its workers have no job. The other inhabitants have the inhabitant
- *       profession: they give life to the village (see {@link #professions(Settlement, int)}).</li>
+ *       (see {@link EconomyData#profession(String)}). In a scanned village, the active jobs are the jobs of the
+ *       active job posts (see {@link Economies#activeJobIds}). The first post that trades comes first in the order of
+ *       the posts, and the first inhabitant is its worker: thus a village with a post that trades has a trader. The
+ *       other inhabitants have the inhabitant profession: they give life to the village (see {@link #professions(Settlement, int)}).</li>
  *   <li>Only the workers of the active jobs trade, with the goods of their jobs (see {@link Merchants}). A player
  *       cannot trade with the other inhabitants. The vanilla trades of a profession do not apply: they would bypass
  *       the economy of the village.</li>

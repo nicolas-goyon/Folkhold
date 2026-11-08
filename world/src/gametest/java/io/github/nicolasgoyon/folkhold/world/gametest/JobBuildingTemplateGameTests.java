@@ -6,13 +6,13 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
-import io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +30,7 @@ import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -198,23 +199,24 @@ public final class JobBuildingTemplateGameTests {
     }
 
     /**
-     * A forge with no job sign is a building of the blacksmith: the scan counts its building sign. A forge with a forge
-     * sign and a blacksmith job sign counts once. Thus the blacksmith stays active when its job needs a building.
+     * A forge has no beds: it is not a home. A job sign in a forge is not a job post, and a forge with no job sign is
+     * not a post too.
      */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_forge", skyAccess = true)
-    public static void forgeWithNoJobSignIsABlacksmithBuilding(GameTestHelper helper) {
+    public static void forgeWithNoBedsIsNotAPost(GameTestHelper helper) {
         TestSupport.buildFloor(helper, ARENA);
         ServerLevel level = helper.getLevel();
         StructureTemplate template = level.getStructureManager().getOrCreate(piece("", "house_forge"));
         StructurePlaceSettings settings = new StructurePlaceSettings()
                 .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true);
         List<BoundingBox> boxes = new ArrayList<>();
-        String blacksmith = "folkhold_world:blacksmith";
+        List<VillageReference.Piece> pieces = new ArrayList<>();
         try {
             for (BlockPos relative : List.of(ORIGINS.get(0), ORIGINS.get(1))) {
                 BlockPos origin = helper.absolutePos(relative);
                 template.placeInWorld(level, origin, origin, settings, level.getRandom(), Block.UPDATE_CLIENTS);
                 boxes.add(template.getBoundingBox(settings, origin));
+                pieces.add(new VillageReference.Piece(piece("", "house_forge"), origin, Rotation.NONE));
             }
             // The first forge also has a job sign, next to the west porch post.
             BlockPos sign = ORIGINS.get(0).offset(1, 1, 0);
@@ -224,15 +226,16 @@ public final class JobBuildingTemplateGameTests {
             helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
             VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
             heart.ensureSettlement();
+            heart.setRepairReference(new VillageReference(pieces));
             helper.assertTrue(heart.getLayout().scan(level, heart.getBlockPos()), "The scan area must be ready");
-            heart.recordJobBuildings();
+            heart.recordJobPosts();
             Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
             helper.assertTrue(heart.getLayout().buildings().getOrDefault("forge", 0) == 2,
                     "The scan must count 2 forges: " + heart.getLayout().buildings());
-            helper.assertTrue(settlement.jobBuildings().equals(Optional.of(Map.of(blacksmith, 2))),
-                    "Each forge must be 1 building of the blacksmith: " + settlement.jobBuildings());
-            helper.assertTrue(JobBuildings.active(List.of(blacksmith), settlement.jobBuildings(), job -> true)
-                    .equals(List.of(blacksmith)), "The blacksmith must be active with the forges");
+            helper.assertTrue(heart.getLayout().jobSigns().size() == 1,
+                    "The scan must find the job sign: " + heart.getLayout().jobSigns());
+            helper.assertTrue(settlement.jobPosts().equals(Optional.of(List.of())),
+                    "A forge with no beds must not be a job post: " + settlement.jobPosts());
         } finally {
             helper.setBlock(HEART, Blocks.AIR);
             boxes.forEach(box -> BlockPos.betweenClosedStream(box).forEach(pos ->
@@ -244,14 +247,15 @@ public final class JobBuildingTemplateGameTests {
     /**
      * The 5 job buildings of a group in the base variant: the plan of each template has no warning. After the
      * placement of the templates, each job sign has its job and its icon item, each fence has the shape of its
-     * neighbors, and the scan of the heart counts 1 building for each job, 1 home (house sign) for each building and
-     * the beds of the templates as the home beds of the village.
+     * neighbors, and the scan of the heart finds 1 job post for each building with the beds of the building, 1 home
+     * (house sign) for each building and the beds of the templates as the home beds of the village.
      */
     private static void checkScan(GameTestHelper helper, List<String> jobs) {
         TestSupport.buildFloor(helper, ARENA);
         ServerLevel level = helper.getLevel();
         StructureTemplateManager templates = level.getStructureManager();
         List<BoundingBox> boxes = new ArrayList<>();
+        List<VillageReference.Piece> pieces = new ArrayList<>();
         Map<String, Integer> expected = new HashMap<>();
         int beds = 0;
         try {
@@ -268,19 +272,23 @@ public final class JobBuildingTemplateGameTests {
                         .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true);
                 template.placeInWorld(level, origin, origin, settings, level.getRandom(), Block.UPDATE_CLIENTS);
                 boxes.add(template.getBoundingBox(settings, origin));
+                pieces.add(new VillageReference.Piece(piece("", "job_" + job), origin, Rotation.NONE));
                 checkSign(helper, template, origin, job);
                 beds += beds(template);
-                expected.put("folkhold_world:" + job, 1);
+                expected.put("folkhold_world:" + job, beds(template));
             }
             checkFences(helper, boxes);
             helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
             VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
             heart.ensureSettlement();
+            heart.setRepairReference(new VillageReference(pieces));
             helper.assertTrue(heart.getLayout().scan(level, heart.getBlockPos()), "The scan area must be ready");
-            heart.recordJobBuildings();
+            heart.recordJobPosts();
             Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
-            helper.assertTrue(settlement.jobBuildings().equals(Optional.of(expected)),
-                    "Expected 1 building for each job: " + settlement.jobBuildings());
+            Map<String, Integer> posts = new HashMap<>();
+            settlement.jobPosts().orElse(List.of()).forEach(post -> posts.put(post.jobId(), post.homeBeds()));
+            helper.assertTrue(posts.equals(expected) && settlement.jobPosts().orElseThrow().size() == jobs.size(),
+                    "Expected 1 job post with the beds of its building for each job: " + settlement.jobPosts());
             int homes = heart.getLayout().buildings().getOrDefault(BuildingSignKind.HOUSE.serializedName(), 0);
             helper.assertTrue(homes == jobs.size(), "Expected 1 home for each job building: " + homes);
             heart.recordBeds();

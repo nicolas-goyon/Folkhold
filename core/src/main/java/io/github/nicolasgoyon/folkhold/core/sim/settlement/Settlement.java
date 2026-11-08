@@ -1,9 +1,9 @@
 package io.github.nicolasgoyon.folkhold.core.sim.settlement;
 
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -36,7 +36,8 @@ public final class Settlement {
     private final EconomyState economy = new EconomyState();
     private List<Gate> gates = List.of();
     private int beds = VillagePlaces.UNKNOWN;
-    private Map<String, Integer> jobBuildings;
+    private List<JobPosts.Post> jobPosts;
+    private boolean legacyJobs;
     private long lastFallPenalty = NO_FALL_PENALTY;
 
     /**
@@ -232,26 +233,38 @@ public final class Settlement {
     }
 
     /**
-     * The number of buildings of each job id, as the heart counted the job signs the last time (see
-     * {@link io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings}). Empty if the heart did not count them.
+     * The job posts of the village, in their order (see {@link JobPosts}), as the heart found them the last time.
+     * Empty if the heart did not scan the homes of the village.
      */
-    public Optional<Map<String, Integer>> jobBuildings() {
-        return Optional.ofNullable(jobBuildings);
+    public Optional<List<JobPosts.Post>> jobPosts() {
+        return Optional.ofNullable(jobPosts);
     }
 
     /**
-     * Sets the number of buildings of each job id.
+     * Sets the job posts of the village.
      *
-     * @param counts the counts, or empty if the counts are unknown
-     * @return true if the counts changed
+     * @param posts the posts in their order, or empty if the posts are unknown
+     * @return true if the posts changed
      */
-    public boolean setJobBuildings(Optional<Map<String, Integer>> counts) {
-        Map<String, Integer> value = counts.map(Map::copyOf).orElse(null);
-        if (Objects.equals(value, jobBuildings)) {
+    public boolean setJobPosts(Optional<List<JobPosts.Post>> posts) {
+        List<JobPosts.Post> value = posts.map(List::copyOf).orElse(null);
+        if (Objects.equals(value, jobPosts)) {
             return false;
         }
-        jobBuildings = value;
+        jobPosts = value;
         return true;
+    }
+
+    /**
+     * True for a legacy village: its save had an economy and no list of posts. It keeps the legacy job slots (see
+     * {@link JobPosts#legacySlots}).
+     */
+    public boolean legacyJobs() {
+        return legacyJobs;
+    }
+
+    public void setLegacyJobs(boolean legacyJobs) {
+        this.legacyJobs = legacyJobs;
     }
 
     /**
