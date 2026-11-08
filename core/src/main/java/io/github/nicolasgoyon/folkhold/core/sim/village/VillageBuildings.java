@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.core.sim.village;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import java.util.Optional;
  *       requirement: a village needs one building of this kind for each requirement of its level.</li>
  *   <li>The kind of a building is the kind of its building sign, for example {@code storehouse}.</li>
  *   <li>The first requirement of the list with a missing building comes first.</li>
+ *   <li>The market ({@link #MARKET}) comes before a new home and before the other buildings (see {@link #steps}).</li>
  * </ul>
  */
 public final class VillageBuildings {
@@ -33,7 +35,86 @@ public final class VillageBuildings {
         }
     }
 
+    /** The kind of the market square: the trade place of the village. */
+    public static final String MARKET = "market";
+
+    /** The kinds of steps of the growth of a village. */
+    public enum StepType {
+        /** The missing market. */
+        MARKET,
+        /** A new home. */
+        HOME,
+        /** A missing building of the level, other than the market. */
+        BUILDING
+    }
+
+    /**
+     * A step of the growth of a village.
+     *
+     * @param type the type of the step
+     * @param kind the kind of the building, or an empty text for a home
+     */
+    public record Step(StepType type, String kind) {
+        public Step {
+            Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(kind, "kind");
+        }
+    }
+
     private VillageBuildings() {
+    }
+
+    /**
+     * The steps of the growth of a village, in their order. The builders do the first step with a free plot.
+     *
+     * <ol>
+     *   <li>The market, when the level of the village needs one and the village has none. A market takes one plot, and
+     *       the plots are few. The market comes first: else the new homes can take all the plots, and the village
+     *       never gets its market. A home that waits for the market waits for one construction only.</li>
+     *   <li>A new home, when the village needs places.</li>
+     *   <li>Else, the first missing building of the level, other than the market.</li>
+     * </ol>
+     *
+     * <p>A village with no scan has no counts: its steps are only the home.
+     *
+     * @param requirements the requirements, in their order
+     * @param level        the level of the village
+     * @param counts       the number of buildings of each kind in the village
+     * @param scanned      true if the counts come from a scan of the village
+     * @param needsPlaces  true if the village needs places
+     * @return the steps, in their order; empty when the village needs nothing
+     */
+    public static List<Step> steps(List<Requirement> requirements, int level, Map<String, Integer> counts,
+            boolean scanned, boolean needsPlaces) {
+        List<Step> steps = new ArrayList<>();
+        if (scanned && needsMarket(requirements, level, counts)) {
+            steps.add(new Step(StepType.MARKET, MARKET));
+        }
+        if (needsPlaces) {
+            steps.add(new Step(StepType.HOME, ""));
+        } else if (scanned) {
+            List<Requirement> others = requirements.stream()
+                    .filter(requirement -> !requirement.kind().equals(MARKET))
+                    .toList();
+            missing(others, level, counts).ifPresent(kind -> steps.add(new Step(StepType.BUILDING, kind)));
+        }
+        return steps;
+    }
+
+    /**
+     * True if a village needs a market: a requirement of its level gives the market, and the village has no market.
+     * A village keeps one market: the data file gives one requirement of the kind {@link #MARKET}.
+     *
+     * @param requirements the requirements
+     * @param level        the level of the village
+     * @param counts       the number of buildings of each kind in the village
+     * @return true if the market is missing
+     */
+    public static boolean needsMarket(List<Requirement> requirements, int level, Map<String, Integer> counts) {
+        List<Requirement> markets = requirements.stream()
+                .filter(requirement -> requirement.kind().equals(MARKET))
+                .toList();
+        return missing(markets, level, counts).isPresent();
     }
 
     /**

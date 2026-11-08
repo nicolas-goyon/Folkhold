@@ -317,6 +317,11 @@ public final class BuilderSite {
         return origin;
     }
 
+    /** The turn of the template. */
+    public Rotation rotation() {
+        return rotation;
+    }
+
     /** The position of the heart of the village of the builders. */
     public BlockPos heart() {
         return heart;
