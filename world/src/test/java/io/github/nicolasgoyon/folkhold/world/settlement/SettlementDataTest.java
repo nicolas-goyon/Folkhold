@@ -73,9 +73,14 @@ class SettlementDataTest {
         abstractVillage.economy().setInitialized(true);
         data.registry().add(abstractVillage);
 
-        SettlementData loaded = SettlementData.load(data.save(new CompoundTag(), null), null);
+        CompoundTag tag = data.save(new CompoundTag(), null);
+        SettlementData loaded = SettlementData.load(tag, null);
+        tag.putInt("Version", SettlementData.POSTS_VERSION + 1);
+        SettlementData later = SettlementData.load(tag, null);
 
         assertFalse(loaded.registry().byId("abstract").orElseThrow().legacyJobs());
+        assertFalse(later.registry().byId("abstract").orElseThrow().legacyJobs(),
+                "A save of a later version with no posts must not be legacy");
     }
 
     @Test

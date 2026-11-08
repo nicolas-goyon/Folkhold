@@ -220,7 +220,18 @@ public final class Economies {
     }
 
     /**
-     * The inhabitants of the homes of a settlement: they fill the homes in the order of the posts. The builders and
+     * True if a job produces food (see {@link Job#producesFood}).
+     *
+     * @param jobId the job id
+     * @return false for a job id with no definition
+     */
+    public static boolean producesFood(String jobId) {
+        Job job = EconomyData.jobs().get(jobId);
+        return job != null && job.producesFood(EconomyData.catalog());
+    }
+
+    /**
+     * The inhabitants of the homes of a settlement: they fill the homes of the valid posts in the order of the posts. The builders and
      * the handymen live in the hall. The first inhabitant is the trader of the village (see
      * {@link io.github.nicolasgoyon.folkhold.world.village.VillageFolk#professions}): it lives in the first home.
      *

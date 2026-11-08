@@ -158,43 +158,43 @@ public final class JobBuildingTemplateGameTests {
 
     /** The 5 job buildings of the fields and the gardens: see {@link #checkScan}. */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan", skyAccess = true)
-    public static void heartCountsTheJobBuildings(GameTestHelper helper) {
+    public static void heartFindsTheJobPosts(GameTestHelper helper) {
         checkScan(helper, FIELDS);
     }
 
     /** The 5 job buildings of the food and the animals: see {@link #checkScan}. */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_food", skyAccess = true)
-    public static void heartCountsTheFoodJobBuildings(GameTestHelper helper) {
+    public static void heartFindsTheFoodJobPosts(GameTestHelper helper) {
         checkScan(helper, FOOD);
     }
 
     /** The first 5 job buildings of the wood: see {@link #checkScan}. */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_wood", skyAccess = true)
-    public static void heartCountsTheWoodJobBuildings(GameTestHelper helper) {
+    public static void heartFindsTheWoodJobPosts(GameTestHelper helper) {
         checkScan(helper, WOOD.subList(0, 5));
     }
 
     /** The last 5 job buildings of the wood: see {@link #checkScan}. */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_wood_2", skyAccess = true)
-    public static void heartCountsTheOtherWoodJobBuildings(GameTestHelper helper) {
+    public static void heartFindsTheOtherWoodJobPosts(GameTestHelper helper) {
         checkScan(helper, WOOD.subList(5, 10));
     }
 
     /** The 5 job buildings of the stone, the earth and the metal: see {@link #checkScan}. */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_stone", skyAccess = true)
-    public static void heartCountsTheStoneJobBuildings(GameTestHelper helper) {
+    public static void heartFindsTheStoneJobPosts(GameTestHelper helper) {
         checkScan(helper, STONE);
     }
 
     /** The 5 job buildings of the crafts: see {@link #checkScan}. */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_crafts", skyAccess = true)
-    public static void heartCountsTheCraftJobBuildings(GameTestHelper helper) {
+    public static void heartFindsTheCraftJobPosts(GameTestHelper helper) {
         checkScan(helper, CRAFTS);
     }
 
     /** The 4 job buildings of the cloth and the paper: see {@link #checkScan}. */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_cloth", skyAccess = true)
-    public static void heartCountsTheClothJobBuildings(GameTestHelper helper) {
+    public static void heartFindsTheClothJobPosts(GameTestHelper helper) {
         checkScan(helper, CLOTH);
     }
 

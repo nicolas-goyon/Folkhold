@@ -41,9 +41,11 @@ public final class SettlementData extends SavedData {
      * version 0) and the data saves with the current version. A tag of a later version loads with a warning.
      * Version 3 adds the job posts ({@code JobPosts}, see {@link JobPosts}) and the mark {@code LegacyJobs}. A
      * settlement with no posts has unknown posts: it has the job slots of its level until the next scan of its heart.
-     * A settlement of an earlier version with an initialized economy is a legacy village: it gets the mark.
+     * A settlement of format version 2 or lower with an initialized economy is a legacy village: it gets the mark.
      */
     static final int VERSION = 3;
+    /** The first format version with the job posts. A save of a lower version has no list of posts. */
+    static final int POSTS_VERSION = 3;
 
     private final SettlementRegistry registry = new SettlementRegistry();
     private final Set<Long> checkedRegions = new HashSet<>();
@@ -265,7 +267,7 @@ public final class SettlementData extends SavedData {
                     : Settlement.NO_FALL_PENALTY);
             loadEconomy(settlement.economy(), entry.getCompound("Economy"));
             settlement.setLegacyJobs(entry.getBoolean("LegacyJobs")
-                    || (version < VERSION && !hasPosts && settlement.economy().isInitialized()));
+                    || (version < POSTS_VERSION && !hasPosts && settlement.economy().isInitialized()));
             if (data.registry.byId(settlement.id()).isEmpty()) {
                 data.registry.add(settlement);
             }

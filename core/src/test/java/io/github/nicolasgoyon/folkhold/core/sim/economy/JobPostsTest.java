@@ -58,20 +58,42 @@ class JobPostsTest {
     }
 
     @Test
-    void firstScanPutsThePostsThatTradeFirst() {
-        List<Post> ordered = JobPosts.order(Optional.empty(), List.of(SMITH, FARMER, MASON),
-                job -> !job.equals("smith"));
-        assertEquals(List.of(FARMER, MASON, SMITH), ordered);
+    void postWithAJobThatIsNotValidTakesNoInhabitant() {
+        Post hut = new Post("fisher", 30, 64, 0, 2);
+        assertEquals(List.of("farmer"), JobPosts.activeJobs(List.of(hut, FARMER, MASON), job -> !job.equals("fisher"),
+                2));
     }
 
     @Test
-    void laterScanKeepsTheOrderAndAddsTheNewPostsAtTheEnd() {
+    void legacySlotsCountOnlyTheActivePosts() {
+        List<String> jobs = JobPosts.jobs(Optional.of(List.of(FARMER, MASON)), true, SLOT_JOBS.subList(0, 2), 2,
+                JobPostsTest::allValid, 2);
+        assertEquals(List.of("farmer", "baker"), jobs);
+    }
+
+    @Test
+    void foodPostThatTradesComesFirst() {
+        Post smithFirst = new Post("smith", 0, 64, 0, 2);
+        Post farmer = new Post("farmer", 10, 64, 0, 2);
+        Post digger = new Post("digger", 20, 64, 0, 2);
+        List<Post> ordered = JobPosts.order(Optional.empty(), List.of(digger, smithFirst, farmer),
+                job -> job.equals("farmer"), job -> !job.equals("digger"));
+        assertEquals(List.of(farmer, smithFirst, digger), ordered);
+        // A small village (2 inhabitants of the homes) has its food post active.
+        assertEquals(List.of("farmer"), JobPosts.activeJobs(ordered, JobPostsTest::allValid, 2));
+    }
+
+    @Test
+    void laterScanKeepsTheOrderInEachGroupAndAddsTheNewPosts() {
         Post mason = new Post("mason", 10, 64, 0, 3);
-        List<Post> ordered = JobPosts.order(Optional.of(List.of(MASON, FARMER)), List.of(SMITH, FARMER, mason),
-                JobPostsTest::allValid);
-        assertEquals(List.of(mason, FARMER, SMITH), ordered);
-        assertEquals(List.of(FARMER), JobPosts.order(Optional.of(List.of(MASON, FARMER)), List.of(FARMER),
-                JobPostsTest::allValid));
+        List<Post> ordered = JobPosts.order(Optional.of(List.of(MASON, SMITH)), List.of(FARMER, SMITH, mason),
+                JobPostsTest::none, JobPostsTest::allValid);
+        assertEquals(List.of(mason, SMITH, FARMER), ordered);
+        List<Post> withFood = JobPosts.order(Optional.of(List.of(MASON, SMITH)), List.of(FARMER, SMITH, mason),
+                job -> job.equals("farmer"), JobPostsTest::allValid);
+        assertEquals(List.of(FARMER, mason, SMITH), withFood);
+        assertEquals(List.of(SMITH), JobPosts.order(Optional.of(List.of(MASON, SMITH)), List.of(SMITH),
+                JobPostsTest::none, JobPostsTest::allValid));
     }
 
     @Test
@@ -83,5 +105,9 @@ class JobPostsTest {
 
     private static boolean allValid(String job) {
         return true;
+    }
+
+    private static boolean none(String job) {
+        return false;
     }
 }

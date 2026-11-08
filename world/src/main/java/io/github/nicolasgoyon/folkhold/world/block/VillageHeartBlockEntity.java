@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
@@ -553,7 +554,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
 
     /**
      * Records the job posts of the village in the settlement (see {@link JobPosts}), from the last scan of the village.
-     * The settlement keeps the order of its known posts. A heart with no village structure has no homes to find: its
+     * The posts with a food job that trades come first, then the posts with an other job that trades (see
+     * {@link JobPosts#order}). A heart with no village structure has no homes to find: its
      * posts stay unknown, and the village keeps the job slots of its level.
      */
     public void recordJobPosts() {
@@ -567,7 +569,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         List<JobPosts.Post> scanned = VillageBeds.posts(serverLevel, worldPosition, layout.jobSigns(), layout.beds(),
                 reference.get());
         Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
-            List<JobPosts.Post> posts = JobPosts.order(settlement.jobPosts(), scanned, Merchants::trades);
+            List<JobPosts.Post> posts = JobPosts.order(settlement.jobPosts(), scanned, Economies::producesFood,
+                    Merchants::trades);
             if (settlement.setJobPosts(Optional.of(posts))) {
                 SettlementData.get(serverLevel.getServer()).setDirty();
             }
