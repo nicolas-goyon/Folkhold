@@ -9,7 +9,7 @@ apply from: rootProject.file('gradle/mod-common.gradle')
 
 // The JUnit tests of core run with no game. Gson comes with the game, so the tests add the version of Minecraft 1.21.1.
 dependencies {
-    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation 'com.google.code.gson:gson:2.15.0'
 }
 
 // Code coverage of the JUnit tests. The HTML report is in build/reports/jacoco/test/html.
