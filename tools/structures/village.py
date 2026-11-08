@@ -677,10 +677,12 @@ def lantern(t, x, y, z):
     t.set(x, y, z, "minecraft:lantern", {"hanging": "false", "waterlogged": "false"})
 
 
-def bed(t, x, z_foot, color="blue"):
-    """A bed with the foot at z_foot and the head at z_foot + 1 (toward the back wall)."""
-    t.set(x, 1, z_foot, f"minecraft:{color}_bed", {"facing": "south", "part": "foot", "occupied": "false"})
-    t.set(x, 1, z_foot + 1, f"minecraft:{color}_bed", {"facing": "south", "part": "head", "occupied": "false"})
+def bed(t, x, z_foot, color="blue", facing="south"):
+    """A bed with the foot at (x, z_foot) and the head 1 block in the direction of facing: toward the back wall for
+    "south", toward the east wall for "east"."""
+    dx, dz = SIDES[facing]
+    t.set(x, 1, z_foot, f"minecraft:{color}_bed", {"facing": facing, "part": "foot", "occupied": "false"})
+    t.set(x + dx, 1, z_foot + dz, f"minecraft:{color}_bed", {"facing": facing, "part": "head", "occupied": "false"})
 
 
 def cottage():
@@ -714,12 +716,15 @@ def barracks():
 BLACKSMITH = ("blacksmith", "minecraft:anvil")
 
 
-def forge():
+def forge(home=False):
     """The forge: an open front, an anvil, a blast furnace, a furnace, a smithing table, a grindstone (the work block
     of the vanilla weaponsmith) and a water cauldron to cool the metal. The forge is the building of the blacksmith:
-    the job sign stands next to the west porch post, and the building sign of the forge next to the east porch post."""
+    the job sign stands next to the west porch post, and the building sign of the forge next to the east porch post.
+
+    With home, the forge is the house-workshop of the blacksmith (the piece job_blacksmith): the building sign is the
+    house sign, and 2 beds stand on the side walls (see home_beds)."""
     rng = random.Random(4)
-    t = house_shell(rng, cobble, cobble, "forge", wide_front=True)
+    t = house_shell(rng, cobble, cobble, "house" if home else "forge", wide_front=True)
     job_sign(t, 1, 1, 0, *BLACKSMITH)
     for y in range(1, 5):
         connect_fences(t, y)
@@ -730,6 +735,8 @@ def forge():
     t.set(1, 1, 7, "minecraft:grindstone", {"face": "floor", "facing": "north"})
     t.set(7, 1, 3, "minecraft:water_cauldron", {"level": "3"})
     lantern(t, 1, 1, 2)
+    if home:
+        home_beds(t, (1, 4), (7, 4))
     return t
 
 
@@ -1407,6 +1414,21 @@ FARMLAND = ("minecraft:farmland", {"moisture": "7"})
 TOWARD = {"north": "south", "south": "north", "west": "east", "east": "west"}
 
 
+# The beds of a house-workshop: each job building is the home of a household that does the job. Each job building has
+# HOME_BEDS beds, and each bed gives a place to an inhabitant of the village (see VillageBeds).
+HOME_BEDS = 2
+HOME_BED_COLOR = "brown"
+
+
+def home_beds(t, *feet, facing="south"):
+    """The HOME_BEDS beds of a house-workshop: the foot (x, z) of each bed, and the direction of its head. A foot
+    (x, z, facing) gives the direction of its bed. A bed stands next to a free floor block, so that an inhabitant can
+    go to it."""
+    assert len(feet) == HOME_BEDS, feet
+    for foot in feet:
+        bed(t, foot[0], foot[1], HOME_BED_COLOR, foot[2] if len(foot) > 2 else facing)
+
+
 def job_sign(t, x, y, z, job, icon, facing="north"):
     """The job sign of a building: the job id (the name of the job file) and the icon item (see JobSignBlockEntity)."""
     t.set(x, y, z, JOB_SIGN, {"facing": facing}, {"id": JOB_SIGN, "job": job, "icon": icon})
@@ -1418,16 +1440,19 @@ def block(entry):
 
 
 def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"level": "0"})):
-    """The building of a job of the fields and the gardens: a timber frame shed and a garden behind it.
+    """The house-workshop of a job of the fields and the gardens: a timber frame shed and a garden behind it.
 
     - The shed: the house shell (see house_shell) with a body of SHED_DEPTH - 1 rows, a door on the street and a back
-      door to the garden. The job sign stands on the porch, next to the east porch post.
-    - The work blocks: the work block of the vanilla profession of the job (a composter for the farmer) and a barrel in
-      the shed.
+      door to the garden. The job sign stands on the porch next to the west porch post, and the house sign next to the
+      east porch post.
+    - The work blocks: the work block of the vanilla profession of the job (a composter for the farmer) in the west
+      half of the shed, and a barrel next to the door.
+    - The home: 2 beds side by side in the east half of the shed, with the heads to the east. The path from the door to
+      the back door (x = 4) goes along the feet of the beds.
     - The garden: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
       None. A fence goes around the garden, with a lantern on each back corner.
     """
-    t = house_shell(rng, cobble, planks, None, depth=SHED_DEPTH)
+    t = house_shell(rng, cobble, planks, "house", depth=SHED_DEPTH)
     mid = W // 2
     back = SHED_DEPTH - 1
     for y, half in ((1, "lower"), (2, "upper")):
@@ -1435,9 +1460,10 @@ def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"
               {"facing": "south", "half": half, "hinge": "left", "open": "false", "powered": "false"})
     t.set(mid, 3, back, "minecraft:stripped_spruce_log", {"axis": "x"})
     t.set(1, 1, back - 1, *work)
-    t.set(W - 2, 1, back - 1, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(mid - 1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
     lantern(t, W - 2, 1, 2)
-    job_sign(t, W - 2, 1, 0, job, icon)
+    home_beds(t, (mid + 1, 2), (mid + 1, 3), facing="east")
+    job_sign(t, 1, 1, 0, job, icon)
     for x in range(W):
         for z in range(SHED_DEPTH, D):
             if x in GARDEN_X and z in GARDEN_Z:
@@ -1628,11 +1654,13 @@ def apiary():
     return t
 
 
-def job_house(rng, job, icon, wall_upper, wide_front=False):
-    """The building of a job of the food: the house shell with a door on the street, or an open shop front. The job
-    sign stands on the porch, next to the east porch post."""
-    t = house_shell(rng, cobble, wall_upper, None, wide_front=wide_front)
-    job_sign(t, W - 2, 1, 0, job, icon)
+def job_house(rng, job, icon, wall_upper, beds, wide_front=False):
+    """The house-workshop of a job in a house: the house shell with a door on the street, or an open shop front. The
+    job sign stands on the porch next to the west porch post, and the house sign next to the east porch post. beds
+    gives the foot of each bed of the home (see home_beds): the head is 1 block to the back wall."""
+    t = house_shell(rng, cobble, wall_upper, "house", wide_front=wide_front)
+    home_beds(t, *beds)
+    job_sign(t, 1, 1, 0, job, icon)
     for y in range(1, 5):
         connect_fences(t, y)
     return t
@@ -1658,7 +1686,7 @@ def bakery():
     """The building of the baker: a brick oven, a crafting table to knead the dough, barrels of flour, the wheat on
     hay bales and a cake on the counter."""
     rng = random.Random(56)
-    t = job_house(rng, "baker", "minecraft:bread", planks)
+    t = job_house(rng, "baker", "minecraft:bread", planks, ((1, 3), (7, 3)))
     oven(t, 4)
     t.set(1, 1, 7, "minecraft:crafting_table")
     for x, z in ((1, 6), (2, 7)):
@@ -1675,7 +1703,7 @@ def pastry_shop():
     """The building of the pastry cook: an open shop front, a counter with cakes, a brick oven, pumpkins and barrels
     of sugar."""
     rng = random.Random(57)
-    t = job_house(rng, "pastry_cook", "minecraft:pumpkin_pie", calcite, wide_front=True)
+    t = job_house(rng, "pastry_cook", "minecraft:pumpkin_pie", calcite, ((2, 5), (6, 4)), wide_front=True)
     oven(t, 4)
     # The counter behind the open front, with a free passage in the middle.
     for x in (1, 2, 6, 7):
@@ -1694,7 +1722,7 @@ def butchery():
     """The building of the butcher: 2 smokers (the work block of the vanilla butcher), a block of coal, a chopping
     block, and a rack of chains on a beam across the room. The chains leave 2 blocks of space under them."""
     rng = random.Random(58)
-    t = job_house(rng, "butcher", "minecraft:cooked_beef", planks)
+    t = job_house(rng, "butcher", "minecraft:cooked_beef", planks, ((1, 4), (7, 4)))
     for x in (5, 6):
         t.set(x, 1, 7, "minecraft:smoker", {"facing": "north", "lit": "false"})
     t.set(7, 1, 7, "minecraft:coal_block")
@@ -1814,7 +1842,7 @@ def sawmill(job, wood):
     All the sawyers have this shape. Only the wood of the logs, the planks and the slabs changes.
     """
     rng = random.Random(62)
-    t = job_house(rng, job, f"minecraft:{wood}_planks", planks)
+    t = job_house(rng, job, f"minecraft:{wood}_planks", planks, ((1, 5), (7, 4)))
     bench = 5
     for x in (2, 3):
         job_material(t, x, 1, bench, f"minecraft:{wood}_log", {"axis": "x"})
@@ -1900,7 +1928,7 @@ def mason_workshop():
     a block of stone to cut, a brick kiln on the back wall, and stacks of stone bricks, bricks, smooth stone and
     terracotta. The stacks of stone bricks stay stone bricks in all the variants."""
     rng = random.Random(65)
-    t = job_house(rng, "mason", "minecraft:stone_bricks", stone_bricks)
+    t = job_house(rng, "mason", "minecraft:stone_bricks", stone_bricks, ((1, 4), (6, 5)))
     oven(t, 4)
     for x, y, z in ((1, 1, D - 2), (1, 2, D - 2), (2, 1, D - 2), (1, 1, D - 3)):
         job_material(t, x, y, z, "minecraft:stone_bricks")
@@ -1935,7 +1963,7 @@ def smeltery(job):
     """
     icon, ores, plate = SMELTERS[job]
     rng = random.Random(66)
-    t = job_house(rng, job, icon, lambda r: "minecraft:bricks")
+    t = job_house(rng, job, icon, lambda r: "minecraft:bricks", ((1, 3), (7, 4)))
     oven(t, 4)
     for x in (2, W - 3):
         t.set(x, 1, D - 2, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
@@ -1957,7 +1985,7 @@ def tinker_workshop():
     iron and copper, a crafting table, a short track of rails, and a counter with lanterns and a lightning rod (the
     goods of the job)."""
     rng = random.Random(67)
-    t = job_house(rng, "tinker", "minecraft:bucket", planks)
+    t = job_house(rng, "tinker", "minecraft:bucket", planks, ((2, 5), (7, 2)))
     t.set(W - 3, 1, D - 2, "minecraft:smithing_table")
     t.set(1, 1, D - 2, "minecraft:iron_block")
     t.set(1, 2, D - 2, "minecraft:waxed_copper_block")
@@ -2003,7 +2031,7 @@ def carpenter_workshop():
     """The building of the carpenter: a house with 2 crafting tables, a bench of oak slabs, a stack of oak planks, and
     chests and barrels (the goods of the job). The oak planks and the oak slabs stay oak in all the variants."""
     rng = random.Random(69)
-    t = job_house(rng, "carpenter", "minecraft:crafting_table", planks)
+    t = job_house(rng, "carpenter", "minecraft:crafting_table", planks, ((2, 5), (6, 5)))
     t.set(2, 1, 4, "minecraft:crafting_table")
     t.set(W - 3, 1, 4, "minecraft:crafting_table")
     for x in (3, W - 2):
@@ -2072,7 +2100,7 @@ def weaving_house():
     """The building of the weaver: a house with 2 looms (the work block of the vanilla shepherd), stacks of white wool,
     a crafting table for the beds, a barrel, and a counter with rolls of cloth (white carpets)."""
     rng = random.Random(72)
-    t = job_house(rng, "weaver", "minecraft:white_carpet", planks)
+    t = job_house(rng, "weaver", "minecraft:white_carpet", planks, ((1, 3), (2, 3)))
     for x in (2, W - 3):
         t.set(x, 1, D - 2, *LOOM)
     for x, y, z in ((1, 1, D - 2), (1, 2, D - 2), (1, 1, D - 3)):
@@ -2113,7 +2141,7 @@ def paper_mill():
     pulp (water cauldrons), barrels of sugar cane, a crafting table, bookshelves, and a counter with sheets of paper
     to dry (white carpets). The path from the door to the lectern stays free."""
     rng = random.Random(74)
-    t = job_house(rng, "papermaker", "minecraft:paper", planks)
+    t = job_house(rng, "papermaker", "minecraft:paper", planks, ((1, 3, "east"), (7, 4)))
     t.set(W // 2, 1, D - 3, "minecraft:lectern", {"facing": "north", "has_book": "false", "powered": "false"})
     for x in (3, W - 4):
         t.set(x, 1, D - 2, *WATER_CAULDRON)
@@ -2149,7 +2177,7 @@ JOBS = {
     "digger": dig_yard,
     "mason": mason_workshop,
     **{job: functools.partial(smeltery, job) for job in SMELTERS},
-    "blacksmith": forge,
+    "blacksmith": functools.partial(forge, home=True),
     "tinker": tinker_workshop,
     "fletcher": fletcher_range,
     "carpenter": carpenter_workshop,
