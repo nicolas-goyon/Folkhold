@@ -1,12 +1,14 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
-import io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.PostAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
@@ -551,15 +553,25 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Records the job buildings of the village in the settlement (see {@link JobBuildings}), from the last scan of the
-     * village.
+     * Records the job posts of the village in the settlement (see {@link JobPosts}), from the last scan of the village.
+     * The posts with a food job that trades come first, then the posts with an other job that trades (see
+     * {@link JobPosts#order}). A heart with no village structure has no homes to find: its
+     * posts stay unknown, and the village keeps the job slots of its level.
      */
-    public void recordJobBuildings() {
+    public void recordJobPosts() {
         if (!(level instanceof ServerLevel serverLevel) || !layout.isScanned()) {
             return;
         }
+        Optional<VillageReference> reference = repairReference(serverLevel);
+        if (reference.isEmpty()) {
+            return;
+        }
+        List<JobPosts.Post> scanned = VillageBeds.posts(serverLevel, worldPosition, layout.jobSigns(), layout.beds(),
+                reference.get());
         Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
-            if (settlement.setJobBuildings(Optional.of(layout.jobBuildings()))) {
+            List<JobPosts.Post> posts = JobPosts.order(settlement.jobPosts(), scanned, Economies::producesFood,
+                    Merchants::trades);
+            if (settlement.setJobPosts(Optional.of(posts))) {
                 SettlementData.get(serverLevel.getServer()).setDirty();
             }
         });
@@ -637,7 +649,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
         recordGates();
         recordBeds();
-        recordJobBuildings();
+        recordJobPosts();
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }

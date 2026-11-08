@@ -108,10 +108,20 @@ public final class Merchants {
                 .toList();
     }
 
+    /**
+     * True if the workers of a job trade: the job file gives a profession.
+     *
+     * @param jobId the job id
+     * @return true for a job that trades
+     */
+    public static boolean trades(String jobId) {
+        return VillageFolk.professionOf(jobId) != ModProfessions.INHABITANT.get();
+    }
+
     /** The number of different active jobs of a settlement that trade: the jobs of the traders. */
     public static int tradingJobCount(Settlement settlement) {
         return (int) Economies.activeJobIds(settlement).stream()
-                .filter(job -> VillageFolk.professionOf(job) != ModProfessions.INHABITANT.get())
+                .filter(Merchants::trades)
                 .distinct()
                 .count();
     }
