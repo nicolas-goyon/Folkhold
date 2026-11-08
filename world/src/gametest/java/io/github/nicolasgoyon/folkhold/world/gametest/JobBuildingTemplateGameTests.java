@@ -198,9 +198,8 @@ public final class JobBuildingTemplateGameTests {
     }
 
     /**
-     * A forge with no job sign is a building of the blacksmith: the scan counts its building sign. A forge with the 2
-     * signs (the forge of a world from an earlier version, with a job sign) counts once. Thus the blacksmith stays
-     * active when its job needs a building.
+     * A forge with no job sign is a building of the blacksmith: the scan counts its building sign. A forge with a forge
+     * sign and a blacksmith job sign counts once. Thus the blacksmith stays active when its job needs a building.
      */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_forge", skyAccess = true)
     public static void forgeWithNoJobSignIsABlacksmithBuilding(GameTestHelper helper) {
