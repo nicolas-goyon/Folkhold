@@ -49,44 +49,75 @@ public final class FirstJobsGameTests {
     private static final int FIRST_CHUNK = 12000;
     /** The distance between 2 candidate chunks, in chunks. */
     private static final int CANDIDATE_STEP = 12;
-    private static final int CANDIDATES = 4;
-    /** The house-workshops of the street to the south of the plaza in the base style. */
-    private static final int BASE_WORKSHOPS = 2;
+    private static final int CANDIDATES = 8;
 
     private FirstJobsGameTests() {
     }
 
-    /**
-     * Each generated village of the base style has {@link #BASE_WORKSHOPS} house-workshops, and one of them is the
-     * house-workshop of a food job. Its job sign names a job with a minimum level of 1 that trades. No other piece of
-     * the village has a job sign.
-     */
+    /** The villages of the base style: see {@link #checkStyle}. */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "first_jobs_village")
     public static void generatedVillageHasAFoodHouseWorkshop(GameTestHelper helper) {
+        checkStyle(helper, "", 2, 0);
+    }
+
+    /**
+     * The villages of the Sunreach style: see {@link #checkStyle}. The houses of 13 x 13 blocks of the next streets
+     * do not take the space of the house-workshops.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "first_jobs_village_sunreach")
+    public static void sunreachVillageHasAFoodHouseWorkshop(GameTestHelper helper) {
+        checkStyle(helper, "sunreach/", 2, 1);
+    }
+
+    /**
+     * The villages of the Valeholm style: see {@link #checkStyle}. A Norse street has 3 plots of house-workshops, and
+     * the side long houses of the next streets do not take their space.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "first_jobs_village_valeholm")
+    public static void valeholmVillageHasAFoodHouseWorkshop(GameTestHelper helper) {
+        checkStyle(helper, "valeholm/", 3, 2);
+    }
+
+    /** The maritime villages: see {@link #checkStyle}. The fishing huts of the pool of the houses do not count. */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "first_jobs_village_maritime")
+    public static void maritimeVillageHasAFoodHouseWorkshop(GameTestHelper helper) {
+        checkStyle(helper, "maritime/", 2, 3);
+    }
+
+    /**
+     * Each generated village of a style has its house-workshops ({@code job_<id>} pieces) on the street to the south
+     * of the plaza, and one of them is the house-workshop of a food job. Each job sign of a house-workshop names a job
+     * with a minimum level of 1 that trades.
+     *
+     * @param folder    the folder of the pieces of the style
+     * @param workshops the number of house-workshops of a village of the style
+     * @param row       the row of the candidate chunks of the style
+     */
+    private static void checkStyle(GameTestHelper helper, String folder, int workshops, int row) {
         ServerLevel level = helper.getLevel();
         FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
                 .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
         Registry<StructureTemplatePool> pools = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
-        // The base style with no variants: the biome of the GameTest world does not select another style.
-        FortifiedVillageStructure base = new FortifiedVillageStructure(new Structure.StructureSettings(
+        // The style with no variants: the biome and the culture of the GameTest world do not select another style.
+        FortifiedVillageStructure village = new FortifiedVillageStructure(new Structure.StructureSettings(
                 structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
-                pool(pools, "village/plaza"), structure.size(), structure.maxDistanceFromCenter(), structure.wall(),
-                pool(pools, "village/homes"), List.of());
+                pool(pools, "village/" + folder + "plaza"), structure.size(), structure.maxDistanceFromCenter(),
+                structure.wall(), pool(pools, "village/" + folder + "homes"), List.of());
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         for (int i = 0; i < CANDIDATES; i++) {
-            ChunkPos chunk = new ChunkPos(FIRST_CHUNK + i * CANDIDATE_STEP, FIRST_CHUNK);
-            StructureStart start = base.generate(level.registryAccess(), generator, generator.getBiomeSource(),
+            ChunkPos chunk = new ChunkPos(FIRST_CHUNK + i * CANDIDATE_STEP, FIRST_CHUNK + row * CANDIDATE_STEP);
+            StructureStart start = village.generate(level.registryAccess(), generator, generator.getBiomeSource(),
                     level.getChunkSource().randomState(), level.getServer().getStructureManager(), level.getSeed(),
                     chunk, 0, level, biome -> true);
             helper.assertTrue(start.isValid(), "The village must start in " + chunk);
-            List<String> ids = jobsOf(level, start);
-            helper.assertTrue(ids.size() == BASE_WORKSHOPS, "The village in " + chunk + " must have "
-                    + BASE_WORKSHOPS + " house-workshops: " + ids);
+            List<String> ids = workshopJobs(level, start);
+            helper.assertTrue(ids.size() == workshops, "The village " + folder + " in " + chunk + " must have "
+                    + workshops + " house-workshops: " + ids);
             List<Job> jobs = ids.stream().map(EconomyData.jobs()::get).filter(job -> job != null
                     && job.minLevel() == 1 && trades(job)).toList();
             helper.assertTrue(jobs.size() == ids.size(), "Each job must have a minimum level of 1 and trade: " + ids);
             helper.assertTrue(jobs.stream().anyMatch(job -> job.producesFood(EconomyData.catalog())),
-                    "The village in " + chunk + " must have a food job: " + ids);
+                    "The village " + folder + " in " + chunk + " must have a food job: " + ids);
         }
         helper.succeed();
     }
@@ -134,14 +165,15 @@ public final class FirstJobsGameTests {
         helper.succeed();
     }
 
-    /** The job ids of the job signs of the pieces of a village. */
-    private static List<String> jobsOf(ServerLevel level, StructureStart start) {
+    /** The job ids of the job signs of the house-workshops ({@code job_<id>} pieces) of a village. */
+    private static List<String> workshopJobs(ServerLevel level, StructureStart start) {
         List<String> jobs = new ArrayList<>();
         for (StructurePiece piece : start.getPieces()) {
             if (!(piece instanceof PoolElementStructurePiece pool)) {
                 continue;
             }
             Optional<StructureTemplate> template = VillageReference.templateOf(level, pool.getElement())
+                    .filter(id -> id.getPath().substring(id.getPath().lastIndexOf('/') + 1).startsWith("job_"))
                     .flatMap(level.getStructureManager()::get);
             if (template.isEmpty()) {
                 continue;

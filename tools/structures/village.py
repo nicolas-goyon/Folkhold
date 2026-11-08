@@ -493,10 +493,13 @@ def plaza():
     for (x, z) in ((1, 1), (PLAZA - 2, 1), (1, PLAZA - 2)):
         lamp_post(t, x, z)
     # The connectors of the streets, in the middle of each side. The street to the north has the plot of the bank, and
-    # the street to the south has the plots of the first house-workshops.
+    # the street to the south has the plots of the first house-workshops. The jigsaw places the plots of the street to
+    # the south first (placement priority): a large house of a next street (13 x 13 in Sunreach, a side long house in
+    # Valeholm) does not take the space of a house-workshop.
     last = PLAZA - 1
     t.jigsaw(PLAZA_MID, 0, 0, "north_up", PLAZA_EXIT, STREET, BANK_STREETS_POOL, "minecraft:dirt_path")
-    t.jigsaw(PLAZA_MID, 0, last, "south_up", PLAZA_EXIT, STREET, JOB_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(PLAZA_MID, 0, last, "south_up", PLAZA_EXIT, STREET, JOB_STREETS_POOL, "minecraft:dirt_path",
+             placement_priority=1)
     t.jigsaw(0, 0, PLAZA_MID, "west_up", PLAZA_EXIT, STREET, FIRST_STREETS_POOL, "minecraft:dirt_path")
     t.jigsaw(last, 0, PLAZA_MID, "east_up", PLAZA_EXIT, STREET, FIRST_STREETS_POOL, "minecraft:dirt_path")
     return t
