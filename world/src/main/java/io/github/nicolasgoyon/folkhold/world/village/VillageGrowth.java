@@ -24,6 +24,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
 /**
  * The growth of a village: its builders build new homes and the buildings of its level on the free plots of its
@@ -35,6 +36,12 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
  *       market, the village has no market and trades at the plaza (see {@link VillageMarket}). A plot in a chunk that is
  *       not ready can be free: then the state of the market does not change. The growth then goes on
  *       with the next step. The market comes when a plot is free again.</li>
+ *   <li>The heart keeps the plot of its market (see {@link VillageMarket.Plot}). A broken market, or a market with a
+ *       site that stopped before its end, gets a new site on this plot with the same piece: the village takes no other
+ *       plot. While a chunk of this plot is not ready, or while a block of a player stands at the position of the
+ *       market sign or of the market post (see {@link VillageMarket.State#BLOCKED}), the growth goes on with the next
+ *       step. Before the steps, the heart scans the village again when a market sign of its scan is broken (see
+ *       {@link VillageHeartBlockEntity#checkMarkets}).</li>
  *   <li>A village that needs places gets a new home: the population of the settlement is more than the places (see
  *       {@link VillageBeds}). The home comes from the pool of the homes of the village structure.</li>
  *   <li>Else, a village with a missing building of its level gets this building (see {@link VillageBuildings} and
@@ -83,6 +90,7 @@ public final class VillageGrowth {
         if (settlement.isEmpty() || reference.isEmpty() || reference.get().homes().isEmpty()) {
             return Optional.empty();
         }
+        heart.checkMarkets(level);
         VillageLayout layout = heart.getLayout();
         List<VillageBuildings.Step> steps = VillageBuildings.steps(VillageBuildingTable.get(),
                 settlement.get().level(), layout.buildings(), layout.isScanned(), needsPlaces(settlement.get()));
@@ -91,14 +99,34 @@ public final class VillageGrowth {
                 .sorted(Comparator.comparingDouble(plot -> plot.connector().distSqr(heartPos)))
                 .toList();
         for (VillageBuildings.Step step : steps) {
+            boolean market = step.type() == VillageBuildings.StepType.MARKET;
+            Optional<VillageMarket.Plot> marketPlot = market ? heart.marketPlot().filter(plot -> hasTemplate(level,
+                    heartPos, plot)) : Optional.empty();
+            if (marketPlot.isPresent()) {
+                // The village keeps the plot of its market: the market goes again on this plot. A block of a player
+                // at the market sign or at the market post stops it: the growth goes on with the next step.
+                if (VillageMarket.isBlocked(level, heartPos, marketPlot.get())) {
+                    continue;
+                }
+                Optional<BuilderSite> site = rebuild(level, heartPos, marketPlot.get());
+                if (site.isPresent()) {
+                    heart.setMarketNoSpace(false);
+                    return site;
+                }
+                continue;
+            }
             Optional<StructurePoolElement> element = piece(level, step, reference.get().homes().get());
             Attempt attempt = element.map(found -> start(level, heart, reference.get(), plots, found))
                     .orElse(Attempt.NONE);
-            if (step.type() == VillageBuildings.StepType.MARKET && (attempt.site().isPresent() || attempt.complete())) {
+            if (market && (attempt.site().isPresent() || attempt.complete())) {
                 // A plot in a chunk that is not ready can be free: the heart keeps the last known state.
                 heart.setMarketNoSpace(element.isPresent() && attempt.site().isEmpty());
             }
             if (attempt.site().isPresent()) {
+                BuilderSite site = attempt.site().get();
+                if (market) {
+                    heart.setMarketPlot(new VillageMarket.Plot(site.template(), site.origin(), site.rotation()));
+                }
                 return attempt.site();
             }
         }
@@ -147,6 +175,34 @@ public final class VillageGrowth {
             }
         }
         return new Attempt(Optional.empty(), complete);
+    }
+
+    /** True if the template of the plot of the market exists. Else the market goes on a new free plot. */
+    private static boolean hasTemplate(ServerLevel level, BlockPos heartPos, VillageMarket.Plot plot) {
+        if (level.getStructureManager().get(plot.template()).isPresent()) {
+            return true;
+        }
+        FolkholdWorld.LOGGER.debug("Village {}: the template {} of the market plot {} does not exist", heartPos,
+                plot.template(), plot.origin());
+        return false;
+    }
+
+    /**
+     * Starts the construction of the market on its plot again. The plot is not free: the box of the first site of the
+     * market keeps its blocks. The builders build only the missing blocks.
+     *
+     * @return the construction site, or empty while a chunk of the plot is not ready
+     */
+    private static Optional<BuilderSite> rebuild(ServerLevel level, BlockPos heartPos, VillageMarket.Plot plot) {
+        StructureTemplate template = level.getStructureManager().get(plot.template()).orElseThrow();
+        BoundingBox box = GhostPlacement.box(template.getSize(), plot.rotation(), Mirror.NONE, plot.origin());
+        if (!ReadyChunks.isAreaReady(level, box.minX(), box.minZ(), box.maxX(), box.maxZ())) {
+            return Optional.empty();
+        }
+        FolkholdWorld.LOGGER.debug("Village {}: the market {} again on its plot {}", heartPos, plot.template(),
+                plot.origin());
+        return Optional.of(BuilderSites.start(level, plot.template(), plot.origin(), plot.rotation(), Mirror.NONE,
+                heartPos, null));
     }
 
     private static Optional<StructureTemplatePool> pool(ServerLevel level, ResourceLocation id) {

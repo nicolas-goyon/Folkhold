@@ -1,5 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageBuildings;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
@@ -9,11 +11,17 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
 /**
  * The trade place of a village: its market square, or its plaza.
@@ -26,6 +34,11 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  *   <li>A hamlet (below the level 5) trades at the plaza. A village of the level 5 or more with no market also trades
  *       at the plaza until its market is built. With no free plot, the village has no market until a plot is free
  *       again (the state {@link State#NO_SPACE}).</li>
+ *   <li>The heart keeps the plot of its market (see {@link Plot}). When the market is broken, or when its site stops
+ *       before its end, the growth builds the market again on this plot, with the same piece. The village takes no
+ *       other plot for its market. A block of a player at the position of the market sign or of the market post stops
+ *       this construction (the state {@link State#BLOCKED}). The plot of a market of the village structure comes from
+ *       its piece at the first scan.</li>
  * </ul>
  *
  * <p>The area of the market is the box of the market piece: the box of the construction site that built it, or the box
@@ -51,8 +64,9 @@ public final class VillageMarket {
         /** The level of the village needs no market: the village trades at the plaza. */
         HAMLET,
         /**
-         * The level needs a market and the village has none. The growth builds it at its next check, when the setting
-         * {@code construction.growth} is on and the village has builders and no other site.
+         * The level needs a market and the village has none, or its market is broken. The growth builds it at its next
+         * check, when the setting {@code construction.growth} is on and the village has builders and no other site. A
+         * broken market gets its construction again on its plot.
          */
         MISSING,
         /** The builders build the market. */
@@ -62,6 +76,13 @@ public final class VillageMarket {
          * growth examined all the plots: a check with a plot in a chunk that is not ready keeps the last known state.
          */
         NO_SPACE,
+        /**
+         * The level needs a market, the market of the village is broken, and a block of a player stands at the position
+         * of the market sign or of the market post of its plot. The builders never change a block of a player: the
+         * growth does not build the market again and goes on with the next step. The market comes when the player
+         * removes the block.
+         */
+        BLOCKED,
         /** The village has a market. */
         BUILT
     }
@@ -77,6 +98,53 @@ public final class VillageMarket {
         public TradePlace {
             Objects.requireNonNull(point, "point");
             Objects.requireNonNull(area, "area");
+        }
+    }
+
+    /**
+     * The plot of the market of a village: the piece and its placement. The growth sets it when it starts the market.
+     * The heart saves it.
+     *
+     * @param template the id of the template of the market piece
+     * @param origin   the position of the origin of the template
+     * @param rotation the turn of the template
+     */
+    public record Plot(ResourceLocation template, BlockPos origin, Rotation rotation) {
+        private static final String TEMPLATE_TAG = "Template";
+        private static final String ORIGIN_TAG = "Origin";
+        private static final String ROTATION_TAG = "Rotation";
+
+        public Plot {
+            Objects.requireNonNull(template, "template");
+            Objects.requireNonNull(origin, "origin");
+            Objects.requireNonNull(rotation, "rotation");
+        }
+
+        /** The plot as a tag. */
+        public CompoundTag save() {
+            CompoundTag tag = new CompoundTag();
+            tag.putString(TEMPLATE_TAG, template.toString());
+            tag.put(ORIGIN_TAG, NbtUtils.writeBlockPos(origin));
+            tag.putString(ROTATION_TAG, rotation.name());
+            return tag;
+        }
+
+        /**
+         * The plot of a tag.
+         *
+         * @param tag the tag
+         * @return the plot, or empty for a tag that is not valid
+         */
+        public static Optional<Plot> load(CompoundTag tag) {
+            ResourceLocation template = ResourceLocation.tryParse(tag.getString(TEMPLATE_TAG));
+            Optional<BlockPos> origin = NbtUtils.readBlockPos(tag, ORIGIN_TAG);
+            Rotation rotation;
+            try {
+                rotation = Rotation.valueOf(tag.getString(ROTATION_TAG));
+            } catch (IllegalArgumentException e) {
+                return Optional.empty();
+            }
+            return template == null ? Optional.empty() : origin.map(found -> new Plot(template, found, rotation));
         }
     }
 
@@ -99,6 +167,9 @@ public final class VillageMarket {
                 .anyMatch(site -> site.template().getPath().endsWith("/" + VillageBuildings.MARKET));
         if (building) {
             return State.BUILDING;
+        }
+        if (heart.marketPlot().filter(plot -> isBlocked(level, heart.getBlockPos(), plot)).isPresent()) {
+            return State.BLOCKED;
         }
         return heart.isMarketNoSpace() ? State.NO_SPACE : State.MISSING;
     }
@@ -123,6 +194,58 @@ public final class VillageMarket {
         BoundingBox plaza = reference.flatMap(found -> pieceAt(level, found, heartPos, PLAZA))
                 .orElseGet(() -> around(heartPos));
         return new TradePlace(false, heartPos, plaza);
+    }
+
+    /**
+     * True if a block of a player stands at the position of a market sign or of a market post of the piece of a plot.
+     * The builders never change a block of a player: a site on this plot cannot build the market.
+     *
+     * @param level the level
+     * @param heart the position of the village heart
+     * @param plot  the plot of the market
+     * @return true if the plot cannot get its market sign with its post
+     */
+    public static boolean isBlocked(ServerLevel level, BlockPos heart, Plot plot) {
+        Optional<StructureTemplate> template = level.getStructureManager().get(plot.template());
+        if (template.isEmpty()) {
+            return false;
+        }
+        VillageRepairData data = VillageRepairData.get(level);
+        Block sign = ModBlocks.BUILDING_SIGNS.get(BuildingSignKind.MARKET).get();
+        for (StructureTemplate.StructureBlockInfo info : template.get().filterBlocks(plot.origin(),
+                GhostPlacement.settings(plot.rotation(), Mirror.NONE), sign)) {
+            // The template gives the position and the state of the sign with the turn of the plot.
+            BlockPos post = info.pos().relative(info.state().getValue(HorizontalDirectionalBlock.FACING).getOpposite());
+            if (data.isPlayerBlock(heart, info.pos()) || data.isPlayerBlock(heart, post)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The plot of a market piece of the village structure: the piece that holds a market sign.
+     *
+     * @param level     the level
+     * @param reference the reference of the village structure
+     * @param sign      the position of the market sign
+     * @return the plot, or empty when no market piece holds the sign
+     */
+    public static Optional<Plot> generatedPlot(ServerLevel level, VillageReference reference, BlockPos sign) {
+        String name = "/" + VillageBuildings.MARKET;
+        for (VillageReference.Piece piece : reference.pieces()) {
+            if (!piece.template().getPath().endsWith(name)) {
+                continue;
+            }
+            boolean holds = level.getStructureManager().get(piece.template())
+                    .map(found -> GhostPlacement.box(found.getSize(), piece.rotation(), Mirror.NONE, piece.origin()))
+                    .filter(box -> box.isInside(sign))
+                    .isPresent();
+            if (holds) {
+                return Optional.of(new Plot(piece.template(), piece.origin(), piece.rotation()));
+            }
+        }
+        return Optional.empty();
     }
 
     /** The box of the first piece of the village structure with a name that holds a position. */

@@ -25,6 +25,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -231,6 +232,26 @@ public final class VillageLayout {
     public static boolean isMarket(BlockGetter level, BlockPos pos, BlockState state) {
         Direction back = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
         return level.getBlockState(pos.relative(back)).is(MARKET_POSTS);
+    }
+
+    /**
+     * True if the market sign at a position is broken: the block is not a market sign any more, or the block behind it
+     * is not a market post (see {@link #isMarket}). A sign or a post in a chunk that is not ready is not broken.
+     *
+     * @param level the level
+     * @param pos   the position of the market sign of the scan
+     * @return true for a broken market
+     */
+    public static boolean isMarketBroken(ServerLevel level, BlockPos pos) {
+        if (!ReadyChunks.isReady(level, pos)) {
+            return false;
+        }
+        BlockState state = level.getBlockState(pos);
+        if (!state.is(ModBlocks.BUILDING_SIGNS.get(BuildingSignKind.MARKET).get())) {
+            return true;
+        }
+        BlockPos post = pos.relative(state.getValue(HorizontalDirectionalBlock.FACING).getOpposite());
+        return ReadyChunks.isReady(level, post) && !isMarket(level, pos, state);
     }
 
     /** The number of building signs of each kind, for example {@code forge}. */
