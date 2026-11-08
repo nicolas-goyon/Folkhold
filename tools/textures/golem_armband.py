@@ -15,11 +15,14 @@ texture is 32 x 16 pixels. It uses the areas of a box with these sizes at the te
 The texture is gray: the color of the faction tints it. White gives the exact color of the faction, and a darker gray
 gives a darker shade. The other pixels stay transparent.
 
-Requires Pillow.
+Requires Pillow and PixVox (tools/pixvox/requirements.txt). The PNG file is not written when its pixels do not
+change (png_file.write_png).
 """
 import os
 
 from PIL import Image
+
+from png_file import write_png
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "world", "src", "main", "resources", "assets",
                    "folkhold_world", "textures", "entity", "faction_golem", "armband.png")
@@ -55,8 +58,10 @@ def armband():
 
 def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    armband().save(OUT)
-    print("Wrote", os.path.relpath(OUT))
+    if write_png(OUT, armband()):
+        print("Wrote", os.path.relpath(OUT))
+    else:
+        print("Same pixels, not written:", os.path.relpath(OUT))
 
 
 if __name__ == "__main__":

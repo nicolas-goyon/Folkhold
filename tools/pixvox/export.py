@@ -93,8 +93,7 @@ def write_json(path, data):
 
 
 def export(assets, pack):
-    from pixvox import export_pack
-    from pixvox.export import verified
+    from pixvox import export_pack, verified
 
     infos = export_pack(assets, root=str(pack), namespace=NS)
     failed = [info for info in infos if not verified(info)]
