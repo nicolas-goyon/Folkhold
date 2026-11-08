@@ -18,16 +18,23 @@ import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.BellBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -55,6 +62,10 @@ import net.neoforged.neoforge.registries.DeferredBlock;
  *       job does not count. A building sign of a kind in {@link #BUILDING_JOBS} also counts as a building of its job:
  *       the count of the job is the larger of its job signs and these building signs. Thus a forge with no job sign is
  *       a building of the blacksmith, and a forge with the 2 signs counts once.</li>
+ *   <li><b>markets</b>: the market signs of the market squares: a building sign of the kind {@code market} with the
+ *       market post behind it (a block of the tag {@link #MARKET_POSTS}). The scan does not count a market sign with
+ *       no market post, for example the sign of the fish market of a maritime village: this sign is not in
+ *       {@link #markets()} and not in the count of the kind {@code market} of {@link #buildings()}.</li>
  * </ul>
  *
  * <p>The scan area is the area of the village structure (see {@link VillageReference#area()}), larger by
@@ -74,12 +85,15 @@ public final class VillageLayout {
     /** The scan area is larger than the area of the village structure by this number of blocks on each side. */
     static final int AREA_MARGIN = 1;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 11;
+    static final int VERSION = 12;
     /**
      * The kinds of building signs that also name a job: the job id of each kind. Each forge is a building of the
      * blacksmith, also a forge with no job sign.
      */
     static final Map<String, String> BUILDING_JOBS = Map.of("forge", FolkholdWorld.MOD_ID + ":blacksmith");
+    /** The blocks of a market post: the market sign of a market square stands in front of one. */
+    public static final TagKey<Block> MARKET_POSTS = TagKey.create(Registries.BLOCK,
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "market_posts"));
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -100,6 +114,7 @@ public final class VillageLayout {
     private final List<BlockPos> bells = new ArrayList<>();
     private final List<BlockPos> questBoards = new ArrayList<>();
     private final List<BlockPos> beds = new ArrayList<>();
+    private final List<BlockPos> markets = new ArrayList<>();
     private final Map<String, Integer> buildings = new HashMap<>();
     private final Map<String, Integer> jobBuildings = new HashMap<>();
 
@@ -200,6 +215,24 @@ public final class VillageLayout {
         return Collections.unmodifiableList(beds);
     }
 
+    /** The market signs of the market squares, in the scan order. */
+    public List<BlockPos> markets() {
+        return Collections.unmodifiableList(markets);
+    }
+
+    /**
+     * Checks a market sign: the sign of a market square has the market post behind it.
+     *
+     * @param level the level
+     * @param pos   the position of the market sign
+     * @param state the state of the market sign
+     * @return true if the block behind the sign is in the tag {@link #MARKET_POSTS}
+     */
+    public static boolean isMarket(BlockGetter level, BlockPos pos, BlockState state) {
+        Direction back = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
+        return level.getBlockState(pos.relative(back)).is(MARKET_POSTS);
+    }
+
     /** The number of building signs of each kind, for example {@code forge}. */
     public Map<String, Integer> buildings() {
         return Collections.unmodifiableMap(buildings);
@@ -290,6 +323,7 @@ public final class VillageLayout {
         bells.clear();
         questBoards.clear();
         beds.clear();
+        markets.clear();
         buildings.clear();
         jobBuildings.clear();
         BlockPos min = new BlockPos(area.minX(), area.minY(), area.minZ());
@@ -322,9 +356,16 @@ public final class VillageLayout {
             } else if (state.getBlock() instanceof BuildingSignBlock) {
                 for (Map.Entry<BuildingSignKind, DeferredBlock<BuildingSignBlock>> sign
                         : ModBlocks.BUILDING_SIGNS.entrySet()) {
-                    if (state.is(sign.getValue().get())) {
-                        buildings.merge(sign.getKey().serializedName(), 1, Integer::sum);
+                    if (!state.is(sign.getValue().get())) {
+                        continue;
                     }
+                    if (sign.getKey() == BuildingSignKind.MARKET) {
+                        if (!isMarket(level, pos, state)) {
+                            continue;
+                        }
+                        markets.add(pos.immutable());
+                    }
+                    buildings.merge(sign.getKey().serializedName(), 1, Integer::sum);
                 }
             }
         }
@@ -354,6 +395,7 @@ public final class VillageLayout {
         tag.put("Bells", savePositions(bells));
         tag.put("QuestBoards", savePositions(questBoards));
         tag.put("Beds", savePositions(beds));
+        tag.put("Markets", savePositions(markets));
         CompoundTag kinds = new CompoundTag();
         buildings.forEach(kinds::putInt);
         tag.put("Buildings", kinds);
@@ -377,6 +419,7 @@ public final class VillageLayout {
         loadPositions(tag, "Bells", bells);
         loadPositions(tag, "QuestBoards", questBoards);
         loadPositions(tag, "Beds", beds);
+        loadPositions(tag, "Markets", markets);
         buildings.clear();
         CompoundTag kinds = tag.getCompound("Buildings");
         for (String kind : kinds.getAllKeys()) {

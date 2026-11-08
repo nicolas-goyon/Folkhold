@@ -573,6 +573,20 @@ A recipe with no inputs produces nothing. The job goes into "need" state and buy
   - **Planned**: the generation and the growth of a village do not place the job buildings yet (#635), and the growth does not build a forge. Thus no job of the fields, the gardens, the food, the animals, the wood, the stone, the earth, the metal, the crafts, the cloth and the paper sets `"building": true`. The generation puts a forge on some plots of the streets (pool `houses`).
 - A job needs its building when its job file sets `"building": true`. A job file without `"building"` keeps its job active, so a village with no job building keeps its production until the job buildings of its culture exist.
 
+**Market square.** The market is the place where the workers of the village trade, and where a caravan stops during its stay. The piece `village/market` (pool `village/market` of each variant, all the cultures and the maritime villages) takes the plot of one house: the connector `house_front` is in the middle of the street side.
+
+- The size comes from the plots of the street pieces:
+  - Base, Sunreach and maritime streets: a segment of 13 blocks has 1 plot on each side. A house is 9 blocks along the street and 9 to 13 blocks deep. The market is 15 blocks along the street and 9 blocks deep: the depth of a house of 9 × 9 blocks. Along the street, it goes 3 blocks farther than a house on each side: 1 block stays free between the market and the plaza, and the market does not go past the end of the street.
+  - Valeholm streets: a segment of 21 blocks has 2 plots on each side, 10 blocks apart. A long house is 9 blocks along the street and 17 blocks deep, and a side long house is 17 blocks along the street and 10 blocks deep. The market is 9 blocks along the street and 15 blocks deep: it is in the space of a long house.
+  - Rule: the market fits each plot where a home of the culture fits. On a plot, the market touches a piece of the village only if a home on the plot also touches it (GameTest `MarketGameTests.marketFitsEachPlot`, on the generated villages of each style).
+- A paved square, open on all the sides. The market post (a log with a lantern on it) stands in the free middle, with the market sign (`building_sign_market`) on its side to the street.
+- The free middle: 7 × 7 blocks around the market post, for the workers: about 26 workers at the level 12 (2 workers for each of 13 job slots).
+- Stalls along the sides of the free middle (3 on the base streets, 2 on the Valeholm streets): fence posts, an awning of wool stripes, a counter that faces the middle with a lantern on it, and a barrel.
+- A small caravan yard in the corner at the west of the street side, out of the free middle: a hitching rail with lanterns on the edge, a place for the mules of 2 × 3 blocks that opens on the street, a water trough (a water cauldron) and a hay bale. The mules come in from the street and do not go through the free middle.
+- A lamp post at each corner. No block that hurts, no water source, no bell: the heart rings each bell in its scan area in an alert.
+- The scan of the heart keeps the positions of the market signs of the market squares (`VillageLayout.markets`): a market sign with the market post behind it (a block of the tag `folkhold_world:market_posts`). The count of the kind `market` uses the same rule. The fish market of a maritime village has a market sign with no market post behind it: it is not a market.
+- **Planned**: the village builds its market at the level 5 from the pool `village/market`, and a hamlet trades at the plaza (#637). The workers go to the market point at the market hours (#642).
+
 The population consumes food at each cycle.
 
 ### Price formula

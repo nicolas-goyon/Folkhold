@@ -261,9 +261,9 @@ public final class JobBuildingTemplateGameTests {
 
     /**
      * The template gives each fence the shape that the game gives it from its neighbors: a fence connects to the
-     * fences and to the shed, not to the plants.
+     * fences and to the solid blocks of the building, not to the plants.
      */
-    private static void checkFences(GameTestHelper helper, List<BoundingBox> boxes) {
+    static void checkFences(GameTestHelper helper, List<BoundingBox> boxes) {
         ServerLevel level = helper.getLevel();
         List<String> wrong = new ArrayList<>();
         int fences = 0;
@@ -281,7 +281,7 @@ public final class JobBuildingTemplateGameTests {
                 }
             }
         }
-        helper.assertTrue(fences > 0, "The job buildings must have fences");
+        helper.assertTrue(fences > 0, "The buildings must have fences");
         helper.assertTrue(wrong.isEmpty(), "Fences with a wrong shape: " + wrong);
     }
 
