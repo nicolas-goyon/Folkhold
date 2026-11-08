@@ -125,9 +125,11 @@ class Template:
                 for z in range(min(z1, z2), max(z1, z2) + 1):
                     self.set(x, y, z, name, props)
 
-    def jigsaw(self, x, y, z, orientation, name, target, pool, final_state, placement_priority=0):
+    def jigsaw(self, x, y, z, orientation, name, target, pool, final_state, placement_priority=0,
+               selection_priority=0):
         """A jigsaw block. orientation: for example "north_up" (the block faces north). The jigsaw processes the piece
-        of a connector with a higher placement_priority before the pieces of the other connectors."""
+        of a connector with a higher placement_priority before the pieces of the other connectors. In a piece, the
+        jigsaw fills the connectors with a higher selection_priority first."""
         self.set(x, y, z, "minecraft:jigsaw", {"orientation": orientation}, {
             "id": "minecraft:jigsaw",
             "name": name,
@@ -136,7 +138,7 @@ class Template:
             "final_state": final_state,
             "joint": "rollable",
             "placement_priority": placement_priority,
-            "selection_priority": 0,
+            "selection_priority": selection_priority,
         })
 
     def write(self, path):

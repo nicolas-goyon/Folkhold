@@ -1135,13 +1135,17 @@ def norse_street(bank=False, jobs=False):
     mid = STREET_WIDTH // 2
     t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
     t.jigsaw(mid, 0, NORSE_STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET, STREET_ENDS_POOL, "minecraft:dirt_path")
+    # The jigsaw fills the plots of the house-workshops first (selection priority): a side long house on the other
+    # plot of the street does not take their space.
     for i, z in enumerate(NORSE_PLOTS):
         if jobs:
             west, east = (FOOD_JOBS_POOL, START_JOBS_POOL) if i == 0 else (START_JOBS_POOL, HOUSE_POOL)
         else:
             west, east = BANK_POOL if bank and i == 0 else HOUSE_POOL, HOUSE_POOL
-        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air")
-        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, east, "minecraft:air")
+        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air",
+                 selection_priority=int(jobs and west != HOUSE_POOL))
+        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, east, "minecraft:air",
+                 selection_priority=int(jobs and east != HOUSE_POOL))
     lamp_post(t, STREET_WIDTH - 1, NORSE_PLOTS[0] + 5)
     lamp_post(t, 0, NORSE_STREET_LENGTH - 1)
     return t
