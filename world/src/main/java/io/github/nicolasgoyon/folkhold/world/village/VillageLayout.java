@@ -18,16 +18,23 @@ import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.BellBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -55,8 +62,10 @@ import net.neoforged.neoforge.registries.DeferredBlock;
  *       job does not count. A building sign of a kind in {@link #BUILDING_JOBS} also counts as a building of its job:
  *       the count of the job is the larger of its job signs and these building signs. Thus a forge with no job sign is
  *       a building of the blacksmith, and a forge with the 2 signs counts once.</li>
- *   <li><b>markets</b>: the market signs (building signs of the kind {@code market}). A market sign marks the market
- *       of the village: the market square and the fish market of a maritime village.</li>
+ *   <li><b>markets</b>: the market signs of the market squares: a building sign of the kind {@code market} with the
+ *       market post behind it (a block of the tag {@link #MARKET_POSTS}). The scan does not count a market sign with
+ *       no market post, for example the sign of the fish market of a maritime village: this sign is not in
+ *       {@link #markets()} and not in the count of the kind {@code market} of {@link #buildings()}.</li>
  * </ul>
  *
  * <p>The scan area is the area of the village structure (see {@link VillageReference#area()}), larger by
@@ -82,6 +91,9 @@ public final class VillageLayout {
      * blacksmith, also a forge with no job sign.
      */
     static final Map<String, String> BUILDING_JOBS = Map.of("forge", FolkholdWorld.MOD_ID + ":blacksmith");
+    /** The blocks of a market post: the market sign of a market square stands in front of one. */
+    public static final TagKey<Block> MARKET_POSTS = TagKey.create(Registries.BLOCK,
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "market_posts"));
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -203,9 +215,22 @@ public final class VillageLayout {
         return Collections.unmodifiableList(beds);
     }
 
-    /** The market signs, in the scan order. */
+    /** The market signs of the market squares, in the scan order. */
     public List<BlockPos> markets() {
         return Collections.unmodifiableList(markets);
+    }
+
+    /**
+     * Checks a market sign: the sign of a market square has the market post behind it.
+     *
+     * @param level the level
+     * @param pos   the position of the market sign
+     * @param state the state of the market sign
+     * @return true if the block behind the sign is in the tag {@link #MARKET_POSTS}
+     */
+    public static boolean isMarket(BlockGetter level, BlockPos pos, BlockState state) {
+        Direction back = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
+        return level.getBlockState(pos.relative(back)).is(MARKET_POSTS);
     }
 
     /** The number of building signs of each kind, for example {@code forge}. */
@@ -331,12 +356,16 @@ public final class VillageLayout {
             } else if (state.getBlock() instanceof BuildingSignBlock) {
                 for (Map.Entry<BuildingSignKind, DeferredBlock<BuildingSignBlock>> sign
                         : ModBlocks.BUILDING_SIGNS.entrySet()) {
-                    if (state.is(sign.getValue().get())) {
-                        buildings.merge(sign.getKey().serializedName(), 1, Integer::sum);
-                        if (sign.getKey() == BuildingSignKind.MARKET) {
-                            markets.add(pos.immutable());
-                        }
+                    if (!state.is(sign.getValue().get())) {
+                        continue;
                     }
+                    if (sign.getKey() == BuildingSignKind.MARKET) {
+                        if (!isMarket(level, pos, state)) {
+                            continue;
+                        }
+                        markets.add(pos.immutable());
+                    }
+                    buildings.merge(sign.getKey().serializedName(), 1, Integer::sum);
                 }
             }
         }

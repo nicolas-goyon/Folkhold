@@ -24,7 +24,8 @@ adds the palisade, the towers and the gates around them. Pieces:
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
 - bank.nbt: the village bank. Its walls and its chests resist explosions.
 - job_<id>.nbt: the building of a job (see JOBS), in the pool village/jobs. Each building has the job sign of its job.
-- market.nbt: the market square, in the pool village/market. It has the market sign (see market).
+- market.nbt: the market square, in the pool village/market. It takes the plot of one house, and it has the market
+  sign in front of the market post (see market).
 - tower.nbt: a tower of the palisade, with the stair along the palisade. The outside of the template is to the west
   and to the north: the shape of a corner tower. The towers between the corners use the same template.
 - gate.nbt: a gate of 3 blocks in the palisade. The outside of the template is to the north.
@@ -2133,83 +2134,107 @@ def paper_mill():
 
 # ---------------------------------------------------------------- market
 
-# The market square: MARKET_SIZE x MARKET_SIZE blocks, as the plaza. z = 0 is the street side, with the jigsaw
-# connector house_front in the middle.
-MARKET_SIZE = 15
-MARKET_MID = MARKET_SIZE // 2  # 7
+# The market square takes the plot of one house. x goes along the street, z goes away from the street: z = 0 is the
+# street side, with the jigsaw connector house_front in the middle. Each layout has:
+# - size: (width along the street, depth);
+# - post: (x, z) of the market post, in the middle of the free part of the square;
+# - stalls: (x, z, facing) of each stall: the corner with the lowest x and z, and the direction of the counter.
+# The caravan yard is in the corner at the west of the street side (see caravan_yard).
+MARKET_LAYOUTS = {
+    # Base, Sunreach and maritime streets: 15 blocks along the street, 9 blocks deep (the depth of a house of 9 x 9).
+    "wide": {
+        "size": (15, 9),
+        "post": (7, 4),
+        "stalls": ((1, 5, "east"), (11, 1, "west"), (11, 5, "west")),
+    },
+    # Valeholm streets: 9 blocks along the street, 15 blocks deep (inside the space of a long house of 9 x 17).
+    "deep": {
+        "size": (9, 15),
+        "post": (4, 7),
+        "stalls": ((1, 11, "north"), (5, 11, "north")),
+    },
+}
 MARKET_HEIGHT = 6
-# The stalls: the first row (z) of each stall, on the west side and on the east side. A stall is 3 blocks deep.
-STALL_ROWS = (2, 6, 10)
-# The wool of the awning of each stall, in the order of STALL_ROWS, west side then east side.
-AWNINGS = ("red", "yellow", "blue", "lime", "orange", "purple")
+# The wool of the awning of each stall, in the order of the stalls of the layout.
+AWNINGS = ("red", "yellow", "blue", "lime")
+# The direction of a counter: the step (dx, dz) from the middle of the stall to the counter.
+COUNTER_SIDES = {"east": (1, 0), "west": (-1, 0), "north": (0, -1)}
 
 
-def stall(t, west, z0, color):
-    """A stall of 3 x 3 blocks on a side of the square: 4 fence posts, an awning of wool stripes, a counter that
-    faces the middle of the square, a barrel and a lantern on the counter.
+def stall(t, x0, z0, facing, color):
+    """A stall of 3 x 3 blocks: 4 fence posts at the corners, an awning of wool stripes, a counter of a top slab with a
+    lantern on it, and a barrel in the middle of the stall.
 
-    The barrel is in the middle of the stall, not next to a post: a fence connects to a barrel."""
-    outer, counter = (1, 3) if west else (MARKET_SIZE - 2, MARKET_SIZE - 4)
-    step = 1 if west else -1
-    for x in (outer, counter):
+    The counter is in the middle of the side of the stall in the direction facing. The barrel is not next to a post:
+    a fence connects to a barrel."""
+    for x in (x0, x0 + 2):
         for z in (z0, z0 + 2):
             for y in (1, 2):
                 t.set(x, y, z, "minecraft:spruce_fence")
-    for x in range(outer, counter + step, step):
+    dx, dz = COUNTER_SIDES[facing]
+    for x in range(x0, x0 + 3):
         for z in range(z0, z0 + 3):
-            t.set(x, 3, z, f"minecraft:{'white' if z == z0 + 1 else color}_wool")
-    t.set(counter, 1, z0 + 1, *TOP_SLAB)
-    lantern(t, counter, 2, z0 + 1)
-    t.set(outer + step, 1, z0 + 1, *BARREL)
+            # The white stripe goes from the counter to the back of the stall.
+            stripe = (x == x0 + 1) if dx == 0 else (z == z0 + 1)
+            t.set(x, 3, z, f"minecraft:{'white' if stripe else color}_wool")
+    mx, mz = x0 + 1, z0 + 1
+    t.set(mx + dx, 1, mz + dz, *TOP_SLAB)
+    lantern(t, mx + dx, 2, mz + dz)
+    t.set(mx, 1, mz, *BARREL)
 
 
-def market():
-    """The market square: the place where the workers of the village trade, and where a caravan stops.
+def caravan_yard(t):
+    """The caravan yard: the corner at the west of the street side (x = 0 to 3, z = 1 to 3), out of the middle of the
+    square. The mules come in from the street.
+
+    - A hitching rail of 3 fences on the west edge (x = 0), with a lantern on each end.
+    - The place of the mules: x = 1 and 2, z = 1 to 3.
+    - A water trough (a water cauldron) and a hay bale at x = 3. They are not next to a fence."""
+    for z in (1, 2, 3):
+        t.set(0, 1, z, "minecraft:spruce_fence")
+    for z in (1, 3):
+        lantern(t, 0, 2, z)
+    t.set(3, 1, 1, *WATER_CAULDRON)
+    t.set(3, 1, 3, "minecraft:hay_block", LOG_Y)
+
+
+def market(layout):
+    """The market square: the place where the workers of the village trade, and where a caravan stops. It takes the
+    plot of one house (see MARKET_LAYOUTS).
 
     - The square is paved: cobblestone with a border of stone bricks. It is open on all the sides, and the side on the
       street (z = 0) is free.
-    - The market post stands in the middle: a log with a lantern on it, on chiseled stone bricks. The market sign stands
-      on the north side of the post and faces the street. The heart finds the market by this sign.
-    - 6 stalls along the west side and the east side (see stall). The counters face the middle of the square.
-    - The middle of the square stays free for the workers, around the market post: 7 x 11 blocks (x = 4 to 10,
-      z = 1 to 11).
-    - The caravan yard at the back: a hitching rail of fences with 2 lanterns, 2 hay bales and 2 water troughs (water
-      cauldrons) for the mules. The rail is not next to the hay bales or the troughs.
+    - The market post stands in the free middle of the square: a log with a lantern on it, on chiseled stone bricks.
+      The market sign stands on the street side of the post and faces the street. The heart finds the market by this
+      sign: the market post is behind it (tag folkhold_world:market_posts).
+    - The stalls (see stall) along the sides of the free middle. The counters face the middle.
+    - The free middle: 7 x 7 blocks around the market post, for the workers.
+    - The caravan yard in a corner of the street side (see caravan_yard).
     - A lamp post at each corner.
     """
+    spec = MARKET_LAYOUTS[layout]
+    width, depth = spec["size"]
     rng = random.Random(81)
-    last = MARKET_SIZE - 1
-    t = Template(MARKET_SIZE, MARKET_HEIGHT, MARKET_SIZE)
-    t.fill(0, 1, 0, last, MARKET_HEIGHT - 1, last, "minecraft:air")
-    for x in range(MARKET_SIZE):
-        for z in range(MARKET_SIZE):
-            border = x in (0, last) or z in (0, last)
+    t = Template(width, MARKET_HEIGHT, depth)
+    t.fill(0, 1, 0, width - 1, MARKET_HEIGHT - 1, depth - 1, "minecraft:air")
+    for x in range(width):
+        for z in range(depth):
+            border = x in (0, width - 1) or z in (0, depth - 1)
             t.set(x, 0, z, "minecraft:stone_bricks" if border else cobble(rng))
-    # The market post and the market sign.
-    mid = MARKET_MID
-    t.set(mid, 0, mid, "minecraft:chiseled_stone_bricks")
+    px, pz = spec["post"]
+    t.set(px, 0, pz, "minecraft:chiseled_stone_bricks")
     for y in (1, 2, 3):
-        t.set(mid, y, mid, "minecraft:stripped_spruce_log", LOG_Y)
-    lantern(t, mid, 4, mid)
-    building_sign(t, mid, 1, mid - 1, "market")
-    for i, z0 in enumerate(STALL_ROWS):
-        stall(t, True, z0, AWNINGS[i])
-        stall(t, False, z0, AWNINGS[len(STALL_ROWS) + i])
-    # The caravan yard.
-    back = last - 1
-    for x in (mid - 1, mid, mid + 1):
-        t.set(x, 1, back, "minecraft:spruce_fence")
-    for x in (mid - 1, mid + 1):
-        lantern(t, x, 2, back)
-    for x in (mid - 3, mid + 3):
-        t.set(x, 1, back, "minecraft:hay_block", LOG_Y)
-    for x in (mid - 2, mid + 2):
-        t.set(x, 1, back - 1, "minecraft:water_cauldron", {"level": "3"})
-    for x, z in ((0, 0), (last, 0), (0, last), (last, last)):
+        t.set(px, y, pz, "minecraft:stripped_spruce_log", LOG_Y)
+    lantern(t, px, 4, pz)
+    building_sign(t, px, 1, pz - 1, "market")
+    for (x0, z0, facing), color in zip(spec["stalls"], AWNINGS):
+        stall(t, x0, z0, facing, color)
+    caravan_yard(t)
+    for x, z in ((0, 0), (width - 1, 0), (0, depth - 1), (width - 1, depth - 1)):
         lamp_post(t, x, z)
     for y in (1, 2):
         connect_fences(t, y)
-    t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
+    t.jigsaw(width // 2, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
     return t
 
 
@@ -2255,7 +2280,7 @@ PIECES = {
     "house_forge": forge,
     "house_storehouse": storehouse,
     "bank": bank,
-    "market": market,
+    "market": functools.partial(market, "wide"),
     **{f"job_{job}": build for job, build in JOBS.items()},
 }
 
@@ -2272,6 +2297,7 @@ STYLES = {
         "house_forge": norse_forge,
         "house_storehouse": norse_storehouse,
         "house_storehouse_side": norse_storehouse_side,
+        "market": functools.partial(market, "deep"),
     },
     "sunreach": {
         "house_cottage": sun_cottage,
