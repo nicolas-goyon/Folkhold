@@ -119,4 +119,13 @@ class JobTradesTest {
         assertEquals(0, JobTrades.share(7, 0, 0));
         assertEquals(0, JobTrades.share(0, 3, 0));
     }
+
+    @Test
+    void unsoldGoodsAreTheStockThatNoJobMakes() {
+        Map<String, Integer> stock = Map.of("sword", 2, "iron", 4, "coal", 40, "bread", 64, "emerald", 9);
+
+        assertEquals(List.of("bread", "coal", "iron"), JobTrades.unsold(List.of(SMITH), stock, CATALOG,
+                JobTradesTest::known), "No sword, no currency, the most valuable stock first");
+        assertEquals(List.of(), JobTrades.unsold(List.of(), Map.of("bread", 0), CATALOG, JobTradesTest::known));
+    }
 }

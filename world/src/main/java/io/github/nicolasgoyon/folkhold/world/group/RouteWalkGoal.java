@@ -24,8 +24,9 @@ import net.minecraft.world.phys.Vec3;
  *   <li>The target is a point of the route a little in front of the merchant. At the start of the route, the
  *       target is at {@link #DEPARTURE_DISTANCE} blocks or more on the route: out of the walls of the origin
  *       village.</li>
- *   <li>Near the end of the route, the target is the heart of the destination, if the heart is known. The group
- *       arrives near the heart (see {@link GroupMaterializer#isAtDestination}).</li>
+ *   <li>Near the end of the route, the target is the stop of the group at the destination, if the heart of the
+ *       destination is known: the caravan yard of the market, or the heart at the plaza (see {@link CaravanStays}).
+ *       The group arrives near the stop (see {@link GroupMaterializer#isAtDestination}).</li>
  *   <li>The merchant has the navigation of the faction units: its path to a target behind the walls of a village goes
  *       through a gate, and it opens the gate (see {@link io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant}).
  *       </li>
@@ -59,7 +60,7 @@ public class RouteWalkGoal extends Goal {
      * of a village is 39 blocks wide: a target at this distance from the heart is out of the walls.
      */
     static final double DEPARTURE_DISTANCE = 40.0;
-    /** The merchant goes to the destination heart at this distance or less from the end of the route, in blocks. */
+    /** The merchant goes to its stop at this distance or less from the end of the route, in blocks. */
     static final double FINAL_APPROACH = 48.0;
     /** The merchant waits when a member of its group is farther than this distance, in blocks. */
     static final double WAIT_DISTANCE = 10.0;
@@ -141,10 +142,10 @@ public class RouteWalkGoal extends Goal {
         }
         Route route = group.route();
         double progress = route.progressNear(mob.getX(), mob.getZ());
-        Optional<BlockPos> heart = GroupMaterializer.destinationHeart(level.getServer(), group);
-        double toHeart = heart.map(pos -> horizontalDistance(pos)).orElse(Double.MAX_VALUE);
-        boolean nearEnd = route.length() - progress <= FINAL_APPROACH || toHeart <= FINAL_APPROACH;
-        if (heart.isPresent() && nearEnd != approach) {
+        Optional<BlockPos> stop = CaravanStays.stop(level, group).map(CaravanStays.Stop::pos);
+        double toStop = stop.map(pos -> horizontalDistance(pos)).orElse(Double.MAX_VALUE);
+        boolean nearEnd = route.length() - progress <= FINAL_APPROACH || toStop <= FINAL_APPROACH;
+        if (stop.isPresent() && nearEnd != approach) {
             approach = nearEnd;
             bestProgress = -Double.MAX_VALUE;
             stuckTicks = 0;
@@ -153,13 +154,13 @@ public class RouteWalkGoal extends Goal {
         double targetZ;
         double measure;
         double targetProgress = Math.max(progress + LOOKAHEAD, DEPARTURE_DISTANCE);
-        boolean approachingHeart = heart.isPresent() && approach;
-        if (approachingHeart) {
-            // The heart itself: the path goes through a gate of the village. The heart can be far from the end of a
+        boolean approachingStop = stop.isPresent() && approach;
+        if (approachingStop) {
+            // The stop itself: the path goes through a gate of the village. The stop can be far from the end of a
             // route of an earlier position.
-            targetX = heart.get().getX() + 0.5;
-            targetZ = heart.get().getZ() + 0.5;
-            measure = -toHeart;
+            targetX = stop.get().getX() + 0.5;
+            targetZ = stop.get().getZ() + 0.5;
+            measure = -toStop;
         } else {
             Route.Position next = route.positionAt(targetProgress);
             targetX = next.x();
@@ -184,7 +185,7 @@ public class RouteWalkGoal extends Goal {
             mob.getNavigation().stop();
             return;
         }
-        int y = approachingHeart ? level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z)
+        int y = approachingStop ? level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z)
                 : RoadNetwork.standY(level, route, targetProgress, x, z, ROAD_RADIUS);
         if (stuckTicks > STUCK_TICKS) {
             mob.getNavigation().stop();

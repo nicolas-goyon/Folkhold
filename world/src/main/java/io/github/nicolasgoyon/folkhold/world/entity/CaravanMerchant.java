@@ -2,10 +2,14 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UsePassageGoal;
+import io.github.nicolasgoyon.folkhold.world.group.CaravanStays;
 import io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.group.RouteWalkGoal;
+import java.util.EnumSet;
 import java.util.List;
+import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -13,6 +17,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.LookAtTradingPlayerGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
@@ -34,8 +39,9 @@ import net.minecraft.world.level.Level;
  *   <li>It has the navigation of the faction units ({@link UnitNavigation}): its path can go through a gate of a
  *       village, and it opens and closes the fence gates and the wooden doors ({@link UsePassageGoal}). A gate stays
  *       open until the mules and the guards of its group are through it.</li>
- *   <li>After the arrival of its group, it walks near the destination heart (its restriction area, see
- *       {@link io.github.nicolasgoyon.folkhold.world.group.GroupMaterializer#release}).</li>
+ *   <li>After the arrival of its caravan, it walks to the stop of the caravan and stays there: the caravan yard of
+ *       the market, or the plaza (see {@link CaravanStays}). During this stay, it sells the goods of the stock of the
+ *       destination that no worker sells, at all the hours.</li>
  * </ul>
  */
 public class CaravanMerchant extends WanderingTrader {
@@ -46,6 +52,14 @@ public class CaravanMerchant extends WanderingTrader {
     public static final double ROUTE_SPEED = 0.45;
     /** Speed factor of the merchant when it walks in a village after the arrival. */
     private static final double STROLL_SPEED = 0.4;
+    /** Game ticks between two paths to the stop. */
+    private static final int STAY_REPATH_TICKS = 40;
+    /** After this time far from the stop, the merchant moves directly to the stop, in game ticks. */
+    private static final int STAY_STUCK_TICKS = 400;
+
+    /** The id of the destination settlement during the stay, or null. Not saved: the stay ends at a load. */
+    @Nullable
+    private String staySettlement;
 
     public CaravanMerchant(EntityType<? extends WanderingTrader> type, Level level) {
         super(type, level);
@@ -71,6 +85,7 @@ public class CaravanMerchant extends WanderingTrader {
         goalSelector.addGoal(1, new TradeWithPlayerGoal(this));
         goalSelector.addGoal(1, new LookAtTradingPlayerGoal(this));
         goalSelector.addGoal(2, new RouteWalkGoal(this, ROUTE_SPEED));
+        goalSelector.addGoal(3, new GoToStopGoal());
         goalSelector.addGoal(7, new WaterAvoidingRandomStrollGoal(this, STROLL_SPEED) {
             @Override
             public boolean canUse() {
@@ -111,8 +126,66 @@ public class CaravanMerchant extends WanderingTrader {
         this.offers = offers;
     }
 
+    /**
+     * Starts the stay of the merchant at the stop of its caravan: the merchant walks to the stop and stays near it.
+     *
+     * @param settlementId the id of the destination settlement
+     * @param stop         the stop
+     */
+    public void stay(String settlementId, CaravanStays.Stop stop) {
+        staySettlement = settlementId;
+        restrictTo(stop.pos(), stop.radius());
+    }
+
+    /** The id of the destination settlement during the stay, or null when the merchant does not stay. */
+    @Nullable
+    public String staySettlement() {
+        return staySettlement;
+    }
+
     @Override
     public boolean removeWhenFarAway(double distanceToClosestPlayer) {
         return false;
+    }
+
+    /** During the stay, the merchant walks to its stop when it is out of its restriction area. */
+    private final class GoToStopGoal extends Goal {
+        private int repathTicks;
+        private int farTicks;
+
+        GoToStopGoal() {
+            setFlags(EnumSet.of(Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            return staySettlement != null && hasRestriction() && !isWithinRestriction();
+        }
+
+        @Override
+        public void start() {
+            repathTicks = 0;
+            farTicks = 0;
+        }
+
+        @Override
+        public void stop() {
+            getNavigation().stop();
+        }
+
+        @Override
+        public void tick() {
+            BlockPos stop = getRestrictCenter();
+            if (++farTicks > STAY_STUCK_TICKS) {
+                getNavigation().stop();
+                moveTo(stop.getX() + 0.5, stop.getY(), stop.getZ() + 0.5, getYRot(), getXRot());
+                farTicks = 0;
+                return;
+            }
+            if (--repathTicks <= 0 || getNavigation().isDone()) {
+                repathTicks = STAY_REPATH_TICKS;
+                getNavigation().moveTo(stop.getX() + 0.5, stop.getY(), stop.getZ() + 0.5, STROLL_SPEED);
+            }
+        }
     }
 }

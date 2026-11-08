@@ -22,6 +22,8 @@ import java.util.function.Predicate;
  *       {@link #MIN_OFFERS} offers or more, and not more than the offer count of the level.</li>
  *   <li>Of the offers of a worker, two thirds are sell offers, and the rest are buy offers, with 1 buy offer or more.
  *       When a worker has fewer items to sell than sell offers, the free offers buy, and the reverse.</li>
+ *   <li>The items of the stock that no worker sells go to the caravan merchant during its stay (see
+ *       {@link #unsold}).</li>
  * </ul>
  */
 public final class JobTrades {
@@ -118,5 +120,28 @@ public final class JobTrades {
             buySlots = buys.size();
         }
         return new Plan(sells, sellSlots, List.copyOf(buys), buySlots);
+    }
+
+    /**
+     * The items of the stock that no worker sells: the items that are not an output of the jobs of the workers. The
+     * most valuable stock comes first. The caravan merchant sells these items during its stay at the village.
+     *
+     * @param jobs     the active jobs of the workers of the village
+     * @param stock    the stock of the village, by item id
+     * @param catalog  the item values
+     * @param tradable true for the items that can be in an offer (a known item, not the currency)
+     * @return the items, sorted
+     */
+    public static List<String> unsold(Collection<Job> jobs, Map<String, Integer> stock, ItemCatalog catalog,
+            Predicate<String> tradable) {
+        Set<String> outputs = new LinkedHashSet<>();
+        for (Job job : jobs) {
+            job.recipe().outputs().forEach(output -> outputs.add(output.item()));
+        }
+        return stock.keySet().stream()
+                .filter(item -> !outputs.contains(item) && tradable.test(item) && stock.getOrDefault(item, 0) > 0)
+                .sorted(Comparator.comparingDouble((String item) ->
+                        -catalog.info(item).price() * stock.getOrDefault(item, 0)).thenComparing(item -> item))
+                .toList();
     }
 }
