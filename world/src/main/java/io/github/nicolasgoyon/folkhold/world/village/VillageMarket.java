@@ -9,9 +9,13 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
@@ -26,6 +30,9 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  *   <li>A hamlet (below the level 5) trades at the plaza. A village of the level 5 or more with no market also trades
  *       at the plaza until its market is built. With no free plot, the village has no market until a plot is free
  *       again (the state {@link State#NO_SPACE}).</li>
+ *   <li>The heart keeps the plot of its market (see {@link Plot}). When the market is broken, or when its site stops
+ *       before its end, the growth builds the market again on this plot, with the same piece. The village takes no
+ *       other plot for its market.</li>
  * </ul>
  *
  * <p>The area of the market is the box of the market piece: the box of the construction site that built it, or the box
@@ -51,8 +58,9 @@ public final class VillageMarket {
         /** The level of the village needs no market: the village trades at the plaza. */
         HAMLET,
         /**
-         * The level needs a market and the village has none. The growth builds it at its next check, when the setting
-         * {@code construction.growth} is on and the village has builders and no other site.
+         * The level needs a market and the village has none, or its market is broken. The growth builds it at its next
+         * check, when the setting {@code construction.growth} is on and the village has builders and no other site. A
+         * broken market gets its construction again on its plot.
          */
         MISSING,
         /** The builders build the market. */
@@ -77,6 +85,53 @@ public final class VillageMarket {
         public TradePlace {
             Objects.requireNonNull(point, "point");
             Objects.requireNonNull(area, "area");
+        }
+    }
+
+    /**
+     * The plot of the market of a village: the piece and its placement. The growth sets it when it starts the market.
+     * The heart saves it.
+     *
+     * @param template the id of the template of the market piece
+     * @param origin   the position of the origin of the template
+     * @param rotation the turn of the template
+     */
+    public record Plot(ResourceLocation template, BlockPos origin, Rotation rotation) {
+        private static final String TEMPLATE_TAG = "Template";
+        private static final String ORIGIN_TAG = "Origin";
+        private static final String ROTATION_TAG = "Rotation";
+
+        public Plot {
+            Objects.requireNonNull(template, "template");
+            Objects.requireNonNull(origin, "origin");
+            Objects.requireNonNull(rotation, "rotation");
+        }
+
+        /** The plot as a tag. */
+        public CompoundTag save() {
+            CompoundTag tag = new CompoundTag();
+            tag.putString(TEMPLATE_TAG, template.toString());
+            tag.put(ORIGIN_TAG, NbtUtils.writeBlockPos(origin));
+            tag.putString(ROTATION_TAG, rotation.name());
+            return tag;
+        }
+
+        /**
+         * The plot of a tag.
+         *
+         * @param tag the tag
+         * @return the plot, or empty for a tag that is not valid
+         */
+        public static Optional<Plot> load(CompoundTag tag) {
+            ResourceLocation template = ResourceLocation.tryParse(tag.getString(TEMPLATE_TAG));
+            Optional<BlockPos> origin = NbtUtils.readBlockPos(tag, ORIGIN_TAG);
+            Rotation rotation;
+            try {
+                rotation = Rotation.valueOf(tag.getString(ROTATION_TAG));
+            } catch (IllegalArgumentException e) {
+                return Optional.empty();
+            }
+            return template == null ? Optional.empty() : origin.map(found -> new Plot(template, found, rotation));
         }
     }
 

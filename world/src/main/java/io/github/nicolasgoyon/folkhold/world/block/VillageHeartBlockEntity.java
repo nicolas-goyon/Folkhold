@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SplittableRandom;
@@ -52,6 +53,7 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -121,6 +123,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     public static final int VILLAGER_GROUP = 4;
     private static final String FACTION_TAG = "Faction";
     private static final String NAME_TAG = "Name";
+    private static final String MARKET_PLOT_TAG = "MarketPlot";
     /** Name of the village, or null before the village has a faction. */
     @Nullable
     private String villageName;
@@ -145,6 +148,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean repairReferenceSearched;
     /** True if the last check of the growth found no free plot for the market. Not saved: the next check sets it. */
     private boolean marketNoSpace;
+    /** The plot of the market of the village, or null before the growth starts the market. */
+    @Nullable
+    private VillageMarket.Plot marketPlot;
     /** The positions of the last repairs, with the game time of their end. Not saved. */
     private final Map<BlockPos, Long> repaired = new HashMap<>();
     /** True when the stairs of the gates are built (see {@link VillageExits}). */
@@ -849,6 +855,48 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
+     * The plot of the market of the village (see {@link VillageMarket.Plot}). The growth builds the market again on
+     * this plot when the market is broken or not finished.
+     *
+     * @return the plot, or empty before the growth starts the market
+     */
+    public Optional<VillageMarket.Plot> marketPlot() {
+        return Optional.ofNullable(marketPlot);
+    }
+
+    /**
+     * Scans the village again now when a market sign of the scan is not a market any more: a player, a raid or an
+     * explosion broke the market sign or the market post. No block event tells the heart about all these changes.
+     * Then the market is not in the scan, and the growth builds it again on its plot (see {@link VillageGrowth}).
+     *
+     * @param serverLevel the level of the heart
+     * @return true if the heart scanned the village
+     */
+    public boolean checkMarkets(ServerLevel serverLevel) {
+        boolean broken = layout.markets().stream()
+                .anyMatch(pos -> ReadyChunks.isReady(serverLevel, pos) && !VillageLayout.isMarketSign(serverLevel, pos));
+        if (!broken || !VillageLayout.isAreaReady(serverLevel, scanArea(serverLevel))) {
+            return false;
+        }
+        layout.scan(serverLevel, scanArea(serverLevel));
+        paintBanners();
+        setChanged();
+        return true;
+    }
+
+    /**
+     * Sets the plot of the market of the village (see {@link VillageGrowth}).
+     *
+     * @param plot the plot, or null for no plot
+     */
+    public void setMarketPlot(@Nullable VillageMarket.Plot plot) {
+        if (!Objects.equals(marketPlot, plot)) {
+            marketPlot = plot;
+            setChanged();
+        }
+    }
+
+    /**
      * The trade place of the village: the area of its market, or the area of its plaza with no market (see
      * {@link VillageMarket}).
      *
@@ -1191,6 +1239,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (villageName != null) {
             tag.putString(NAME_TAG, villageName);
         }
+        if (marketPlot != null) {
+            tag.put(MARKET_PLOT_TAG, marketPlot.save());
+        }
     }
 
     @Override
@@ -1220,5 +1271,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         villagersFilling = tag.getBoolean(VILLAGERS_FILLING_TAG);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
         villageName = tag.contains(NAME_TAG) ? tag.getString(NAME_TAG) : null;
+        marketPlot = tag.contains(MARKET_PLOT_TAG, Tag.TAG_COMPOUND)
+                ? VillageMarket.Plot.load(tag.getCompound(MARKET_PLOT_TAG)).orElse(null)
+                : null;
     }
 }

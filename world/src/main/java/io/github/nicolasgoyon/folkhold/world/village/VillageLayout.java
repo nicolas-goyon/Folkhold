@@ -233,6 +233,18 @@ public final class VillageLayout {
         return level.getBlockState(pos.relative(back)).is(MARKET_POSTS);
     }
 
+    /**
+     * True if a position holds a market sign with a market post behind it (see {@link #isMarket}).
+     *
+     * @param level the level
+     * @param pos   the position
+     * @return true for a market sign of a market square
+     */
+    public static boolean isMarketSign(BlockGetter level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return state.is(ModBlocks.BUILDING_SIGNS.get(BuildingSignKind.MARKET).get()) && isMarket(level, pos, state);
+    }
+
     /** The number of building signs of each kind, for example {@code forge}. */
     public Map<String, Integer> buildings() {
         return Collections.unmodifiableMap(buildings);
