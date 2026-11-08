@@ -1,5 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.block;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobAssignment;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.VillageNames;
 import io.github.nicolasgoyon.folkhold.core.sim.garrison.GarrisonTraits;
@@ -8,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.CaptainEntity;
@@ -57,6 +61,7 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -578,6 +583,63 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
+     * Gives a new job to each job post with a job that is not valid (see {@link JobAssignment#renew}): a job file
+     * that does not exist, a minimum level above the level of the village, a biome that does not match, or a job sign
+     * with no job (for example a sign that a player places in a home). The heart writes the new job and its icon (the
+     * first output item of the job) on the job sign. The blocks of the building do not change. A valid job does not
+     * change. The heart does not change the blocks of a legacy village. A post with a sign in a chunk that is not
+     * loaded keeps its job until a later check.
+     */
+    public void renewJobPosts() {
+        if (!(level instanceof ServerLevel serverLevel) || !layout.isScanned()) {
+            return;
+        }
+        Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
+            if (settlement.legacyJobs() || settlement.jobPosts().isEmpty()) {
+                return;
+            }
+            List<JobPosts.Post> posts = settlement.jobPosts().get();
+            List<JobPosts.Post> renewed = JobAssignment.renew(posts,
+                    job -> Economies.isValidJob(serverLevel.getServer(), settlement, job),
+                    Economies.eligibleJobs(serverLevel.getServer(), settlement), EconomyData.catalog(),
+                    Merchants::trades, Settlements.seed(settlement.id()));
+            List<JobPosts.Post> result = new ArrayList<>(posts.size());
+            boolean changed = false;
+            for (int i = 0; i < posts.size(); i++) {
+                JobPosts.Post post = renewed.get(i);
+                if (!post.equals(posts.get(i)) && writeJobSign(serverLevel, post)) {
+                    result.add(post);
+                    changed = true;
+                } else {
+                    result.add(posts.get(i));
+                }
+            }
+            if (changed) {
+                settlement.setJobPosts(Optional.of(JobPosts.order(Optional.of(result), result,
+                        Economies::producesFood, Merchants::trades)));
+                SettlementData.get(serverLevel.getServer()).setDirty();
+                setChanged();
+            }
+        });
+    }
+
+    /** Writes the job of a post and its icon on its job sign. Returns false when the sign is not there. */
+    private boolean writeJobSign(ServerLevel serverLevel, JobPosts.Post post) {
+        BlockPos pos = new BlockPos(post.x(), post.y(), post.z());
+        if (!serverLevel.isLoaded(pos) || !(serverLevel.getBlockEntity(pos) instanceof JobSignBlockEntity sign)) {
+            return false;
+        }
+        Job job = EconomyData.jobs().get(post.jobId());
+        ResourceLocation icon = job == null || job.recipe().outputs().isEmpty() ? null
+                : ResourceLocation.tryParse(job.recipe().outputs().get(0).item());
+        String prefix = FolkholdWorld.MOD_ID + ":";
+        String signJob = post.jobId().startsWith(prefix) ? post.jobId().substring(prefix.length()) : post.jobId();
+        sign.setJob(signJob, icon);
+        layout.setJob(pos, post.jobId());
+        return true;
+    }
+
+    /**
      * Removes the trees of the village and replaces its powder snow with snow blocks, once, before its first garrison
      * (see {@link VillageClearing}). Each of the 2 steps occurs once, and a call does one step at most: the 2 large
      * reads of blocks do not occur in the same tick. A heart with no village structure has nothing to clear. The heart
@@ -650,6 +712,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         recordGates();
         recordBeds();
         recordJobPosts();
+        renewJobPosts();
         if (alertState == AlertState.CALM && ensureCats(serverLevel, now)) {
             setChanged();
         }

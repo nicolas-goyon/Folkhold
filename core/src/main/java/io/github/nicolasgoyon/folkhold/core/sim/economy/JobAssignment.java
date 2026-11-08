@@ -1,10 +1,13 @@
 package io.github.nicolasgoyon.folkhold.core.sim.economy;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -16,6 +19,9 @@ import java.util.stream.Collectors;
  *   <li>The other slots get random jobs. The weight of a job is its chance. Two slots can get the same job.</li>
  *   <li>The same seed and the same input give the same jobs.</li>
  * </ul>
+ *
+ * <p>The job of a new job post comes from {@link #next}, and a post with a job that is not valid gets a new job from
+ * {@link #renew}.
  */
 public final class JobAssignment {
     /** Minimum share of the slots for the jobs that produce food. */
@@ -59,6 +65,116 @@ public final class JobAssignment {
             result.add(pick(eligible, random).id());
         }
         return result;
+    }
+
+    /**
+     * Chooses the job of a new job post (see {@link JobPosts}). The first step with a candidate job gives the job:
+     *
+     * <ol>
+     *   <li>No post with a food job: a food job that trades.</li>
+     *   <li>No post with a job that trades: a job that trades.</li>
+     *   <li>Fewer food posts than {@link #FOOD_SHARE} of the posts: a food job.</li>
+     *   <li>Else: a job of {@code eligible}.</li>
+     * </ol>
+     *
+     * <p>The chance of a candidate job is its weight divided by (1 + the number of posts with this job). Thus a village
+     * gets different jobs. The same input and the same seed give the same job.
+     *
+     * @param posts    the job ids of the valid posts of the village
+     * @param eligible the jobs that the village can have (level and biome)
+     * @param catalog  the item values (to find the food jobs)
+     * @param trades   true for a job id with workers that trade
+     * @param seed     the seed of the post (see {@link #postSeed})
+     * @return the job id, or empty when {@code eligible} is empty
+     */
+    public static Optional<String> next(List<String> posts, List<Job> eligible, ItemCatalog catalog,
+            Predicate<String> trades, long seed) {
+        if (eligible.isEmpty()) {
+            return Optional.empty();
+        }
+        Map<String, Job> byId = eligible.stream()
+                .collect(Collectors.toMap(Job::id, Function.identity(), (a, b) -> a));
+        Predicate<String> food = id -> byId.containsKey(id) && byId.get(id).producesFood(catalog);
+        long foodPosts = posts.stream().filter(food).count();
+        List<Job> sorted = byId.values().stream().sorted(Comparator.comparing(Job::id)).toList();
+        List<Predicate<Job>> steps = new ArrayList<>();
+        if (foodPosts == 0) {
+            steps.add(job -> food.test(job.id()) && trades.test(job.id()));
+        }
+        if (posts.stream().noneMatch(trades)) {
+            steps.add(job -> trades.test(job.id()));
+        }
+        if (foodPosts < posts.size() * FOOD_SHARE) {
+            steps.add(job -> food.test(job.id()));
+        }
+        steps.add(job -> true);
+        Map<String, Long> counts = posts.stream().collect(Collectors.groupingBy(Function.identity(),
+                Collectors.counting()));
+        SplittableRandom random = new SplittableRandom(seed);
+        for (Predicate<Job> step : steps) {
+            List<Job> candidates = sorted.stream().filter(step).toList();
+            if (!candidates.isEmpty()) {
+                return Optional.of(pickByNeed(candidates, counts, random).id());
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Gives a new job to each post with a job that is not valid (see {@link #next}). The valid posts keep their job.
+     * The posts get their new job in their order, and each new job counts for the next posts.
+     *
+     * @param posts    the posts of the village, in their order
+     * @param valid    true for a valid job id (job file, minimum level, biome)
+     * @param eligible the jobs that the village can have (level and biome)
+     * @param catalog  the item values (to find the food jobs)
+     * @param trades   true for a job id with workers that trade
+     * @param seed     the seed of the settlement
+     * @return the posts, in the same order. A post keeps its job when {@code eligible} is empty.
+     */
+    public static List<JobPosts.Post> renew(List<JobPosts.Post> posts, Predicate<String> valid, List<Job> eligible,
+            ItemCatalog catalog, Predicate<String> trades, long seed) {
+        List<String> jobs = new ArrayList<>(posts.stream().map(JobPosts.Post::jobId).filter(valid).toList());
+        List<JobPosts.Post> result = new ArrayList<>(posts);
+        for (int i = 0; i < posts.size(); i++) {
+            JobPosts.Post post = posts.get(i);
+            if (valid.test(post.jobId())) {
+                continue;
+            }
+            Optional<String> job = next(jobs, eligible, catalog, trades, postSeed(seed, i));
+            if (job.isPresent()) {
+                jobs.add(job.get());
+                result.set(i, new JobPosts.Post(job.get(), post.x(), post.y(), post.z(), post.homeBeds()));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * The seed of a job post: the seed of the settlement and the index of the post. The same village gets the same
+     * jobs.
+     *
+     * @param seed  the seed of the settlement
+     * @param index the index of the post in the posts of the village
+     * @return the seed of the post
+     */
+    public static long postSeed(long seed, int index) {
+        return seed ^ ((index + 1L) * 0x9E3779B97F4A7C15L);
+    }
+
+    private static Job pickByNeed(List<Job> jobs, Map<String, Long> counts, SplittableRandom random) {
+        double sum = 0;
+        for (Job job : jobs) {
+            sum += job.weight() / (1.0 + counts.getOrDefault(job.id(), 0L));
+        }
+        double roll = random.nextDouble() * sum;
+        for (Job job : jobs) {
+            roll -= job.weight() / (1.0 + counts.getOrDefault(job.id(), 0L));
+            if (roll < 0) {
+                return job;
+            }
+        }
+        return jobs.get(jobs.size() - 1);
     }
 
     private static Job pick(List<Job> jobs, SplittableRandom random) {

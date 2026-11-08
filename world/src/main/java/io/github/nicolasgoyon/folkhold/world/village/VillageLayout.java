@@ -85,7 +85,7 @@ public final class VillageLayout {
     /** The scan area is larger than the area of the village structure by this number of blocks on each side. */
     static final int AREA_MARGIN = 1;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 13;
+    static final int VERSION = 14;
     /** The blocks of a market post: the market sign of a market square stands in front of one. */
     public static final TagKey<Block> MARKET_POSTS = TagKey.create(Registries.BLOCK,
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "market_posts"));
@@ -117,7 +117,8 @@ public final class VillageLayout {
      * A job sign of the village.
      *
      * @param pos   the position of the sign
-     * @param jobId the job id of the sign, for example {@code folkhold_world:farmer}
+     * @param jobId the job id of the sign, for example {@code folkhold_world:farmer}, or an empty text for a sign
+     *              with no job
      */
     public record JobSign(BlockPos pos, String jobId) {
         public JobSign {
@@ -265,9 +266,19 @@ public final class VillageLayout {
         return Collections.unmodifiableMap(buildings);
     }
 
-    /** The job signs with a job, in the scan order. */
+    /** The job signs, in the scan order. A sign with no job has an empty job id. */
     public List<JobSign> jobSigns() {
         return Collections.unmodifiableList(jobSigns);
+    }
+
+    /**
+     * Changes the job of a job sign of the scan, after the heart writes a new job on the sign.
+     *
+     * @param pos   the position of the sign
+     * @param jobId the new job id
+     */
+    public void setJob(BlockPos pos, String jobId) {
+        jobSigns.replaceAll(sign -> sign.pos().equals(pos) ? new JobSign(pos, jobId) : sign);
     }
 
     /**
@@ -375,10 +386,7 @@ public final class VillageLayout {
                 beds.add(pos.immutable());
             } else if (state.getBlock() instanceof JobSignBlock) {
                 if (level.getBlockEntity(pos) instanceof JobSignBlockEntity sign) {
-                    String job = JobPosts.jobId(sign.job(), FolkholdWorld.MOD_ID);
-                    if (!job.isEmpty()) {
-                        jobSigns.add(new JobSign(pos, job));
-                    }
+                    jobSigns.add(new JobSign(pos, JobPosts.jobId(sign.job(), FolkholdWorld.MOD_ID)));
                 }
             } else if (state.getBlock() instanceof BuildingSignBlock) {
                 for (Map.Entry<BuildingSignKind, DeferredBlock<BuildingSignBlock>> sign

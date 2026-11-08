@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
@@ -141,6 +142,68 @@ public final class JobPostGameTests {
             end(helper, village);
         }
         helper.succeed();
+    }
+
+    /**
+     * A village of level 3 with the house-workshop of the blacksmith (minimum level 5): its post gets a valid job at
+     * the check of the heart, and its job sign shows the new job and an icon.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_posts_renew", skyAccess = true)
+    public static void postWithAJobAboveTheLevelGetsAValidJob(GameTestHelper helper) {
+        Village village = village(helper, List.of("job_blacksmith"), 3);
+        try {
+            village.heart().renewJobPosts();
+            assertValidPostAndSign(helper, village, 1);
+            helper.assertFalse(village.settlement().jobPosts().orElseThrow().get(0).jobId()
+                    .equals("folkhold_world:blacksmith"), "The blacksmith post must get a new job");
+        } finally {
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A job sign with no job in a cottage (for example a sign that a player places) is a post: the heart chooses its
+     * job and writes it on the sign. A job sign with no job out of the homes is not a post and stays empty.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_posts_empty_sign", skyAccess = true)
+    public static void emptyJobSignInAHomeGetsAJob(GameTestHelper helper) {
+        Village village = village(helper, List.of("house_cottage"), 3);
+        try {
+            helper.assertTrue(village.settlement().jobPosts().orElseThrow().isEmpty(), "A cottage has no post");
+            BoundingBox box = village.boxes().get(0);
+            BlockPos inside = BlockPos.betweenClosedStream(box).map(BlockPos::immutable)
+                    .filter(pos -> pos.getY() > box.minY() && helper.getLevel().isEmptyBlock(pos)).findFirst()
+                    .orElseThrow();
+            BlockPos outside = helper.absolutePos(new BlockPos(16, 2, 25));
+            helper.getLevel().setBlock(inside, ModBlocks.JOB_SIGN.get().defaultBlockState(), Block.UPDATE_CLIENTS);
+            helper.getLevel().setBlock(outside, ModBlocks.JOB_SIGN.get().defaultBlockState(), Block.UPDATE_CLIENTS);
+            helper.assertTrue(village.heart().getLayout().scan(helper.getLevel(), village.heart().getBlockPos()),
+                    "The scan area must be ready");
+            village.heart().recordJobPosts();
+            village.heart().renewJobPosts();
+            assertValidPostAndSign(helper, village, 1);
+            JobSignBlockEntity sign = (JobSignBlockEntity) helper.getLevel().getBlockEntity(outside);
+            helper.assertTrue(sign != null && sign.job().isEmpty(), "A sign out of the homes must stay empty");
+            helper.getLevel().setBlock(outside, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+        } finally {
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /** The village has the posts, each post has a valid job, and its job sign shows this job and an icon. */
+    private static void assertValidPostAndSign(GameTestHelper helper, Village village, int count) {
+        List<JobPosts.Post> posts = village.settlement().jobPosts().orElseThrow();
+        helper.assertTrue(posts.size() == count, "Expected " + count + " posts: " + posts);
+        for (JobPosts.Post post : posts) {
+            helper.assertTrue(Economies.isValidJob(helper.getLevel().getServer(), village.settlement(), post.jobId()),
+                    "The post must have a valid job: " + post);
+            JobSignBlockEntity sign = (JobSignBlockEntity) helper.getLevel()
+                    .getBlockEntity(new BlockPos(post.x(), post.y(), post.z()));
+            helper.assertTrue(sign != null && JobPosts.jobId(sign.job(), FolkholdWorld.MOD_ID).equals(post.jobId())
+                    && !sign.iconStack().isEmpty(), "The job sign must show the job of the post: " + post);
+        }
     }
 
     /** The staff of the default configuration: 2 builders and 1 handyman. */

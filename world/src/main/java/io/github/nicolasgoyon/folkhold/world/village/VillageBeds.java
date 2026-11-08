@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.GhostPlacement;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import javax.annotation.Nullable;
@@ -76,7 +77,9 @@ public final class VillageBeds {
      * The job posts of a village (see {@link JobPosts}), in the scan order. The building of a job sign is the template
      * piece of the village structure that holds the sign (not a garrison building), else the box of a construction
      * site of the builders that holds it. The building is a home when it holds 1 home bed or more. A home has 1 post
-     * at most: the first job sign of the scan order. A job sign in no building, or in a building with no home bed (for
+     * at most: the first job sign of the scan order with a job, else its first job sign with no job. A job sign with
+     * no job in a home is a post with an empty job id: the heart chooses its job (see
+     * {@link VillageHeartBlockEntity#renewJobPosts}). A job sign in no building, or in a building with no home bed (for
      * example a forge), is not a post.
      *
      * @param level     the level
@@ -99,7 +102,9 @@ public final class VillageBeds {
         VillageRepairData repairs = VillageRepairData.get(level);
         List<BoundingBox> homes = new ArrayList<>();
         List<JobPosts.Post> posts = new ArrayList<>();
-        for (VillageLayout.JobSign sign : signs) {
+        List<VillageLayout.JobSign> withJobFirst = new ArrayList<>(signs);
+        withJobFirst.sort(Comparator.comparing(sign -> sign.jobId().isEmpty()));
+        for (VillageLayout.JobSign sign : withJobFirst) {
             Optional<BoundingBox> building = pieces.stream().filter(box -> box.isInside(sign.pos())).findFirst()
                     .or(() -> repairs.constructionAt(heart, sign.pos()));
             if (building.isEmpty() || homes.contains(building.get())) {
@@ -114,7 +119,18 @@ public final class VillageBeds {
                         homeBeds));
             }
         }
+        posts.sort(Comparator.comparingInt(post -> signIndex(signs, post)));
         return posts;
+    }
+
+    private static int signIndex(List<VillageLayout.JobSign> signs, JobPosts.Post post) {
+        for (int i = 0; i < signs.size(); i++) {
+            BlockPos pos = signs.get(i).pos();
+            if (pos.getX() == post.x() && pos.getY() == post.y() && pos.getZ() == post.z()) {
+                return i;
+            }
+        }
+        return signs.size();
     }
 
     /** The number of builders and handymen of a village: they have places in the hall. */
