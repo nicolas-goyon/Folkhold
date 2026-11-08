@@ -21,12 +21,15 @@ that a profession does not paint stay transparent:
 The zombie villager texture of a profession is the villager texture with darker colors, a green tint, and holes in
 the clothes of the body and of the robe.
 
-Requires Pillow.
+Requires Pillow and PixVox (tools/pixvox/requirements.txt). The PNG file is not written when its pixels do not
+change (png_file.write_png).
 """
 import json
 import os
 
 from PIL import Image
+
+from png_file import write_png
 
 TEXTURES = os.path.join(os.path.dirname(__file__), "..", "..", "world", "src", "main", "resources", "assets",
                         "folkhold_world", "textures", "entity")
@@ -252,7 +255,7 @@ def zombie(image):
 
 def write(folder, name, image):
     path = os.path.join(folder, name + ".png")
-    image.save(path)
+    written = write_png(path, image)
     meta = path + ".mcmeta"
     if name in HATS:
         with open(meta, "w", encoding="utf-8") as file:
@@ -260,7 +263,7 @@ def write(folder, name, image):
             file.write("\n")
     elif os.path.exists(meta):
         os.remove(meta)
-    print("wrote", os.path.normpath(path))
+    print("wrote" if written else "same pixels, not written:", os.path.normpath(path))
 
 
 def check(name, image):
