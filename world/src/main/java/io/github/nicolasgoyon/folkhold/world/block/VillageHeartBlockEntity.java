@@ -626,6 +626,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         ensureSettlement();
         if (!layout.isScanned()) {
             layout.scan(serverLevel, scanArea(serverLevel));
+            recordMarketPlot(serverLevel);
             paintBanners();
             setChanged();
         }
@@ -867,21 +868,36 @@ public class VillageHeartBlockEntity extends BlockEntity {
     /**
      * Scans the village again now when a market sign of the scan is not a market any more: a player, a raid or an
      * explosion broke the market sign or the market post. No block event tells the heart about all these changes.
-     * Then the market is not in the scan, and the growth builds it again on its plot (see {@link VillageGrowth}).
+     * Then the market is not in the scan, and the growth builds it again on its plot (see {@link VillageGrowth}). The
+     * growth calls this method before its steps: with the setting {@code construction.growth} on, builders and no
+     * site. A market sign or a market post in a chunk that is not ready is not broken.
      *
      * @param serverLevel the level of the heart
      * @return true if the heart scanned the village
      */
     public boolean checkMarkets(ServerLevel serverLevel) {
-        boolean broken = layout.markets().stream()
-                .anyMatch(pos -> ReadyChunks.isReady(serverLevel, pos) && !VillageLayout.isMarketSign(serverLevel, pos));
+        boolean broken = layout.markets().stream().anyMatch(pos -> VillageLayout.isMarketBroken(serverLevel, pos));
         if (!broken || !VillageLayout.isAreaReady(serverLevel, scanArea(serverLevel))) {
             return false;
         }
         layout.scan(serverLevel, scanArea(serverLevel));
+        recordMarketPlot(serverLevel);
         paintBanners();
         setChanged();
         return true;
+    }
+
+    /**
+     * Records the plot of a market of the village structure after a scan: the market piece that holds the first market
+     * sign. A heart with a plot keeps it.
+     */
+    private void recordMarketPlot(ServerLevel serverLevel) {
+        if (marketPlot != null || layout.markets().isEmpty()) {
+            return;
+        }
+        repairReference(serverLevel)
+                .flatMap(reference -> VillageMarket.generatedPlot(serverLevel, reference, layout.markets().get(0)))
+                .ifPresent(this::setMarketPlot);
     }
 
     /**

@@ -38,8 +38,9 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       with the next step. The market comes when a plot is free again.</li>
  *   <li>The heart keeps the plot of its market (see {@link VillageMarket.Plot}). A broken market, or a market with a
  *       site that stopped before its end, gets a new site on this plot with the same piece: the village takes no other
- *       plot. While a chunk of this plot is not ready, the growth goes on with the next step. Before the steps, the
- *       heart scans the village again when a market sign of its scan is broken (see
+ *       plot. While a chunk of this plot is not ready, or while a block of a player stands at the position of the
+ *       market sign or of the market post (see {@link VillageMarket.State#BLOCKED}), the growth goes on with the next
+ *       step. Before the steps, the heart scans the village again when a market sign of its scan is broken (see
  *       {@link VillageHeartBlockEntity#checkMarkets}).</li>
  *   <li>A village that needs places gets a new home: the population of the settlement is more than the places (see
  *       {@link VillageBeds}). The home comes from the pool of the homes of the village structure.</li>
@@ -99,10 +100,14 @@ public final class VillageGrowth {
                 .toList();
         for (VillageBuildings.Step step : steps) {
             boolean market = step.type() == VillageBuildings.StepType.MARKET;
-            Optional<VillageMarket.Plot> marketPlot = market ? heart.marketPlot()
-                    .filter(plot -> level.getStructureManager().get(plot.template()).isPresent()) : Optional.empty();
+            Optional<VillageMarket.Plot> marketPlot = market ? heart.marketPlot().filter(plot -> hasTemplate(level,
+                    heartPos, plot)) : Optional.empty();
             if (marketPlot.isPresent()) {
-                // The village keeps the plot of its market: the market goes again on this plot.
+                // The village keeps the plot of its market: the market goes again on this plot. A block of a player
+                // at the market sign or at the market post stops it: the growth goes on with the next step.
+                if (VillageMarket.isBlocked(level, heartPos, marketPlot.get())) {
+                    continue;
+                }
                 Optional<BuilderSite> site = rebuild(level, heartPos, marketPlot.get());
                 if (site.isPresent()) {
                     heart.setMarketNoSpace(false);
@@ -170,6 +175,16 @@ public final class VillageGrowth {
             }
         }
         return new Attempt(Optional.empty(), complete);
+    }
+
+    /** True if the template of the plot of the market exists. Else the market goes on a new free plot. */
+    private static boolean hasTemplate(ServerLevel level, BlockPos heartPos, VillageMarket.Plot plot) {
+        if (level.getStructureManager().get(plot.template()).isPresent()) {
+            return true;
+        }
+        FolkholdWorld.LOGGER.debug("Village {}: the template {} of the market plot {} does not exist", heartPos,
+                plot.template(), plot.origin());
+        return false;
     }
 
     /**

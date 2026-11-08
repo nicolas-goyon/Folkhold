@@ -172,6 +172,7 @@ public final class MarketGrowthGameTests {
         VillageHeartBlockEntity heart = village(helper, HUGE, twoPlots(helper));
         BlockPos heartPos = heart.getBlockPos();
         VillageHearts.register(level, heartPos);
+        TestSupport.atTestEnd(helper, () -> removeVillage(level, heart));
         Settlement settlement = levelFive(helper, heart);
         BuilderSite first = VillageGrowth.check(level, heart).orElseThrow();
         BoundingBox box = placeMarket(level, first);
@@ -195,8 +196,9 @@ public final class MarketGrowthGameTests {
                 .forEach(item -> settlement.economy().stock().set(item, MATERIALS)));
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(BuilderSites.of(level, heartPos).stream()
-                        .noneMatch(found -> found.template().equals(MARKET)), "The builders must finish the market: " + again.phase() + " " + again.status() + " "
-                        + again.appliedSteps() + "/" + again.totalSteps()))
+                        .noneMatch(found -> found.template().equals(MARKET)), "The builders must finish the market: "
+                        + again.phase() + " " + again.status() + " " + again.appliedSteps() + "/"
+                        + again.totalSteps()))
                 .thenExecute(() -> {
                     heart.ensureGarrison(level.getGameTime());
                     List<BlockPos> markets = heart.getLayout().markets();
@@ -206,10 +208,6 @@ public final class MarketGrowthGameTests {
                     List<BuilderSite> sites = BuilderSites.of(level, heartPos);
                     Optional<BuilderSite> next = sites.isEmpty() ? VillageGrowth.check(level, heart)
                             : Optional.of(sites.get(0));
-                    BuilderSites.stop(level);
-                    VillageRepairData.get(level).forget(heartPos);
-                    cleanUp(level, heart);
-                    level.setBlock(heartPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
 
                     helper.assertTrue(markets.equals(List.of(sign)), "The market sign must stand again at " + sign
                             + ": " + markets);
@@ -222,15 +220,16 @@ public final class MarketGrowthGameTests {
     }
 
     /**
-     * A market site that stops before its end goes on with its plot after a load of the heart. The builders build a part
-     * of the market, then the site stops. The heart is saved and loaded again (a restart of the server). The next check
-     * of the growth starts the market on the same plot, with the same piece, and not on the second free plot.
+     * A market site that stops before its end goes on with its plot after a load of the heart. The builders build a
+     * part of the market, then the site stops. The heart is saved and loaded again (a restart of the server). The next
+     * check of the growth starts the market on the same plot, with the same piece, and not on the second free plot.
      */
     @GameTest(template = "arena_huge", timeoutTicks = 20, batch = "market_stopped")
     public static void stoppedMarketGoesOnWithItsPlot(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BuilderSites.stop(level);
         VillageHeartBlockEntity heart = village(helper, HUGE, twoPlots(helper));
+        TestSupport.atTestEnd(helper, () -> removeVillage(level, heart));
         levelFive(helper, heart);
         BuilderSite first = VillageGrowth.check(level, heart).orElseThrow();
         placeMarket(level, first);
@@ -251,9 +250,6 @@ public final class MarketGrowthGameTests {
         Optional<VillageMarket.Plot> plot = heart.marketPlot();
         VillageMarket.State missing = heart.marketState(level);
         Optional<BuilderSite> again = VillageGrowth.check(level, heart);
-        BuilderSites.stop(level);
-        VillageRepairData.get(level).forget(heart.getBlockPos());
-        cleanUp(level, heart);
 
         helper.assertTrue(plot.equals(Optional.of(new VillageMarket.Plot(first.template(), first.origin(),
                 first.rotation()))), "The heart must keep the plot of its market after a load: " + plot);
@@ -263,6 +259,82 @@ public final class MarketGrowthGameTests {
                 "The market must go on with its plot: " + again.map(BuilderSite::origin) + ", expected "
                 + first.origin());
         helper.succeed();
+    }
+
+    /**
+     * A block of a player at the position of the market post stops the construction of a broken market. The builders
+     * never change a block of a player: a market site on the plot cannot build the market. The state is BLOCKED, and
+     * the growth goes on with the next step: a home on the second plot. The next checks do not start the market again.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 20, batch = "market_blocked")
+    public static void playerBlockStopsTheMarket(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BuilderSites.stop(level);
+        VillageHeartBlockEntity heart = village(helper, HUGE, twoPlots(helper));
+        BlockPos heartPos = heart.getBlockPos();
+        TestSupport.atTestEnd(helper, () -> removeVillage(level, heart));
+        levelFive(helper, heart);
+        BuilderSite first = VillageGrowth.check(level, heart).orElseThrow();
+        BoundingBox box = placeMarket(level, first);
+        BuilderSites.stop(level);
+        heart.requestScan();
+        heart.ensureGarrison(level.getGameTime());
+        helper.assertTrue(heart.getLayout().markets().size() == 1, "The heart must find the market sign: "
+                + heart.getLayout().markets());
+        BlockPos sign = heart.getLayout().markets().get(0);
+        Direction facing = level.getBlockState(sign).getValue(HorizontalDirectionalBlock.FACING);
+        BlockPos post = sign.relative(facing.getOpposite());
+        level.setBlock(sign, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+        level.setBlock(post, Blocks.COBBLESTONE.defaultBlockState(), Block.UPDATE_CLIENTS);
+        VillageRepairData.get(level).addPlayerBlock(heartPos, post);
+
+        Optional<BuilderSite> home = VillageGrowth.check(level, heart);
+        VillageMarket.State state = heart.marketState(level);
+        BuilderSites.stop(level);
+        Optional<BuilderSite> next = VillageGrowth.check(level, heart);
+
+        helper.assertTrue(state == VillageMarket.State.BLOCKED, "Expected the state BLOCKED, found " + state);
+        helper.assertTrue(home.isPresent() && home.get().template().equals(COTTAGE)
+                && !box.isInside(home.get().origin()), "The growth must go on with a home on the second plot: "
+                + home.map(BuilderSite::template));
+        helper.assertTrue(next.isEmpty() || !next.get().template().equals(MARKET),
+                "The next check must not start the market again: " + next.map(BuilderSite::template));
+        helper.succeed();
+    }
+
+    /**
+     * A market of the village structure gets its plot at the first scan of the heart: the market piece that holds the
+     * market sign.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 20, batch = "market_generated")
+    public static void generatedMarketKeepsItsPlot(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        VillageHeartBlockEntity heart = village(helper, HUGE, List.of());
+        TestSupport.atTestEnd(helper, () -> removeVillage(level, heart));
+        BlockPos origin = helper.absolutePos(new BlockPos(CONNECTOR.getX(), 1, CONNECTOR.getZ() - 4));
+        StructureTemplate template = level.getStructureManager().get(MARKET).orElseThrow();
+        template.placeInWorld(level, origin, origin, GhostPlacement.settings(Rotation.NONE, Mirror.NONE)
+                .addProcessor(JigsawReplacementProcessor.INSTANCE), level.getRandom(), Block.UPDATE_CLIENTS);
+        VillageReference.Piece piece = new VillageReference.Piece(MARKET, origin, Rotation.NONE);
+        heart.setRepairReference(new VillageReference(List.of(piece), List.of(), Optional.empty(), List.of(),
+                Optional.of(HOMES)));
+        heart.requestScan();
+        heart.ensureGarrison(level.getGameTime());
+
+        helper.assertTrue(heart.getLayout().markets().size() == 1, "The heart must find the market sign: "
+                + heart.getLayout().markets());
+        Optional<VillageMarket.Plot> plot = heart.marketPlot();
+        helper.assertTrue(plot.equals(Optional.of(new VillageMarket.Plot(MARKET, origin, Rotation.NONE))),
+                "The plot of the market must be its piece: " + plot);
+        helper.succeed();
+    }
+
+    /** Removes the village of a test: its sites, its repair data, its inhabitants and its heart. */
+    private static void removeVillage(ServerLevel level, VillageHeartBlockEntity heart) {
+        BuilderSites.stop(level);
+        VillageRepairData.get(level).forget(heart.getBlockPos());
+        cleanUp(level, heart);
+        level.setBlock(heart.getBlockPos(), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
     }
 
     /** The 2 plots of a test: the nearest plot to the heart, and a second plot farther. */

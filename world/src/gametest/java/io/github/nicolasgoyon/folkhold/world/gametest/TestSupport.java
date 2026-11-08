@@ -448,6 +448,32 @@ final class TestSupport {
     }
 
     /**
+     * Runs a cleanup when a test ends: when it passes, and also when it fails or stops at its timeout. The next tests
+     * of the level do not see the sites, the blocks or the data of a test that failed.
+     */
+    static void atTestEnd(GameTestHelper helper, Runnable cleanup) {
+        helper.testInfo.addListener(new GameTestListener() {
+            @Override
+            public void testStructureLoaded(GameTestInfo info) {
+            }
+
+            @Override
+            public void testPassed(GameTestInfo info, GameTestRunner runner) {
+                cleanup.run();
+            }
+
+            @Override
+            public void testFailed(GameTestInfo info, GameTestRunner runner) {
+                cleanup.run();
+            }
+
+            @Override
+            public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
+            }
+        });
+    }
+
+    /**
      * Sets a config value for one test. A listener sets the old value again when the test passes or fails: the next
      * tests see the old value also after a failure. The method adds the listener before it sets the value.
      */
