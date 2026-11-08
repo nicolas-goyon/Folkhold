@@ -32,7 +32,8 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
  * <ul>
  *   <li>From the level 5, a village with no market gets its market first (see {@link VillageBuildings#steps}): the
  *       piece of the pool of the market of the village structure. A village keeps one market. With no free plot for the
- *       market, the village has no market and trades at the plaza (see {@link VillageMarket}). The growth then goes on
+ *       market, the village has no market and trades at the plaza (see {@link VillageMarket}). A plot in a chunk that is
+ *       not ready can be free: then the state of the market does not change. The growth then goes on
  *       with the next step. The market comes when a plot is free again.</li>
  *   <li>A village that needs places gets a new home: the population of the settlement is more than the places (see
  *       {@link VillageBeds}). The home comes from the pool of the homes of the village structure.</li>
@@ -91,45 +92,61 @@ public final class VillageGrowth {
                 .toList();
         for (VillageBuildings.Step step : steps) {
             Optional<StructurePoolElement> element = piece(level, step, reference.get().homes().get());
-            Optional<BuilderSite> site = element.flatMap(found -> start(level, heart, reference.get(), plots, found));
-            if (step.type() == VillageBuildings.StepType.MARKET) {
-                heart.setMarketNoSpace(element.isPresent() && site.isEmpty());
+            Attempt attempt = element.map(found -> start(level, heart, reference.get(), plots, found))
+                    .orElse(Attempt.NONE);
+            if (step.type() == VillageBuildings.StepType.MARKET && (attempt.site().isPresent() || attempt.complete())) {
+                // A plot in a chunk that is not ready can be free: the heart keeps the last known state.
+                heart.setMarketNoSpace(element.isPresent() && attempt.site().isEmpty());
             }
-            if (site.isPresent()) {
-                return site;
+            if (attempt.site().isPresent()) {
+                return attempt.site();
             }
         }
         return Optional.empty();
     }
 
     /**
-     * Starts the construction of a piece on the first free plot.
+     * The result of a search for a free plot.
      *
-     * @return the construction site, or empty when no plot is free for the piece
+     * @param site     the construction site, or empty when no plot is free for the piece
+     * @param complete true if the search examined all the plots: no plot is in a chunk that is not ready
      */
-    private static Optional<BuilderSite> start(ServerLevel level, VillageHeartBlockEntity heart,
-            VillageReference reference, List<VillagePlots.Plot> plots, StructurePoolElement element) {
+    private record Attempt(Optional<BuilderSite> site, boolean complete) {
+        static final Attempt NONE = new Attempt(Optional.empty(), true);
+    }
+
+    /** Starts the construction of a piece on the first free plot. */
+    private static Attempt start(ServerLevel level, VillageHeartBlockEntity heart, VillageReference reference,
+            List<VillagePlots.Plot> plots, StructurePoolElement element) {
         BlockPos heartPos = heart.getBlockPos();
         Optional<ResourceLocation> template = VillageReference.templateOf(level, element);
         if (template.isEmpty()) {
-            return Optional.empty();
+            return Attempt.NONE;
         }
+        boolean complete = true;
         for (VillagePlots.Plot plot : plots) {
             if (!ReadyChunks.isReady(level, plot.connector())) {
+                complete = false;
                 continue;
             }
             int ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, plot.connector().getX(),
                     plot.connector().getZ());
             Optional<VillagePlots.Placement> placement = VillagePlots.place(level.getStructureManager(), element, plot,
                     ground);
-            if (placement.isPresent() && isFree(level, heartPos, reference, placement.get().box())) {
+            if (placement.isEmpty()) {
+                continue;
+            }
+            BoundingBox box = placement.get().box();
+            if (!ReadyChunks.isAreaReady(level, box.minX(), box.minZ(), box.maxX(), box.maxZ())) {
+                complete = false;
+            } else if (isFree(level, heartPos, reference, box)) {
                 FolkholdWorld.LOGGER.debug("Village {}: a new building {} on the plot {}", heartPos, template.get(),
                         plot.connector());
-                return Optional.of(BuilderSites.start(level, template.get(), placement.get().origin(),
-                        placement.get().rotation(), Mirror.NONE, heartPos, null));
+                return new Attempt(Optional.of(BuilderSites.start(level, template.get(), placement.get().origin(),
+                        placement.get().rotation(), Mirror.NONE, heartPos, null)), true);
             }
         }
-        return Optional.empty();
+        return new Attempt(Optional.empty(), complete);
     }
 
     private static Optional<StructureTemplatePool> pool(ServerLevel level, ResourceLocation id) {

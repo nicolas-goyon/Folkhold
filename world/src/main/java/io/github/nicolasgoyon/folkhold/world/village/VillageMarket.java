@@ -50,11 +50,17 @@ public final class VillageMarket {
     public enum State {
         /** The level of the village needs no market: the village trades at the plaza. */
         HAMLET,
-        /** The level needs a market and the village has none. The growth builds it at its next check. */
+        /**
+         * The level needs a market and the village has none. The growth builds it at its next check, when the setting
+         * {@code construction.growth} is on and the village has builders and no other site.
+         */
         MISSING,
         /** The builders build the market. */
         BUILDING,
-        /** The level needs a market and no free plot can hold it: the village trades at the plaza. */
+        /**
+         * The level needs a market and no free plot can hold it: the village trades at the plaza. The last check of the
+         * growth examined all the plots: a check with a plot in a chunk that is not ready keeps the last known state.
+         */
         NO_SPACE,
         /** The village has a market. */
         BUILT

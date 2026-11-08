@@ -139,6 +139,8 @@ public final class VillageGrowthGameTests {
         heart.getUnits().forEach(Entity::discard);
         heart.getCats().forEach(Entity::discard);
         VillageFolk.inhabitants(level, heart.getBlockPos()).forEach(Entity::discard);
+        helper.assertTrue(heart.getLayout().markets().size() == 1, "The scan must find the market: "
+                + heart.getLayout().markets());
         helper.assertTrue(heart.getLayout().buildings().getOrDefault("storehouse", 0) == 1,
                 "The scan must count the storehouse sign: " + heart.getLayout().buildings());
         helper.assertTrue(lowLevel, "A village of the level 1 must build nothing");
