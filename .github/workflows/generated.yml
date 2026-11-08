@@ -3,7 +3,7 @@
 # come with the output of the scripts.
 # The generators of .nbt files do not write a file when its uncompressed content does not change (nbt.write_nbt).
 # The texture generators of tools/textures do not write a PNG file when its decoded pixels do not change, and they
-# write with pixvox.png.save_png (the same bytes on all machines) (png_file.write_png).
+# write with pixvox.png.save_png, which gives the same bytes on all machines. See png_file.write_png.
 # Thus the byte comparison below does not depend on the zlib or the Pillow of the machine, and it fails when the
 # content of a template or the pixels of a texture change.
 name: Generated files
@@ -67,12 +67,18 @@ jobs:
               echo "::error file=$f::The content changes. Run the generators and commit their output."
             fi
           done
-          # For each changed .png file, tell if the pixels change or only the PNG bytes.
+          # For each changed .png file, tell if the pixels change or only the PNG bytes. The scripts of tools/textures
+          # write the files of textures/entity and textures/map.
           git diff --cached --name-only --diff-filter=M -- '*.png' | while read -r f; do
             if git show "HEAD:$f" | python3 -c 'import io, sys; from PIL import Image
           a = Image.open(io.BytesIO(sys.stdin.buffer.read())); b = Image.open(sys.argv[1])
           sys.exit(0 if (a.mode, a.size, a.tobytes()) == (b.mode, b.size, b.tobytes()) else 1)' "$f"; then
-              echo "::error file=$f::Same pixels, other PNG bytes. Write this file with png_file.write_png."
+              case "$f" in
+                */textures/entity/*|*/textures/map/*)
+                  echo "::error file=$f::Same pixels, other PNG bytes. Write this file with png_file.write_png (tools/textures)." ;;
+                *)
+                  echo "::error file=$f::Same pixels, other PNG bytes. Run the generators with the PixVox version of tools/pixvox/requirements.txt and commit their output." ;;
+              esac
             else
               echo "::error file=$f::The pixels change. Run the generators and commit their output."
             fi
