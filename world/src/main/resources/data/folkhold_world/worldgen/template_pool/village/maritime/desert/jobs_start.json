@@ -1,0 +1,113 @@
+{
+  "fallback": "folkhold_world:village/maritime/desert/houses",
+  "elements": [
+    {
+      "weight": 20,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_farmer",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 10,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_gardener",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 8,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_forager",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 15,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_baker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 10,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_rancher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 15,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_lumberjack",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 6,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_sawyer",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 15,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_miner",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 8,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_digger",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 10,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_mason",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 8,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_carpenter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    },
+    {
+      "weight": 8,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/maritime/desert/job_shepherd",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/maritime/desert/foundation"
+      }
+    }
+  ]
+}
