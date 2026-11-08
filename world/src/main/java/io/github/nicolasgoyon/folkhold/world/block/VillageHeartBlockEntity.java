@@ -35,6 +35,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
+import io.github.nicolasgoyon.folkhold.world.village.VillageMarket;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
@@ -142,6 +143,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private VillageReference repairReference;
     /** True after the search of {@link #repairReference}. */
     private boolean repairReferenceSearched;
+    /** True if the last check of the growth found no free plot for the market. Not saved: the next check sets it. */
+    private boolean marketNoSpace;
     /** The positions of the last repairs, with the game time of their end. Not saved. */
     private final Map<BlockPos, Long> repaired = new HashMap<>();
     /** True when the stairs of the gates are built (see {@link VillageExits}). */
@@ -833,6 +836,37 @@ public class VillageHeartBlockEntity extends BlockEntity {
     public void setRepairReference(@Nullable VillageReference reference) {
         repairReference = reference;
         repairReferenceSearched = true;
+    }
+
+    /** True if the last check of the growth found no free plot for the market (see {@link VillageMarket.State}). */
+    public boolean isMarketNoSpace() {
+        return marketNoSpace;
+    }
+
+    /** Records the result of the last check of the growth for the market (see {@link VillageGrowth}). */
+    public void setMarketNoSpace(boolean noSpace) {
+        marketNoSpace = noSpace;
+    }
+
+    /**
+     * The trade place of the village: the area of its market, or the area of its plaza with no market (see
+     * {@link VillageMarket}).
+     *
+     * @param serverLevel the level of the heart
+     * @return the trade place
+     */
+    public VillageMarket.TradePlace tradePlace(ServerLevel serverLevel) {
+        return VillageMarket.tradePlace(serverLevel, this);
+    }
+
+    /**
+     * The state of the market of the village (see {@link VillageMarket}).
+     *
+     * @param serverLevel the level of the heart
+     * @return the state
+     */
+    public VillageMarket.State marketState(ServerLevel serverLevel) {
+        return VillageMarket.state(serverLevel, this);
     }
 
     /** True if a repair of the village ended at a position less than {@link VillageRepairs#RETRY_TICKS} ago. */

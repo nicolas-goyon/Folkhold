@@ -21,6 +21,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -98,8 +100,9 @@ public final class VillageGrowthGameTests {
 
     /**
      * A village with enough places and a missing building of its level: its builders start this building on the free
-     * plot. The village has a storehouse sign, so the barracks of the level 9 comes first. A village of the level 1 or
-     * of the level 5 needs no building: the forge is the building of the blacksmith, not a building of a level.
+     * plot. The village has a storehouse sign, so the barracks of the level 9 comes first. The village has a market. A
+     * village of the level 1 or of the level 5 needs no building: the forge is the building of the blacksmith, not a
+     * building of a level.
      */
     @GameTest(template = "arena_large", timeoutTicks = 20, batch = "village_growth_building")
     public static void buildersStartAMissingBuildingOfTheLevel(GameTestHelper helper) {
@@ -107,6 +110,10 @@ public final class VillageGrowthGameTests {
         TestSupport.buildFloor(helper, SIZE);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
         helper.setBlock(HEART.east(2), ModBlocks.buildingSign(BuildingSignKind.STOREHOUSE));
+        // A market sign with the market post behind it: the village has its market of the level 5.
+        helper.setBlock(HEART.west(2), ModBlocks.buildingSign(BuildingSignKind.MARKET).defaultBlockState()
+                .setValue(HorizontalDirectionalBlock.FACING, Direction.NORTH));
+        helper.setBlock(HEART.west(2).south(), Blocks.OAK_LOG);
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
         heart.ensureSettlement();
         Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();

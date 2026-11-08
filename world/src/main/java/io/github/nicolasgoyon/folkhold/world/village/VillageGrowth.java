@@ -30,6 +30,10 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
  * streets (see {@link VillagePlots}).
  *
  * <ul>
+ *   <li>From the level 5, a village with no market gets its market first (see {@link VillageBuildings#steps}): the
+ *       piece of the pool of the market of the village structure. A village keeps one market. With no free plot for the
+ *       market, the village has no market and trades at the plaza (see {@link VillageMarket}). The growth then goes on
+ *       with the next step. The market comes when a plot is free again.</li>
  *   <li>A village that needs places gets a new home: the population of the settlement is more than the places (see
  *       {@link VillageBeds}). The home comes from the pool of the homes of the village structure.</li>
  *   <li>Else, a village with a missing building of its level gets this building (see {@link VillageBuildings} and
@@ -56,9 +60,12 @@ public final class VillageGrowth {
     private static final String HOUSES = "houses";
     /** The name of the piece of a building of a kind starts with this text. */
     private static final String BUILDING_PREFIX = "house_";
+    /** The name of the pool of the market of a variant, in the folder of the pool of its homes. */
+    private static final String MARKET = "market";
 
     /**
-     * Starts the construction of a home or of a missing building of the level on a free plot.
+     * Starts the construction of the market, of a home or of a missing building of the level on a free plot. The steps
+     * come in the order of {@link VillageBuildings#steps}: the first step with a piece and a free plot starts.
      *
      * @param level the level
      * @param heart the village heart
@@ -75,21 +82,38 @@ public final class VillageGrowth {
         if (settlement.isEmpty() || reference.isEmpty() || reference.get().homes().isEmpty()) {
             return Optional.empty();
         }
-        Optional<StructurePoolElement> next = needsPlaces(settlement.get())
-                ? pool(level, reference.get().homes().get()).map(homes -> homes.getRandomTemplate(level.random))
-                : missingBuilding(level, heart, settlement.get(), reference.get().homes().get());
-        if (next.isEmpty()) {
-            return Optional.empty();
-        }
-        StructurePoolElement element = next.get();
-        Optional<ResourceLocation> template = VillageReference.templateOf(level, element);
-        if (template.isEmpty()) {
-            return Optional.empty();
-        }
+        VillageLayout layout = heart.getLayout();
+        List<VillageBuildings.Step> steps = VillageBuildings.steps(VillageBuildingTable.get(),
+                settlement.get().level(), layout.buildings(), layout.isScanned(), needsPlaces(settlement.get()));
         List<VillagePlots.Plot> plots = reference.get().plots().stream()
                 .filter(plot -> !plot.built())
                 .sorted(Comparator.comparingDouble(plot -> plot.connector().distSqr(heartPos)))
                 .toList();
+        for (VillageBuildings.Step step : steps) {
+            Optional<StructurePoolElement> element = piece(level, step, reference.get().homes().get());
+            Optional<BuilderSite> site = element.flatMap(found -> start(level, heart, reference.get(), plots, found));
+            if (step.type() == VillageBuildings.StepType.MARKET) {
+                heart.setMarketNoSpace(element.isPresent() && site.isEmpty());
+            }
+            if (site.isPresent()) {
+                return site;
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Starts the construction of a piece on the first free plot.
+     *
+     * @return the construction site, or empty when no plot is free for the piece
+     */
+    private static Optional<BuilderSite> start(ServerLevel level, VillageHeartBlockEntity heart,
+            VillageReference reference, List<VillagePlots.Plot> plots, StructurePoolElement element) {
+        BlockPos heartPos = heart.getBlockPos();
+        Optional<ResourceLocation> template = VillageReference.templateOf(level, element);
+        if (template.isEmpty()) {
+            return Optional.empty();
+        }
         for (VillagePlots.Plot plot : plots) {
             if (!ReadyChunks.isReady(level, plot.connector())) {
                 continue;
@@ -98,7 +122,7 @@ public final class VillageGrowth {
                     plot.connector().getZ());
             Optional<VillagePlots.Placement> placement = VillagePlots.place(level.getStructureManager(), element, plot,
                     ground);
-            if (placement.isPresent() && isFree(level, heartPos, reference.get(), placement.get().box())) {
+            if (placement.isPresent() && isFree(level, heartPos, reference, placement.get().box())) {
                 FolkholdWorld.LOGGER.debug("Village {}: a new building {} on the plot {}", heartPos, template.get(),
                         plot.connector());
                 return Optional.of(BuilderSites.start(level, template.get(), placement.get().origin(),
@@ -112,34 +136,33 @@ public final class VillageGrowth {
         return level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL).getOptional(id);
     }
 
-    /**
-     * The piece of the first missing building of the level of a village, from the pool of the houses of its variant.
-     *
-     * @param level      the level
-     * @param heart      the village heart
-     * @param settlement the settlement of the village
-     * @param homes      the id of the pool of the homes of the variant of the village
-     * @return the piece, or empty when the village has all the buildings of its level, has no scan, or its variant has
-     *     no piece for the missing building
-     */
-    static Optional<StructurePoolElement> missingBuilding(ServerLevel level, VillageHeartBlockEntity heart,
-            Settlement settlement, ResourceLocation homes) {
-        VillageLayout layout = heart.getLayout();
-        if (!layout.isScanned()) {
-            return Optional.empty();
-        }
-        Optional<String> kind = VillageBuildings.missing(VillageBuildingTable.get(), settlement.level(),
-                layout.buildings());
-        if (kind.isEmpty()) {
-            return Optional.empty();
-        }
+    /** The id of a pool of a variant, in the folder of the pool of its homes. */
+    private static ResourceLocation sibling(ResourceLocation homes, String name) {
         String path = homes.getPath();
-        ResourceLocation houses = homes.withPath(path.substring(0, path.lastIndexOf('/') + 1) + HOUSES);
-        String suffix = "/" + BUILDING_PREFIX + kind.get();
-        return pool(level, houses).flatMap(pool -> pool.getShuffledTemplates(level.random).stream()
-                .filter(element -> VillageReference.templateOf(level, element)
-                        .filter(template -> template.getPath().endsWith(suffix)).isPresent())
-                .findFirst());
+        return homes.withPath(path.substring(0, path.lastIndexOf('/') + 1) + name);
+    }
+
+    /**
+     * The piece of a step of the growth, from the pools of the variant of the village.
+     *
+     * @param level the level
+     * @param step  the step
+     * @param homes the id of the pool of the homes of the variant of the village
+     * @return the piece, or empty when the variant has no piece for the step
+     */
+    static Optional<StructurePoolElement> piece(ServerLevel level, VillageBuildings.Step step, ResourceLocation homes) {
+        return switch (step.type()) {
+            case HOME -> pool(level, homes).map(pool -> pool.getRandomTemplate(level.random));
+            case MARKET -> pool(level, sibling(homes, MARKET)).map(pool -> pool.getRandomTemplate(level.random));
+            case BUILDING -> {
+                String suffix = "/" + BUILDING_PREFIX + step.kind();
+                yield pool(level, sibling(homes, HOUSES)).flatMap(pool -> pool.getShuffledTemplates(level.random)
+                        .stream()
+                        .filter(element -> VillageReference.templateOf(level, element)
+                                .filter(template -> template.getPath().endsWith(suffix)).isPresent())
+                        .findFirst());
+            }
+        };
     }
 
     /**
