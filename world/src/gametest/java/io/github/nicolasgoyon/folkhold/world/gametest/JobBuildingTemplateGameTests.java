@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
@@ -25,10 +26,12 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.JigsawReplacementProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -39,14 +42,17 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
  * In-game tests for the templates of the job buildings ({@code village/job_<id>}, written by
- * {@code tools/structures/village.py}): each template has the job sign of its job, the construction plan of each
- * template has no warning, the fences have the shape that the game gives them, and the scan of the heart counts the
- * job sign of each building. The templates have no entities.
+ * {@code tools/structures/village.py}): each template is a house-workshop with the job sign of its job, the house
+ * sign and {@link #HOME_BEDS} beds or more. The construction plan of each template has no warning, the fences have the
+ * shape that the game gives them, and the scan of the heart counts the job sign, the home and the beds of each
+ * building. The templates have no entities.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class JobBuildingTemplateGameTests {
     private static final int ARENA = 32;
+    /** The minimum number of beds of a house-workshop: each bed gives a place to an inhabitant. */
+    private static final int HOME_BEDS = 2;
     /** The jobs of the fields and the gardens. The id of a job is the name of its job file. */
     private static final List<String> FIELDS = List.of("farmer", "gardener", "gardener_jungle", "forager",
             "beekeeper");
@@ -79,8 +85,9 @@ public final class JobBuildingTemplateGameTests {
 
     /**
      * Each variant of each job building has one job sign, with the job id and an icon, and no entities: a template
-     * with entities adds them again at each placement. The maritime fishing hut has the job sign of the fisher, and
-     * the forge of each style has the job sign of the blacksmith.
+     * with entities adds them again at each placement. Each job building and the maritime fishing hut are homes: 1
+     * house sign and {@link #HOME_BEDS} beds or more. The maritime fishing hut has the job sign of the fisher, and the
+     * forge of each style has the job sign of the blacksmith.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "job_building_templates")
     public static void eachVariantHasItsJobSign(GameTestHelper helper) {
@@ -92,23 +99,26 @@ public final class JobBuildingTemplateGameTests {
             }
             for (String style : STYLES) {
                 for (String variant : VARIANTS) {
-                    checkTemplate(templates, piece(style + variant, "job_" + job), job, problems);
+                    checkTemplate(templates, piece(style + variant, "job_" + job), job, true, problems);
                 }
             }
         }
         for (String variant : VARIANTS) {
-            checkTemplate(templates, piece("maritime/" + variant, "house_fishing_hut"), "fisher", problems);
+            checkTemplate(templates, piece("maritime/" + variant, "house_fishing_hut"), "fisher", true, problems);
             for (String style : STYLES) {
-                checkTemplate(templates, piece(style + variant, "house_forge"), "blacksmith", problems);
+                checkTemplate(templates, piece(style + variant, "house_forge"), "blacksmith", false, problems);
             }
         }
         helper.assertTrue(problems.isEmpty(), "Problems of the job building templates: " + problems);
         helper.succeed();
     }
 
-    /** The template has 1 job sign with the job and an icon, and no entities. */
+    /**
+     * The template has 1 job sign with the job and an icon, and no entities. A home also has 1 house sign and
+     * {@link #HOME_BEDS} beds or more.
+     */
     private static void checkTemplate(StructureTemplateManager templates, ResourceLocation id, String job,
-            List<String> problems) {
+            boolean home, List<String> problems) {
         Optional<StructureTemplate> template = templates.get(id);
         if (template.isEmpty()) {
             problems.add("no template " + id);
@@ -125,6 +135,22 @@ public final class JobBuildingTemplateGameTests {
         if (!template.get().save(new CompoundTag()).getList("entities", Tag.TAG_COMPOUND).isEmpty()) {
             problems.add(id + " has entities");
         }
+        if (home) {
+            int houseSigns = template.get().filterBlocks(BlockPos.ZERO, new StructurePlaceSettings(),
+                    ModBlocks.buildingSign(BuildingSignKind.HOUSE)).size();
+            int beds = beds(template.get());
+            if (houseSigns != 1 || beds < HOME_BEDS) {
+                problems.add(id + " has " + houseSigns + " house signs and " + beds + " beds");
+            }
+        }
+    }
+
+    /** The number of beds of a template: the head parts of the beds of all the colors. */
+    private static int beds(StructureTemplate template) {
+        return (int) BuiltInRegistries.BLOCK.stream().filter(BedBlock.class::isInstance)
+                .flatMap(bed -> template.filterBlocks(BlockPos.ZERO, new StructurePlaceSettings(), bed).stream())
+                .filter(info -> info.state().getValue(BedBlock.PART) == BedPart.HEAD)
+                .count();
     }
 
     /** The 5 job buildings of the fields and the gardens: see {@link #checkScan}. */
@@ -216,7 +242,8 @@ public final class JobBuildingTemplateGameTests {
     /**
      * The 5 job buildings of a group in the base variant: the plan of each template has no warning. After the
      * placement of the templates, each job sign has its job and its icon item, each fence has the shape of its
-     * neighbors, and the scan of the heart counts 1 building for each job.
+     * neighbors, and the scan of the heart counts 1 building for each job, 1 home (house sign) for each building and
+     * the beds of the templates as the home beds of the village.
      */
     private static void checkScan(GameTestHelper helper, List<String> jobs) {
         TestSupport.buildFloor(helper, ARENA);
@@ -224,6 +251,7 @@ public final class JobBuildingTemplateGameTests {
         StructureTemplateManager templates = level.getStructureManager();
         List<BoundingBox> boxes = new ArrayList<>();
         Map<String, Integer> expected = new HashMap<>();
+        int beds = 0;
         try {
             for (int i = 0; i < jobs.size(); i++) {
                 String job = jobs.get(i);
@@ -239,6 +267,7 @@ public final class JobBuildingTemplateGameTests {
                 template.placeInWorld(level, origin, origin, settings, level.getRandom(), Block.UPDATE_CLIENTS);
                 boxes.add(template.getBoundingBox(settings, origin));
                 checkSign(helper, template, origin, job);
+                beds += beds(template);
                 expected.put("folkhold_world:" + job, 1);
             }
             checkFences(helper, boxes);
@@ -250,6 +279,11 @@ public final class JobBuildingTemplateGameTests {
             Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
             helper.assertTrue(settlement.jobBuildings().equals(Optional.of(expected)),
                     "Expected 1 building for each job: " + settlement.jobBuildings());
+            int homes = heart.getLayout().buildings().getOrDefault(BuildingSignKind.HOUSE.serializedName(), 0);
+            helper.assertTrue(homes == jobs.size(), "Expected 1 home for each job building: " + homes);
+            heart.recordBeds();
+            helper.assertTrue(beds >= HOME_BEDS * jobs.size() && settlement.beds() == beds,
+                    "Expected the " + beds + " beds of the job buildings as home beds: " + settlement.beds());
         } finally {
             helper.setBlock(HEART, Blocks.AIR);
             // The buildings are higher than the arena: a later test at this place must not find them.
