@@ -82,7 +82,7 @@ public final class FortifiedVillageGameTests {
     private static final int CANDIDATES = 8;
     private static final String TOWER = "tower";
     private static final String GATE = "gate";
-    /** The templates of the plots: the houses and the bank. */
+    /** The templates of the plots: the houses and the bank. The house-workshops ({@code job_<id>}) also have plots. */
     private static final Set<String> HOUSES = Set.of("house_cottage", "house_barracks", "house_forge",
             "house_storehouse", "bank");
     /** The walk on the ground falls this number of blocks at most. */
@@ -422,8 +422,8 @@ public final class FortifiedVillageGameTests {
             BoundingBox area = reference.area().orElseThrow();
             StructureTemplatePool homes = ((FortifiedVillageStructure) structure)
                     .variantOf(level, start.getPieces()).homes().value();
-            long houses = reference.pieces().stream().filter(piece -> HOUSES.contains(name(piece.template())))
-                    .count();
+            long houses = reference.pieces().stream().map(piece -> name(piece.template()))
+                    .filter(name -> HOUSES.contains(name) || name.startsWith("job_")).count();
             long built = reference.plots().stream().filter(VillagePlots.Plot::built).count();
             helper.assertTrue(built == houses, "Each house must have its plot: " + houses + " houses, " + built
                     + " built plots in " + chunk);

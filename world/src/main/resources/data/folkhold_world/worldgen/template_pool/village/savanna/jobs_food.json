@@ -1,0 +1,41 @@
+{
+  "fallback": "folkhold_world:village/savanna/jobs_start",
+  "elements": [
+    {
+      "weight": 60,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/savanna/job_farmer",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/savanna/foundation"
+      }
+    },
+    {
+      "weight": 10,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/savanna/job_gardener",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/savanna/foundation"
+      }
+    },
+    {
+      "weight": 45,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/savanna/job_baker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/savanna/foundation"
+      }
+    },
+    {
+      "weight": 10,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/savanna/job_rancher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/savanna/foundation"
+      }
+    }
+  ]
+}

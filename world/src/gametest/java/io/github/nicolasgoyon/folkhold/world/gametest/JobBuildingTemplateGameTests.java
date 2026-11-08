@@ -86,8 +86,8 @@ public final class JobBuildingTemplateGameTests {
     /**
      * Each variant of each job building has one job sign, with the job id and an icon, and no entities: a template
      * with entities adds them again at each placement. Each job building and the maritime fishing hut are homes: 1
-     * house sign and {@link #HOME_BEDS} beds or more. The maritime fishing hut has the job sign of the fisher, and the
-     * forge of each style has the job sign of the blacksmith.
+     * house sign and {@link #HOME_BEDS} beds or more. The maritime fishing hut has the job sign of the fisher. The
+     * forge of each style has no job sign: it is not a job post.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "job_building_templates")
     public static void eachVariantHasItsJobSign(GameTestHelper helper) {
@@ -99,14 +99,18 @@ public final class JobBuildingTemplateGameTests {
             }
             for (String style : STYLES) {
                 for (String variant : VARIANTS) {
-                    checkTemplate(templates, piece(style + variant, "job_" + job), job, true, problems);
+                    checkTemplate(templates, piece(style + variant, "job_" + job), job, problems);
                 }
             }
         }
         for (String variant : VARIANTS) {
-            checkTemplate(templates, piece("maritime/" + variant, "house_fishing_hut"), "fisher", true, problems);
+            checkTemplate(templates, piece("maritime/" + variant, "house_fishing_hut"), "fisher", problems);
             for (String style : STYLES) {
-                checkTemplate(templates, piece(style + variant, "house_forge"), "blacksmith", false, problems);
+                ResourceLocation forge = piece(style + variant, "house_forge");
+                if (templates.get(forge).map(template -> template.filterBlocks(BlockPos.ZERO,
+                        new StructurePlaceSettings(), ModBlocks.JOB_SIGN.get()).size()).orElse(-1) != 0) {
+                    problems.add(forge + " must exist with no job sign");
+                }
             }
         }
         helper.assertTrue(problems.isEmpty(), "Problems of the job building templates: " + problems);
@@ -114,11 +118,11 @@ public final class JobBuildingTemplateGameTests {
     }
 
     /**
-     * The template has 1 job sign with the job and an icon, and no entities. A home also has 1 house sign and
-     * {@link #HOME_BEDS} beds or more.
+     * The template is a home with 1 job sign with the job and an icon, 1 house sign, {@link #HOME_BEDS} beds or more,
+     * and no entities.
      */
     private static void checkTemplate(StructureTemplateManager templates, ResourceLocation id, String job,
-            boolean home, List<String> problems) {
+            List<String> problems) {
         Optional<StructureTemplate> template = templates.get(id);
         if (template.isEmpty()) {
             problems.add("no template " + id);
@@ -135,13 +139,11 @@ public final class JobBuildingTemplateGameTests {
         if (!template.get().save(new CompoundTag()).getList("entities", Tag.TAG_COMPOUND).isEmpty()) {
             problems.add(id + " has entities");
         }
-        if (home) {
-            int houseSigns = template.get().filterBlocks(BlockPos.ZERO, new StructurePlaceSettings(),
-                    ModBlocks.buildingSign(BuildingSignKind.HOUSE)).size();
-            int beds = beds(template.get());
-            if (houseSigns != 1 || beds < HOME_BEDS) {
-                problems.add(id + " has " + houseSigns + " house signs and " + beds + " beds");
-            }
+        int houseSigns = template.get().filterBlocks(BlockPos.ZERO, new StructurePlaceSettings(),
+                ModBlocks.buildingSign(BuildingSignKind.HOUSE)).size();
+        int beds = beds(template.get());
+        if (houseSigns != 1 || beds < HOME_BEDS) {
+            problems.add(id + " has " + houseSigns + " house signs and " + beds + " beds");
         }
     }
 
@@ -196,9 +198,8 @@ public final class JobBuildingTemplateGameTests {
     }
 
     /**
-     * A forge with no job sign (a forge of an earlier version of the template, built by the generation or by the
-     * growth) is a building of the blacksmith: the scan counts its building sign. A forge with the 2 signs counts once.
-     * Thus the blacksmith stays active when its job needs a building.
+     * A forge with no job sign is a building of the blacksmith: the scan counts its building sign. Thus the blacksmith
+     * stays active when its job needs a building.
      */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_forge", skyAccess = true)
     public static void forgeWithNoJobSignIsABlacksmithBuilding(GameTestHelper helper) {
@@ -215,10 +216,6 @@ public final class JobBuildingTemplateGameTests {
                 template.placeInWorld(level, origin, origin, settings, level.getRandom(), Block.UPDATE_CLIENTS);
                 boxes.add(template.getBoundingBox(settings, origin));
             }
-            // The first forge has no job sign.
-            BlockPos oldSign = template.filterBlocks(helper.absolutePos(ORIGINS.get(0)), new StructurePlaceSettings(),
-                    ModBlocks.JOB_SIGN.get()).get(0).pos();
-            level.setBlock(oldSign, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
             helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
             VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
             heart.ensureSettlement();
