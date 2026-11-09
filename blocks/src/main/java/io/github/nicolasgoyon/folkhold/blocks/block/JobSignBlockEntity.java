@@ -5,6 +5,8 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -13,6 +15,7 @@ import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -22,7 +25,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <p>The data has the keys {@value #JOB} and {@value #ICON}, for example
  * {@code {job: "blacksmith", icon: "minecraft:anvil"}}. A structure template keeps the data. The client gets the
- * data to show the icon.
+ * data to show the icon. The item of a broken sign keeps the data.
  */
 public class JobSignBlockEntity extends BlockEntity {
     /** The key of the job id in the data. */
@@ -68,6 +71,25 @@ public class JobSignBlockEntity extends BlockEntity {
         if (level != null) {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
         }
+    }
+
+    /**
+     * The item of a broken job sign keeps the job and the icon (the loot table copies the block entity data). Thus a
+     * player that breaks a job sign and places it again keeps the job of the sign.
+     */
+    @Override
+    protected void collectImplicitComponents(DataComponentMap.Builder components) {
+        super.collectImplicitComponents(components);
+        if (job.isEmpty()) {
+            return;
+        }
+        CompoundTag tag = new CompoundTag();
+        tag.putString(JOB, job);
+        if (icon != null) {
+            tag.putString(ICON, icon.toString());
+        }
+        BlockEntity.addEntityType(tag, getType());
+        components.set(DataComponents.BLOCK_ENTITY_DATA, CustomData.of(tag));
     }
 
     @Override

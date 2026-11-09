@@ -220,6 +220,30 @@ public final class Economies {
     }
 
     /**
+     * True if a job post must get a new job (see {@code VillageHeartBlockEntity.renewJobPosts}): a job sign with no
+     * job, or a job that is not valid in the biome of the settlement. The biome of a settlement does not change.
+     *
+     * <ul>
+     *   <li>A minimum level above the level of the settlement is not a reason: the level can go down and come back,
+     *       and the post is inactive in this time.</li>
+     *   <li>A job id with no job file is not a reason: a data pack can remove a file, or a file can have an error.
+     *       The post is inactive, and it works again when the job file comes back.</li>
+     * </ul>
+     *
+     * @param server     the server
+     * @param settlement the settlement
+     * @param jobId      the job id of the post
+     * @return true for a post that must get a new job
+     */
+    public static boolean needsNewJob(MinecraftServer server, Settlement settlement, String jobId) {
+        if (jobId.isEmpty()) {
+            return true;
+        }
+        Job job = EconomyData.jobs().get(jobId);
+        return job != null && !matchesBiome(job, settlement.biome(), biomeHolder(server, settlement.biome()));
+    }
+
+    /**
      * True if a job produces food (see {@link Job#producesFood}).
      *
      * @param jobId the job id
