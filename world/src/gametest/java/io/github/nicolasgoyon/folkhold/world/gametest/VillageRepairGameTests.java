@@ -3,6 +3,11 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.StepType;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestState;
@@ -11,8 +16,10 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.construction.BlockKinds;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
+import io.github.nicolasgoyon.folkhold.world.construction.ConstructionRun;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
@@ -42,16 +49,29 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.AttachedStemBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CakeBlock;
 import net.minecraft.world.level.block.CampfireBlock;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.FenceBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.LayeredCauldronBlock;
+import net.minecraft.world.level.block.LecternBlock;
+import net.minecraft.world.level.block.PoweredRailBlock;
+import net.minecraft.world.level.block.RailBlock;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.StemBlock;
 import net.minecraft.world.level.block.WallBannerBlock;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.entity.LecternBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.RailShape;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.neoforged.neoforge.common.NeoForge;
@@ -88,8 +108,9 @@ public final class VillageRepairGameTests {
 
     /**
      * The comparison of the repairs ignores the life of a village: open gates, lit braziers, the papers of the quest
-     * board, the colors of the banners, the soil, the connections of the fences, ice for water, the plants on an empty position and the
-     * jigsaw blocks. A missing block, a block of another kind and stairs with another facing are damaged.
+     * board, the colors of the banners, the soil, the connections of the fences, ice for water, the plants on an
+     * empty position and the jigsaw blocks. A missing block, a block of another kind and stairs with another facing
+     * are damaged.
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_rules")
     public static void repairRulesIgnoreTheLifeOfTheVillage(GameTestHelper helper) {
@@ -129,6 +150,134 @@ public final class VillageRepairGameTests {
         assertDamaged(helper, true, stairs.setValue(StairBlock.FACING, Direction.SOUTH),
                 stairs.setValue(StairBlock.FACING, Direction.NORTH), "stairs with another facing");
         helper.succeed();
+    }
+
+    /**
+     * The comparison of the repairs ignores the states that the weather, the growth and the normal use change: a
+     * cauldron that the rain or the snow fills, a cauldron with no water, a stem after the harvest of its fruit, a
+     * rail that connects to a new rail and an eaten cake. A lava cauldron for a water cauldron is damaged. A player
+     * action that gives another block is damaged: a candle cake that becomes a cake, a chipped anvil, a flower pot
+     * with a plant.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_rules")
+    public static void repairRulesIgnoreTheStatesOfNormalUse(GameTestHelper helper) {
+        BlockState waterCauldron = Blocks.WATER_CAULDRON.defaultBlockState().setValue(LayeredCauldronBlock.LEVEL, 3);
+        assertDamaged(helper, false, waterCauldron.setValue(LayeredCauldronBlock.LEVEL, 1),
+                Blocks.CAULDRON.defaultBlockState(), "a cauldron that the rain fills");
+        assertDamaged(helper, false, Blocks.CAULDRON.defaultBlockState(), waterCauldron, "a cauldron with no water");
+        assertDamaged(helper, false, Blocks.POWDER_SNOW_CAULDRON.defaultBlockState(),
+                Blocks.CAULDRON.defaultBlockState(), "a cauldron that the snow fills");
+        assertDamaged(helper, true, Blocks.LAVA_CAULDRON.defaultBlockState(), waterCauldron,
+                "a lava cauldron for a water cauldron");
+        assertDamaged(helper, false, Blocks.MELON_STEM.defaultBlockState().setValue(StemBlock.AGE, StemBlock.MAX_AGE),
+                Blocks.ATTACHED_MELON_STEM.defaultBlockState().setValue(AttachedStemBlock.FACING, Direction.NORTH),
+                "a melon stem after the harvest");
+        assertDamaged(helper, false, Blocks.PUMPKIN_STEM.defaultBlockState().setValue(StemBlock.AGE,
+                StemBlock.MAX_AGE), Blocks.ATTACHED_PUMPKIN_STEM.defaultBlockState().setValue(AttachedStemBlock.FACING,
+                Direction.EAST), "a pumpkin stem after the harvest");
+        assertDamaged(helper, false, Blocks.RAIL.defaultBlockState().setValue(RailBlock.SHAPE, RailShape.SOUTH_EAST),
+                Blocks.RAIL.defaultBlockState().setValue(RailBlock.SHAPE, RailShape.NORTH_SOUTH),
+                "a rail that connects to a new rail");
+        assertDamaged(helper, false, Blocks.POWERED_RAIL.defaultBlockState().setValue(PoweredRailBlock.SHAPE,
+                RailShape.ASCENDING_NORTH), Blocks.POWERED_RAIL.defaultBlockState().setValue(PoweredRailBlock.SHAPE,
+                RailShape.NORTH_SOUTH), "a powered rail that connects to a new rail");
+        assertDamaged(helper, false, Blocks.CAKE.defaultBlockState().setValue(CakeBlock.BITES, 3),
+                Blocks.CAKE.defaultBlockState(), "an eaten cake");
+        assertDamaged(helper, true, Blocks.CAKE.defaultBlockState().setValue(CakeBlock.BITES, 1),
+                Blocks.CANDLE_CAKE.defaultBlockState(), "a candle cake that becomes a cake");
+        assertDamaged(helper, true, Blocks.CHIPPED_ANVIL.defaultBlockState(), Blocks.ANVIL.defaultBlockState(),
+                "a chipped anvil");
+        assertDamaged(helper, true, Blocks.POTTED_POPPY.defaultBlockState(), Blocks.FLOWER_POT.defaultBlockState(),
+                "a flower pot with a plant");
+        helper.succeed();
+    }
+
+    /**
+     * A repair of one part of a quest board with another facing: the plan changes the state of the part with no
+     * removal, and the 8 other parts stay.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_parts")
+    public static void stateRepairKeepsTheOtherParts(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ServerLevel level = helper.getLevel();
+        QuestBoardBlock board = ModBlocks.QUEST_BOARD.get();
+        BlockPos base = helper.absolutePos(new BlockPos(8, 1, 8));
+        board.place(level, base, Direction.NORTH, Block.UPDATE_ALL);
+        BlockPos middle = QuestBoardBlock.partPos(base, Direction.NORTH, 1, 1);
+        BlockState expected = board.part(Direction.NORTH, 1, 1);
+        level.setBlock(middle, board.part(Direction.EAST, 1, 1), Block.UPDATE_ALL);
+
+        repairState(helper, middle, expected);
+
+        for (int column = 0; column < QuestBoardBlock.SIZE; column++) {
+            for (int row = 0; row < QuestBoardBlock.SIZE; row++) {
+                BlockPos pos = QuestBoardBlock.partPos(base, Direction.NORTH, column, row);
+                helper.assertTrue(board.isPart(level.getBlockState(pos), Direction.NORTH, column, row),
+                        "The part " + column + "," + row + " of the board must stay: " + level.getBlockState(pos));
+            }
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A repair of a chest with items and another facing: the plan changes the state with no removal, and the chest
+     * keeps its items.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_parts")
+    public static void stateRepairKeepsTheItemsOfAChest(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(8, 1, 8));
+        BlockState expected = Blocks.CHEST.defaultBlockState().setValue(ChestBlock.FACING, Direction.NORTH);
+        level.setBlock(pos, expected.setValue(ChestBlock.FACING, Direction.EAST), Block.UPDATE_ALL);
+        if (level.getBlockEntity(pos) instanceof ChestBlockEntity chest) {
+            chest.setItem(0, new ItemStack(Items.BREAD, 5));
+        }
+
+        repairState(helper, pos, expected);
+
+        helper.assertTrue(level.getBlockState(pos).equals(expected), "The chest must get the reference facing: "
+                + level.getBlockState(pos));
+        helper.assertTrue(level.getBlockEntity(pos) instanceof ChestBlockEntity chest
+                && chest.getItem(0).is(Items.BREAD) && chest.getItem(0).getCount() == 5,
+                "The chest must keep its items");
+        helper.succeed();
+    }
+
+    /**
+     * A repair of a lectern with a book and another facing: the lectern gets the reference facing, and keeps its book
+     * and the value of the level for {@code has_book}.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_parts")
+    public static void stateRepairKeepsTheBookOfALectern(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(8, 1, 8));
+        BlockState expected = Blocks.LECTERN.defaultBlockState().setValue(LecternBlock.FACING, Direction.NORTH)
+                .setValue(LecternBlock.HAS_BOOK, false);
+        level.setBlock(pos, expected.setValue(LecternBlock.FACING, Direction.EAST), Block.UPDATE_ALL);
+        LecternBlock.tryPlaceBook(null, level, pos, level.getBlockState(pos), new ItemStack(Items.WRITABLE_BOOK));
+        helper.assertTrue(level.getBlockState(pos).getValue(LecternBlock.HAS_BOOK), "The lectern must have a book");
+
+        repairState(helper, pos, expected);
+
+        BlockState state = level.getBlockState(pos);
+        helper.assertTrue(state.getValue(LecternBlock.FACING) == Direction.NORTH && state.getValue(
+                LecternBlock.HAS_BOOK), "The lectern must get the reference facing and keep has_book: " + state);
+        helper.assertTrue(level.getBlockEntity(pos) instanceof LecternBlockEntity lectern
+                && lectern.getBook().is(Items.WRITABLE_BOOK), "The lectern must keep its book");
+        helper.succeed();
+    }
+
+    /** Plans and applies the repair of one position: the plan must change the state with no removal. */
+    private static void repairState(GameTestHelper helper, BlockPos pos, BlockState expected) {
+        ServerLevel level = helper.getLevel();
+        Target target = new Target(Map.of(BlockKinds.toBuildPos(pos),
+                BlockKinds.describe(pos, expected, Optional.empty())));
+        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), Reach.DEFAULT);
+        helper.assertTrue(plan.count(StepType.REMOVE) == 0 && plan.count(StepType.PLACE) == 1,
+                "The plan must change the state with no removal: " + plan.steps());
+        new ConstructionRun(level, plan, 1).finish();
     }
 
     /**
