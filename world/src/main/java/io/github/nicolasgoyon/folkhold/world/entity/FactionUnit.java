@@ -94,6 +94,8 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  * target that swims away from an island or a coast is out of the area. When the unit or its target leaves the area,
  * the unit stops the chase, ignores all targets for {@link #GIVE_UP_TICKS} and goes back. The unit
  * also stops the chase after {@link #UNREACHABLE_TICKS} with no path to the target and no line of sight to it.
+ * An attack stops this time when the unit and the attacker are both in the chase area (see
+ * {@link #setLastHurtByMob}): the unit then answers the attacker.
  *
  * <p>The attributes come from the config of the unit type when the unit spawns.
  */
@@ -126,8 +128,11 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     private static final String NIGHT_TAG = "NightPos";
     private static final String FACTION_TAG = "Faction";
     private static final String EQUIPMENT_TAG = "Equipment";
-    /** After the end of a chase at the limit of the chase area, the unit ignores all targets for this time. */
-    static final int GIVE_UP_TICKS = 100;
+    /**
+     * After the end of a chase at the limit of the chase area, the unit ignores all targets for this time. An attack
+     * from the chase area stops this time (see {@link #setLastHurtByMob}).
+     */
+    public static final int GIVE_UP_TICKS = 100;
     /** Water of this depth, in blocks, or more is deep: a unit does not chase a target in it. */
     public static final int DEEP_WATER = 3;
     /** A unit stops the chase after this time with no path to its target and no line of sight to it. */
@@ -531,6 +536,25 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
         Path path = getNavigation().getPath();
         boolean toTarget = path != null && path.getTarget().closerThan(target.blockPosition(), PATH_TARGET_DISTANCE);
         return !toTarget || !path.canReach();
+    }
+
+    /**
+     * Records the attacker of the unit. If the unit and the attacker are both in the chase area, the attack stops the
+     * time in which the unit ignores all targets (see {@link #giveUpChase}). Then {@link UnitHurtByTargetGoal} can
+     * give the attacker as target. An attacker outside the chase area does not stop this time: the unit stays near
+     * its post. A friendly player also does not stop this time: the unit does not answer a friendly player.
+     *
+     * <p>{@code LivingEntity.hurt} calls this method, and {@link FactionHorseEntity} calls it for the rider of the
+     * horse. So the rule applies to all units.
+     */
+    @Override
+    public void setLastHurtByMob(@Nullable LivingEntity attacker) {
+        super.setLastHurtByMob(attacker);
+        if (attacker != null && !level().isClientSide() && level().getGameTime() < gaveUpUntil
+                && !(attacker instanceof Player player && isFriendlyTo(player))
+                && isInChaseArea(blockPosition()) && isInChaseArea(attacker.blockPosition())) {
+            gaveUpUntil = 0;
+        }
     }
 
     /** Stops the chase: the unit drops its target and ignores all targets for {@link #GIVE_UP_TICKS}. */

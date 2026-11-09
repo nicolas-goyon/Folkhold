@@ -24,6 +24,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.animal.IronGolem;
@@ -211,6 +212,119 @@ public final class FactionGolemGameTests {
             helper.assertTrue(alive, "The golem must not kill the far target");
             helper.succeed();
         });
+    }
+
+    /** A golem at its post near a corner of the arena, and a far husk outside the chase area of the golem. */
+    private record GiveUpScene(FactionGolemEntity golem, BlockPos post, Husk far) {
+    }
+
+    /**
+     * Spawns a golem at its post near a corner of the arena, and a husk with no AI at the opposite corner, outside the
+     * chase area of the golem. The golem gets the husk as target. At its next AI step, the golem gives up the chase
+     * and ignores all targets for {@link FactionUnit#GIVE_UP_TICKS}.
+     */
+    private static GiveUpScene giveUpScene(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        BlockPos relativePost = new BlockPos(1, 1, 1);
+        FactionGolemEntity golem = golemWithPost(helper, relativePost);
+        Husk far = helper.spawn(EntityType.HUSK, new BlockPos(14, 1, 14));
+        far.setNoAi(true);
+        golem.setTarget(far);
+        return new GiveUpScene(golem, helper.absolutePos(relativePost), far);
+    }
+
+    /**
+     * Makes the golem give up the chase of the far husk. Then the test asserts that the golem ignores all targets: the
+     * golem refuses the far husk as target.
+     */
+    private static void assertGaveUp(GameTestHelper helper, GiveUpScene scene) {
+        FactionGolemEntity golem = scene.golem();
+        helper.assertTrue(!golem.isInChaseArea(scene.far().blockPosition()),
+                "The far husk must be outside the chase area of the golem");
+        golem.setTarget(scene.far());
+        helper.assertTrue(golem.getTarget() == null, "The golem must ignore all targets after it gives up a chase");
+    }
+
+    /**
+     * A golem gives up a chase. Then a monster in the chase area hits the golem: the attack stops the give-up time, and
+     * the golem targets the monster. The golem gives up the chase at most 2 ticks before the hit, and the test asserts
+     * the target 20 ticks after the hit: before the end of the {@link FactionUnit#GIVE_UP_TICKS}. The monster has no AI
+     * and much health, so that it stays at its position and alive.
+     */
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "golem_give_up_near")
+    public static void golemAnswersAnAttackerAfterItGivesUpAChase(GameTestHelper helper) {
+        GiveUpScene scene = giveUpScene(helper);
+        FactionGolemEntity golem = scene.golem();
+        Husk[] near = {null};
+        boolean[] answered = {false};
+        helper.onEachTick(() -> {
+            if (near[0] != null && golem.getTarget() == near[0]) {
+                answered[0] = true;
+            }
+        });
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(golem.getTarget() == null, "The golem must give up the chase"))
+                .thenExecute(() -> {
+                    assertGaveUp(helper, scene);
+                    Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(4, 1, 1));
+                    husk.setNoAi(true);
+                    AttributeInstance health = husk.getAttribute(Attributes.MAX_HEALTH);
+                    if (health != null) {
+                        health.setBaseValue(500.0);
+                    }
+                    husk.setHealth(500.0F);
+                    helper.assertTrue(golem.isInChaseArea(golem.blockPosition())
+                                    && golem.isInChaseArea(husk.blockPosition()),
+                            "The golem and the near husk must be in the chase area of the golem");
+                    near[0] = husk;
+                    golem.hurt(helper.getLevel().damageSources().mobAttack(husk), 1.0F);
+                })
+                .thenIdle(20)
+                .thenExecute(() -> {
+                    boolean answer = answered[0];
+                    golem.discard();
+                    scene.far().discard();
+                    near[0].discard();
+                    helper.assertTrue(answer, "The golem must target the near husk that hit it, before the end of the"
+                            + " give-up time");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A golem gives up a chase. Then a monster outside the chase area hits the golem: the golem does not target the
+     * monster and stays at its post, until 20 ticks after the end of the give-up time.
+     */
+    @GameTest(template = "arena", timeoutTicks = 300, batch = "golem_give_up_far")
+    public static void golemDoesNotChaseAFarAttackerAfterItGivesUpAChase(GameTestHelper helper) {
+        GiveUpScene scene = giveUpScene(helper);
+        FactionGolemEntity golem = scene.golem();
+        boolean[] chased = {false};
+        boolean[] hit = {false};
+        helper.onEachTick(() -> {
+            if (hit[0] && (golem.getTarget() == scene.far() || !golem.blockPosition().closerThan(scene.post(), AT_POST))) {
+                chased[0] = true;
+            }
+        });
+
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(golem.getTarget() == null, "The golem must give up the chase"))
+                .thenExecute(() -> {
+                    assertGaveUp(helper, scene);
+                    golem.hurt(helper.getLevel().damageSources().mobAttack(scene.far()), 1.0F);
+                    helper.assertTrue(golem.getLastHurtByMob() == scene.far(),
+                            "The far husk must be the attacker of the golem");
+                    hit[0] = true;
+                })
+                .thenIdle(FactionUnit.GIVE_UP_TICKS + 20)
+                .thenExecute(() -> {
+                    boolean chase = chased[0];
+                    golem.discard();
+                    scene.far().discard();
+                    helper.assertTrue(!chase, "The golem must not chase the far husk that hit it");
+                })
+                .thenSucceed();
     }
 
     /**
