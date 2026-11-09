@@ -33,6 +33,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
 /**
  * The growth of a village: its builders build new homes and the buildings of its level on the free plots of its
@@ -68,9 +69,10 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       such piece gets no building of this kind.</li>
  *   <li>The village has builders and no construction site. The heart looks for a free plot after the check of the
  *       repairs: a repair comes first.</li>
- *   <li>A free plot has no building of the generation. The space of the home has no piece of the village structure, no
- *       palisade, no earlier construction site and no block of a player. The nearest free plot to the heart comes
- *       first.</li>
+ *   <li>A free plot has no building of the generation. The space of the piece has no piece of the village structure,
+ *       no palisade (see {@link #hasRoom}), no earlier construction site and no block of a player. The nearest free
+ *       plot to the heart comes first. The wall keeps the space of each house-workshop of the variant on a free plot
+ *       (see {@link VillagePlots#reserved}).</li>
  *   <li>The connector of the building goes in front of the connector of the plot, on the ground of the street.</li>
  *   <li>The construction uses the stock of the village and the delivery quests, as the other sites (see
  *       {@link BuilderSites}). At the end, the heart scans the village again: the new beds give places, and the new
@@ -88,8 +90,6 @@ public final class VillageGrowth {
     private static final String BUILDING_PREFIX = "house_";
     /** The name of the pool of the market of a variant, in the folder of the pool of its homes. */
     private static final String MARKET = "market";
-    /** The name of the pool of the house-workshops of a variant, in the folder of the pool of its homes. */
-    private static final String JOBS = "jobs";
     /** The name of the piece of a house-workshop starts with this text. */
     private static final String JOB_PREFIX = "job_";
     /** The number of jobs that one check of the growth tries for a house-workshop. */
@@ -247,7 +247,8 @@ public final class VillageGrowth {
             return Optional.empty();
         }
         String suffix = "/" + JOB_PREFIX + job.getPath();
-        return pool(level, sibling(homes, JOBS)).flatMap(pool -> pool.getShuffledTemplates(level.random).stream()
+        return pool(level, VillagePlots.sibling(homes, VillagePlots.JOBS))
+                .flatMap(pool -> pool.getShuffledTemplates(level.random).stream()
                 .filter(element -> VillageReference.templateOf(level, element)
                         .filter(template -> template.getPath().endsWith(suffix)).isPresent())
                 .findFirst());
@@ -329,12 +330,6 @@ public final class VillageGrowth {
         return level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL).getOptional(id);
     }
 
-    /** The id of a pool of a variant, in the folder of the pool of its homes. */
-    private static ResourceLocation sibling(ResourceLocation homes, String name) {
-        String path = homes.getPath();
-        return homes.withPath(path.substring(0, path.lastIndexOf('/') + 1) + name);
-    }
-
     /**
      * The piece of a step of the growth, from the pools of the variant of the village.
      *
@@ -347,11 +342,12 @@ public final class VillageGrowth {
     static Optional<StructurePoolElement> piece(ServerLevel level, VillageBuildings.Step step, ResourceLocation homes) {
         return switch (step.type()) {
             case FIRST_POST, HOME -> Optional.empty();
-            case MARKET -> pool(level, sibling(homes, MARKET)).map(pool -> pool.getRandomTemplate(level.random));
+            case MARKET -> pool(level, VillagePlots.sibling(homes, MARKET))
+                    .map(pool -> pool.getRandomTemplate(level.random));
             case BUILDING -> {
                 String suffix = "/" + BUILDING_PREFIX + step.kind();
-                yield pool(level, sibling(homes, HOUSES)).flatMap(pool -> pool.getShuffledTemplates(level.random)
-                        .stream()
+                yield pool(level, VillagePlots.sibling(homes, HOUSES))
+                        .flatMap(pool -> pool.getShuffledTemplates(level.random).stream()
                         .filter(element -> VillageReference.templateOf(level, element)
                                 .filter(template -> template.getPath().endsWith(suffix)).isPresent())
                         .findFirst());
@@ -383,11 +379,32 @@ public final class VillageGrowth {
      * @return true if the builders can build there
      */
     public static boolean isFree(ServerLevel level, BlockPos heart, VillageReference reference, BoundingBox box) {
-        if (!ReadyChunks.isAreaReady(level, box.minX(), box.minZ(), box.maxX(), box.maxZ())) {
+        if (!ReadyChunks.isAreaReady(level, box.minX(), box.minZ(), box.maxX(), box.maxZ())
+                || !hasRoom(level.getStructureManager(), reference, box)) {
             return false;
         }
+        VillageRepairData data = VillageRepairData.get(level);
+        for (BlockPos pos : BlockPos.betweenClosed(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(),
+                box.maxZ())) {
+            if (data.keeps(heart, pos)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * True if a space of a village has room for a new building: it has no piece of the village structure and no
+     * palisade. This check reads no block of the level.
+     *
+     * @param templates the structure templates of the server
+     * @param reference the reference of the village structure
+     * @param box       the space
+     * @return true if no piece and no column of the palisade is in the space
+     */
+    public static boolean hasRoom(StructureTemplateManager templates, VillageReference reference, BoundingBox box) {
         for (VillageReference.Piece piece : reference.pieces()) {
-            boolean taken = level.getStructureManager().get(piece.template())
+            boolean taken = templates.get(piece.template())
                     .map(found -> GhostPlacement.box(found.getSize(), piece.rotation(), Mirror.NONE, piece.origin()))
                     .filter(box::intersects)
                     .isPresent();
@@ -398,13 +415,6 @@ public final class VillageGrowth {
         for (BlockPos column : reference.palisadeBlocks().keySet()) {
             if (column.getX() >= box.minX() && column.getX() <= box.maxX() && column.getZ() >= box.minZ()
                     && column.getZ() <= box.maxZ()) {
-                return false;
-            }
-        }
-        VillageRepairData data = VillageRepairData.get(level);
-        for (BlockPos pos : BlockPos.betweenClosed(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(),
-                box.maxZ())) {
-            if (data.keeps(heart, pos)) {
                 return false;
             }
         }
