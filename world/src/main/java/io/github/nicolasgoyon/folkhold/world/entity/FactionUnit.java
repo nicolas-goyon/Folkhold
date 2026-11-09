@@ -542,7 +542,8 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
      * Records the attacker of the unit. If the unit and the attacker are both in the chase area, the attack stops the
      * time in which the unit ignores all targets (see {@link #giveUpChase}). Then {@link UnitHurtByTargetGoal} can
      * give the attacker as target. An attacker outside the chase area does not stop this time: the unit stays near
-     * its post. A friendly player also does not stop this time: the unit does not answer a friendly player.
+     * its post. These attackers also do not stop this time, because {@link UnitHurtByTargetGoal} does not answer them:
+     * a friendly player, another unit, and an attacker that the unit cannot attack ({@link #canAttack(LivingEntity)}).
      *
      * <p>{@code LivingEntity.hurt} calls this method, and {@link FactionHorseEntity} calls it for the rider of the
      * horse. So the rule applies to all units.
@@ -550,11 +551,20 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
     @Override
     public void setLastHurtByMob(@Nullable LivingEntity attacker) {
         super.setLastHurtByMob(attacker);
-        if (attacker != null && !level().isClientSide() && level().getGameTime() < gaveUpUntil
+        if (attacker != null && !level().isClientSide() && isGivingUp()
                 && !(attacker instanceof Player player && isFriendlyTo(player))
+                && !(attacker instanceof FactionUnit) && canAttack(attacker)
                 && isInChaseArea(blockPosition()) && isInChaseArea(attacker.blockPosition())) {
             gaveUpUntil = 0;
         }
+    }
+
+    /**
+     * True while the unit ignores all targets after it gives up a chase (see {@link #giveUpChase}). The GameTests use
+     * this method.
+     */
+    public boolean isGivingUp() {
+        return level().getGameTime() < gaveUpUntil;
     }
 
     /** Stops the chase: the unit drops its target and ignores all targets for {@link #GIVE_UP_TICKS}. */

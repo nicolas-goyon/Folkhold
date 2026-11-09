@@ -233,16 +233,12 @@ public final class FactionGolemGameTests {
         return new GiveUpScene(golem, helper.absolutePos(relativePost), far);
     }
 
-    /**
-     * Makes the golem give up the chase of the far husk. Then the test asserts that the golem ignores all targets: the
-     * golem refuses the far husk as target.
-     */
+    /** Asserts that the far husk is outside the chase area of the golem, and that the golem ignores all targets. */
     private static void assertGaveUp(GameTestHelper helper, GiveUpScene scene) {
         FactionGolemEntity golem = scene.golem();
         helper.assertTrue(!golem.isInChaseArea(scene.far().blockPosition()),
                 "The far husk must be outside the chase area of the golem");
-        golem.setTarget(scene.far());
-        helper.assertTrue(golem.getTarget() == null, "The golem must ignore all targets after it gives up a chase");
+        helper.assertTrue(golem.isGivingUp(), "The golem must ignore all targets after it gives up a chase");
     }
 
     /**
@@ -293,8 +289,9 @@ public final class FactionGolemGameTests {
     }
 
     /**
-     * A golem gives up a chase. Then a monster outside the chase area hits the golem: the golem does not target the
-     * monster and stays at its post, until 20 ticks after the end of the give-up time.
+     * A golem gives up a chase. Then a monster outside the chase area hits the golem: the hit does not stop the give-up
+     * time. The golem does not target the monster and stays at its post, until 20 ticks after the end of the give-up
+     * time.
      */
     @GameTest(template = "arena", timeoutTicks = 300, batch = "golem_give_up_far")
     public static void golemDoesNotChaseAFarAttackerAfterItGivesUpAChase(GameTestHelper helper) {
@@ -315,6 +312,8 @@ public final class FactionGolemGameTests {
                     golem.hurt(helper.getLevel().damageSources().mobAttack(scene.far()), 1.0F);
                     helper.assertTrue(golem.getLastHurtByMob() == scene.far(),
                             "The far husk must be the attacker of the golem");
+                    helper.assertTrue(golem.isGivingUp(),
+                            "The hit of the far husk must not stop the give-up time of the golem");
                     hit[0] = true;
                 })
                 .thenIdle(FactionUnit.GIVE_UP_TICKS + 20)
