@@ -84,17 +84,34 @@ public final class JobBuildingTemplateGameTests {
     private static final Map<String, List<String>> VALEHOLM_GROUPS = valeholmGroups();
     /** The size of a Norse long house of the Valeholm style (x, y, z): it fits each plot of a Norse street. */
     private static final Vec3i LONG_HOUSE = new Vec3i(9, 16, 17);
-    /** The biome variants of the scan tests of the Valeholm pieces: the base variant, the desert and the swamp. */
-    private static final List<String> VALEHOLM_SCAN_VARIANTS = List.of("", "desert/", "swamp/");
+    /**
+     * The groups of the scan tests of the Sunreach pieces, by name: the jobs with a Sunreach piece of their own
+     * (SUNREACH_JOBS in the structure script). The other jobs use the pieces of all the cultures.
+     */
+    private static final Map<String, List<String>> SUNREACH_GROUPS = sunreachGroups();
+    /**
+     * The size of a Sunreach house-workshop (x, y, z): as wide as a flat house and as deep as a courtyard house of
+     * the style.
+     */
+    private static final Vec3i SUN_WORKSHOP = new Vec3i(9, 7, 13);
+    /** The size of a job building of all the cultures (x, y, z). */
+    private static final Vec3i JOB_BUILDING = new Vec3i(9, 10, 9);
+    /**
+     * The styles with house-workshops of their own, by folder. A complete style has a piece of its own for each job
+     * of {@link #JOBS}.
+     */
+    private static final Map<String, StyleJobs> STYLE_JOBS = styleJobs();
+    /** The biome variants of the scan tests of the pieces of a style: the base variant, the desert and the swamp. */
+    private static final List<String> STYLE_SCAN_VARIANTS = List.of("", "desert/", "swamp/");
     /** The origin of the template of each job of a group: 3 buildings north of the heart, 2 south of it. */
     private static final List<BlockPos> ORIGINS = List.of(new BlockPos(1, 1, 1), new BlockPos(11, 1, 1),
             new BlockPos(21, 1, 1), new BlockPos(6, 1, 21), new BlockPos(16, 1, 21));
     private static final BlockPos HEART = new BlockPos(16, 1, 15);
     /**
-     * The heart of the tests of the Valeholm pieces: between the 2 rows of the long houses (17 blocks deep) in the
-     * arena {@code arena_huge}.
+     * The heart of the tests of the pieces of a style: between the 2 rows of the buildings (17 blocks deep or less)
+     * in the arena {@code arena_huge}.
      */
-    private static final BlockPos NORSE_HEART = new BlockPos(16, 1, 19);
+    private static final BlockPos STYLE_HEART = new BlockPos(16, 1, 19);
     private static final int HUGE_ARENA = 56;
     /** The folders of the pieces of the village: the styles of the cultures and the maritime pieces. */
     private static final List<String> STYLES = List.of("", "valeholm/", "sunreach/", "maritime/");
@@ -108,8 +125,8 @@ public final class JobBuildingTemplateGameTests {
      * Each variant of each job building has one job sign, with the job id and an icon, and no entities: a template
      * with entities adds them again at each placement. Each job building and the maritime fishing hut are homes: 1
      * house sign and {@link #HOME_BEDS} beds or more. The maritime fishing hut has the job sign of the fisher. The
-     * forge of each style has no job sign: it is not a job post. The Valeholm piece of each job is a long house of
-     * {@link #LONG_HOUSE} blocks.
+     * forge of each style has no job sign: it is not a job post. The groups of the scan tests of each style (see
+     * {@link #checkStyleJobs}) give the jobs with a piece of the style, and these pieces have the size of the style.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "job_building_templates")
     public static void eachVariantHasItsJobSign(GameTestHelper helper) {
@@ -124,12 +141,8 @@ public final class JobBuildingTemplateGameTests {
                     checkTemplate(templates, piece(style + variant, "job_" + job), job, problems);
                 }
             }
-            for (String variant : VARIANTS) {
-                ResourceLocation id = piece("valeholm/" + variant, "job_" + job);
-                templates.get(id).filter(template -> !template.getSize().equals(LONG_HOUSE))
-                        .ifPresent(template -> problems.add(id + " is not a long house: " + template.getSize()));
-            }
         }
+        STYLE_JOBS.forEach((style, jobs) -> checkStyleJobs(templates, style, jobs, problems));
         for (String variant : VARIANTS) {
             checkTemplate(templates, piece("maritime/" + variant, "house_fishing_hut"), "fisher", problems);
             for (String style : STYLES) {
@@ -174,6 +187,33 @@ public final class JobBuildingTemplateGameTests {
         }
     }
 
+    /**
+     * The groups of the scan tests of a style have each job one time, and only the jobs of {@link #JOBS}. The groups
+     * of a complete style have all the jobs of {@link #JOBS}: a new job cannot miss its scan test. In each variant,
+     * the piece of a job of the groups has the size of the style, and the piece of another job has the size of the
+     * piece of all the cultures. Thus a job of the groups cannot fall back to the piece of all the cultures, and a new
+     * piece of the style cannot miss its scan test.
+     */
+    private static void checkStyleJobs(StructureTemplateManager templates, String style, StyleJobs jobs,
+            List<String> problems) {
+        List<String> grouped = jobs.jobs();
+        if (grouped.size() != grouped.stream().distinct().count() || !JOBS.containsAll(grouped)) {
+            problems.add("The scan groups of " + style + " must have each job one time, from JOBS: " + grouped);
+        }
+        if (jobs.complete() && !grouped.containsAll(JOBS)) {
+            problems.add("The scan groups of " + style + " must have all the jobs: no group for "
+                    + JOBS.stream().filter(job -> !grouped.contains(job)).toList());
+        }
+        for (String job : JOBS) {
+            Vec3i size = grouped.contains(job) ? jobs.size() : JOB_BUILDING;
+            for (String variant : VARIANTS) {
+                ResourceLocation id = piece(style + variant, "job_" + job);
+                templates.get(id).filter(template -> !template.getSize().equals(size)).ifPresent(template ->
+                        problems.add(id + " must have the size " + size + ": " + template.getSize()));
+            }
+        }
+    }
+
     /** The number of beds of a template: the head parts of the beds of all the colors. */
     private static int beds(StructureTemplate template) {
         return (int) BuiltInRegistries.BLOCK.stream().filter(BedBlock.class::isInstance)
@@ -189,23 +229,51 @@ public final class JobBuildingTemplateGameTests {
     }
 
     /**
-     * The scan tests of the Valeholm pieces: one test for each group of {@link #VALEHOLM_GROUPS} in each variant of
-     * {@link #VALEHOLM_SCAN_VARIANTS}, in the arena {@code arena_huge} (see {@link #checkScan}). In the desert, the
-     * fences of the yards and the pens are sandstone walls with no gaps. In the swamp, the pieces have mangrove wood
-     * and mud bricks.
+     * The scan tests of the pieces of the styles: one test for each group of each style of {@link #STYLE_JOBS} in
+     * each variant of {@link #STYLE_SCAN_VARIANTS}, in the arena {@code arena_huge} (see {@link #checkScan}). The name
+     * of a test is {@code heartfinds_<style>_[<variant>_]<group>}. In the desert, the fences of the Valeholm yards and
+     * pens are sandstone walls with no gaps. In the swamp, the pieces have mangrove wood and mud bricks.
      */
     @GameTestGenerator
-    public static List<TestFunction> valeholmScans() {
+    public static List<TestFunction> styleScans() {
         List<TestFunction> tests = new ArrayList<>();
-        for (String variant : VALEHOLM_SCAN_VARIANTS) {
-            for (Map.Entry<String, List<String>> group : VALEHOLM_GROUPS.entrySet()) {
-                String name = "valeholm_" + (variant.isEmpty() ? "" : variant.replace("/", "_")) + group.getKey();
-                tests.add(new TestFunction("job_building_scan_" + name, "jobbuildingtemplategametests.heartfinds_"
-                        + name, FolkholdWorld.MOD_ID + ":arena_huge", Rotation.NONE, 40, 0L, true, false, 1, 1, true,
-                        helper -> checkScan(helper, "valeholm/" + variant, group.getValue())));
+        for (Map.Entry<String, StyleJobs> entry : STYLE_JOBS.entrySet()) {
+            String style = entry.getKey();
+            for (String variant : STYLE_SCAN_VARIANTS) {
+                for (Map.Entry<String, List<String>> group : entry.getValue().groups().entrySet()) {
+                    String name = (style + variant).replace("/", "_") + group.getKey();
+                    tests.add(new TestFunction("job_building_scan_" + name, "jobbuildingtemplategametests.heartfinds_"
+                            + name, FolkholdWorld.MOD_ID + ":arena_huge", Rotation.NONE, 40, 0L, true, false, 1, 1,
+                            true, helper -> checkScan(helper, style + variant, group.getValue())));
+                }
             }
         }
         return tests;
+    }
+
+    /**
+     * The groups of the scan tests of a style, the size of the pieces of the jobs of these groups, and true when the
+     * style has a piece of its own for each job.
+     */
+    private record StyleJobs(Map<String, List<String>> groups, Vec3i size, boolean complete) {
+        List<String> jobs() {
+            return groups.values().stream().flatMap(List::stream).toList();
+        }
+    }
+
+    /** The styles of {@link #STYLE_JOBS}, in the order of their scan tests. */
+    private static Map<String, StyleJobs> styleJobs() {
+        Map<String, StyleJobs> styles = new LinkedHashMap<>();
+        styles.put("valeholm/", new StyleJobs(VALEHOLM_GROUPS, LONG_HOUSE, true));
+        styles.put("sunreach/", new StyleJobs(SUNREACH_GROUPS, SUN_WORKSHOP, false));
+        return styles;
+    }
+
+    private static Map<String, List<String>> sunreachGroups() {
+        Map<String, List<String>> groups = new LinkedHashMap<>();
+        groups.put("fields", FIELDS);
+        groups.put("food", FOOD);
+        return groups;
     }
 
     private static Map<String, List<String>> valeholmGroups() {
@@ -312,13 +380,14 @@ public final class JobBuildingTemplateGameTests {
      * template has no warning. After the placement of the templates, each job sign has its job and its icon item, each
      * fence and each wall has the shape of its neighbors, and the scan of the heart finds 1 job post for each building
      * with the beds of the building, 1 home (house sign) for each building and the beds of the templates as the home
-     * beds of the village. The Valeholm pieces are long houses of {@link #LONG_HOUSE} blocks: their tests use the arena
-     * {@code arena_huge}.
+     * beds of the village. The pieces of a style of {@link #STYLE_JOBS} have the size of the style: their tests use
+     * the arena {@code arena_huge}.
      */
     private static void checkScan(GameTestHelper helper, String folder, List<String> jobs) {
-        boolean norse = folder.startsWith("valeholm/");
-        BlockPos heartPos = norse ? NORSE_HEART : HEART;
-        TestSupport.buildFloor(helper, norse ? HUGE_ARENA : ARENA);
+        StyleJobs style = STYLE_JOBS.entrySet().stream().filter(entry -> folder.startsWith(entry.getKey()))
+                .map(Map.Entry::getValue).findFirst().orElse(null);
+        BlockPos heartPos = style != null ? STYLE_HEART : HEART;
+        TestSupport.buildFloor(helper, style != null ? HUGE_ARENA : ARENA);
         ServerLevel level = helper.getLevel();
         StructureTemplateManager templates = level.getStructureManager();
         List<BoundingBox> boxes = new ArrayList<>();
@@ -329,8 +398,8 @@ public final class JobBuildingTemplateGameTests {
             for (int i = 0; i < jobs.size(); i++) {
                 String job = jobs.get(i);
                 StructureTemplate template = templates.get(piece(folder, "job_" + job)).orElseThrow();
-                helper.assertTrue(!norse || template.getSize().equals(LONG_HOUSE), "The Valeholm piece of " + job
-                        + " must be a long house of " + LONG_HOUSE + ": " + template.getSize());
+                helper.assertTrue(style == null || template.getSize().equals(style.size()), "The piece " + folder
+                        + "job_" + job + " must have the size of its style: " + template.getSize());
                 BlockPos origin = helper.absolutePos(ORIGINS.get(i));
                 Plan plan = ConstructionPlanner.plan(ConstructionTargets.fromTemplate(level, template, origin,
                         new StructurePlaceSettings()), ConstructionTargets.view(level), Reach.DEFAULT);

@@ -1549,7 +1549,8 @@ WALL_POST_OVERRIDE = ("torch", "_sign", "_banner", "pressure_plate", "tripwire")
 def covers(above, side=None):
     """True if the bottom of the block above a wall covers a side of the wall (side), or its post (no side), as in the
     game (WallBlock). above is the name and the properties of the block above the wall. The bottom of a carpet is a
-    full face: a carpet covers the sides and the post."""
+    full face: a carpet covers the sides and the post. A block of wool (the awning of a Sunreach house) covers them
+    too."""
     name, props = above
     if name.endswith("_wall"):
         return props[side] != "none" if side else props["up"] == "true" or any(props[s] != "none" for s in SIDES)
@@ -1557,7 +1558,7 @@ def covers(above, side=None):
         return props.get("type", props.get("half")) == "bottom"
     if name == "minecraft:lantern" and props.get("hanging") == "false":
         return side is None
-    if name.endswith("_carpet"):
+    if name.endswith(("_carpet", "_wool")):
         return True
     return name.endswith(FENCE_SUPPORTS)
 
@@ -2968,6 +2969,343 @@ NORSE_JOBS = {
 }
 
 
+# ---------------------------------------------------------------- house-workshops of the Sunreach style
+
+# A Sunreach house-workshop is FW blocks wide, as the flat houses of the style, and CD blocks deep, as the courtyard
+# houses of the style: it fits each plot of a street of the style. The jobs of the fields, the gardens and the animals
+# have a flat house on the street (z = 1..SUN_SHED - 1) and a walled yard behind it.
+SUN_SHED = 7
+SUN_YARD_Z = range(SUN_SHED, CD - 1)
+SUN_YARD_X = range(1, FW - 1)
+# The water of a Sunreach field, in the middle of the yard: it gives water to all the farmland of the yard.
+SUN_WATER = (FW // 2, SUN_SHED + 2)
+# The low wall around a Sunreach yard. The wall connects to its neighbors as in the game (see shaped).
+SUN_WALL = "minecraft:sandstone_wall"
+
+
+def sun_workshop_shell(rng, depth=CD, wide_front=False):
+    """The shell of a Sunreach house-workshop: the flat house shell (see flat_house_shell) with a body from z = 1 to
+    z = depth - 1, in a template of FW x FH x CD blocks. The house sign stands on the porch east of the door, and the
+    job sign of the caller west of the door."""
+    shell = flat_house_shell(rng, "house", FW, depth, wide_front=wide_front)
+    t = Template(FW, FH, CD)
+    t.fill(0, 1, 0, FW - 1, FH - 1, CD - 1, "minecraft:air")
+    t.blocks.update(shell.blocks)
+    return t
+
+
+def sun_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
+    """The house-workshop of a job with a yard in the Sunreach style (the fields, the gardens and the animals): a flat
+    house on the street and a walled yard behind it.
+
+    - The house: the flat house shell with a door on the street and a back door to the yard. The job sign stands on
+      the porch west of the door, and the house sign east of the door.
+    - The work blocks: the work block of the vanilla profession of the job in the west back corner, and a barrel next
+      to the door.
+    - The home: 2 beds side by side in the east half, with the heads to the east. The path from the door to the back
+      door (x = 4) goes along the feet of the beds.
+    - The yard: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
+      None. A low sandstone wall goes around the yard, with a lantern on a pillar at each back corner.
+
+    The caller adds the blocks of the job, then gives the template to shaped.
+    """
+    t = sun_workshop_shell(rng, SUN_SHED)
+    mid = FW // 2
+    back = SUN_SHED - 1
+    for y, half in ((1, "lower"), (2, "upper")):
+        t.set(mid, y, back, "minecraft:spruce_door",
+              {"facing": "south", "half": half, "hinge": "left", "open": "false", "powered": "false"})
+    t.set(1, 1, back - 1, *work)
+    t.set(mid - 1, 1, 2, *BARREL)
+    lantern(t, FW - 2, 1, 2)
+    home_beds(t, (mid + 1, back - 3), (mid + 1, back - 2), facing="east")
+    job_sign(t, mid - 1, 1, 0, job, icon)
+    for x in range(FW):
+        for z in range(SUN_SHED, CD):
+            if x in SUN_YARD_X and z in SUN_YARD_Z:
+                t.set(x, 0, z, *block(ground(x, z)))
+                plant = plants(x, z)
+                if plant:
+                    t.set(x, 1, z, *block(plant))
+            else:
+                t.set(x, 0, z, "minecraft:sandstone")
+                pillar = x in (0, FW - 1) and z == CD - 1
+                t.set(x, 1, z, "minecraft:cut_sandstone" if pillar else SUN_WALL)
+    for x in (0, FW - 1):
+        lantern(t, x, 2, CD - 1)
+    return t
+
+
+def sun_farm():
+    """The Sunreach building of the farmer: a field of wheat, carrots, potatoes and beetroots around the water, and
+    hay bales in the house."""
+    rng = random.Random(81)
+    rows = {1: "wheat", 2: "wheat", 3: "carrots", 5: "potatoes", 6: "beetroots", 7: "beetroots"}
+
+    def plants(x, z):
+        if x == SUN_WATER[0]:
+            return None
+        return crop(f"minecraft:{rows[x]}", rng, 3 if rows[x] == "beetroots" else 7)
+
+    t = sun_yard_workshop(rng, "farmer", "minecraft:wheat", functools.partial(field_ground, water=SUN_WATER), plants)
+    for x, y in ((1, 1), (2, 1), (1, 2)):
+        t.set(x, y, 2, "minecraft:hay_block", LOG_Y)
+    return shaped(t)
+
+
+def sun_garden():
+    """The Sunreach building of the gardener: 2 rows of pumpkins and melons on their stems, and sugar cane next to the
+    water. The sugar cane is 1 block high, with no block next to it (see garden)."""
+    rng = random.Random(82)
+    mid, row = SUN_WATER
+    stems = (row - 2, row + 2)
+
+    def ground(x, z):
+        if x == mid:
+            return field_ground(x, z, SUN_WATER)
+        return FARMLAND if abs(x - mid) == 2 and z in stems else GRASS
+
+    def plants(x, z):
+        side = x - mid
+        if z == row and abs(side) == 1:
+            return "minecraft:sugar_cane", {"age": "0"}
+        if z not in stems:
+            return None
+        fruit = "pumpkin" if side < 0 else "melon"
+        if abs(side) == 3:
+            return f"minecraft:{fruit}"
+        if abs(side) == 2:
+            return f"minecraft:attached_{fruit}_stem", {"facing": "west" if side < 0 else "east"}
+        return None
+
+    t = sun_yard_workshop(rng, "gardener", "minecraft:pumpkin", ground, plants)
+    t.set(1, 1, 2, "minecraft:pumpkin")
+    t.set(2, 1, 2, "minecraft:melon")
+    return shaped(t)
+
+
+def sun_jungle_garden():
+    """The Sunreach building of the gardener of the jungle: cocoa pods on 2 posts of jungle logs, 2 melons on their
+    stems next to the water, and ferns along the side walls."""
+    rng = random.Random(83)
+    mid, row = SUN_WATER
+    posts = ((2, row), (FW - 3, row))
+    melons = {(mid, row - 1): "west", (mid, row + 1): "east"}
+
+    def ground(x, z):
+        if (x, z) == SUN_WATER:
+            return WATER_SLAB
+        if x == mid:
+            return FARMLAND if (x, z) in melons else "minecraft:coarse_dirt"
+        return GRASS
+
+    def plants(x, z):
+        if (x, z) in posts:
+            return "minecraft:jungle_log", LOG_Y
+        if (x, z) in melons:
+            return "minecraft:attached_melon_stem", {"facing": melons[(x, z)]}
+        if (x - mid, z - row) in ((-1, -1), (1, 1)):
+            return "minecraft:melon"
+        if abs(x - mid) == 3 and z != row:
+            return "minecraft:fern" if rng.random() < 0.5 else None
+        return None
+
+    t = sun_yard_workshop(rng, "gardener_jungle", "minecraft:cocoa_beans", ground, plants)
+    # The posts: 3 jungle logs high, with a cocoa pod on each side. A pod faces its log.
+    for px, pz in posts:
+        for y in (2, 3):
+            t.set(px, y, pz, "minecraft:jungle_log", LOG_Y)
+        for side, (dx, dz) in SIDES.items():
+            t.set(px + dx, 2, pz + dz, "minecraft:cocoa", {"age": str(rng.randint(1, 2)), "facing": TOWARD[side]})
+    t.set(1, 1, 2, "minecraft:melon")
+    return shaped(t)
+
+
+def sun_forager_hut():
+    """The Sunreach building of the forager: mushrooms on podzol, wild flowers on grass (see forage_plants), and the
+    finds in a barrel."""
+    rng = random.Random(84)
+    t = sun_yard_workshop(rng, "forager", "minecraft:red_mushroom", functools.partial(forage_ground, width=FW),
+                          functools.partial(forage_plants, width=FW))
+    t.set(1, 1, 2, *BARREL)
+    t.set(2, 1, 2, "minecraft:moss_block")
+    return shaped(t)
+
+
+DECORATED_POT = ("minecraft:decorated_pot", {"cracked": "false", "facing": "south", "waterlogged": "false"})
+
+
+def sun_apiary():
+    """The Sunreach building of the beekeeper: 2 beehives on the ground among the flowers, a path of coarse dirt, and
+    pots of honey in the house. A walk in the yard reaches each hive. The yard has no campfire: a campfire burns, and
+    the heart takes it as a brazier."""
+    rng = random.Random(85)
+    mid, row = SUN_WATER
+    hives = ((2, row), (FW - 3, row))
+    flowers = FLOWERS + ("minecraft:oxeye_daisy", "minecraft:allium")
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == mid else GRASS
+
+    def plants(x, z):
+        if (x, z) in hives:
+            return "minecraft:beehive", {"facing": "south", "honey_level": str(rng.randint(2, 5))}
+        if x == mid or (x + z) % 2:
+            return None
+        return flowers[rng.randrange(len(flowers))]
+
+    t = sun_yard_workshop(rng, "beekeeper", "minecraft:honeycomb", ground, plants)
+    for x in (1, 2):
+        t.set(x, 1, 2, *DECORATED_POT)
+    return shaped(t)
+
+
+def sun_ranch():
+    """The Sunreach building of the rancher: a house with a smoker (the work block of the vanilla butcher) and a pen
+    behind it, with hay and a water trough. The doors of the house and the wall keep the animals in the pen. The
+    template has no animals (see ranch)."""
+    rng = random.Random(86)
+    mid, row = SUN_WATER
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if (x, z) == (mid, SUN_SHED) else GRASS
+
+    def plants(x, z):
+        # The hay and the trough are not next to the wall: a wall connects to a full block.
+        if (x, z) == (2, row):
+            return "minecraft:hay_block", LOG_Y
+        if (x, z) == (FW - 3, row):
+            return WATER_CAULDRON
+        return None
+
+    t = sun_yard_workshop(rng, "rancher", "minecraft:lead", ground, plants,
+                          work=("minecraft:smoker", {"facing": "east", "lit": "false"}))
+    t.set(1, 1, 2, "minecraft:hay_block", LOG_Y)
+    return shaped(t)
+
+
+def sun_fisher_hut():
+    """The Sunreach building of the fisher: a house with barrels (the work block of the vanilla fisherman) and a tub,
+    and a yard with a pond for the live catch. The pond is a row of waterlogged slabs, with a path of coarse dirt next
+    to it: a builder stands on the path to add the water."""
+    rng = random.Random(87)
+    pond = range(2, FW - 2)
+    row = CD - 2
+
+    def ground(x, z):
+        if z == row and x in pond:
+            return WATER_SLAB
+        return "minecraft:coarse_dirt" if z == row - 1 or x == FW // 2 else GRASS
+
+    def plants(x, z):
+        return BARREL if (x, z) in ((2, SUN_SHED), (FW - 3, SUN_SHED)) else None
+
+    t = sun_yard_workshop(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
+    t.set(1, 1, 2, *WATER_CAULDRON)
+    # The nets: cobwebs high on the side wall, out of the way.
+    for z in (2, 3):
+        t.set(1, 3, z, "minecraft:cobweb")
+    return shaped(t)
+
+
+def sun_workshop(rng, job, icon, beds, wide_front=False):
+    """The house-workshop of a job in a Sunreach flat house of FW x CD blocks, with a door on the street or an open
+    shop front. The job sign stands on the porch west of the door, and the house sign east of the door. beds gives the
+    foot of each bed of the home (see home_beds): the head is 1 block to the back wall. The caller adds the blocks of
+    the job, then gives the template to shaped."""
+    t = sun_workshop_shell(rng, wide_front=wide_front)
+    home_beds(t, *beds)
+    job_sign(t, FW // 2 - 1, 1, 0, job, icon)
+    return t
+
+
+def sun_oven(t):
+    """A brick oven on the back wall of a Sunreach house: a furnace in bricks, with a chimney of bricks through the
+    flat roof."""
+    x, z = FW // 2, CD - 2
+    t.set(x, 1, z, "minecraft:furnace", {"facing": "north", "lit": "false"})
+    for dx in (-1, 0, 1):
+        t.set(x + dx, 2, z, "minecraft:bricks")
+        if dx:
+            t.set(x + dx, 1, z, "minecraft:bricks")
+    for y in range(3, FH):
+        t.set(x + 1, y, z, "minecraft:bricks")
+
+
+def sun_bakery():
+    """The Sunreach building of the baker: a brick oven, a crafting table to knead the dough, barrels of flour, the
+    wheat on hay bales, pots of grain and a cake on the counter."""
+    rng = random.Random(88)
+    t = sun_workshop(rng, "baker", "minecraft:bread", ((1, 3), (FW - 2, 3)))
+    sun_oven(t)
+    t.set(1, 1, CD - 2, "minecraft:crafting_table")
+    for x, z in ((1, CD - 4), (2, CD - 2)):
+        t.set(x, 1, z, *BARREL)
+    for x, y, z in ((FW - 2, 1, CD - 2), (FW - 2, 1, CD - 3), (FW - 2, 2, CD - 2)):
+        t.set(x, y, z, "minecraft:hay_block", LOG_Y)
+    for z in (6, 7):
+        t.set(FW - 2, 1, z, *DECORATED_POT)
+    t.set(FW - 2, 1, 2, *TOP_SLAB)
+    t.set(FW - 2, 2, 2, "minecraft:cake", {"bites": "0"})
+    lantern(t, 1, 1, 2)
+    lantern(t, 1, 1, 7)
+    return shaped(t)
+
+
+def sun_pastry_shop():
+    """The Sunreach building of the pastry cook: an open shop front, a counter with cakes, a brick oven, pumpkins and
+    barrels of sugar."""
+    rng = random.Random(89)
+    t = sun_workshop(rng, "pastry_cook", "minecraft:pumpkin_pie", ((1, 5), (FW - 2, 5)), wide_front=True)
+    sun_oven(t)
+    # The counter behind the open front, with a free passage in the middle.
+    for x in (1, 2, FW - 3, FW - 2):
+        t.set(x, 1, 3, *TOP_SLAB)
+    for x in (2, FW - 3):
+        t.set(x, 2, 3, "minecraft:candle_cake", {"lit": "false"})
+    for x, y in ((1, 1), (2, 1), (1, 2)):
+        t.set(x, y, CD - 2, "minecraft:pumpkin")
+    for z in (CD - 2, CD - 3):
+        t.set(FW - 2, 1, z, *BARREL)
+    lantern(t, 1, 1, 8)
+    lantern(t, FW - 2, 1, 8)
+    return shaped(t)
+
+
+def sun_butchery():
+    """The Sunreach building of the butcher: 2 smokers (the work block of the vanilla butcher), a block of coal, a
+    chopping block, and a rack of chains under the roof. The chains leave 2 blocks of space under them."""
+    rng = random.Random(90)
+    t = sun_workshop(rng, "butcher", "minecraft:cooked_beef", ((1, 4), (FW - 2, 4)))
+    for x in (5, 6):
+        t.set(x, 1, CD - 2, "minecraft:smoker", {"facing": "north", "lit": "false"})
+    t.set(FW - 2, 1, CD - 2, "minecraft:coal_block")
+    for x in (2, 3, 6):
+        t.set(x, FLAT_WALL_TOP, 8, "minecraft:chain", {"axis": "y", "waterlogged": "false"})
+    t.set(2, 1, 3, "minecraft:stripped_oak_log", LOG_Y)
+    for z in (CD - 2, CD - 3):
+        t.set(1, 1, z, *BARREL)
+    t.set(FW - 2, 1, 3, *WATER_CAULDRON)
+    lantern(t, 1, 1, 2)
+    lantern(t, 1, 1, 7)
+    return shaped(t)
+
+
+# The house-workshops of the Sunreach style, by job. The jobs with no piece here use the pieces of all the cultures.
+SUNREACH_JOBS = {
+    "farmer": sun_farm,
+    "gardener": sun_garden,
+    "gardener_jungle": sun_jungle_garden,
+    "forager": sun_forager_hut,
+    "beekeeper": sun_apiary,
+    "baker": sun_bakery,
+    "pastry_cook": sun_pastry_shop,
+    "rancher": sun_ranch,
+    "butcher": sun_butchery,
+    "fisher": sun_fisher_hut,
+}
+
+
 # ---------------------------------------------------------------- market
 
 # The market square takes the plot of one house. x goes along the street, z goes away from the street: z = 0 is the
@@ -3103,7 +3441,25 @@ JOBS = {
     "dyer": dye_works,
     "papermaker": paper_mill,
 }
-assert NORSE_JOBS.keys() == JOBS.keys(), "Each job needs a house-workshop of the Valeholm style"
+# The house-workshops of the styles of the cultures, by culture and job.
+STYLE_JOBS = {"valeholm": NORSE_JOBS, "sunreach": SUNREACH_JOBS}
+# The cultures whose style has a house-workshop for each job of JOBS. Add a culture here when its style is complete.
+COMPLETE_STYLES = ("valeholm",)
+
+
+def check_style_jobs():
+    """Stops the script when a style has a piece for a job that is not in JOBS, or when a complete style (see
+    COMPLETE_STYLES) has no piece for a job of JOBS."""
+    for culture, jobs in STYLE_JOBS.items():
+        unknown = sorted(jobs.keys() - JOBS.keys())
+        if unknown:
+            raise SystemExit(f"The style {culture} has pieces for jobs that are not in JOBS: {unknown}")
+        missing = sorted(JOBS.keys() - jobs.keys())
+        if culture in COMPLETE_STYLES and missing:
+            raise SystemExit(f"Each job needs a house-workshop of the style {culture}. No piece for: {missing}")
+
+
+check_style_jobs()
 
 PIECES = {
     "plaza": plaza,
@@ -3145,6 +3501,7 @@ STYLES = {
         "house_barracks": sun_barracks,
         "house_forge": sun_forge,
         "house_storehouse": sun_storehouse,
+        **{f"job_{job}": build for job, build in SUNREACH_JOBS.items()},
     },
 }
 # The pieces of the maritime villages: the village of a site on the coast or on an island, in all the cultures. The
