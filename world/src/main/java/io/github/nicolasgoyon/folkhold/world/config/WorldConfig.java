@@ -660,7 +660,7 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "economy")
                 .push("economy");
         ECONOMY_WORKERS_PER_JOB = builder
-                .comment("Inhabitants for one active job in the economy. In a village with job posts, the household of a post shows the job, and this value sets the workers that the economy counts for each post.")
+                .comment("Inhabitants for one active job in the economy: each cycle runs at most population / workersPerJob job slots. In a village with job posts, the household of a post shows the job, and this value does not change the households.")
                 .translation(KEY_PREFIX + "economyWorkersPerJob")
                 .defineInRange("workersPerJob", 2, 1, 20);
         ECONOMY_FOOD_PER_INHABITANT = builder
