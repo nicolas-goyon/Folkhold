@@ -108,7 +108,7 @@ public final class WorkerScheduleGameTests {
         VillageMarket.TradePlace market = heart.tradePlace(level);
         helper.assertTrue(market.market(), "The village must trade at its market");
         GlobalPos marketSign = GlobalPos.of(level.dimension(), market.point());
-        // A job sign of a chunk that was saved before its point of interest type existed.
+        // A job sign in a point of interest section with no record for the sign.
         level.getPoiManager().remove(sign);
 
         helper.assertTrue(heart.updateWorkers() > 0, "The workers must get their places");
@@ -134,12 +134,21 @@ public final class WorkerScheduleGameTests {
         VillageFolk.assign(List.of(changed), List.of(ModProfessions.INHABITANT.get()));
         helper.assertTrue(changed.getBrain().getSchedule() == Schedule.VILLAGER_DEFAULT,
                 "An inhabitant with no job must have the vanilla schedule");
+        helper.assertTrue(changed.getBrain().getMemory(MemoryModuleType.JOB_SITE).isEmpty(),
+                "An inhabitant with no job must lose the job sign");
         VillageFolk.assign(List.of(changed), List.of(farmer));
         assertWorker(helper, changed, "after the return to the job");
         Villager loaded = EntityType.VILLAGER.create(level);
         loaded.load(farmers.get(0).saveWithoutId(new CompoundTag()));
         assertWorker(helper, loaded, "after a load");
         loaded.discard();
+        heart.updateWorkers();
+        helper.assertTrue(changed.getBrain().getMemory(MemoryModuleType.JOB_SITE).filter(jobSign::equals)
+                .isPresent(), "The worker must get the job sign of its home again after the return to the job");
+        builder.getBrain().setMemory(MemoryModuleType.JOB_SITE, jobSign);
+        heart.updateWorkers();
+        helper.assertTrue(builder.getBrain().getMemory(MemoryModuleType.JOB_SITE).isEmpty(),
+                "The check of the heart must erase the job sign of a villager that is not a worker");
 
         // The heart can also update the workers at its own checks, so the counts are relative.
         int calculations = heart.workers().calculations();

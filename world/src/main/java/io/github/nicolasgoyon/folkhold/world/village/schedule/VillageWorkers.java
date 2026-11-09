@@ -14,11 +14,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -33,6 +31,7 @@ import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.schedule.Schedule;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 
 /**
  * The places of the daily schedule of the workers of one village (see {@link WorkerBrains}). The heart keeps one
@@ -49,8 +48,13 @@ import net.minecraft.world.level.block.Block;
  *   <li>The places come from the posts, the beds and the trade place of the village. The heart calculates them again
  *       only when the phase of the village, the posts, the places of the inhabitants or the scan change. At each check
  *       of the heart, the loaded workers get the places with no new search.</li>
- *   <li>A job sign or a market sign of a chunk that was saved before its point of interest type existed has no point
- *       of interest. The calculation adds it, because the vanilla brain erases a memory with no point of interest.</li>
+ *   <li>A sign in a point of interest section with no record for the sign gets its record from the calculation,
+ *       because the vanilla brain erases a memory with no point of interest.</li>
+ *   <li>A place of the cache with no sign or bell block any more (a broken sign before the next scan) does not go to
+ *       the workers.</li>
+ *   <li>At each check, each loaded inhabitant loses a job sign as its job site when this sign is not the sign of its
+ *       home (see {@link WorkerBrains#forgetJobSign}): an inhabitant with no job, a builder, a handyman, or a worker
+ *       of a post that the village does not have any more.</li>
  * </ul>
  */
 public final class VillageWorkers {
@@ -59,11 +63,11 @@ public final class VillageWorkers {
     private Key key;
     /** The job sign of each home bed of a post. */
     private Map<BlockPos, GlobalPos> jobSigns = Map.of();
-    /** The job signs of all the posts of the village. */
-    private Set<GlobalPos> allJobSigns = Set.of();
     /** The meeting point of the workers, or null. */
     @Nullable
     private GlobalPos meetingPoint;
+    /** The block of the meeting point: a market sign or a bell. */
+    private Block meetingBlock = Blocks.BELL;
     /** False when a place was in a chunk that was not loaded: the next check calculates the places again. */
     private boolean complete;
     /** The number of calculations of the places. For the tests. */
@@ -90,9 +94,12 @@ public final class VillageWorkers {
             calculate(level, heart, seats, beds, posts);
         }
         int changes = 0;
+        Map<BlockPos, Boolean> present = new HashMap<>();
         for (Villager villager : inhabitants) {
             if (WorkerBrains.isWorker(villager)) {
-                changes += apply(level, villager);
+                changes += apply(level, villager, present);
+            } else if (WorkerBrains.forgetJobSign(villager, villager.getBrain(), null)) {
+                changes++;
             }
         }
         return changes;
@@ -123,10 +130,6 @@ public final class VillageWorkers {
         calculations++;
         complete = true;
         Map<BlockPos, GlobalPos> signs = new HashMap<>();
-        Set<GlobalPos> all = new HashSet<>();
-        for (JobPosts.Post post : posts) {
-            all.add(GlobalPos.of(level.dimension(), new BlockPos(post.x(), post.y(), post.z())));
-        }
         for (int i = 0; i < seats.size() && i < beds.size(); i++) {
             int post = seats.get(i).post();
             BlockPos bed = beds.get(i);
@@ -140,7 +143,6 @@ public final class VillageWorkers {
             }
         }
         jobSigns = Map.copyOf(signs);
-        allJobSigns = Set.copyOf(all);
         meetingPoint = meetingPoint(level, heart).map(point -> GlobalPos.of(level.dimension(), point)).orElse(null);
         FolkholdWorld.LOGGER.debug("Village {}: the places of the workers for the phase {}: {} beds with a job sign, "
                 + "meeting point {}, complete {}", heart.getBlockPos(), key == null ? null : key.phase(),
@@ -150,6 +152,7 @@ public final class VillageWorkers {
     /** The market sign of the village, or the bell of its plaza (the bell nearest to the heart with no plaza bell). */
     private Optional<BlockPos> meetingPoint(ServerLevel level, VillageHeartBlockEntity heart) {
         VillageMarket.TradePlace place = heart.tradePlace(level);
+        meetingBlock = place.market() ? ModBlocks.buildingSign(BuildingSignKind.MARKET) : Blocks.BELL;
         if (place.market()) {
             return ensurePoi(level, place.point(), ModPoiTypes.MARKET_SIGN_KEY, ModPoiTypes.MARKET_SIGN,
                     ModBlocks.buildingSign(BuildingSignKind.MARKET)) ? Optional.of(place.point()) : Optional.empty();
@@ -185,8 +188,12 @@ public final class VillageWorkers {
         return true;
     }
 
-    /** Gives the schedule and the places to one worker. */
-    private int apply(ServerLevel level, Villager villager) {
+    /**
+     * Gives the schedule and the places to one worker.
+     *
+     * @param present the blocks of the places that this check found, to read each block one time
+     */
+    private int apply(ServerLevel level, Villager villager, Map<BlockPos, Boolean> present) {
         int changes = 0;
         Brain<Villager> brain = villager.getBrain();
         Schedule schedule = WorkerBrains.scheduleOf(villager);
@@ -194,21 +201,29 @@ public final class VillageWorkers {
             WorkerBrains.setSchedule(villager, brain, schedule);
             changes++;
         }
-        GlobalPos sign = VillageHomes.home(level, villager).map(jobSigns::get).orElse(null);
-        Optional<GlobalPos> site = brain.getMemory(MemoryModuleType.JOB_SITE);
-        if (sign != null && site.filter(sign::equals).isEmpty()) {
-            brain.setMemory(MemoryModuleType.JOB_SITE, sign);
-            changes++;
-        } else if (sign == null && site.filter(allJobSigns::contains).isPresent()) {
-            brain.eraseMemory(MemoryModuleType.JOB_SITE);
+        GlobalPos sign = VillageHomes.home(level, villager).map(jobSigns::get)
+                .filter(pos -> holds(level, pos.pos(), ModBlocks.JOB_SIGN.get(), present)).orElse(null);
+        if (WorkerBrains.forgetJobSign(villager, brain, sign)) {
             changes++;
         }
-        if (meetingPoint != null && brain.getMemory(MemoryModuleType.MEETING_POINT).filter(meetingPoint::equals)
-                .isEmpty()) {
+        if (sign != null && brain.getMemory(MemoryModuleType.JOB_SITE).filter(sign::equals).isEmpty()) {
+            brain.setMemory(MemoryModuleType.JOB_SITE, sign);
+            changes++;
+        }
+        if (meetingPoint != null && holds(level, meetingPoint.pos(), meetingBlock, present)
+                && brain.getMemory(MemoryModuleType.MEETING_POINT).filter(meetingPoint::equals).isEmpty()) {
             brain.setMemory(MemoryModuleType.MEETING_POINT, meetingPoint);
             changes++;
         }
         return changes;
+    }
+
+    /**
+     * True if the block of a place is still at its position. A place in a chunk that is not loaded counts as present:
+     * the check does not load a chunk.
+     */
+    private static boolean holds(ServerLevel level, BlockPos pos, Block block, Map<BlockPos, Boolean> present) {
+        return present.computeIfAbsent(pos, at -> !level.isLoaded(at) || level.getBlockState(at).is(block));
     }
 
     /** The inputs of the places. */

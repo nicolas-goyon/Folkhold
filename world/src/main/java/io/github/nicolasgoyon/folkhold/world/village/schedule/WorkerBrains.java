@@ -7,10 +7,16 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
+import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.Brain;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -35,9 +41,15 @@ import net.minecraft.world.entity.schedule.ScheduleBuilder;
  *   <li>The vanilla activities with a higher priority stop the schedule: a panic, a raid and the sound of a bell
  *       ({@code HIDE}). The heart rings the bells of the village in an alert, and the workers hear them (see
  *       {@link VillageWorkers#hearAlarm}).</li>
+ *   <li>A villager that is not a worker has no job sign as its job site, and a worker has only the job sign of its
+ *       home. The build of the brain goals and each check of the heart erase an other job sign (see
+ *       {@link #forgetJobSign}). Thus a villager that loses its job or its post does not walk to the old sign.</li>
  * </ul>
  */
 public final class WorkerBrains {
+    /** The vanilla activities that have priority over the schedule. */
+    private static final List<Activity> PRIORITY_ACTIVITIES = List.of(Activity.HIDE, Activity.PANIC, Activity.RAID,
+            Activity.PRE_RAID);
     private static volatile Schedules schedules;
 
     private WorkerBrains() {
@@ -109,7 +121,8 @@ public final class WorkerBrains {
 
     /**
      * Called by a mixin at the end of the build of the brain goals of a villager. A worker gets the worker schedule
-     * and the activity of this schedule at once.
+     * and the activity of this schedule at once. An other villager loses a job sign as its job site (see
+     * {@link #forgetJobSign}).
      *
      * @param villager the villager
      * @param brain    the new brain of the villager
@@ -117,19 +130,50 @@ public final class WorkerBrains {
     public static void onBrainGoals(Villager villager, Brain<Villager> brain) {
         if (isWorker(villager)) {
             setSchedule(villager, brain, scheduleOf(villager));
+        } else {
+            forgetJobSign(villager, brain, null);
         }
     }
 
     /**
      * Gives a schedule to a brain, and sets the activity of the schedule at the time of the level. The vanilla brain
-     * reads its schedule at most once each second, so this method does not wait for the next read.
+     * reads its schedule at most once each second, so this method does not wait for the next read. An activity with
+     * priority over the schedule ({@code HIDE}, {@code PANIC}, {@code RAID}, {@code PRE_RAID}) stays active.
      */
     static void setSchedule(Villager villager, Brain<Villager> brain, Schedule schedule) {
         brain.setSchedule(schedule);
+        if (PRIORITY_ACTIVITIES.stream().anyMatch(brain::isActive)) {
+            return;
+        }
         Activity activity = schedule.getActivityAt(DaySchedule.timeOfDay(villager.level().getDayTime()));
         if (!brain.isActive(activity)) {
             brain.setActiveActivityIfPossible(activity);
         }
+    }
+
+    /**
+     * Erases the job site of a villager when it is a job sign other than its assigned sign. The memory points to a
+     * job sign when the place has a point of interest of the type {@code folkhold_world:job_sign}. A place in a chunk
+     * that is not loaded stays.
+     *
+     * @param villager the villager
+     * @param brain    the brain of the villager
+     * @param assigned the job sign of the villager, or null for no job sign
+     * @return true if the memory was erased
+     */
+    static boolean forgetJobSign(Villager villager, Brain<Villager> brain, @Nullable GlobalPos assigned) {
+        Optional<GlobalPos> site = brain.getMemory(MemoryModuleType.JOB_SITE);
+        if (site.isEmpty() || site.get().equals(assigned) || villager.level().getServer() == null) {
+            return false;
+        }
+        ServerLevel level = villager.level().getServer().getLevel(site.get().dimension());
+        BlockPos pos = site.get().pos();
+        if (level == null || !level.isLoaded(pos)
+                || level.getPoiManager().getType(pos).filter(type -> type.is(ModPoiTypes.JOB_SIGN_KEY)).isEmpty()) {
+            return false;
+        }
+        brain.eraseMemory(MemoryModuleType.JOB_SITE);
+        return true;
     }
 
     /**
