@@ -1504,7 +1504,8 @@ def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"
     t.set(mid, 3, back, "minecraft:stripped_spruce_log", {"axis": "x"})
     t.set(1, 1, back - 1, *work)
     t.set(mid - 1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
-    lantern(t, W - 2, 1, 2)
+    # The lantern stands on the barrel: the head of each bed has a free floor block next to it.
+    lantern(t, mid - 1, 2, 2)
     home_beds(t, (mid + 1, 2), (mid + 1, 3), facing="east")
     job_sign(t, 1, 1, 0, job, icon)
     for x in range(W):
@@ -1742,8 +1743,8 @@ def forager_hut():
     """The building of the forager: mushrooms on podzol, wild flowers on grass, and the finds in a barrel."""
     rng = random.Random(54)
     t = job_building(rng, "forager", "minecraft:red_mushroom", forage_ground, forage_plants)
-    t.set(1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
-    t.set(2, 1, 2, "minecraft:moss_block")
+    t.set(1, 1, 2, "minecraft:moss_block")
+    t.set(2, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
     return t
 
 
@@ -1802,7 +1803,7 @@ def bakery():
     t = job_house(rng, "baker", "minecraft:bread", planks, ((1, 3), (7, 3)))
     oven(t, 4)
     t.set(1, 1, 7, "minecraft:crafting_table")
-    for x, z in ((1, 6), (2, 7)):
+    for x, z in ((1, 5), (2, 7)):
         t.set(x, 1, z, *BARREL)
     for x, y, z in ((7, 1, 7), (7, 1, 6), (7, 2, 7)):
         t.set(x, y, z, "minecraft:hay_block", LOG_Y)
@@ -2084,7 +2085,7 @@ def smeltery(job):
         t.set(1, 1, z, ore)
     t.set(1, 1, D - 4, "minecraft:coal_block")
     if job == "smelter":
-        t.set(W - 2, 1, D - 2, *BARREL)
+        t.set(W - 2, 1, 2, *BARREL)
     t.set(W - 2, 1, D - 3, "minecraft:water_cauldron", {"level": "3"})
     for x in (W - 3, W - 2):
         t.set(x, 1, 3, *TOP_SLAB)
@@ -2112,7 +2113,7 @@ def tinker_workshop():
     lantern(t, W - 3, 2, 4)
     t.set(W - 2, 2, 4, "minecraft:lightning_rod", {"facing": "up", "powered": "false", "waterlogged": "false"})
     lantern(t, 1, 1, 2)
-    lantern(t, W - 2, 1, D - 3)
+    lantern(t, W - 2, 2, D - 2)
     return t
 
 
@@ -2153,7 +2154,7 @@ def carpenter_workshop():
         job_material(t, x, y, z, "minecraft:oak_planks")
     for x in (1, 2):
         t.set(x, 1, D - 2, "minecraft:chest", {"facing": "north", "type": "single", "waterlogged": "false"})
-    t.set(1, 1, D - 3, *BARREL)
+    t.set(W - 4, 1, D - 2, *BARREL)
     lantern(t, 1, 1, 2)
     lantern(t, W - 2, 1, 2)
     return t
@@ -2205,7 +2206,7 @@ def sheepfold():
     t = job_building(rng, "shepherd", "minecraft:shears", ground, plants, work=LOOM)
     t.set(1, 1, 2, "minecraft:white_wool")
     t.set(1, 2, 2, "minecraft:white_wool")
-    t.set(2, 1, 3, "minecraft:white_wool")
+    t.set(2, 1, 2, "minecraft:white_wool")
     return t
 
 
@@ -2219,7 +2220,7 @@ def weaving_house():
     for x, y, z in ((1, 1, D - 2), (1, 2, D - 2), (1, 1, D - 3)):
         t.set(x, y, z, "minecraft:white_wool")
     t.set(W - 2, 1, D - 2, "minecraft:crafting_table")
-    t.set(W - 2, 1, D - 3, *BARREL)
+    t.set(W - 2, 1, D - 4, *BARREL)
     for x in (W - 3, W - 2):
         t.set(x, 1, 4, *TOP_SLAB)
         t.set(x, 2, 4, "minecraft:white_carpet")
@@ -2245,7 +2246,7 @@ def dye_works():
     t = job_building(rng, "dyer", "minecraft:red_dye", ground, plants, work=LOOM)
     t.set(1, 1, 2, "minecraft:red_wool")
     t.set(1, 2, 2, "minecraft:yellow_wool")
-    t.set(2, 1, 3, "minecraft:blue_wool")
+    t.set(2, 1, 2, "minecraft:blue_wool")
     return t
 
 
@@ -2258,7 +2259,7 @@ def paper_mill():
     t.set(W // 2, 1, D - 3, "minecraft:lectern", {"facing": "north", "has_book": "false", "powered": "false"})
     for x in (3, W - 4):
         t.set(x, 1, D - 2, *WATER_CAULDRON)
-    for z in (D - 2, D - 3):
+    for z in (D - 3, D - 4):
         t.set(1, 1, z, *BARREL)
     t.set(2, 1, D - 2, "minecraft:crafting_table")
     for x, y, z in ((W - 2, 1, D - 2), (W - 2, 2, D - 2), (W - 2, 1, D - 3)):
