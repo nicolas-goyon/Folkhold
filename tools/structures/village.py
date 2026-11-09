@@ -2972,8 +2972,8 @@ NORSE_JOBS = {
 # ---------------------------------------------------------------- house-workshops of the Sunreach style
 
 # A Sunreach house-workshop is FW blocks wide, as the flat houses of the style, and CD blocks deep, as the courtyard
-# houses of the style: it fits each plot of a street of the style. The jobs of the fields, the gardens and the animals
-# have a flat house on the street (z = 1..SUN_SHED - 1) and a walled yard behind it.
+# houses of the style. The jobs of the fields, the gardens, the animals, the lumberjacks, the miner and the digger have a
+# flat house on the street (z = 1..SUN_SHED - 1) and a walled yard behind it.
 SUN_SHED = 7
 SUN_YARD_Z = range(SUN_SHED, CD - 1)
 SUN_YARD_X = range(1, FW - 1)
@@ -2995,8 +2995,8 @@ def sun_workshop_shell(rng, depth=CD, wide_front=False):
 
 
 def sun_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
-    """The house-workshop of a job with a yard in the Sunreach style (the fields, the gardens and the animals): a flat
-    house on the street and a walled yard behind it.
+    """The house-workshop of a job with a yard in the Sunreach style (the fields, the gardens, the animals, the
+    lumberjacks, the miner and the digger): a flat house on the street and a walled yard behind it.
 
     - The house: the flat house shell with a door on the street and a back door to the yard. The job sign stands on
       the porch west of the door, and the house sign east of the door.
