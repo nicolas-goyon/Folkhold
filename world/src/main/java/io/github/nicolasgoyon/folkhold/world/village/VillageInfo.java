@@ -60,11 +60,12 @@ import net.minecraft.world.item.Item;
  * <ul>
  *   <li><b>village</b>: faction, culture, level and tier, experience (bar), alert state, position;</li>
  *   <li><b>garrison</b>: for each role, the units alive and dead, and the configured count (segments);</li>
- *   <li><b>economy</b>: population (bar), jobs, food, treasury of the faction, and the main stocks with their
- *       price;</li>
+ *   <li><b>economy</b>: the market (state, hours, market day, see {@link VillageLife}), population (bar), housing
+ *       (bar), food, treasury of the faction, and the main stocks with their price;</li>
+ *   <li><b>jobs</b>: the active jobs and the job posts (see {@link VillageLife});</li>
  *   <li><b>territory</b>: number of claimed territory chunks.</li>
  * </ul>
- * The services, the economy and the territory need the settlement of the village.
+ * The services, the economy, the jobs and the territory need the settlement of the village.
  */
 public final class VillageInfo {
     private static final String KEY = "screen.folkhold_world.village_heart.";
@@ -138,7 +139,8 @@ public final class VillageInfo {
         sections.add(villageSection(heart, faction, settlement, culture));
         sections.add(garrisonSection(heart));
         settlement.ifPresent(found -> {
-            sections.add(economySection(server, found));
+            sections.add(economySection(server, heart, found));
+            sections.add(VillageLife.jobsSection(heart, found));
             sections.add(territorySection(server, found));
         });
         int level = settlement.map(Settlement::level).orElse(0);
@@ -283,9 +285,10 @@ public final class VillageInfo {
         return new Section(Component.translatable(KEY + "garrison"), rows);
     }
 
-    private static Section economySection(MinecraftServer server, Settlement settlement) {
+    private static Section economySection(MinecraftServer server, VillageHeartBlockEntity heart,
+            Settlement settlement) {
         EconomyState economy = settlement.economy();
-        List<Row> rows = new ArrayList<>();
+        List<Row> rows = new ArrayList<>(VillageLife.marketRows(heart, settlement));
         int maxPopulation = LevelTables.get().traits(settlement.level()).maxPopulation();
         rows.add(Row.bar(Component.translatable(KEY + "population"),
                 Component.translatable(KEY + "value", economy.population(), maxPopulation), economy.population(),
@@ -296,7 +299,6 @@ public final class VillageInfo {
             rows.add(Row.bar(Component.translatable(KEY + "housing"),
                     Component.translatable(KEY + "value", inhabitants, places), inhabitants, places));
         }
-        rows.add(row("jobs", Component.literal(String.valueOf(economy.jobs().size()))));
         rows.add(row("food", Component.translatable(KEY + "percent", Math.round(economy.foodCovered() * 100))));
         rows.add(row("treasury", Component.translatable(KEY + "emeralds",
                 SettlementData.get(server).treasury(settlement.factionId()))));
