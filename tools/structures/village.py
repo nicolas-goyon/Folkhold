@@ -1399,7 +1399,7 @@ def fishing_hut():
     t.set(6, 1, 7, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(7, 1, 5, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(7, 1, 2, "minecraft:water_cauldron", {"level": "3"})
-    # The nets: cobwebs on the back wall, over the beds.
+    # The nets: cobwebs on the back wall, over the 2 beds and the free floor block between them.
     for x in (1, 2, 3):
         t.set(x, 3, 7, "minecraft:cobweb")
     lantern(t, 4, 1, 7)
