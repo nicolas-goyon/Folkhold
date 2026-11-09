@@ -51,6 +51,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Items;
@@ -106,6 +107,24 @@ public final class BuilderSiteGameTests {
     private static final int CATCH_UP_STEPS = 4;
     /** The work of the builders while the chunks are not loaded, in steps: more than the steps of the site. */
     private static final double PENDING_STEPS = 200.0;
+    /** The failure message of a test with builders shows this number of losses of health at most. */
+    private static final int MAX_HURT_RECORDS = 20;
+    /** In the test of a direct move to a column, the glass ring is at this distance from the block of the site. */
+    private static final int RING = 2;
+    /**
+     * In the test of a direct move to a column, the builder jumps when it has no path for this number of ticks. The
+     * builder goes to its position directly after 100 ticks with no path.
+     */
+    private static final int JUMP_BEFORE_DIRECT = 95;
+    /**
+     * In the test of a direct move to a column, the horizontal speed of the jump on each axis that goes out from the
+     * block of the site, in blocks for each tick.
+     */
+    private static final double JUMP_SPEED = 0.4;
+    /** In the test of a direct move to a column, the vertical speed of the jump, in blocks for each tick. */
+    private static final double JUMP_UP = 0.25;
+    /** In the test of a direct move to a column, the last jump is this number of ticks before the move or fewer. */
+    private static final int JUMP_TO_MOVE_TICKS = 2;
 
     private BuilderSiteGameTests() {
     }
@@ -484,6 +503,105 @@ public final class BuilderSiteGameTests {
     }
 
     /**
+     * A builder that goes directly to the top of a scaffolding column stays on the top. This is also true when the
+     * builder jumps at that time.
+     *
+     * <p>The block of the site is 7 blocks above the floor. A glass ring is around the block, at 2 blocks from it. The
+     * ring is 2 blocks high, and the builders cannot go over it. The plan puts a scaffolding column of 3 blocks on the
+     * ring. The top of the column is 5 blocks above the floor. The builder cannot walk to the bottom of the column. Thus
+     * it goes directly to the top of the column.
+     *
+     * <p>A builder that has no path often jumps. In the last ticks before the direct move, the test makes the builder
+     * jump. The jump goes out from the block, on the axes where the column is on the ring. The test records each loss of
+     * health with the data of the builder (see {@link #recordHurts}).
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_direct", skyAccess = true)
+    public static void builderThatGoesDirectlyStaysOnTheColumn(GameTestHelper helper) {
+        List<Villager> builders = village(helper, ARENA, 1);
+        Villager builder = builders.get(0);
+        ServerLevel level = helper.getLevel();
+        BlockPos block = new BlockPos(16, 7, 16);
+        ResourceLocation id = template(helper, "builder_direct", block, block, Blocks.OAK_PLANKS);
+        for (BlockPos pos : BlockPos.betweenClosed(block.getX() - RING, 1, block.getZ() - RING, block.getX() + RING,
+                2, block.getZ() + RING)) {
+            if (Math.max(Math.abs(pos.getX() - block.getX()), Math.abs(pos.getZ() - block.getZ())) == RING) {
+                helper.setBlock(pos, Blocks.GLASS);
+            }
+        }
+        BlockPos origin = helper.absolutePos(block);
+        BoundingBox box = BoundingBox.fromCorners(origin, origin);
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE, helper.absolutePos(HEART),
+                null);
+        List<String> hurts = new ArrayList<>();
+        recordHurts(helper, site, builders, hurts);
+        double[] highest = {0.0};
+        // The tick of the last jump, and the first tick on the top of the column.
+        long[] lastJump = {-1L};
+        long[] arrival = {-1L};
+        int floorY = helper.absolutePos(BlockPos.ZERO).getY();
+        helper.onEachTick(() -> {
+            double feet = builder.getY() - floorY;
+            highest[0] = Math.max(highest[0], feet);
+            if (arrival[0] < 0 && feet >= block.getY() - 2) {
+                arrival[0] = level.getGameTime();
+            }
+            Optional<Long> since = builder.getBrain().getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+            boolean stuck = since.isPresent() && level.getGameTime() - since.get() >= JUMP_BEFORE_DIRECT;
+            Optional<BlockPos> column = columnOnRing(helper, block);
+            if (arrival[0] < 0 && stuck && column.isPresent()) {
+                // The jump goes out from the block, on the axes where the column is on the ring.
+                int outX = Integer.signum(column.get().getX() - block.getX());
+                int outZ = Integer.signum(column.get().getZ() - block.getZ());
+                boolean onX = Math.abs(column.get().getX() - block.getX()) == RING;
+                boolean onZ = Math.abs(column.get().getZ() - block.getZ()) == RING;
+                builder.setDeltaMovement(onX ? outX * JUMP_SPEED : 0.0, JUMP_UP, onZ ? outZ * JUMP_SPEED : 0.0);
+                lastJump[0] = level.getGameTime();
+            }
+        });
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, block, block, Blocks.OAK_PLANKS);
+                    List<BlockPos> leftovers = leftovers(level, box);
+                    boolean alive = builder.isAlive();
+                    float health = builder.getHealth();
+                    boolean healthy = health >= builder.getMaxHealth();
+                    cleanUp(helper, builders, block, block);
+                    for (BlockPos pos : BlockPos.betweenClosed(block.getX() - RING, 1, block.getZ() - RING,
+                            block.getX() + RING, 2, block.getZ() + RING)) {
+                        helper.setBlock(pos, Blocks.AIR);
+                    }
+                    helper.assertTrue(missing.isEmpty(), "The block of the site must be in place: " + missing);
+                    helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
+                    helper.assertTrue(highest[0] >= block.getY() - 1, "The builder must go to the top of the column: "
+                            + highest[0]);
+                    helper.assertTrue(lastJump[0] >= 0 && arrival[0] >= 0
+                            && arrival[0] - lastJump[0] <= JUMP_TO_MOVE_TICKS, "The builder must jump just before it"
+                            + " goes directly to the column: last jump at " + lastJump[0] + ", arrival at "
+                            + arrival[0]);
+                    helper.assertTrue(alive, "The builder must stay alive, damage: " + hurts);
+                    helper.assertTrue(healthy, "The builder must not fall: its health is " + health + ", damage: "
+                            + hurts);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The top block of the scaffolding column on the glass ring of the test of a direct move, or empty before the plan
+     * puts the column.
+     */
+    private static Optional<BlockPos> columnOnRing(GameTestHelper helper, BlockPos block) {
+        for (BlockPos pos : BlockPos.betweenClosed(block.getX() - RING, block.getY() - 2, block.getZ() - RING,
+                block.getX() + RING, block.getY() - 2, block.getZ() + RING)) {
+            if (helper.getBlockState(pos).is(Blocks.SCAFFOLDING)) {
+                return Optional.of(pos.immutable());
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * The navigation of a builder goes around the scaffolding: the path to a position behind a row of columns does not
      * go through the columns. The path goes into the bottom of the column that the builder climbs. At the end, the
      * villager gets its own navigation back.
@@ -564,7 +682,7 @@ public final class BuilderSiteGameTests {
                     cleanUp(helper, builders, from, to);
                     helper.assertTrue(differences.isEmpty(), "Blocks different from the template: " + differences);
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
-                    helper.assertTrue(alive, "The builders must stay alive");
+                    helper.assertTrue(alive, "The builders must stay alive, damage: " + hurts);
                     helper.assertTrue(healthy, "The builders must not fall: their health is " + health
                             + ", damage: " + hurts);
                 })
@@ -572,28 +690,41 @@ public final class BuilderSiteGameTests {
     }
 
     /**
-     * Records each loss of health of the builders: the damage source, the position relative to the test, the block
-     * below, the fall distance of the tick before, and the work of the builder on the site. The failure message of the
-     * test shows these records.
+     * Records each loss of health of the builders: the damage source and the type of the entity that caused it, the
+     * position relative to the test, the block below, the fall distance of the tick before, and the work of the
+     * builder on the site. The failure message of the test shows these records: the first
+     * {@value #MAX_HURT_RECORDS} records, and the number of the other losses of health.
      */
     private static void recordHurts(GameTestHelper helper, BuilderSite site, List<Villager> builders,
             List<String> hurts) {
         Map<Villager, Float> health = new HashMap<>();
         Map<Villager, Float> falls = new HashMap<>();
+        int[] more = {0};
         helper.onEachTick(() -> {
             ServerLevel level = helper.getLevel();
             for (Villager builder : builders) {
                 float before = health.getOrDefault(builder, builder.getMaxHealth());
                 if (builder.getHealth() < before) {
-                    DamageSource source = builder.getLastDamageSource();
-                    BlockPos below = builder.blockPosition().below();
-                    hurts.add(String.format(Locale.ROOT,
-                            "{builder %d, health %.1f to %.1f, source %s, position %s, block below %s, fall %.2f, %s}",
-                            builder.getId(), before, builder.getHealth(),
-                            source == null ? "none" : source.getMsgId(),
-                            helper.relativeVec(builder.position()),
-                            BuiltInRegistries.BLOCK.getKey(level.getBlockState(below).getBlock()),
-                            falls.getOrDefault(builder, 0.0F), site.describeBuilder(builder.getUUID())));
+                    if (hurts.size() < MAX_HURT_RECORDS) {
+                        DamageSource source = builder.getLastDamageSource();
+                        Entity cause = source == null ? null : source.getEntity();
+                        BlockPos below = builder.blockPosition().below();
+                        hurts.add(String.format(Locale.ROOT, "{builder %d, health %.1f to %.1f, source %s%s, position"
+                                + " %s, block below %s, fall %.2f, %s}", builder.getId(), before, builder.getHealth(),
+                                source == null ? "none" : source.getMsgId(),
+                                cause == null ? "" : " by " + EntityType.getKey(cause.getType()),
+                                helper.relativeVec(builder.position()),
+                                BuiltInRegistries.BLOCK.getKey(level.getBlockState(below).getBlock()),
+                                falls.getOrDefault(builder, 0.0F), site.describeBuilder(builder.getUUID())));
+                    } else {
+                        more[0]++;
+                        String note = "{" + more[0] + " other losses of health}";
+                        if (more[0] == 1) {
+                            hurts.add(note);
+                        } else {
+                            hurts.set(hurts.size() - 1, note);
+                        }
+                    }
                 }
                 health.put(builder, builder.getHealth());
                 falls.put(builder, builder.fallDistance);

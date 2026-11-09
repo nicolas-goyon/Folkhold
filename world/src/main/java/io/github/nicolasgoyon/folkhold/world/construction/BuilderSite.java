@@ -76,6 +76,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -1463,13 +1464,32 @@ public final class BuilderSite {
         return feet.immutable();
     }
 
-    /** Moves an entity to a position directly, with no fall damage. */
+    /**
+     * Moves an entity to a position directly, with no fall damage. The entity stops at the position: it keeps no speed,
+     * and a mob keeps no path, no walk input and no jump (see {@link #stopMoving}). Else an entity that walks or jumps
+     * at this time moves on from the position, for example off the top of a scaffolding column.
+     */
     static void teleport(LivingEntity entity, BlockPos feet) {
         entity.teleportTo(feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5);
         entity.resetFallDistance();
+        entity.setDeltaMovement(Vec3.ZERO);
         if (entity instanceof Mob mob) {
-            mob.getNavigation().stop();
+            stopMoving(mob);
         }
+    }
+
+    /**
+     * Stops the walk of a mob where it is: its path, its walk input and its jump. The move control of a mob that jumps
+     * keeps the walk input until the mob is on the ground again. A builder that climbs or goes down a column is not on
+     * the ground. If nothing stops the walk, the builder walks on in the air, for example above the top of the column.
+     */
+    static void stopMoving(Mob mob) {
+        mob.getNavigation().stop();
+        // A wanted position at the mob, with no speed: the next tick of the move control sets the walk input to 0.
+        mob.getMoveControl().setWantedPosition(mob.getX(), mob.getY(), mob.getZ(), 0.0);
+        mob.setJumping(false);
+        mob.setZza(0.0F);
+        mob.setXxa(0.0F);
     }
 
     /** The data of the site in the saved data of the level. */

@@ -474,6 +474,8 @@ final class BuilderWorker {
             }
             teleported = true;
             BuilderSite.teleport(villager, stand);
+            // The brain must not walk back to the old walk target, for example to the bottom of the column.
+            stay(villager);
             // The builder gets some ticks to land at its position before it works from where it is. The walk makes no
             // progress after the move.
             stuckTicks = MOVE_TIMEOUT - LANDING_TICKS;
@@ -616,10 +618,13 @@ final class BuilderWorker {
         }
     }
 
-    /** The villager stops where it is. */
+    /**
+     * The villager stops where it is: no walk target, no path, no walk input and no jump (see
+     * {@link BuilderSite#stopMoving}).
+     */
     private static void stay(Villager villager) {
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getNavigation().stop();
+        BuilderSite.stopMoving(villager);
     }
 
     /**
