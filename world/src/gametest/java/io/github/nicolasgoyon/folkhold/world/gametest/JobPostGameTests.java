@@ -9,12 +9,15 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
+import io.github.nicolasgoyon.folkhold.world.network.VillageInfoPayload.Row;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHomes;
+import io.github.nicolasgoyon.folkhold.world.village.VillageLife;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
+import io.github.nicolasgoyon.folkhold.world.village.schedule.VillageSchedule;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +26,8 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -60,6 +65,7 @@ public final class JobPostGameTests {
     private static final String FARMER = "folkhold_world:farmer";
     private static final String MASON = "folkhold_world:mason";
     private static final int POPULATION = 20;
+    private static final String SCREEN = "screen.folkhold_world.village_heart.";
     /** The share of the maximum population at the start of a village (see {@code Economies.initialize}). */
     private static final double START_SHARE = 0.6;
 
@@ -393,6 +399,118 @@ public final class JobPostGameTests {
             end(helper, village);
         }
         helper.succeed();
+    }
+
+    /**
+     * The jobs section of the heart screen: the active jobs, one row for each post in the order of the posts (job,
+     * state, workers and beds), the homes with no post, and the row for no place for a new home. The economy section
+     * starts with the market rows: a village of level 3 is a hamlet.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_posts_screen", skyAccess = true)
+    public static void heartScreenShowsThePostsAndTheCottages(GameTestHelper helper) {
+        startStaff(helper);
+        Village village = village(helper, "", List.of("job_farmer", "job_mason", "house_cottage"), 3, 5, List.of(),
+                false, "minecraft:plains");
+        try {
+            helper.assertTrue(Economies.homeInhabitants(village.settlement()) == 2,
+                    "Expected 2 inhabitants of the homes: " + Economies.homeInhabitants(village.settlement()));
+            village.heart().setHomeNoSpace(true);
+            List<Row> rows = VillageLife.jobsSection(village.heart(), village.settlement()).rows();
+            helper.assertTrue(key(rows.get(0).label()).equals(SCREEN + "active_jobs")
+                    && rows.get(0).value().getString().equals("1"), "Expected 1 active job: " + rows.get(0));
+            assertRow(helper, rows, "job.folkhold_world.farmer", SCREEN + "post.active", 2, 2);
+            assertRow(helper, rows, "job.folkhold_world.mason", SCREEN + "post.empty", 0, 2);
+            Row cottages = row(helper, rows, SCREEN + "cottages");
+            helper.assertTrue(cottages.value().getString().equals("1"), "Expected 1 home with no post: " + cottages);
+            helper.assertTrue(key(row(helper, rows, SCREEN + "new_home").value()).equals(SCREEN + "new_home.no_space"),
+                    "Expected the row for no place for a new home");
+            helper.assertTrue(rows.size() == 5, "Expected 5 rows: " + rows);
+
+            village.heart().setHomeNoSpace(false);
+            List<Row> after = VillageLife.jobsSection(village.heart(), village.settlement()).rows();
+            helper.assertTrue(after.stream().noneMatch(row -> key(row.label()).equals(SCREEN + "new_home")),
+                    "With a place for a new home, the row must not show");
+
+            List<Row> market = VillageLife.marketRows(village.heart(), village.settlement());
+            helper.assertTrue(market.size() == 3 && key(market.get(0).value()).equals(SCREEN + "market.hamlet"),
+                    "A village of level 3 must be a hamlet: " + market);
+            int days = VillageSchedule.daysToMarketDay(helper.getLevel(), village.settlement());
+            helper.assertTrue(key(market.get(2).value()).equals(SCREEN + (days == 0 ? "market_day.today"
+                    : days == 1 ? "market_day.tomorrow" : "market_day.days")), "Wrong market day: " + market.get(2));
+            String hours = key(market.get(1).value());
+            helper.assertTrue(hours.equals(SCREEN + (VillageSchedule.isMarketOpen(helper.getLevel())
+                    ? "market_hours.open" : "market_hours.closed")), "Wrong market hours: " + hours);
+        } finally {
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The jobs section of a legacy village: the active jobs count the legacy job slots, a post with a job that is not
+     * valid shows it, and a row gives the legacy job slots and their jobs.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_posts_screen_legacy", skyAccess = true)
+    public static void heartScreenShowsTheLegacyJobs(GameTestHelper helper) {
+        int level = 3;
+        List<String> slotJobs = List.of("folkhold_world:baker", "folkhold_world:miner", "folkhold_world:fisher");
+        Village village = village(helper, "", List.of("job_farmer", "job_mason", "house_cottage"), level, POPULATION,
+                slotJobs, true, "minecraft:plains");
+        try {
+            List<JobPosts.Post> posts = new ArrayList<>(village.settlement().jobPosts().orElseThrow());
+            int mason = posts.indexOf(posts.stream().filter(post -> post.jobId().equals(MASON)).findFirst()
+                    .orElseThrow());
+            JobPosts.Post old = posts.get(mason);
+            posts.set(mason, new JobPosts.Post("folkhold_world:blacksmith", old.x(), old.y(), old.z(),
+                    old.homeBeds()));
+            village.settlement().setJobPosts(Optional.of(posts));
+            int legacy = Math.min(slotJobs.size(),
+                    JobPosts.legacySlots(LevelTables.get().traits(level).jobSlots(), 1));
+            helper.assertTrue(legacy > 0, "The test needs legacy job slots");
+
+            List<Row> rows = VillageLife.jobsSection(village.heart(), village.settlement()).rows();
+            Object[] active = args(rows.get(0).value());
+            helper.assertTrue(key(rows.get(0).value()).equals(SCREEN + "active_jobs.legacy")
+                    && active[0].equals(1 + legacy) && active[1].equals(legacy),
+                    "Expected the active jobs with the legacy job slots: " + rows.get(0));
+            assertRow(helper, rows, "job.folkhold_world.farmer", SCREEN + "post.active", 2, 2);
+            Row blacksmith = row(helper, rows, "job.folkhold_world.blacksmith");
+            helper.assertTrue(key(blacksmith.value()).equals(SCREEN + "post.not_valid"),
+                    "The blacksmith post at level 3 must be not valid: " + blacksmith);
+            Row legacyRow = row(helper, rows, SCREEN + "legacy_jobs");
+            helper.assertTrue(args(legacyRow.value())[0].equals(legacy)
+                    && legacyRow.value().getString().contains(VillageLife.jobName(slotJobs.get(0)).getString()),
+                    "Expected the legacy job slots and their jobs: " + legacyRow.value().getString());
+        } finally {
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /** The row with a label key. */
+    private static Row row(GameTestHelper helper, List<Row> rows, String labelKey) {
+        Optional<Row> found = rows.stream().filter(row -> key(row.label()).equals(labelKey)).findFirst();
+        helper.assertTrue(found.isPresent(), "No row " + labelKey + ": " + rows);
+        return found.orElseThrow();
+    }
+
+    /** The row of a post has the text of its state, its workers and the beds of its home. */
+    private static void assertRow(GameTestHelper helper, List<Row> rows, String job, String state, int workers,
+            int beds) {
+        Row row = row(helper, rows, job);
+        Object[] args = args(row.value());
+        helper.assertTrue(key(row.value()).equals(state) && args[0].equals(workers) && args[1].equals(beds),
+                "Expected " + state + " " + workers + "/" + beds + " for " + job + ": " + row.value());
+    }
+
+    /** The translation key of a text, or an empty text. */
+    private static String key(Component text) {
+        return text.getContents() instanceof TranslatableContents contents ? contents.getKey() : "";
+    }
+
+    /** The arguments of a translated text. */
+    private static Object[] args(Component text) {
+        return text.getContents() instanceof TranslatableContents contents ? contents.getArgs() : new Object[0];
     }
 
     /** True if the bed has a free ticket. */

@@ -1006,6 +1006,16 @@ public class VillageHeartBlockEntity extends BlockEntity {
         return homeNoSpace;
     }
 
+    /**
+     * The homes of the last record of the job posts (see {@link #recordJobPosts}). The heart screen shows the number
+     * of homes with no post.
+     *
+     * @return the homes, or empty before the first record after a load
+     */
+    public Optional<VillageBeds.Homes> homes() {
+        return Optional.ofNullable(homes);
+    }
+
     /** Records the result of the last check of the growth for a new home (see {@link VillageGrowth}). */
     public void setHomeNoSpace(boolean noSpace) {
         homeNoSpace = noSpace;

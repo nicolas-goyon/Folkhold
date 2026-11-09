@@ -97,16 +97,21 @@ public final class VillageBeds {
     }
 
     /**
-     * The homes of a village: its job posts (see {@link #posts}), the home beds of each post, and all its home beds.
+     * The homes of a village: its job posts (see {@link #posts}), the home beds of each post, all its home beds, and
+     * the number of homes with no post.
      *
      * @param posts    the posts, in the scan order
      * @param postBeds the home beds of the home of each post, by the position of its job sign
      * @param beds     the head part of each home bed of the village, in the scan order: the beds of the homes with
      *                 a post and with no post, and the beds that are not in a building
+     * @param cottages the number of homes with no post: the buildings (pieces of the village structure or boxes of the
+     *                 construction sites) with 1 home bed or more and no post. A bed that is not in a building does not
+     *                 count
      */
-    public record Homes(List<JobPosts.Post> posts, Map<BlockPos, List<BlockPos>> postBeds, List<BlockPos> beds) {
+    public record Homes(List<JobPosts.Post> posts, Map<BlockPos, List<BlockPos>> postBeds, List<BlockPos> beds,
+            int cottages) {
         /** No homes: a village with no structure. */
-        public static final Homes NONE = new Homes(List.of(), Map.of(), List.of());
+        public static final Homes NONE = new Homes(List.of(), Map.of(), List.of(), 0);
 
         /**
          * The home beds of the home of a post.
@@ -163,7 +168,14 @@ public final class VillageBeds {
             }
         }
         posts.sort(Comparator.comparingInt(post -> signIndex(signs, post)));
-        return new Homes(List.copyOf(posts), Map.copyOf(postBeds), homeBeds);
+        int cottages = (int) homeBeds.stream()
+                .filter(bed -> homes.stream().noneMatch(box -> box.isInside(bed)))
+                .map(bed -> pieces.stream().filter(box -> box.isInside(bed)).findFirst()
+                        .or(() -> repairs.constructionAt(heart, bed)))
+                .flatMap(Optional::stream)
+                .distinct()
+                .count();
+        return new Homes(List.copyOf(posts), Map.copyOf(postBeds), homeBeds, cottages);
     }
 
     private static int signIndex(List<VillageLayout.JobSign> signs, JobPosts.Post post) {
