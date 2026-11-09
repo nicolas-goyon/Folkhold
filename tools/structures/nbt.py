@@ -104,6 +104,9 @@ class Template:
         self.blocks = {}
         # The positions that the biome variants do not change (see village.py, Variant.apply).
         self.fixed = set()
+        # True when the walls of the template get the shape of their neighbors after the block replacement of a
+        # biome variant (see village.py, connect_walls).
+        self.shape_walls = False
 
     def inside(self, x, y, z):
         sx, sy, sz = self.size

@@ -31,6 +31,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FenceBlock;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -76,6 +77,12 @@ public final class JobBuildingTemplateGameTests {
     private static final List<BlockPos> ORIGINS = List.of(new BlockPos(1, 1, 1), new BlockPos(11, 1, 1),
             new BlockPos(21, 1, 1), new BlockPos(6, 1, 21), new BlockPos(16, 1, 21));
     private static final BlockPos HEART = new BlockPos(16, 1, 15);
+    /**
+     * The heart of the tests of the Valeholm pieces: between the 2 rows of the long houses (17 blocks deep) in the
+     * arena {@code arena_huge}.
+     */
+    private static final BlockPos NORSE_HEART = new BlockPos(16, 1, 19);
+    private static final int HUGE_ARENA = 56;
     /** The folders of the pieces of the village: the styles of the cultures and the maritime pieces. */
     private static final List<String> STYLES = List.of("", "valeholm/", "sunreach/", "maritime/");
     /** The folders of the biome variants in a style. The base variant has no folder. */
@@ -162,6 +169,37 @@ public final class JobBuildingTemplateGameTests {
         checkScan(helper, FIELDS);
     }
 
+    /** The 5 Valeholm job buildings of the fields and the gardens: see {@link #checkScan}. */
+    @GameTest(template = "arena_huge", timeoutTicks = 40, batch = "job_building_scan_valeholm", skyAccess = true)
+    public static void heartFindsTheValeholmJobPosts(GameTestHelper helper) {
+        checkScan(helper, "valeholm/", FIELDS);
+    }
+
+    /** The 5 Valeholm job buildings of the food and the animals: see {@link #checkScan}. */
+    @GameTest(template = "arena_huge", timeoutTicks = 40, batch = "job_building_scan_valeholm_food", skyAccess = true)
+    public static void heartFindsTheValeholmFoodJobPosts(GameTestHelper helper) {
+        checkScan(helper, "valeholm/", FOOD);
+    }
+
+    /**
+     * The 5 Valeholm job buildings of the fields and the gardens in the desert: see {@link #checkScan}. The fences of
+     * the yards are sandstone walls with no gaps.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 40, batch = "job_building_scan_valeholm_desert", skyAccess = true)
+    public static void heartFindsTheValeholmDesertJobPosts(GameTestHelper helper) {
+        checkScan(helper, "valeholm/desert/", FIELDS);
+    }
+
+    /**
+     * The 5 Valeholm job buildings of the food and the animals in the desert: see {@link #checkScan}. The pen of the
+     * rancher is a ring of sandstone walls with no gaps.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 40, batch = "job_building_scan_valeholm_desert_food",
+            skyAccess = true)
+    public static void heartFindsTheValeholmDesertFoodJobPosts(GameTestHelper helper) {
+        checkScan(helper, "valeholm/desert/", FOOD);
+    }
+
     /** The 5 job buildings of the food and the animals: see {@link #checkScan}. */
     @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_building_scan_food", skyAccess = true)
     public static void heartFindsTheFoodJobPosts(GameTestHelper helper) {
@@ -244,14 +282,22 @@ public final class JobBuildingTemplateGameTests {
         helper.succeed();
     }
 
-    /**
-     * The 5 job buildings of a group in the base variant: the plan of each template has no warning. After the
-     * placement of the templates, each job sign has its job and its icon item, each fence has the shape of its
-     * neighbors, and the scan of the heart finds 1 job post for each building with the beds of the building, 1 home
-     * (house sign) for each building and the beds of the templates as the home beds of the village.
-     */
+    /** The 5 job buildings of a group in the base variant of the pieces of all the cultures: see the next method. */
     private static void checkScan(GameTestHelper helper, List<String> jobs) {
-        TestSupport.buildFloor(helper, ARENA);
+        checkScan(helper, "", jobs);
+    }
+
+    /**
+     * The 5 job buildings of a group in a folder of the pieces (a style and a biome variant): the plan of each template
+     * has no warning. After the placement of the templates, each job sign has its job and its icon item, each fence
+     * and each wall has the shape of its neighbors, and the scan of the heart finds 1 job post for each building with
+     * the beds of the building, 1 home (house sign) for each building and the beds of the templates as the home beds
+     * of the village. The Valeholm pieces are long houses: their tests use the arena {@code arena_huge}.
+     */
+    private static void checkScan(GameTestHelper helper, String folder, List<String> jobs) {
+        boolean norse = folder.startsWith("valeholm/");
+        BlockPos heartPos = norse ? NORSE_HEART : HEART;
+        TestSupport.buildFloor(helper, norse ? HUGE_ARENA : ARENA);
         ServerLevel level = helper.getLevel();
         StructureTemplateManager templates = level.getStructureManager();
         List<BoundingBox> boxes = new ArrayList<>();
@@ -261,7 +307,7 @@ public final class JobBuildingTemplateGameTests {
         try {
             for (int i = 0; i < jobs.size(); i++) {
                 String job = jobs.get(i);
-                StructureTemplate template = templates.get(piece("", "job_" + job)).orElseThrow();
+                StructureTemplate template = templates.get(piece(folder, "job_" + job)).orElseThrow();
                 BlockPos origin = helper.absolutePos(ORIGINS.get(i));
                 Plan plan = ConstructionPlanner.plan(ConstructionTargets.fromTemplate(level, template, origin,
                         new StructurePlaceSettings()), ConstructionTargets.view(level), Reach.DEFAULT);
@@ -272,14 +318,14 @@ public final class JobBuildingTemplateGameTests {
                         .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true);
                 template.placeInWorld(level, origin, origin, settings, level.getRandom(), Block.UPDATE_CLIENTS);
                 boxes.add(template.getBoundingBox(settings, origin));
-                pieces.add(new VillageReference.Piece(piece("", "job_" + job), origin, Rotation.NONE));
+                pieces.add(new VillageReference.Piece(piece(folder, "job_" + job), origin, Rotation.NONE));
                 checkSign(helper, template, origin, job);
                 beds += beds(template);
                 expected.put("folkhold_world:" + job, beds(template));
             }
             checkFences(helper, boxes);
-            helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
-            VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
+            helper.setBlock(heartPos, ModBlocks.VILLAGE_HEART.get());
+            VillageHeartBlockEntity heart = helper.getBlockEntity(heartPos);
             heart.ensureSettlement();
             heart.setRepairReference(new VillageReference(pieces));
             helper.assertTrue(heart.getLayout().scan(level, heart.getBlockPos()), "The scan area must be ready");
@@ -295,7 +341,7 @@ public final class JobBuildingTemplateGameTests {
             helper.assertTrue(beds >= HOME_BEDS * jobs.size() && settlement.beds() == beds,
                     "Expected the " + beds + " beds of the job buildings as home beds: " + settlement.beds());
         } finally {
-            helper.setBlock(HEART, Blocks.AIR);
+            helper.setBlock(heartPos, Blocks.AIR);
             // The buildings are higher than the arena: a later test at this place must not find them.
             boxes.forEach(box -> BlockPos.betweenClosedStream(box).forEach(pos ->
                     level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS)));
@@ -304,8 +350,9 @@ public final class JobBuildingTemplateGameTests {
     }
 
     /**
-     * The template gives each fence the shape that the game gives it from its neighbors: a fence connects to the
-     * fences and to the solid blocks of the building, not to the plants.
+     * The template gives each fence and each wall the shape that the game gives it from its neighbors: a fence
+     * connects to the fences and to the solid blocks of the building, not to the plants. A wall of the desert also has
+     * the height of its sides and its post.
      */
     static void checkFences(GameTestHelper helper, List<BoundingBox> boxes) {
         ServerLevel level = helper.getLevel();
@@ -315,7 +362,7 @@ public final class JobBuildingTemplateGameTests {
             for (BlockPos pos : BlockPos.betweenClosed(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(),
                     box.maxZ())) {
                 BlockState state = level.getBlockState(pos);
-                if (!(state.getBlock() instanceof FenceBlock)) {
+                if (!(state.getBlock() instanceof FenceBlock) && !(state.getBlock() instanceof WallBlock)) {
                     continue;
                 }
                 fences++;
@@ -325,8 +372,8 @@ public final class JobBuildingTemplateGameTests {
                 }
             }
         }
-        helper.assertTrue(fences > 0, "The buildings must have fences");
-        helper.assertTrue(wrong.isEmpty(), "Fences with a wrong shape: " + wrong);
+        helper.assertTrue(fences > 0, "The buildings must have fences or walls");
+        helper.assertTrue(wrong.isEmpty(), "Fences or walls with a wrong shape: " + wrong);
     }
 
     private static ResourceLocation piece(String folder, String name) {
