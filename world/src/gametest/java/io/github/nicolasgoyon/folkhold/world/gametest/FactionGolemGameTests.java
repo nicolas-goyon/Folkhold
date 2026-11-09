@@ -142,6 +142,49 @@ public final class FactionGolemGameTests {
     }
 
     /**
+     * A golem does not walk into lava to get to a target that it can see but cannot reach. A strip of lava 2 blocks
+     * wide goes across all the arena, between the golem and the husk. The husk has no AI, so that it stays near the
+     * lava.
+     */
+    @GameTest(template = "arena", timeoutTicks = 200, batch = "golem_lava")
+    public static void golemDoesNotWalkIntoLavaToATarget(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        for (int z = 0; z < TestSupport.ARENA_SIZE; z++) {
+            helper.setBlock(new BlockPos(6, 0, z), Blocks.LAVA);
+            helper.setBlock(new BlockPos(7, 0, z), Blocks.LAVA);
+        }
+        FactionGolemEntity golem = golemWithPost(helper, new BlockPos(3, 1, 8));
+        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(8, 1, 8));
+        husk.setNoAi(true);
+        // The feet of a golem on the floor are at this height. A golem lower than this fell into the lava strip.
+        double floorTop = helper.absolutePos(new BlockPos(0, 1, 0)).getY();
+        float health = golem.getMaxHealth();
+        boolean[] entered = {false};
+        helper.onEachTick(() -> {
+            if (golem.isInLava() || golem.getHealth() < health || golem.getY() < floorTop - 0.1) {
+                entered[0] = true;
+            }
+        });
+
+        helper.startSequence()
+                .thenExecute(() -> golem.setTarget(husk))
+                .thenIdle(150)
+                .thenExecute(() -> {
+                    LivingEntity target = golem.getTarget();
+                    boolean alive = golem.isAlive();
+                    golem.discard();
+                    husk.discard();
+                    for (int z = 0; z < TestSupport.ARENA_SIZE; z++) {
+                        helper.setBlock(new BlockPos(6, 0, z), Blocks.SMOOTH_STONE);
+                        helper.setBlock(new BlockPos(7, 0, z), Blocks.SMOOTH_STONE);
+                    }
+                    helper.assertTrue(alive && !entered[0], "The golem must not walk into the lava");
+                    helper.assertTrue(target == husk, "The golem must keep the husk as target: it can see it");
+                })
+                .thenSucceed();
+    }
+
+    /**
      * A golem does not chase a target far from its post: it drops the target and stays at its post. The target is in
      * the chase radius of a guard.
      */
