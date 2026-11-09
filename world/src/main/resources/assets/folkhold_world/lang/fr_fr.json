@@ -215,7 +215,7 @@
   "folkhold_world.configuration.levelMaxGainPerCycle": "Expérience maximum par cycle",
   "folkhold_world.configuration.levelCaptainDeathLoss": "Perte d'expérience à la mort du capitaine",
   "folkhold_world.configuration.economy": "Économie",
-  "folkhold_world.configuration.economyWorkersPerJob": "Habitants par métier",
+  "folkhold_world.configuration.economyWorkersPerJob": "Habitants par métier actif dans l'économie",
   "folkhold_world.configuration.economyFoodPerInhabitant": "Nourriture par habitant",
   "folkhold_world.configuration.economyDecayRate": "Pourrissement des stocks",
   "folkhold_world.configuration.economyElasticity": "Élasticité des prix",

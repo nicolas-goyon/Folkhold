@@ -40,6 +40,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageExits;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import io.github.nicolasgoyon.folkhold.world.village.VillageHomes;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageMarket;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
@@ -71,6 +72,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -178,6 +180,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean villagersFilling;
     /** Game time of the last creation of villagers. */
     private long lastVillagerSpawn;
+    /** The homes of the last record of the job posts (see {@link #recordJobPosts}), or null. Not saved. */
+    @Nullable
+    private VillageBeds.Homes homes;
     /** Game time of the last ring of the bells. Not saved. */
     private long lastBellTick = Long.MIN_VALUE / 2;
     /** Game time of the last shared target. Not saved. */
@@ -573,8 +578,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (reference.isEmpty()) {
             return;
         }
-        List<JobPosts.Post> scanned = VillageBeds.posts(serverLevel, worldPosition, layout.jobSigns(), layout.beds(),
-                reference.get());
+        homes = VillageBeds.homes(serverLevel, worldPosition, layout.jobSigns(), layout.beds(), reference.get());
+        List<JobPosts.Post> scanned = homes.posts();
         Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
             List<JobPosts.Post> posts = JobPosts.order(settlement.jobPosts(), scanned, Economies::producesFood,
                     Merchants::trades);
@@ -833,10 +838,12 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (settlement.isEmpty()) {
             return false;
         }
-        List<VillagerProfession> wanted = VillageFolk.professions(settlement.get(),
+        List<VillageFolk.Seat> seats = VillageFolk.seats(settlement.get(),
                 VillageFolk.inhabitantCount(settlement.get()));
+        List<Villager> inhabitants = VillageFolk.inhabitants(serverLevel, worldPosition);
         List<VillagerProfession> missingInhabitants =
-                VillageFolk.assign(VillageFolk.inhabitants(serverLevel, worldPosition), wanted);
+                VillageFolk.assign(inhabitants, seats.stream().map(VillageFolk.Seat::profession).toList());
+        claimHomeBeds(serverLevel, settlement.get(), seats, inhabitants);
         int missing = missingInhabitants.size();
         if (missing == 0) {
             boolean changed = villagersFilling;
@@ -859,6 +866,30 @@ public class VillageHeartBlockEntity extends BlockEntity {
         villagersFilling = spawned < missing;
         lastVillagerSpawn = now;
         return true;
+    }
+
+    /**
+     * Gives to the loaded inhabitants the beds of their places (see {@link VillageHomes}): the household of a home
+     * sleeps in the home. A village with no list of posts keeps the vanilla rules for the beds.
+     *
+     * @return the number of villagers with a new bed
+     */
+    public int claimHomeBeds() {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return 0;
+        }
+        return Settlements.of(serverLevel.getServer(), this).map(settlement -> claimHomeBeds(serverLevel, settlement,
+                VillageFolk.seats(settlement, VillageFolk.inhabitantCount(settlement)),
+                VillageFolk.inhabitants(serverLevel, worldPosition))).orElse(0);
+    }
+
+    private int claimHomeBeds(ServerLevel serverLevel, Settlement settlement, List<VillageFolk.Seat> seats,
+            List<Villager> inhabitants) {
+        if (homes == null || settlement.jobPosts().isEmpty()) {
+            return 0;
+        }
+        List<BlockPos> beds = VillageHomes.beds(seats, settlement.jobPosts().get(), homes);
+        return VillageHomes.claim(serverLevel, worldPosition, inhabitants, seats, beds);
     }
 
     /** Gives the banner of the faction to the banners of the village. */

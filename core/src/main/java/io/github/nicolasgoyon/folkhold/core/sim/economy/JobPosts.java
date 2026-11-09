@@ -27,6 +27,9 @@ import java.util.function.Predicate;
  * </ul>
  */
 public final class JobPosts {
+    /** The home of an inhabitant with no post: a home with no post, a post that is not valid, or no home. */
+    public static final int NO_POST = -1;
+
     private JobPosts() {
     }
 
@@ -110,6 +113,32 @@ public final class JobPosts {
             before += Math.max(1, post.homeBeds());
         }
         return jobs;
+    }
+
+    /**
+     * The home of each inhabitant of the homes. The inhabitants fill the homes of the valid posts in the order of the
+     * posts, one inhabitant for each home bed: the household of a home does the job of its post. The other inhabitants
+     * live in the other homes and have no job. The count of {@link #activeJobs} uses the same rule.
+     *
+     * @param posts       the posts, in their order
+     * @param valid       true for a valid job id (job file, minimum level, biome)
+     * @param inhabitants the inhabitants of the homes
+     * @return for each inhabitant, the index of the post of its home in {@code posts}, or {@link #NO_POST}
+     */
+    public static List<Integer> households(List<Post> posts, Predicate<String> valid, int inhabitants) {
+        List<Integer> homes = new ArrayList<>(Math.max(0, inhabitants));
+        for (int i = 0; i < posts.size() && homes.size() < inhabitants; i++) {
+            if (!valid.test(posts.get(i).jobId())) {
+                continue;
+            }
+            for (int bed = 0; bed < Math.max(1, posts.get(i).homeBeds()) && homes.size() < inhabitants; bed++) {
+                homes.add(i);
+            }
+        }
+        while (homes.size() < inhabitants) {
+            homes.add(NO_POST);
+        }
+        return homes;
     }
 
     /**

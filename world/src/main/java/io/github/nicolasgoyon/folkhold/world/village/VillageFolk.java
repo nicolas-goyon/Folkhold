@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
@@ -21,6 +22,7 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
@@ -35,6 +37,7 @@ import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 /**
  * The villagers of a faction village: the inhabitants. They are vanilla villagers with a Folkhold profession or the
@@ -49,11 +52,11 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
  *       {@link WorldConfig#HANDYMEN}): they work for the village, also in a small village. The builders build the
  *       construction sites of the village (see {@link BuilderSites}).</li>
  *   <li>The workers of the settlement show its active jobs: the profession of a worker is the profession of its job
- *       (see {@link EconomyData#profession(String)}). In a scanned village, the active jobs are the jobs of the
- *       active job posts (see {@link Economies#activeJobIds}). The posts with a food job that trades come first in
- *       the order of the posts, then the posts with an other job that trades, and the first valid post always has an
- *       inhabitant: thus a village with a valid post that trades has a trader. The other inhabitants have the
- *       inhabitant profession: they give life to the village (see {@link #professions(Settlement, int)}).</li>
+ *       (see {@link EconomyData#profession(String)}). In a scanned village, the household of the home of a valid post
+ *       does the job of the post and sleeps in this home (see {@link #seats} and {@link VillageHomes}). The posts
+ *       with a food job that trade come first in the order of the posts, then the posts with an other job that trades,
+ *       and the first valid post always has an inhabitant: thus a village with a valid post that trades has a trader.
+ *       The inhabitants of the other homes have the inhabitant profession: they give life to the village.</li>
  *   <li>Only the workers of the active jobs trade, with the goods of their jobs (see {@link Merchants}). A player
  *       cannot trade with the other inhabitants. The vanilla trades of a profession do not apply: they would bypass
  *       the economy of the village.</li>
@@ -128,7 +131,97 @@ public final class VillageFolk {
     }
 
     /**
-     * The professions of the inhabitants of a settlement: one for each inhabitant, in this order.
+     * The place of an inhabitant in its village.
+     *
+     * @param profession the profession of the inhabitant
+     * @param post       the index of the post of its home in the posts of the settlement, {@link JobPosts#NO_POST}
+     *                   for an inhabitant of an other home, or {@link #NO_HOME} for an inhabitant with no home of the
+     *                   heart (the builders and the handymen, the inhabitants of a village with no list of posts)
+     */
+    public record Seat(VillagerProfession profession, int post) {
+    }
+
+    /** The {@link Seat#post} of an inhabitant with no home of the heart: the heart does not give it a bed. */
+    public static final int NO_HOME = -2;
+
+    /**
+     * The professions of the inhabitants of a settlement: one for each inhabitant (see {@link #seats}).
+     *
+     * @param settlement the settlement
+     * @param count      the number of inhabitants
+     * @return the professions
+     */
+    public static List<VillagerProfession> professions(Settlement settlement, int count) {
+        return seats(settlement, count).stream().map(Seat::profession).toList();
+    }
+
+    /**
+     * The places of the inhabitants of a settlement: one for each inhabitant, in this order.
+     *
+     * <ul>
+     *   <li>A village with a list of posts (see {@link JobPosts#households}): first the first inhabitant of the
+     *       homes, then the builders and the handymen, then the other inhabitants of the homes. The household of the
+     *       home of a valid post does the job of the post: the first valid post comes first and trades when the village
+     *       has a valid post that trades. The other inhabitants of the homes have no job. In a legacy village, its
+     *       legacy job slots go to the inhabitants with no post, {@code workersPerJob} for each job slot (see
+     *       {@link #pickJobs}).</li>
+     *   <li>A village with no list of posts: see {@link #slotProfessions}. The heart gives no bed to these
+     *       inhabitants.</li>
+     * </ul>
+     *
+     * @param settlement the settlement
+     * @param count      the number of inhabitants
+     * @return the places
+     */
+    public static List<Seat> seats(Settlement settlement, int count) {
+        if (settlement.jobPosts().isEmpty()) {
+            return slotProfessions(settlement, count).stream().map(profession -> new Seat(profession, NO_HOME))
+                    .toList();
+        }
+        List<JobPosts.Post> posts = settlement.jobPosts().get();
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        List<Integer> households = JobPosts.households(posts, job -> Economies.isValidJob(server, settlement, job),
+                Economies.homeInhabitants(settlement));
+        List<VillagerProfession> homes = new ArrayList<>(households.size());
+        households.forEach(post -> homes.add(post == JobPosts.NO_POST ? ModProfessions.INHABITANT.get()
+                : professionOf(posts.get(post).jobId())));
+        int free = (int) households.stream().filter(post -> post == JobPosts.NO_POST).count();
+        if (settlement.legacyJobs() && free > 0) {
+            List<String> jobs = Economies.activeJobIds(settlement);
+            int postJobs = (int) households.stream().filter(post -> post != JobPosts.NO_POST).distinct().count();
+            List<String> legacyJobs = jobs.subList(Math.min(postJobs, jobs.size()), jobs.size());
+            List<String> picked = pickJobs(legacyJobs, workerCount(legacyJobs.size(), free,
+                    WorldConfig.ECONOMY_WORKERS_PER_JOB.get()));
+            for (int i = 0; i < picked.size(); i++) {
+                homes.set(homes.size() - free + i, professionOf(picked.get(i)));
+            }
+        }
+        List<Seat> seats = new ArrayList<>(Math.max(0, count));
+        if (!homes.isEmpty() && count > 0) {
+            seats.add(new Seat(homes.get(0), households.get(0)));
+        }
+        addStaff(seats, count);
+        for (int i = 1; i < homes.size() && seats.size() < count; i++) {
+            seats.add(new Seat(homes.get(i), households.get(i)));
+        }
+        while (seats.size() < count) {
+            seats.add(new Seat(ModProfessions.INHABITANT.get(), JobPosts.NO_POST));
+        }
+        return seats;
+    }
+
+    /** Adds the builders and the handymen: they live in the hall. */
+    private static void addStaff(List<Seat> seats, int count) {
+        for (int i = 0; i < WorldConfig.BUILDERS.get() && seats.size() < count; i++) {
+            seats.add(new Seat(ModProfessions.BUILDER.get(), NO_HOME));
+        }
+        for (int i = 0; i < WorldConfig.HANDYMEN.get() && seats.size() < count; i++) {
+            seats.add(new Seat(ModProfessions.HANDYMAN.get(), NO_HOME));
+        }
+    }
+
+    /**
+     * The professions of the inhabitants of a village with no list of posts: one for each inhabitant, in this order.
      *
      * <ol>
      *   <li>One worker of an active job that trades (see {@link Merchants#traders}), so that a small village has a
@@ -143,7 +236,7 @@ public final class VillageFolk {
      * @param count      the number of inhabitants
      * @return the professions
      */
-    public static List<VillagerProfession> professions(Settlement settlement, int count) {
+    private static List<VillagerProfession> slotProfessions(Settlement settlement, int count) {
         List<VillagerProfession> professions = new ArrayList<>(Math.max(0, count));
         List<String> jobs = Economies.activeJobIds(settlement);
         int workers = workerCount(jobs.size(), settlement.economy().population(),
@@ -219,6 +312,9 @@ public final class VillageFolk {
         villager.setVillagerData(villager.getVillagerData().setProfession(profession).setLevel(1));
         villager.setVillagerXp(1);
         villager.setOffers(new MerchantOffers());
+        if (villager.level() instanceof ServerLevel level) {
+            villager.refreshBrain(level);
+        }
     }
 
     /**
