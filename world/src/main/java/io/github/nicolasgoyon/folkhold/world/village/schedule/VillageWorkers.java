@@ -55,6 +55,8 @@ import net.minecraft.world.level.block.Blocks;
  *   <li>At each check, each loaded inhabitant loses a job sign as its job site when this sign is not the sign of its
  *       home (see {@link WorkerBrains#forgetJobSign}): an inhabitant with no job, a builder, a handyman, or a worker
  *       of a post that the village does not have any more.</li>
+ *   <li>At each check, each loaded inhabitant releases a vanilla workstation that it holds (see
+ *       {@link WorkerBrains#releaseWorkstation}).</li>
  * </ul>
  */
 public final class VillageWorkers {
@@ -96,6 +98,9 @@ public final class VillageWorkers {
         int changes = 0;
         Map<BlockPos, Boolean> present = new HashMap<>();
         for (Villager villager : inhabitants) {
+            if (WorkerBrains.releaseWorkstation(villager, villager.getBrain())) {
+                changes++;
+            }
             if (WorkerBrains.isWorker(villager)) {
                 changes += apply(level, villager, present);
             } else if (WorkerBrains.forgetJobSign(villager, villager.getBrain(), null)) {

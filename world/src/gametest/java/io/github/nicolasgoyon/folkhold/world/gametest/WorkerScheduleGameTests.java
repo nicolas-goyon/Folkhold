@@ -8,13 +8,16 @@ import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.registry.ModPoiTypes;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
+import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
+import io.github.nicolasgoyon.folkhold.world.village.VillageHomes;
 import io.github.nicolasgoyon.folkhold.world.village.VillageMarket;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.schedule.WorkerBrains;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -27,6 +30,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
+import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.schedule.Activity;
@@ -38,6 +43,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.JigsawReplacementProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -53,6 +59,18 @@ public final class WorkerScheduleGameTests {
     private static final BlockPos HEART = new BlockPos(16, 1, 15);
     private static final BlockPos MARKET_ORIGIN = new BlockPos(1, 1, 1);
     private static final BlockPos WORKSHOP_ORIGIN = new BlockPos(19, 1, 1);
+    /** The origins of the pieces of the legacy village: a farmer house-workshop and a cottage. */
+    private static final BlockPos LEGACY_WORKSHOP_ORIGIN = new BlockPos(1, 1, 1);
+    private static final BlockPos COTTAGE_ORIGIN = new BlockPos(11, 1, 1);
+    /** A composter on the floor, south of the heart. */
+    private static final BlockPos COMPOSTER = new BlockPos(13, 1, 20);
+    /** A composter and a vanilla villager in the small arena. */
+    private static final BlockPos ARENA_COMPOSTER = new BlockPos(11, 1, 8);
+    private static final BlockPos ARENA_VILLAGER = new BlockPos(4, 1, 8);
+    /** A vanilla villager claims a free workstation in this time, in ticks: an attempt each 20 to 40 ticks. */
+    private static final int CLAIM_TICKS = 300;
+    /** A legacy job: its profession is the vanilla farmer, with the composter as workstation. */
+    private static final String GARDENER = "folkhold_world:gardener";
     private static final String FARMER = "folkhold_world:farmer";
     private static final String MASON = "folkhold_world:mason";
     private static final long MORNING = 3_000L;
@@ -81,7 +99,8 @@ public final class WorkerScheduleGameTests {
         long[] dayTime = {MORNING};
         helper.onEachTick(() -> level.setDayTime(dayTime[0]));
         List<BoundingBox> boxes = new ArrayList<>();
-        VillageHeartBlockEntity heart = village(helper, boxes);
+        VillageHeartBlockEntity heart = village(helper, boxes, List.of("market", "job_farmer"),
+                List.of(MARKET_ORIGIN, WORKSHOP_ORIGIN), List.of(), false);
         // The floor of the test sets the noon: set the morning after it.
         level.setDayTime(MORNING);
         BoundingBox workshop = boxes.get(1);
@@ -189,6 +208,114 @@ public final class WorkerScheduleGameTests {
                 .thenSucceed();
     }
 
+    /**
+     * A legacy village: a farmer house-workshop and a cottage. The workers of the legacy job slots live in the cottage
+     * and have no job sign. Their profession is the vanilla farmer. A composter near them stays free: they keep their
+     * job and the worker schedule. The check of the heart releases a composter that a worker holds.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 1000, batch = "worker_schedule_workstation", skyAccess = true)
+    public static void legacyWorkersDoNotClaimAWorkstation(GameTestHelper helper) {
+        TestSupport.setConfigForTest(helper, WorldConfig.BUILDERS, 2);
+        TestSupport.setConfigForTest(helper, WorldConfig.HANDYMEN, 1);
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_GROWTH, false);
+        TestSupport.setConfigForTest(helper, WorldConfig.SCHEDULE_WORKER_SPREAD_TICKS, 0);
+        ServerLevel level = helper.getLevel();
+        helper.onEachTick(() -> level.setDayTime(MORNING));
+        List<BoundingBox> boxes = new ArrayList<>();
+        int slots = LevelTables.get().traits(3).jobSlots();
+        VillageHeartBlockEntity heart = village(helper, boxes, List.of("job_farmer", "house_cottage"),
+                List.of(LEGACY_WORKSHOP_ORIGIN, COTTAGE_ORIGIN), Collections.nCopies(slots, GARDENER), true);
+        level.setDayTime(MORNING);
+        BlockPos composter = helper.absolutePos(COMPOSTER);
+        GlobalPos composterSite = GlobalPos.of(level.dimension(), composter);
+        Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
+        List<Villager> villagers = new ArrayList<>();
+        TestSupport.atTestEnd(helper, () -> {
+            villagers.forEach(Entity::discard);
+            settlement.setLegacyJobs(false);
+            helper.setBlock(COMPOSTER, Blocks.AIR);
+            end(helper, boxes);
+        });
+        VillageFolk.seats(settlement, VillageFolk.inhabitantCount(settlement)).forEach(seat ->
+                villagers.add(VillageFolk.spawn(level, heart.getBlockPos(), seat.profession())));
+        heart.claimHomeBeds();
+        heart.updateWorkers();
+        BoundingBox cottage = boxes.get(1);
+        List<Villager> legacy = villagers.stream()
+                .filter(villager -> villager.getVillagerData().getProfession() == VillagerProfession.FARMER)
+                .filter(villager -> VillageHomes.home(level, villager).filter(cottage::isInside).isPresent())
+                .toList();
+        helper.assertTrue(!legacy.isEmpty(), "Expected workers of a legacy job slot in the cottage");
+        for (Villager worker : legacy) {
+            assertWorker(helper, worker, "of a legacy job slot");
+            helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.JOB_SITE).isEmpty(),
+                    "A worker of a legacy job slot must have no job sign");
+        }
+
+        helper.setBlock(COMPOSTER, Blocks.COMPOSTER);
+        helper.assertTrue(hasFreeTicket(level, composter), "The composter must be a free workstation");
+        // A worker that holds the composter in its save.
+        Villager holder = legacy.get(0);
+        level.getPoiManager().take(type -> type.is(PoiTypes.FARMER), (type, pos) -> pos.equals(composter),
+                composter, 1);
+        holder.getBrain().setMemory(MemoryModuleType.JOB_SITE, composterSite);
+        heart.updateWorkers();
+        helper.assertTrue(holder.getBrain().getMemory(MemoryModuleType.JOB_SITE).isEmpty(),
+                "The check of the heart must erase the workstation of a worker");
+        helper.assertTrue(hasFreeTicket(level, composter), "The check of the heart must release the composter");
+
+        helper.startSequence()
+                .thenExecuteFor(CLAIM_TICKS, () -> legacy.forEach(worker -> {
+                    helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.POTENTIAL_JOB_SITE).isEmpty()
+                            && worker.getBrain().getMemory(MemoryModuleType.JOB_SITE).isEmpty(),
+                            "A worker of a legacy job slot must not claim a workstation: "
+                                    + worker.getBrain().getMemory(MemoryModuleType.POTENTIAL_JOB_SITE) + ", "
+                                    + worker.getBrain().getMemory(MemoryModuleType.JOB_SITE));
+                    helper.assertTrue(worker.getVillagerData().getProfession() == VillagerProfession.FARMER,
+                            "A worker of a legacy job slot must keep its profession: "
+                                    + worker.getVillagerData().getProfession());
+                }))
+                .thenExecute(() -> {
+                    legacy.forEach(worker -> assertWorker(helper, worker, "near a composter"));
+                    helper.assertTrue(hasFreeTicket(level, composter), "The composter must stay free");
+                })
+                .thenSucceed();
+    }
+
+    /** A vanilla villager outside the faction villages keeps the vanilla rules: it claims a free composter. */
+    @GameTest(template = "arena", timeoutTicks = 1000, batch = "worker_schedule_vanilla_workstation")
+    public static void vanillaVillagerClaimsAWorkstation(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos composter = helper.absolutePos(ARENA_COMPOSTER);
+        GlobalPos composterSite = GlobalPos.of(level.dimension(), composter);
+        Villager villager = EntityType.VILLAGER.create(level);
+        TestSupport.atTestEnd(helper, () -> {
+            villager.discard();
+            helper.setBlock(ARENA_COMPOSTER, Blocks.AIR);
+        });
+        helper.setBlock(ARENA_COMPOSTER, Blocks.COMPOSTER);
+        villager.setVillagerData(villager.getVillagerData().setProfession(VillagerProfession.FARMER).setLevel(1));
+        villager.setVillagerXp(1);
+        villager.moveTo(Vec3.atBottomCenterOf(helper.absolutePos(ARENA_VILLAGER)));
+        level.addFreshEntity(villager);
+        helper.assertFalse(VillageFolk.isVillageFolk(villager), "The villager must not belong to a village");
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(villager.getBrain().getMemory(MemoryModuleType.JOB_SITE)
+                        .filter(composterSite::equals).isPresent(), "The vanilla villager must claim the composter: "
+                        + villager.getBrain().getMemory(MemoryModuleType.JOB_SITE)))
+                .thenExecute(() -> helper.assertTrue(!hasFreeTicket(level, composter)
+                        && villager.getVillagerData().getProfession() == VillagerProfession.FARMER,
+                        "The vanilla villager must hold the ticket of the composter"))
+                .thenSucceed();
+    }
+
+    /** True if the composter has a free ticket. */
+    private static boolean hasFreeTicket(ServerLevel level, BlockPos composter) {
+        return level.getPoiManager().getInRange(type -> type.is(PoiTypes.FARMER), composter, 1,
+                PoiManager.Occupancy.HAS_SPACE).anyMatch(record -> record.getPos().equals(composter));
+    }
+
     /** The villager has the worker schedule of its step. */
     private static void assertWorker(GameTestHelper helper, Villager villager, String when) {
         helper.assertTrue(WorkerBrains.isWorker(villager), "The villager must be a worker " + when);
@@ -196,15 +323,21 @@ public final class WorkerScheduleGameTests {
                 "The worker must have the worker schedule " + when);
     }
 
-    /** Places a market and the house-workshop of a farmer, the heart and its settlement, and scans the village. */
-    private static VillageHeartBlockEntity village(GameTestHelper helper, List<BoundingBox> boxes) {
+    /**
+     * Places the pieces of a village of level 3, the heart and its settlement, and scans the village.
+     *
+     * @param names    the pieces of the base style
+     * @param origins  the origin of each piece
+     * @param slotJobs the jobs of the economy
+     * @param legacy   true for a legacy village
+     */
+    private static VillageHeartBlockEntity village(GameTestHelper helper, List<BoundingBox> boxes, List<String> names,
+            List<BlockPos> origins, List<String> slotJobs, boolean legacy) {
         TestSupport.buildFloor(helper, ARENA);
         ServerLevel level = helper.getLevel();
         StructurePlaceSettings settings = new StructurePlaceSettings()
                 .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true);
         List<VillageReference.Piece> pieces = new ArrayList<>();
-        List<String> names = List.of("market", "job_farmer");
-        List<BlockPos> origins = List.of(MARKET_ORIGIN, WORKSHOP_ORIGIN);
         for (int i = 0; i < names.size(); i++) {
             ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "village/"
                     + names.get(i));
@@ -222,8 +355,8 @@ public final class WorkerScheduleGameTests {
         settlement.setProgress(3, 0);
         settlement.setBiome("minecraft:plains");
         settlement.economy().setPopulation(20);
-        settlement.economy().setJobs(List.of());
-        settlement.setLegacyJobs(false);
+        settlement.economy().setJobs(slotJobs);
+        settlement.setLegacyJobs(legacy);
         settlement.setJobPosts(Optional.empty());
         helper.assertTrue(heart.getLayout().scan(level, heart.getBlockPos()), "The scan area must be ready");
         heart.recordBeds();

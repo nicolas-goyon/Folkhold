@@ -62,8 +62,9 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks;
  *       the economy of the village.</li>
  *   <li>A villager with the profession {@link ModProfessions#MERCHANT} is an inhabitant: the next check of the heart
  *       gives it a profession of the settlement (see {@link #assign}).</li>
- *   <li>A villager has 1 experience point, so it keeps its profession with no job site block and does not take
- *       the workstations of the village.</li>
+ *   <li>A villager has 1 experience point, so it keeps its profession with no job site block. A villager of a faction
+ *       village does not take a vanilla workstation (see
+ *       {@link io.github.nicolasgoyon.folkhold.world.village.schedule.WorkerBrains#withoutWorkstation}).</li>
  *   <li>The simulation sets the population: the villagers of a faction village do not breed, and a dead villager
  *       removes 1 from the population of the settlement.</li>
  * </ul>
