@@ -118,6 +118,15 @@ public final class Merchants {
         return VillageFolk.professionOf(jobId) != ModProfessions.INHABITANT.get();
     }
 
+    /**
+     * The active jobs of a settlement that a worker sells: the active jobs that trade (see {@link #trades}). The
+     * caravan merchant sells the other items of the stock during its stay (see
+     * {@link io.github.nicolasgoyon.folkhold.world.group.CaravanStays}).
+     */
+    public static List<Job> sellingJobs(Settlement settlement) {
+        return Economies.activeJobs(settlement).stream().filter(job -> trades(job.id())).toList();
+    }
+
     /** The number of different active jobs of a settlement that trade: the jobs of the traders. */
     public static int tradingJobCount(Settlement settlement) {
         return (int) Economies.activeJobIds(settlement).stream()

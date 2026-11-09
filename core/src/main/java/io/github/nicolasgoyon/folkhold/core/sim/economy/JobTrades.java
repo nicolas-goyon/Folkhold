@@ -3,6 +3,7 @@ package io.github.nicolasgoyon.folkhold.core.sim.economy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,8 @@ import java.util.function.Predicate;
  *       {@link #MIN_OFFERS} offers or more, and not more than the offer count of the level.</li>
  *   <li>Of the offers of a worker, two thirds are sell offers, and the rest are buy offers, with 1 buy offer or more.
  *       When a worker has fewer items to sell than sell offers, the free offers buy, and the reverse.</li>
+ *   <li>The items of the stock that no worker sells go to the caravan merchant during its stay (see
+ *       {@link #surplus}).</li>
  * </ul>
  */
 public final class JobTrades {
@@ -118,5 +121,52 @@ public final class JobTrades {
             buySlots = buys.size();
         }
         return new Plan(sells, sellSlots, List.copyOf(buys), buySlots);
+    }
+
+    /**
+     * The surplus of the stock that no worker sells, with the quantity for sale. The caravan merchant sells it during
+     * its stay at the village.
+     *
+     * <ul>
+     *   <li>An output of a job of a worker is not in the surplus: the worker sells it.</li>
+     *   <li>The village keeps its target of the inputs of its active jobs and of the food: only the quantity above the
+     *       target is for sale.</li>
+     *   <li>The other items are for sale with all their stock.</li>
+     *   <li>The most valuable surplus comes first.</li>
+     * </ul>
+     *
+     * @param sellers    the active jobs of the workers that trade
+     * @param active     all the active jobs of the village
+     * @param stock      the stock of the village, by item id
+     * @param catalog    the item values
+     * @param population the population of the village
+     * @param tradable   true for the items that can be in an offer (a known item, not the currency)
+     * @return the quantity for sale, by item id, sorted
+     */
+    public static Map<String, Integer> surplus(Collection<Job> sellers, Collection<Job> active,
+            Map<String, Integer> stock, ItemCatalog catalog, int population, Predicate<String> tradable) {
+        Set<String> outputs = new LinkedHashSet<>();
+        for (Job job : sellers) {
+            job.recipe().outputs().forEach(output -> outputs.add(output.item()));
+        }
+        Set<String> inputs = new LinkedHashSet<>();
+        for (Job job : active) {
+            job.recipe().inputs().forEach(input -> inputs.add(input.item()));
+        }
+        Map<String, Integer> result = new LinkedHashMap<>();
+        stock.entrySet().stream()
+                .filter(entry -> !outputs.contains(entry.getKey()) && tradable.test(entry.getKey()))
+                .map(entry -> {
+                    ItemInfo info = catalog.info(entry.getKey());
+                    int reserve = inputs.contains(entry.getKey()) || info.isFood() ? Prices.target(info, population)
+                            : 0;
+                    return Map.entry(entry.getKey(), entry.getValue() - reserve);
+                })
+                .filter(entry -> entry.getValue() > 0)
+                .sorted(Comparator.comparingDouble((Map.Entry<String, Integer> entry) ->
+                        -catalog.info(entry.getKey()).price() * entry.getValue())
+                        .thenComparing(Map.Entry::getKey))
+                .forEachOrdered(entry -> result.put(entry.getKey(), entry.getValue()));
+        return result;
     }
 }

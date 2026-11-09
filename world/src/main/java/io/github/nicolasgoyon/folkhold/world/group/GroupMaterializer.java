@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.group;
 
+import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupMember;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MemberRole;
@@ -7,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
 import io.github.nicolasgoyon.folkhold.core.sim.group.Route;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
@@ -51,8 +53,9 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
  *   <li>While a group has entities, the simulation does not move it. The position of its merchant sets its progress,
  *       and the health of the entities sets the health of the members.</li>
  *   <li>The group arrives (see {@link MobileGroupSystem#onEndOfRoute(MobileGroup, long)}) when its merchant is at
- *       {@link #ARRIVAL_RADIUS} blocks or less from the heart of the destination. If the heart of the destination is
- *       not known, the group arrives when its merchant is at the end of the route.</li>
+ *       {@link #ARRIVAL_RADIUS} blocks or less from its stop at the destination: the caravan yard of the market, or the
+ *       heart at the plaza (see {@link CaravanStays}). If the heart of the destination is not known, the group arrives
+ *       when its merchant is at the end of the route.</li>
  *   <li>Each second, the home position of the guards of a group goes to the position of its merchant.</li>
  *   <li>A group with entities arrives at once (see {@link MobileGroupSystem#arrive}): the entities stay in the
  *       village for some time (see {@link #release}). Then they disappear when no player is near, or after
@@ -82,7 +85,7 @@ public final class GroupMaterializer {
     static final long LINGER_MAX_TICKS = 3600;
     /** After {@link #LINGER_MIN_TICKS}, an entity of an arrived group disappears when no player is this near. */
     private static final double LINGER_SEEN_DISTANCE = 32.0;
-    /** The merchant of an arrived group walks at this distance or less from the heart, in blocks. */
+    /** The mules of an arrived group walk at this distance or less from the stop of the group, in blocks. */
     private static final int LINGER_RADIUS = 10;
     /** Distance in blocks between the spawn positions of two members. */
     private static final int SPACING = 2;
@@ -300,8 +303,8 @@ public final class GroupMaterializer {
     }
 
     /**
-     * True if the merchant of a group is at the destination: near the destination heart, or at the end of the route
-     * if the heart is not known.
+     * True if the merchant of a group is at the destination: near its stop (see {@link CaravanStays#stop}), or at the
+     * end of the route if the heart of the destination is not known.
      *
      * @param server   the server
      * @param group    the group, with its progress from the position of the merchant
@@ -309,10 +312,10 @@ public final class GroupMaterializer {
      * @return true if the merchant is at the destination
      */
     public static boolean isAtDestination(MinecraftServer server, MobileGroup group, Entity merchant) {
-        Optional<BlockPos> heart = destinationHeart(server, group);
-        if (heart.isPresent()) {
-            double dx = heart.get().getX() + 0.5 - merchant.getX();
-            double dz = heart.get().getZ() + 0.5 - merchant.getZ();
+        Optional<BlockPos> stop = CaravanStays.stop(server.overworld(), group).map(CaravanStays.Stop::pos);
+        if (stop.isPresent()) {
+            double dx = stop.get().getX() + 0.5 - merchant.getX();
+            double dz = stop.get().getZ() + 0.5 - merchant.getZ();
             return dx * dx + dz * dz <= ARRIVAL_RADIUS * ARRIVAL_RADIUS;
         }
         return group.progress() >= group.route().length() - ARRIVAL_DISTANCE;
@@ -323,7 +326,8 @@ public final class GroupMaterializer {
      *
      * <ul>
      *   <li>the mule chests are empty, because the cargo goes into the stock of the destination;</li>
-     *   <li>the guards stay near the destination heart, and the merchant walks near it;</li>
+     *   <li>the merchant of a caravan walks to the stop of the caravan and stays there (see {@link CaravanStays}); the
+     *       guards stay near the stop, and the mules follow the merchant;</li>
      *   <li>the entities disappear after {@link #LINGER_MIN_TICKS} when no player is near, or after
      *       {@link #LINGER_MAX_TICKS};</li>
      *   <li>an entity that unloads does not come back, because its group does not exist.</li>
@@ -334,12 +338,13 @@ public final class GroupMaterializer {
      */
     public static void release(ServerLevel level, MobileGroup group) {
         GroupBoats.remove(level, group.id());
+        Optional<CaravanStays.Stop> stop = CaravanStays.stop(level, group);
+        CaravanStays.forget(group.id());
         Set<UUID> ids = MATERIALIZED.remove(group.id());
         OVERFLOW.remove(group.id());
         if (ids == null) {
             return;
         }
-        Optional<BlockPos> heart = destinationHeart(level.getServer(), group);
         long now = level.getGameTime();
         for (UUID id : ids) {
             if (!(level.getEntity(id) instanceof Mob mob) || !mob.isAlive()) {
@@ -348,11 +353,13 @@ public final class GroupMaterializer {
             if (mob instanceof AbstractChestedHorse mule) {
                 CaravanCargo.clear(mule);
             }
-            if (heart.isPresent()) {
-                if (mob instanceof FactionUnit unit) {
-                    unit.setHomePos(heart.get());
+            if (stop.isPresent()) {
+                if (mob instanceof CaravanMerchant merchant && group.kind() == GroupKind.CARAVAN) {
+                    merchant.stay(group.destinationId(), stop.get());
+                } else if (mob instanceof FactionUnit unit) {
+                    unit.setHomePos(stop.get().pos());
                 } else {
-                    mob.restrictTo(heart.get(), LINGER_RADIUS);
+                    mob.restrictTo(stop.get().pos(), LINGER_RADIUS);
                 }
             }
             LINGERING.put(id, now);
@@ -398,6 +405,7 @@ public final class GroupMaterializer {
             sync(level, group);
         }
         GroupBoats.remove(level, group.id());
+        CaravanStays.forget(group.id());
         Set<UUID> ids = MATERIALIZED.remove(group.id());
         OVERFLOW.remove(group.id());
         if (ids == null) {
@@ -557,6 +565,7 @@ public final class GroupMaterializer {
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
+        CaravanStays.clear();
         MATERIALIZED.clear();
         KEPT.clear();
         OVERFLOW.clear();
