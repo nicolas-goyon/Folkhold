@@ -31,7 +31,8 @@ import net.minecraft.world.entity.npc.VillagerProfession;
  *   <li>A place with no free bed (more inhabitants than beds) gets no bed. The builders, the handymen and the
  *       inhabitants of a village with no list of posts get no bed: the vanilla rules apply to them.</li>
  *   <li>The villagers keep the beds of their places when they can: a villager with a bed of a place of its profession
- *       keeps this bed. The other places go to the other villagers of their profession.</li>
+ *       keeps this bed. The other places go to the other villagers of their profession: first the beds with a free
+ *       ticket, then the beds that a villager holds (for example a villager that is not loaded).</li>
  *   <li>A villager that holds the bed of an other villager (an inhabitant with no place, a vanilla villager that
  *       claims a free bed) loses this bed. A bed with no villager of its place stays with its holder.</li>
  *   <li>The memory {@code HOME} stays in the save of the villager: it is the persistent home of the villager.</li>
@@ -98,13 +99,18 @@ public final class VillageHomes {
             home(level, villager).filter(bed -> bedProfessions.get(bed) == villager.getVillagerData().getProfession())
                     .filter(bed -> !owners.containsKey(bed)).ifPresent(bed -> owners.put(bed, villager));
         }
-        bedProfessions.forEach((bed, profession) -> {
+        List<BlockPos> freeFirst = new ArrayList<>(bedProfessions.keySet());
+        freeFirst.sort(Comparator.comparing(bed -> !hasFreeTicket(level, bed)));
+        for (BlockPos bed : freeFirst) {
             if (!owners.containsKey(bed)) {
+                VillagerProfession profession = bedProfessions.get(bed);
                 sorted.stream().filter(villager -> villager.getVillagerData().getProfession() == profession)
                         .filter(villager -> !owners.containsValue(villager)).findFirst()
                         .ifPresent(villager -> owners.put(bed, villager));
             }
-        });
+        }
+        // The holder of the bed of an other villager loses its memory only. The claim of the owner releases the
+        // ticket of the bed before it takes it.
         for (Villager villager : level.getEntitiesOfClass(Villager.class, VillageHearts.area(heart))) {
             home(level, villager).filter(owners::containsKey).filter(bed -> owners.get(bed) != villager)
                     .ifPresent(bed -> villager.getBrain().eraseMemory(MemoryModuleType.HOME));
@@ -123,6 +129,12 @@ public final class VillageHomes {
     public static Optional<BlockPos> home(ServerLevel level, Villager villager) {
         return villager.getBrain().getMemory(MemoryModuleType.HOME)
                 .filter(home -> home.dimension() == level.dimension()).map(GlobalPos::pos);
+    }
+
+    /** True if the bed has a free ticket: no villager holds it. */
+    private static boolean hasFreeTicket(ServerLevel level, BlockPos bed) {
+        return level.isLoaded(bed) && level.getPoiManager().getInRange(type -> type.is(PoiTypes.HOME), bed, 1,
+                PoiManager.Occupancy.HAS_SPACE).anyMatch(record -> record.getPos().equals(bed));
     }
 
     /** Gives a bed to a villager: it releases its old bed and takes the ticket of the new bed. */

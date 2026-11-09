@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
@@ -299,6 +300,8 @@ public final class JobPostGameTests {
             Villager stranger = EntityType.VILLAGER.create(level);
             stranger.moveTo(Vec3.atBottomCenterOf(heartPos.above()));
             stranger.getBrain().setMemory(MemoryModuleType.HOME, GlobalPos.of(level.dimension(), workshopBed));
+            level.getPoiManager().take(type -> type.is(PoiTypes.HOME), (type, pos) -> pos.equals(workshopBed),
+                    workshopBed, 1);
             level.addFreshEntity(stranger);
             villagers.add(stranger);
 
@@ -308,10 +311,11 @@ public final class JobPostGameTests {
             helper.assertTrue(farmerBeds.size() == 2 && farmerBeds.stream().distinct().count() == 2
                     && farmerBeds.stream().allMatch(village.boxes().get(0)::isInside),
                     "The 2 farmers must sleep in the workshop: " + farmerBeds);
-            helper.assertTrue(farmerBeds.stream().allMatch(bed -> level.getPoiManager().getInRange(
-                    type -> type.is(PoiTypes.HOME), bed, 1, PoiManager.Occupancy.HAS_SPACE)
-                    .noneMatch(record -> record.getPos().equals(bed))),
+            helper.assertTrue(farmerBeds.stream().noneMatch(bed -> hasFreeTicket(level, bed)),
                     "The farmers must hold the tickets of their beds");
+            helper.assertTrue(level.getPoiManager().getInRange(type -> type.is(PoiTypes.HOME), workshopBed, 1,
+                    PoiManager.Occupancy.IS_OCCUPIED).filter(record -> record.getPos().equals(workshopBed)).count() == 1,
+                    "The bed of the vanilla villager must have 1 used ticket");
             List<BlockPos> otherBeds = homes(level, villagers, ModProfessions.INHABITANT.get());
             helper.assertTrue(otherBeds.size() == 3 && otherBeds.stream().distinct().count() == 3
                     && otherBeds.stream().allMatch(village.boxes().get(1)::isInside),
@@ -319,6 +323,25 @@ public final class JobPostGameTests {
             helper.assertTrue(VillageHomes.home(level, stranger).isEmpty(),
                     "The vanilla villager must lose the bed of the workshop");
             helper.assertTrue(village.heart().claimHomeBeds() == 0, "The villagers must keep their beds");
+            helper.assertTrue(Merchants.traders(village.settlement()).equals(List.of(farmer)),
+                    "Only the farmers must trade: " + Merchants.traders(village.settlement()));
+            helper.assertTrue(villagers.stream().filter(villager -> villager.getVillagerData().getProfession()
+                    == ModProfessions.INHABITANT.get()).noneMatch(villager -> Merchants.isTrader(level, villager)),
+                    "The inhabitants with no post must not trade");
+
+            // A farmer that is not loaded keeps its bed when an other bed of the workshop is free.
+            List<Villager> farmers = villagers.stream()
+                    .filter(villager -> villager.getVillagerData().getProfession() == farmer).toList();
+            BlockPos kept = VillageHomes.home(level, farmers.get(0)).orElseThrow();
+            BlockPos free = VillageHomes.home(level, farmers.get(1)).orElseThrow();
+            farmers.forEach(Entity::discard);
+            level.getPoiManager().release(free);
+            Villager newcomer = VillageFolk.spawn(level, heartPos, farmer);
+            villagers.add(newcomer);
+            village.heart().claimHomeBeds();
+            helper.assertTrue(VillageHomes.home(level, newcomer).filter(free::equals).isPresent(),
+                    "The new farmer must take the free bed " + free + ", not " + kept + ": "
+                            + VillageHomes.home(level, newcomer));
         } finally {
             villagers.forEach(Entity::discard);
             end(helper, village);
@@ -370,6 +393,12 @@ public final class JobPostGameTests {
             end(helper, village);
         }
         helper.succeed();
+    }
+
+    /** True if the bed has a free ticket. */
+    private static boolean hasFreeTicket(ServerLevel level, BlockPos bed) {
+        return level.getPoiManager().getInRange(type -> type.is(PoiTypes.HOME), bed, 1,
+                PoiManager.Occupancy.HAS_SPACE).anyMatch(record -> record.getPos().equals(bed));
     }
 
     /** The beds of the villagers with a profession. */
