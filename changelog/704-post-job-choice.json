@@ -1,5 +1,5 @@
 {
   "category": "new",
-  "en_us": "A job post with a job that the village cannot have (level, biome) gets a new job, and its job sign shows it. A blank job sign in a home gets a job: food first, then a trader, then different jobs.",
-  "fr_fr": "Un poste avec un métier que le village ne peut pas avoir (niveau, biome) reçoit un nouveau métier, affiché sur son panneau. Un panneau de métier vide dans une maison reçoit un métier : d'abord la nourriture, puis un marchand, puis des métiers différents."
+  "en_us": "A job post with a job of an other biome gets a new job, and its job sign shows it. A blank job sign in a home gets a job: food first, then a trader, then different jobs. A broken job sign keeps its job.",
+  "fr_fr": "Un poste avec un métier d'un autre biome reçoit un nouveau métier, affiché sur son panneau. Un panneau de métier vide dans une maison reçoit un métier : d'abord la nourriture, puis un marchand, puis des métiers différents. Un panneau de métier cassé garde son métier."
 }

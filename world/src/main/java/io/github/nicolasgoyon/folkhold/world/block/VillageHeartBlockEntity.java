@@ -55,6 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.UUID;
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -62,6 +63,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -583,41 +585,34 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
-     * Gives a new job to each job post with a job that is not valid (see {@link JobAssignment#renew}): a job file
-     * that does not exist, a minimum level above the level of the village, a biome that does not match, or a job sign
-     * with no job (for example a sign that a player places in a home). The heart writes the new job and its icon (the
-     * first output item of the job) on the job sign. The blocks of the building do not change. A valid job does not
-     * change. The heart does not change the blocks of a legacy village. A post with a sign in a chunk that is not
-     * loaded keeps its job until a later check.
+     * Gives a new job to each job post that needs a job (see {@link Economies#needsNewJob} and
+     * {@link JobAssignment#renew}): a job sign with no job (for example a blank job sign that a player places in a
+     * home), or a job that is not valid in the biome. The heart writes the new job and its icon (the first output item
+     * of the job) on the job sign. The blocks of the building do not change. The other jobs do not change: a post with
+     * a minimum level above the level of the village, or with no job file, is inactive. The heart does not change the
+     * blocks of a legacy village. A post with a sign in a chunk that is not loaded keeps its job until a later check.
      */
     public void renewJobPosts() {
         if (!(level instanceof ServerLevel serverLevel) || !layout.isScanned()) {
             return;
         }
-        Settlements.of(serverLevel.getServer(), this).ifPresent(settlement -> {
+        MinecraftServer server = serverLevel.getServer();
+        Settlements.of(server, this).ifPresent(settlement -> {
             if (settlement.legacyJobs() || settlement.jobPosts().isEmpty()) {
                 return;
             }
             List<JobPosts.Post> posts = settlement.jobPosts().get();
-            List<JobPosts.Post> renewed = JobAssignment.renew(posts,
-                    job -> Economies.isValidJob(serverLevel.getServer(), settlement, job),
-                    Economies.eligibleJobs(serverLevel.getServer(), settlement), EconomyData.catalog(),
-                    Merchants::trades, Settlements.seed(settlement.id()));
-            List<JobPosts.Post> result = new ArrayList<>(posts.size());
-            boolean changed = false;
-            for (int i = 0; i < posts.size(); i++) {
-                JobPosts.Post post = renewed.get(i);
-                if (!post.equals(posts.get(i)) && writeJobSign(serverLevel, post)) {
-                    result.add(post);
-                    changed = true;
-                } else {
-                    result.add(posts.get(i));
-                }
+            Predicate<String> needsJob = job -> Economies.needsNewJob(server, settlement, job);
+            if (posts.stream().map(JobPosts.Post::jobId).noneMatch(needsJob)) {
+                return;
             }
-            if (changed) {
-                settlement.setJobPosts(Optional.of(JobPosts.order(Optional.of(result), result,
+            List<JobPosts.Post> renewed = JobAssignment.renew(posts, needsJob,
+                    Economies.eligibleJobs(server, settlement), EconomyData.catalog(), Merchants::trades,
+                    Settlements.seed(settlement.id()), post -> writeJobSign(serverLevel, post));
+            if (!renewed.equals(posts)) {
+                settlement.setJobPosts(Optional.of(JobPosts.order(Optional.of(renewed), renewed,
                         Economies::producesFood, Merchants::trades)));
-                SettlementData.get(serverLevel.getServer()).setDirty();
+                SettlementData.get(server).setDirty();
                 setChanged();
             }
         });
@@ -634,6 +629,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
                 : ResourceLocation.tryParse(job.recipe().outputs().get(0).item());
         String prefix = FolkholdWorld.MOD_ID + ":";
         String signJob = post.jobId().startsWith(prefix) ? post.jobId().substring(prefix.length()) : post.jobId();
+        FolkholdWorld.LOGGER.info("Village {}: the job post at {} gets the job {} (job of the sign: '{}')",
+                worldPosition, pos, post.jobId(), sign.job());
         sign.setJob(signJob, icon);
         layout.setJob(pos, post.jobId());
         return true;

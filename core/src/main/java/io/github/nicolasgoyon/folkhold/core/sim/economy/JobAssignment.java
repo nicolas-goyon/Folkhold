@@ -104,7 +104,7 @@ public final class JobAssignment {
         if (posts.stream().noneMatch(trades)) {
             steps.add(job -> trades.test(job.id()));
         }
-        if (foodPosts < posts.size() * FOOD_SHARE) {
+        if (foodPosts == 0 || foodPosts < posts.size() * FOOD_SHARE) {
             steps.add(job -> food.test(job.id()));
         }
         steps.add(job -> true);
@@ -121,30 +121,39 @@ public final class JobAssignment {
     }
 
     /**
-     * Gives a new job to each post with a job that is not valid (see {@link #next}). The valid posts keep their job.
-     * The posts get their new job in their order, and each new job counts for the next posts.
+     * Gives a job to each post that needs a job (see {@link #next}). The other posts keep their job, also a post with a
+     * job that is not valid for some time (for example a minimum level above the level of the village). The posts get
+     * their job in their order. A new job counts for the next posts only when {@code write} accepts it.
      *
      * @param posts    the posts of the village, in their order
-     * @param valid    true for a valid job id (job file, minimum level, biome)
+     * @param needsJob true for a job id that must change (for example a sign with no job)
      * @param eligible the jobs that the village can have (level and biome)
      * @param catalog  the item values (to find the food jobs)
      * @param trades   true for a job id with workers that trade
      * @param seed     the seed of the settlement
-     * @return the posts, in the same order. A post keeps its job when {@code eligible} is empty.
+     * @param write    writes the new job of a post (for example on its job sign), and returns false when it cannot
+     * @return the posts, in the same order. A post keeps its job when {@code eligible} is empty or when {@code write}
+     *         returns false.
      */
-    public static List<JobPosts.Post> renew(List<JobPosts.Post> posts, Predicate<String> valid, List<Job> eligible,
-            ItemCatalog catalog, Predicate<String> trades, long seed) {
-        List<String> jobs = new ArrayList<>(posts.stream().map(JobPosts.Post::jobId).filter(valid).toList());
+    public static List<JobPosts.Post> renew(List<JobPosts.Post> posts, Predicate<String> needsJob,
+            List<Job> eligible, ItemCatalog catalog, Predicate<String> trades, long seed,
+            Predicate<JobPosts.Post> write) {
+        List<String> jobs = new ArrayList<>(posts.stream().map(JobPosts.Post::jobId).filter(needsJob.negate())
+                .toList());
         List<JobPosts.Post> result = new ArrayList<>(posts);
         for (int i = 0; i < posts.size(); i++) {
             JobPosts.Post post = posts.get(i);
-            if (valid.test(post.jobId())) {
+            if (!needsJob.test(post.jobId())) {
                 continue;
             }
             Optional<String> job = next(jobs, eligible, catalog, trades, postSeed(seed, i));
-            if (job.isPresent()) {
+            if (job.isEmpty()) {
+                continue;
+            }
+            JobPosts.Post renewed = new JobPosts.Post(job.get(), post.x(), post.y(), post.z(), post.homeBeds());
+            if (write.test(renewed)) {
                 jobs.add(job.get());
-                result.set(i, new JobPosts.Post(job.get(), post.x(), post.y(), post.z(), post.homeBeds()));
+                result.set(i, renewed);
             }
         }
         return result;

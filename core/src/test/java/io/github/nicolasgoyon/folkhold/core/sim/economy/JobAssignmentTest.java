@@ -134,22 +134,50 @@ class JobAssignmentTest {
         assertEquals(Optional.empty(), JobAssignment.next(List.of(), List.of(), CATALOG, TRADES, 1));
     }
 
-    /** A post with a job that is not valid gets a new job; the valid posts keep their job. */
+    /** Step 3 with no post: when no food job trades and no job trades, the first post gets a food job. */
     @Test
-    void renewGivesANewJobOnlyToThePostsThatAreNotValid() {
-        Set<String> eligible = Set.of("miner", "digger", "forager");
+    void firstPostGetsAFoodJobWhenNoJobTrades() {
+        IntStream.range(0, 50).forEach(seed -> assertEquals("forager",
+                next(List.of(), List.of(FORAGER, DIGGER), seed)));
+    }
+
+    /**
+     * Only the posts that need a job get a new job. A post with a job that is not valid for some time (here the
+     * blacksmith, not eligible) keeps its job.
+     */
+    @Test
+    void renewGivesANewJobOnlyToThePostsThatNeedAJob() {
+        Set<String> needsJob = Set.of("", "fisher");
         List<JobPosts.Post> posts = List.of(new JobPosts.Post("miner", 0, 0, 0, 2),
-                new JobPosts.Post("blacksmith", 5, 0, 0, 2), new JobPosts.Post("", 9, 0, 0, 3));
+                new JobPosts.Post("blacksmith", 5, 0, 0, 2), new JobPosts.Post("fisher", 7, 0, 0, 2),
+                new JobPosts.Post("", 9, 0, 0, 3));
+        List<Job> eligible = List.of(MINER, DIGGER, FORAGER);
 
-        List<JobPosts.Post> renewed = JobAssignment.renew(posts, eligible::contains, List.of(MINER, DIGGER, FORAGER),
-                CATALOG, TRADES, 3);
+        List<JobPosts.Post> renewed = JobAssignment.renew(posts, needsJob::contains, eligible, CATALOG, TRADES, 3,
+                post -> true);
 
-        assertEquals(posts.get(0), renewed.get(0));
-        // Food share: 0 of 1 post, thus the first new job is the forager (no food job that trades).
-        assertEquals(new JobPosts.Post("forager", 5, 0, 0, 2), renewed.get(1));
-        assertTrue(eligible.contains(renewed.get(2).jobId()), "Expected a valid job: " + renewed);
-        assertEquals(renewed, JobAssignment.renew(posts, eligible::contains, List.of(MINER, DIGGER, FORAGER),
-                CATALOG, TRADES, 3));
-        assertEquals(posts, JobAssignment.renew(posts, eligible::contains, List.of(), CATALOG, TRADES, 3));
+        assertEquals(posts.subList(0, 2), renewed.subList(0, 2));
+        // No food post and no food job that trades: the food share gives the forager.
+        assertEquals(new JobPosts.Post("forager", 7, 0, 0, 2), renewed.get(2));
+        assertTrue(Set.of("miner", "digger", "forager").contains(renewed.get(3).jobId()), "Expected a job: " + renewed);
+        assertEquals(renewed, JobAssignment.renew(posts, needsJob::contains, eligible, CATALOG, TRADES, 3,
+                post -> true));
+        assertEquals(posts, JobAssignment.renew(posts, needsJob::contains, List.of(), CATALOG, TRADES, 3,
+                post -> true));
+    }
+
+    /** A job that the write does not accept does not change the post and does not count for the next posts. */
+    @Test
+    void jobThatIsNotWrittenDoesNotCount() {
+        List<JobPosts.Post> posts = List.of(new JobPosts.Post("miner", 0, 0, 0, 2),
+                new JobPosts.Post("", 1, 0, 0, 2), new JobPosts.Post("", 2, 0, 0, 2));
+        // The post 1 is not written. Thus the post 2 has no food post before it: step 3 gives the forager for all
+        // the seeds. With the job of the post 1 in the count, the post 2 gets step 4 (a random job).
+        IntStream.range(0, 20).forEach(seed -> {
+            List<JobPosts.Post> renewed = JobAssignment.renew(posts, String::isEmpty, List.of(MINER, FORAGER, DIGGER),
+                    CATALOG, TRADES, seed, post -> post.x() == 2);
+            assertEquals(posts.get(1), renewed.get(1));
+            assertEquals("forager", renewed.get(2).jobId());
+        });
     }
 }
