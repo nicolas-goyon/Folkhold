@@ -80,6 +80,8 @@ public final class WorkerScheduleGameTests {
     private static final double NEAR_SIGN = 10.0;
     /** A worker at the market strolls near the market sign: it can be this far out of the market area, in blocks. */
     private static final int MARKET_MARGIN = 4;
+    /** The interval of the villager checks of the heart when a player is near it, in ticks. */
+    private static final int HEART_CHECK_TICKS = 40;
 
     private WorkerScheduleGameTests() {
     }
@@ -175,6 +177,15 @@ public final class WorkerScheduleGameTests {
         helper.assertTrue(heart.workers().calculations() == calculations,
                 "The heart must not calculate the places again in the same phase");
         BoundingBox marketArea = market.area().inflatedBy(MARKET_MARGIN, 0, MARKET_MARGIN);
+        // The heart checks the villagers only when a player is near it. A GameTest has no player near the heart, so
+        // the test runs the worker check of the heart. If not, a worker that loses a place (the vanilla brain erases
+        // a place after a walk that takes too long) does not get it again. The heart does not check the villagers in
+        // an alert.
+        helper.onEachTick(() -> {
+            if (helper.getTick() % HEART_CHECK_TICKS == 0 && heart.getAlertState() == AlertState.CALM) {
+                heart.updateWorkers();
+            }
+        });
         helper.startSequence()
                 .thenWaitUntil(() -> farmers.forEach(worker -> {
                     helper.assertTrue(worker.getBrain().isActive(Activity.WORK), "Expected WORK at " + MORNING);
