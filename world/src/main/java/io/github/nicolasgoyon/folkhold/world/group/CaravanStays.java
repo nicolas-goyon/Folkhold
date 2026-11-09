@@ -19,7 +19,6 @@ import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.village.VillageMarket;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -30,6 +29,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffers;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 
@@ -44,10 +44,10 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>The merchant walks to the stop and arrives near it (see {@link GroupMaterializer#isAtDestination}). During the
  *       stay, the merchant stays at the stop (see
  *       {@link io.github.nicolasgoyon.folkhold.world.entity.CaravanMerchant}).</li>
- *   <li>During the stay, the merchant trades at all the hours. It sells the items of the stock of the destination
- *       that no worker sells: the items that are not an output of an active job with a trader (see
- *       {@link JobTrades#unsold}). Thus it sells the goods that the caravans deliver and that no job of the village
- *       makes. The prices are the prices of the destination, the items leave its stock and the emeralds go into the
+ *   <li>During the stay, the merchant trades at all the hours. It sells the surplus of the stock of the destination
+ *       that no worker sells (see {@link JobTrades#surplus}): no output of an active job with a trader, and only the
+ *       quantity above the target of the inputs of the active jobs and of the food. Thus it sells the goods that the
+ *       caravans deliver and that no job of the village makes. The prices are the prices of the destination, the items leave its stock and the emeralds go into the
  *       treasury of its faction (see {@link Merchants#applyTrade}).</li>
  *   <li>The stop is not saved: the mod finds it again from the heart. A caravan of a saved world goes to the stop that
  *       the heart gives now.</li>
@@ -64,6 +64,8 @@ public final class CaravanStays {
     private static final int MAX_OFFERS = 6;
     /** The maximum number of uses of one offer. */
     private static final int MAX_USES = 16;
+    /** The search for a stand position goes up to this number of blocks above the stop. */
+    private static final int STAND_SEARCH = 4;
     /** Game ticks between two calculations of the stop of a group. */
     private static final long REFRESH_TICKS = 20;
 
@@ -157,10 +159,32 @@ public final class CaravanStays {
         BlockPos pos = StructureTemplate.calculateRelativePosition(
                 GhostPlacement.settings(plot.get().rotation(), Mirror.NONE), YARD).offset(plot.get().origin());
         boolean free = ReadyChunks.isReady(level, pos)
-                && level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()
-                && level.getBlockState(pos.above()).getCollisionShape(level, pos.above()).isEmpty()
+                && isFree(level, pos) && isFree(level, pos.above())
                 && level.getBlockState(pos.below()).isFaceSturdy(level, pos.below(), Direction.UP);
         return free && place.area().isInside(pos) ? Optional.of(pos) : Optional.empty();
+    }
+
+    /**
+     * A position where the merchant can stand at a stop: the first position from the stop up to
+     * {@link #STAND_SEARCH} blocks above it with two free blocks and a solid block below them. For example, on the
+     * heart at the plaza. Else the block above the stop.
+     *
+     * @param level the level
+     * @param stop  the stop
+     * @return the position of the feet
+     */
+    public static BlockPos standPos(Level level, BlockPos stop) {
+        for (int dy = 0; dy <= STAND_SEARCH; dy++) {
+            BlockPos pos = stop.above(dy);
+            if (isFree(level, pos) && isFree(level, pos.above()) && !isFree(level, pos.below())) {
+                return pos;
+            }
+        }
+        return stop.above();
+    }
+
+    private static boolean isFree(Level level, BlockPos pos) {
+        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
     }
 
     /**
@@ -177,8 +201,21 @@ public final class CaravanStays {
     }
 
     /**
-     * The offers of the merchant of a caravan during its stay: the items of the stock of the destination that no
-     * worker sells, the most valuable stock first.
+     * The surplus of the stock of a settlement that no worker sells, with the quantity for sale (see
+     * {@link JobTrades#surplus}).
+     *
+     * @param settlement the settlement
+     * @return the quantity for sale, by item id, the most valuable surplus first
+     */
+    public static Map<String, Integer> surplus(Settlement settlement) {
+        return JobTrades.surplus(Merchants.sellingJobs(settlement), Economies.activeJobs(settlement),
+                settlement.economy().stock().asMap(), EconomyData.catalog(), settlement.economy().population(),
+                id -> ItemIds.item(id).filter(item -> item != Items.EMERALD).isPresent());
+    }
+
+    /**
+     * The offers of the merchant of a caravan during its stay: the surplus of the stock of the destination that no
+     * worker sells, the most valuable surplus first.
      *
      * @param settlement the destination settlement
      * @param tier       the tier of the player
@@ -193,15 +230,14 @@ public final class CaravanStays {
         int population = settlement.economy().population();
         EconomySettings settings = Economies.settings();
         double factor = Merchants.priceFactor(tier);
-        List<String> items = JobTrades.unsold(Merchants.sellingJobs(settlement), stock.asMap(), EconomyData.catalog(),
-                id -> ItemIds.item(id).filter(item -> item != Items.EMERALD).isPresent());
-        for (String id : items) {
+        for (Map.Entry<String, Integer> entry : surplus(settlement).entrySet()) {
             if (offers.size() >= MAX_OFFERS) {
                 break;
             }
+            String id = entry.getKey();
             ItemInfo info = EconomyData.catalog().info(id);
             double price = Prices.sellPrice(info, stock.count(id), population, settings) * factor;
-            Merchants.sellOffer(ItemIds.item(id).orElseThrow(), stock.count(id), price, MAX_USES)
+            Merchants.sellOffer(ItemIds.item(id).orElseThrow(), entry.getValue(), price, MAX_USES)
                     .ifPresent(offers::add);
         }
         return offers;

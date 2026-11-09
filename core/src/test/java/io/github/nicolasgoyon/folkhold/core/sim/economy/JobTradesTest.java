@@ -121,11 +121,18 @@ class JobTradesTest {
     }
 
     @Test
-    void unsoldGoodsAreTheStockThatNoJobMakes() {
-        Map<String, Integer> stock = Map.of("sword", 2, "iron", 4, "coal", 40, "bread", 64, "emerald", 9);
+    void surplusIsTheStockThatNoWorkerSellsAboveTheReserve() {
+        Map<String, Integer> stock = Map.of("sword", 2, "helmet", 9, "iron", 40, "coal", 40, "bread", 50,
+                "emerald", 9);
 
-        assertEquals(List.of("bread", "coal", "iron"), JobTrades.unsold(List.of(SMITH), stock, CATALOG,
-                JobTradesTest::known), "No sword, no currency, the most valuable stock first");
-        assertEquals(List.of(), JobTrades.unsold(List.of(), Map.of("bread", 0), CATALOG, JobTradesTest::known));
+        // Population 10: the target of iron and coal is 32, the target of bread is 32.
+        assertEquals(Map.of("helmet", 9, "sword", 2, "iron", 8, "coal", 8, "bread", 18), JobTrades.surplus(List.of(),
+                List.of(SMITH), stock, CATALOG, 10, JobTradesTest::known));
+        assertEquals(List.of("helmet", "bread", "iron", "sword", "coal"), List.copyOf(JobTrades.surplus(List.of(),
+                List.of(SMITH), stock, CATALOG, 10, JobTradesTest::known).keySet()), "The most valuable first");
+        assertEquals(Map.of("iron", 8, "coal", 8, "bread", 18), JobTrades.surplus(List.of(SMITH), List.of(SMITH),
+                stock, CATALOG, 10, JobTradesTest::known), "No output of a worker");
+        assertEquals(Map.of("coal", 40, "iron", 40), JobTrades.surplus(List.of(), List.of(), Map.of("iron", 40,
+                "coal", 40, "bread", 20), CATALOG, 10, JobTradesTest::known), "No input, and the bread reserve");
     }
 }

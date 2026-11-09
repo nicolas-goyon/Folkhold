@@ -157,7 +157,10 @@ public final class CaravanInteractions {
             if (!paid && event.getEntity() instanceof ServerPlayer player) {
                 Merchants.cancel(player, event.getMerchantOffer());
             }
-            settlement.ifPresent(found -> Merchants.syncOffers(merchant, found.economy().stock()::count, 0L));
+            settlement.ifPresent(found -> {
+                Map<String, Integer> surplus = CaravanStays.surplus(found);
+                Merchants.syncOffers(merchant, id -> surplus.getOrDefault(id, 0), 0L);
+            });
             return;
         }
         groupOf(level.getServer(), merchant).ifPresent(group -> {

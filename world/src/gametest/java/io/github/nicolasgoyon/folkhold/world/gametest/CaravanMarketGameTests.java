@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupMember;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupState;
@@ -128,8 +129,37 @@ public final class CaravanMarketGameTests {
     }
 
     /**
+     * The offers of a merchant during its stay for a neutral player, from the interaction of the player.
+     */
+    private static List<Item> stayOffers(GameTestHelper helper, CaravanMerchant merchant, Settlement settlement,
+            ServerPlayer player) {
+        MinecraftServer server = helper.getLevel().getServer();
+        // A neutral player: the default reputation of some factions is hostile.
+        ReputationData.get(server).get(player.getUUID()).setFaction(settlement.factionId(), 0);
+        ReputationData.get(server).get(player.getUUID()).setVillage(settlement.id(), 0);
+        CaravanInteractions.onEntityInteract(new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND,
+                merchant));
+        return merchant.getOffers().stream().map(offer -> offer.getResult().getItem()).toList();
+    }
+
+    /** A village with a baker, its bread, a reserve of wheat (the input of the baker) and a surplus of beef. */
+    private static void bakerStock(Settlement settlement) {
+        settlement.economy().setPopulation(10);
+        settlement.economy().setJobs(List.of(BAKER));
+        // One post of the baker: the first inhabitant of the village works at it.
+        settlement.setJobPosts(Optional.of(List.of(new JobPosts.Post(BAKER, 0, 0, 0, 2))));
+        TestSupport.emptyStock(settlement);
+        settlement.economy().stock().set("minecraft:bread", 64);
+        // Population 10: the target of the wheat is 64 and the target of the cooked beef is 32.
+        settlement.economy().stock().set("minecraft:wheat", 40);
+        settlement.economy().stock().set("minecraft:cooked_beef", 50);
+    }
+
+    /**
      * A caravan arrives at a village with a market. The merchant walks to the market, the caravan arrives near the
-     * caravan yard, and the merchant stops in the yard. The stay sells the goods of the destination.
+     * caravan yard, and the merchant stops in the yard. Its merchant sells the swords that the caravan delivered (no
+     * job makes them) and the surplus of beef. It does not sell the bread of the baker, nor the wheat below its
+     * target (the input of the baker).
      */
     @GameTest(template = "arena_large", timeoutTicks = 560, batch = "caravan_market_yard")
     public static void caravanStopsInTheMarketYard(GameTestHelper helper) {
@@ -150,6 +180,8 @@ public final class CaravanMarketGameTests {
         helper.assertTrue(stop.market() && stop.pos().equals(yard), "The stop must be the caravan yard " + yard
                 + ", found " + stop);
         Settlement destination = Settlements.of(server, heart).orElseThrow();
+        bakerStock(destination);
+        ServerPlayer player = TestSupport.mockPlayer(helper);
         MobileGroup group = caravan(helper, destination);
         Entity merchant = helper.getLevel().getEntity(group.members().get(0).id());
         helper.assertTrue(merchant instanceof CaravanMerchant, "The caravan must have its merchant");
@@ -169,6 +201,13 @@ public final class CaravanMarketGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(merchant.blockPosition().distSqr(yard)
                                 <= CaravanStays.YARD_RADIUS * CaravanStays.YARD_RADIUS,
                         "The merchant must stop in the yard " + yard + ", found " + merchant.blockPosition()))
+                .thenExecute(() -> {
+                    List<Item> sold = stayOffers(helper, (CaravanMerchant) merchant, destination, player);
+                    helper.assertTrue(sold.contains(Items.IRON_SWORD) && sold.contains(Items.COOKED_BEEF),
+                            "The merchant must sell the delivered swords and the surplus of beef: " + sold);
+                    helper.assertFalse(sold.contains(Items.BREAD) || sold.contains(Items.WHEAT),
+                            "The merchant must not sell the bread of the baker or the wheat reserve: " + sold);
+                })
                 .thenSucceed();
     }
 
@@ -209,10 +248,7 @@ public final class CaravanMarketGameTests {
         MinecraftServer server = level.getServer();
         VillageHeartBlockEntity heart = village(helper);
         Settlement settlement = Settlements.of(server, heart).orElseThrow();
-        settlement.economy().setPopulation(10);
-        settlement.economy().setJobs(List.of(BAKER));
-        TestSupport.emptyStock(settlement);
-        settlement.economy().stock().set("minecraft:bread", 64);
+        bakerStock(settlement);
         settlement.economy().stock().set("minecraft:iron_sword", 5);
         SettlementData data = SettlementData.get(server);
         String faction = settlement.factionId();
@@ -223,13 +259,8 @@ public final class CaravanMarketGameTests {
         helper.assertTrue(merchant != null, "The merchant must exist");
         merchant.stay(settlement.id(), CaravanStays.stopOf(level, heart));
         ServerPlayer player = TestSupport.mockPlayer(helper);
-        // A neutral player: the default reputation of some factions is hostile.
-        ReputationData.get(server).get(player.getUUID()).setFaction(faction, 0);
-        ReputationData.get(server).get(player.getUUID()).setVillage(settlement.id(), 0);
 
-        CaravanInteractions.onEntityInteract(new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND,
-                merchant));
-        List<Item> sold = merchant.getOffers().stream().map(offer -> offer.getResult().getItem()).toList();
+        List<Item> sold = stayOffers(helper, merchant, settlement, player);
         MerchantOffer sword = merchant.getOffers().stream().filter(offer -> offer.getResult().is(Items.IRON_SWORD))
                 .findFirst().orElse(null);
         helper.assertTrue(sword != null, "The merchant must sell the swords that no job sells: " + sold);
@@ -246,5 +277,40 @@ public final class CaravanMarketGameTests {
         helper.assertTrue(treasury == TREASURY + sword.getCostA().getCount(),
                 "The emeralds must go into the treasury, found " + treasury);
         helper.succeed();
+    }
+
+    /**
+     * A merchant that stays at the plaza and cannot walk to the heart moves to a free position at the heart, not into
+     * the heart block.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = CaravanMerchant.STAY_STUCK_TICKS + 200,
+            batch = "caravan_market_stuck")
+    public static void stuckMerchantStandsOnAFreePosition(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        VillageHeartBlockEntity heart = village(helper);
+        Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
+        BlockPos cage = new BlockPos(24, 1, 24);
+        for (int x = -1; x <= 1; x++) {
+            for (int z = -1; z <= 1; z++) {
+                if (x != 0 || z != 0) {
+                    helper.setBlock(cage.offset(x, 0, z), Blocks.BARRIER);
+                    helper.setBlock(cage.offset(x, 1, z), Blocks.BARRIER);
+                }
+            }
+        }
+        CaravanMerchant merchant = ModEntities.CARAVAN_MERCHANT.get().create(level);
+        helper.assertTrue(merchant != null, "The merchant must exist");
+        BlockPos start = helper.absolutePos(cage);
+        merchant.moveTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0.0F, 0.0F);
+        merchant.stay(settlement.id(), CaravanStays.stopOf(level, heart));
+        level.addFreshEntity(merchant);
+        TestSupport.atTestEnd(helper, merchant::discard);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(merchant.isWithinRestriction(),
+                        "The merchant must move near the heart, found " + merchant.blockPosition()))
+                .thenExecute(() -> helper.assertTrue(merchant.isAlive() && !merchant.isInWall()
+                                && !merchant.blockPosition().equals(heart.getBlockPos()),
+                        "The merchant must stand on a free position, found " + merchant.blockPosition()))
+                .thenSucceed();
     }
 }

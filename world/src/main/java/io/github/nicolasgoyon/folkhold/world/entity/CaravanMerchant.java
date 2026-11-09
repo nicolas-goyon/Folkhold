@@ -55,7 +55,7 @@ public class CaravanMerchant extends WanderingTrader {
     /** Game ticks between two paths to the stop. */
     private static final int STAY_REPATH_TICKS = 40;
     /** After this time far from the stop, the merchant moves directly to the stop, in game ticks. */
-    private static final int STAY_STUCK_TICKS = 400;
+    public static final int STAY_STUCK_TICKS = 400;
 
     /** The id of the destination settlement during the stay, or null. Not saved: the stay ends at a load. */
     @Nullable
@@ -169,6 +169,11 @@ public class CaravanMerchant extends WanderingTrader {
         }
 
         @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
         public void stop() {
             getNavigation().stop();
         }
@@ -177,8 +182,10 @@ public class CaravanMerchant extends WanderingTrader {
         public void tick() {
             BlockPos stop = getRestrictCenter();
             if (++farTicks > STAY_STUCK_TICKS) {
+                // The stop at the plaza is the heart, a solid block: the merchant stands on a free position.
+                BlockPos stand = CaravanStays.standPos(level(), stop);
                 getNavigation().stop();
-                moveTo(stop.getX() + 0.5, stop.getY(), stop.getZ() + 0.5, getYRot(), getXRot());
+                moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, getYRot(), getXRot());
                 farTicks = 0;
                 return;
             }
