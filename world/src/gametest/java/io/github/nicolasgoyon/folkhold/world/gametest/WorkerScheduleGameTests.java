@@ -80,6 +80,11 @@ public final class WorkerScheduleGameTests {
     private static final double NEAR_SIGN = 10.0;
     /** A worker at the market strolls near the market sign: it can be this far out of the market area, in blocks. */
     private static final int MARKET_MARGIN = 4;
+    /**
+     * The heart checks the villagers at this interval when a player is near it, in ticks. A GameTest has no player, so
+     * the test does these checks.
+     */
+    private static final int HEART_CHECK_TICKS = 40;
 
     private WorkerScheduleGameTests() {
     }
@@ -87,7 +92,8 @@ public final class WorkerScheduleGameTests {
     /**
      * The farmers of a house-workshop work near its job sign at 3000, meet in the market area at 6500 and sleep in a
      * bed of the workshop at 13000. They keep the worker schedule after a refresh of the brain, a change of
-     * profession and a load. The builder keeps the vanilla schedule. An alert stops the schedule.
+     * profession and a load. The builder keeps the vanilla schedule. A worker that lost its places after a walk that
+     * failed gets them again from the heart. An alert stops the schedule.
      */
     @GameTest(template = "arena_large", timeoutTicks = 3000, batch = "worker_schedule", skyAccess = true)
     public static void workersFollowTheDailySchedule(GameTestHelper helper) {
@@ -174,7 +180,25 @@ public final class WorkerScheduleGameTests {
         helper.assertTrue(heart.updateWorkers() == 0, "A second update must change nothing");
         helper.assertTrue(heart.workers().calculations() == calculations,
                 "The heart must not calculate the places again in the same phase");
+        // The vanilla brain erases the places after a walk that takes too long. The heart gives them again and erases
+        // the time of the walk that failed, else the brain erases the places again at once.
+        Villager lost = farmers.get(0);
+        lost.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+        lost.getBrain().eraseMemory(MemoryModuleType.MEETING_POINT);
+        lost.getBrain().setMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE, level.getGameTime() - 2_000L);
+        helper.assertTrue(heart.updateWorkers() == 2, "The heart must give the 2 places again");
+        helper.assertTrue(lost.getBrain().getMemory(MemoryModuleType.JOB_SITE).filter(jobSign::equals).isPresent()
+                && lost.getBrain().getMemory(MemoryModuleType.MEETING_POINT).filter(marketSign::equals).isPresent(),
+                "The worker must get its job sign and the market sign again");
+        helper.assertTrue(!lost.getBrain().hasMemoryValue(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE),
+                "The heart must erase the time of the walk that failed");
         BoundingBox marketArea = market.area().inflatedBy(MARKET_MARGIN, 0, MARKET_MARGIN);
+        // The checks of the heart with a player near it: the heart does not check the villagers in an alert.
+        helper.onEachTick(() -> {
+            if (helper.getTick() % HEART_CHECK_TICKS == 0 && heart.getAlertState() == AlertState.CALM) {
+                heart.updateWorkers();
+            }
+        });
         helper.startSequence()
                 .thenWaitUntil(() -> farmers.forEach(worker -> {
                     helper.assertTrue(worker.getBrain().isActive(Activity.WORK), "Expected WORK at " + MORNING);

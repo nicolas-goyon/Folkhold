@@ -48,6 +48,9 @@ import net.minecraft.world.level.block.Blocks;
  *   <li>The places come from the posts, the beds and the trade place of the village. The heart calculates them again
  *       only when the phase of the village, the posts, the places of the inhabitants or the scan change. At each check
  *       of the heart, the loaded workers get the places with no new search.</li>
+ *   <li>The vanilla brain erases a place when the walk to it takes too long (see {@link #setPlace}). The next check
+ *       of the heart gives the place again, and erases the time of the walk that failed: the worker walks to the place
+ *       again.</li>
  *   <li>A sign in a point of interest section with no record for the sign gets its record from the calculation,
  *       because the vanilla brain erases a memory with no point of interest.</li>
  *   <li>A place of the cache with no sign or bell block at the place (a broken sign before the next scan) does not
@@ -229,15 +232,28 @@ public final class VillageWorkers {
             changes++;
         }
         if (sign != null && brain.getMemory(MemoryModuleType.JOB_SITE).filter(sign::equals).isEmpty()) {
-            brain.setMemory(MemoryModuleType.JOB_SITE, sign);
+            setPlace(brain, MemoryModuleType.JOB_SITE, sign);
             changes++;
         }
         if (meetingPoint != null && holds(level, meetingPoint.pos(), meetingBlock, present)
                 && brain.getMemory(MemoryModuleType.MEETING_POINT).filter(meetingPoint::equals).isEmpty()) {
-            brain.setMemory(MemoryModuleType.MEETING_POINT, meetingPoint);
+            setPlace(brain, MemoryModuleType.MEETING_POINT, meetingPoint);
             changes++;
         }
         return changes;
+    }
+
+    /**
+     * Gives a place to a worker and erases the memory {@code CANT_REACH_WALK_TARGET_SINCE}. The path to a sign never
+     * ends on the sign block, so the vanilla brain keeps this memory during the walk to a sign, and also after the
+     * walk. When this memory is older than a limit and the worker has no walk target, the vanilla behavior
+     * {@code SetWalkTargetFromBlockMemory} erases the place (200 ticks for {@code MEETING_POINT}, 1200 ticks for
+     * {@code JOB_SITE}). With the old memory, the brain erases the place again at once each time that the heart gives
+     * it, and the worker stays at its position for all the phase. With no memory, the worker walks to the place again.
+     */
+    private static void setPlace(Brain<Villager> brain, MemoryModuleType<GlobalPos> memory, GlobalPos place) {
+        brain.setMemory(memory, place);
+        brain.eraseMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
     }
 
     /**
