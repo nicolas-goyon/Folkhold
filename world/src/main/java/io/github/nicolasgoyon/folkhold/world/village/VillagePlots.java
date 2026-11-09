@@ -172,7 +172,7 @@ public final class VillagePlots {
      * The pools of the new homes of a variant: the pool of its homes, and the pool {@link #JOBS} in the same folder
      * when it exists. Each new home of the growth is a house-workshop of the pool {@link #JOBS} (see
      * {@link VillageGrowth}). The pieces of the 2 pools can have different sizes: the space of a plot holds all of
-     * them.
+     * them. A variant with no pool {@link #JOBS} gets a warning in the log: then the space holds only the homes.
      *
      * @param registries the registries of the server
      * @param homes      the pool of the homes of the variant
@@ -182,11 +182,16 @@ public final class VillagePlots {
             Holder<StructureTemplatePool> homes) {
         List<StructureTemplatePool> pools = new ArrayList<>();
         pools.add(homes.value());
-        homes.unwrapKey()
-                .flatMap(key -> registries.registryOrThrow(Registries.TEMPLATE_POOL)
-                        .getOptional(sibling(key.location(), JOBS)))
-                .filter(jobs -> jobs != homes.value())
-                .ifPresent(pools::add);
+        Optional<ResourceLocation> jobs = homes.unwrapKey().map(key -> sibling(key.location(), JOBS));
+        Optional<StructureTemplatePool> pool = jobs
+                .flatMap(id -> registries.registryOrThrow(Registries.TEMPLATE_POOL).getOptional(id));
+        if (pool.isPresent()) {
+            pools.add(pool.get());
+        } else {
+            FolkholdWorld.LOGGER.warn("The pool of the homes {} has no pool {} in its folder: the space of a free plot"
+                    + " holds only the homes", homes.unwrapKey().map(key -> key.location().toString())
+                    .orElse("(no id)"), jobs.map(ResourceLocation::toString).orElse(JOBS));
+        }
         return pools;
     }
 

@@ -336,7 +336,7 @@ public final class VillageGrowthGameTests {
         FortifiedVillageStructure sunreach = new FortifiedVillageStructure(new Structure.StructureSettings(
                 structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
                 poolHolder(pools, SUNREACH + "plaza"), structure.size(), structure.maxDistanceFromCenter(),
-                structure.wall(), poolHolder(pools, SUNREACH + "homes"), List.of());
+                sunreachWall(structure), poolHolder(pools, SUNREACH + "homes"), List.of());
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         List<String> problems = new ArrayList<>();
         int workshops = 0;
@@ -358,7 +358,7 @@ public final class VillageGrowthGameTests {
      * village. The village has the Sunreach plaza and a street to the east of it. The plot to the east of the street is
      * free, and its space is the east end of the village. The north-east corner tower of the wall and its stair go
      * along the east side, in front of this plot. The wall comes from {@link VillageWall#add} with the spaces of
-     * {@link VillagePlots#reserved}, as in the generation. The line of the palisade is 5 blocks (the margin of 4 blocks
+     * {@link FortifiedVillageStructure#reservedSpaces}, as in the generation. The line of the palisade is 5 blocks (the margin of 4 blocks
      * and 1 block) from the east end of the spaces, and the tower goes 4 blocks inside the line: 1 free block stays
      * between the tower and the space of the plot. Then the growth (see {@link #grow}) builds a Sunreach
      * house-workshop on this plot: the tower and its stair are not in its space. A space that is 2 blocks less deep
@@ -384,21 +384,52 @@ public final class VillageGrowthGameTests {
         Structure.GenerationContext context = new Structure.GenerationContext(level.registryAccess(), generator,
                 generator.getBiomeSource(), level.getChunkSource().randomState(), templates, level.getSeed(),
                 new ChunkPos(origin), level, biome -> true);
-        List<BoundingBox> reserved = VillagePlots.reserved(templates,
-                VillagePlots.homePools(level.registryAccess(), poolHolder(pools, SUNREACH + "homes")), village);
+        // The spaces of the free plots, with the method of the generation.
+        List<BoundingBox> reserved = FortifiedVillageStructure.reservedSpaces(level.registryAccess(), templates,
+                poolHolder(pools, SUNREACH + "homes"), village);
         List<StructurePiece> pieces = new ArrayList<>(village);
-        WallSettings wall = structure.variants().stream()
-                .filter(variant -> variant.culture().equals(Optional.of(SUNREACH_CULTURE)))
-                .filter(variant -> variant.biomes().size() == 0)
-                .findFirst().orElseThrow().wall();
         pieces.addAll(VillageWall.add(context, village, reserved,
-                origin.offset(PLAZA_SIZE / 2, 0, PLAZA_SIZE / 2), wall, false));
+                origin.offset(PLAZA_SIZE / 2, 0, PLAZA_SIZE / 2), sunreachWall(structure), false));
         List<String> problems = new ArrayList<>();
         int workshops = grow(level, pieces, problems);
         helper.assertTrue(problems.isEmpty(), "Problems of the growth of the Sunreach village: " + problems);
         helper.assertTrue(workshops == 1, "The free plot east of the street must get a house-workshop: "
                 + workshops);
         helper.succeed();
+    }
+
+    /**
+     * The pool of the homes of each variant of the village structure, and of its base variant, has a pool
+     * {@code jobs} in its folder: the space of a free plot holds the house-workshops of the variant (see
+     * {@link VillagePlots#homePools}).
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "village_growth_job_pools")
+    public static void eachVariantHasAPoolOfHouseWorkshops(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        Registry<StructureTemplatePool> pools = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
+        List<Holder<StructureTemplatePool>> homes = new ArrayList<>(List.of(structure.homes()));
+        structure.variants().forEach(variant -> homes.add(variant.homes()));
+        List<String> missing = new ArrayList<>();
+        for (Holder<StructureTemplatePool> pool : homes) {
+            ResourceLocation id = pool.unwrapKey().orElseThrow().location();
+            Optional<StructureTemplatePool> jobs = pools.getOptional(VillagePlots.sibling(id, VillagePlots.JOBS));
+            if (jobs.isEmpty() || jobs.get().getShuffledTemplates(RandomSource.create(0L)).isEmpty()
+                    || VillagePlots.homePools(level.registryAccess(), pool).size() != 2) {
+                missing.add(id.toString());
+            }
+        }
+        helper.assertTrue(missing.isEmpty(), "Pools of homes with no pool of house-workshops: " + missing);
+        helper.succeed();
+    }
+
+    /** The wall settings of the base Sunreach variant: the variant of the culture with no biome. */
+    private static WallSettings sunreachWall(FortifiedVillageStructure structure) {
+        return structure.variants().stream()
+                .filter(variant -> variant.culture().equals(Optional.of(SUNREACH_CULTURE)))
+                .filter(variant -> variant.biomes().size() == 0)
+                .findFirst().orElseThrow().wall();
     }
 
     /**
@@ -430,6 +461,8 @@ public final class VillageGrowthGameTests {
                 .sorted(Comparator.comparingDouble(plot -> plot.connector().distSqr(middle))).toList();
         int workshops = 0;
         for (VillagePlots.Plot plot : plots) {
+            // The test opens a plot only when a home of the pool homes (the cottage) has room on it. A plot with no
+            // room for the cottage has no room for a piece of the growth either: the plot stays closed.
             VillageReference village = new VillageReference(grown, generated.palisades(), generated.area(),
                     List.of(), Optional.empty());
             int ground = generator.getBaseHeight(plot.connector().getX(), plot.connector().getZ(),

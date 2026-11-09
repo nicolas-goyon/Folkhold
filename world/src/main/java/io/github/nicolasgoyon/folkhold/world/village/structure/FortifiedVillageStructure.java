@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.QuartPos;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.RegistryCodecs;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -326,7 +327,7 @@ public final class FortifiedVillageStructure extends Structure {
 
     /**
      * Adds the pieces of the pools, then the pieces of the wall around them. The wall also keeps the space of a new
-     * home on each free plot (see {@link VillagePlots#reserved}). A maritime village has the palisade on its land side
+     * home on each free plot (see {@link #reservedSpaces}). A maritime village has the palisade on its land side
      * only (see {@link VillageWall}).
      */
     private void generate(GenerationContext context, GenerationStub village, Variant variant, boolean maritime,
@@ -334,10 +335,25 @@ public final class FortifiedVillageStructure extends Structure {
         List<StructurePiece> pieces = village.getPiecesBuilder().build().pieces();
         pieces.forEach(builder::addPiece);
         StructureTemplateManager templates = context.structureTemplateManager();
-        List<BoundingBox> freePlots = VillagePlots.reserved(templates,
-                VillagePlots.homePools(context.registryAccess(), variant.homes()), pieces);
+        List<BoundingBox> freePlots = reservedSpaces(context.registryAccess(), templates, variant.homes(), pieces);
         VillageWall.add(context, pieces, freePlots, village.position(), variant.wall(), maritime)
                 .forEach(builder::addPiece);
+    }
+
+    /**
+     * The spaces that the wall of a village keeps for its growth: the space of a new home on each free plot of the
+     * pieces. The space holds each piece of the pool of the homes of the variant and of its pool of house-workshops
+     * (see {@link VillagePlots#reserved} and {@link VillagePlots#homePools}).
+     *
+     * @param registries the registries of the server
+     * @param templates  the structure templates of the server
+     * @param homes      the pool of the homes of the variant
+     * @param pieces     the pieces of the pools of the village
+     * @return the spaces, one for each free plot
+     */
+    public static List<BoundingBox> reservedSpaces(RegistryAccess registries, StructureTemplateManager templates,
+            Holder<StructureTemplatePool> homes, List<StructurePiece> pieces) {
+        return VillagePlots.reserved(templates, VillagePlots.homePools(registries, homes), pieces);
     }
 
     @Override
