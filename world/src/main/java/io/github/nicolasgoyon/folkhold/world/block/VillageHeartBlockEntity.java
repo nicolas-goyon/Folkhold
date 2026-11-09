@@ -46,6 +46,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageMarket;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
+import io.github.nicolasgoyon.folkhold.world.village.schedule.VillageWorkers;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -189,6 +190,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     /** The homes of the last record of the job posts (see {@link #recordJobPosts}), or null. Not saved. */
     @Nullable
     private VillageBeds.Homes homes;
+    /** The places of the daily schedule of the workers. Not saved: the next check calculates them again. */
+    private final VillageWorkers workers = new VillageWorkers();
     /** Game time of the last ring of the bells. Not saved. */
     private long lastBellTick = Long.MIN_VALUE / 2;
     /** Game time of the last shared target. Not saved. */
@@ -350,7 +353,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
 
     /**
      * Rings the alarm bells of the village. The vanilla villagers near a bell go into the houses, as in a raid. A
-     * bell in a chunk that is not ready does not ring.
+     * bell in a chunk that is not ready does not ring. The loaded workers of the village also hear the bells far from
+     * a bell: they stop their daily schedule and hide (see {@link VillageWorkers#hearAlarm}).
      */
     public void ringBells() {
         if (level == null || level.isClientSide()) {
@@ -365,6 +369,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
             if (state.getBlock() instanceof BellBlock bellBlock) {
                 bellBlock.attemptToRing(null, level, bell, null);
             }
+        }
+        if (level instanceof ServerLevel serverLevel) {
+            VillageWorkers.hearAlarm(serverLevel, VillageFolk.inhabitants(serverLevel, worldPosition));
         }
     }
 
@@ -825,7 +832,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     /**
      * Creates the missing villagers of the village: the inhabitants ({@link VillageFolk#inhabitantCount}) with the
      * professions of the settlement ({@link VillageFolk#professions}). When the jobs change, the inhabitants get the
-     * new professions at once ({@link VillageFolk#assign}).
+     * new professions at once ({@link VillageFolk#assign}). Then the inhabitants get their beds ({@link VillageHomes})
+     * and the workers get the places of their daily schedule ({@link VillageWorkers}).
      *
      * <ul>
      *   <li>The villagers appear in groups of {@link #VILLAGER_GROUP} at most, one group at each call. A large
@@ -849,7 +857,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
         List<Villager> inhabitants = VillageFolk.inhabitants(serverLevel, worldPosition);
         List<VillagerProfession> missingInhabitants =
                 VillageFolk.assign(inhabitants, seats.stream().map(VillageFolk.Seat::profession).toList());
-        claimHomeBeds(serverLevel, settlement.get(), seats, inhabitants);
+        List<BlockPos> beds = homeBeds(settlement.get(), seats);
+        VillageHomes.claim(serverLevel, worldPosition, inhabitants, seats, beds);
+        workers.update(serverLevel, this, inhabitants, seats, beds, settlement.get().jobPosts().orElse(List.of()));
         int missing = missingInhabitants.size();
         if (missing == 0) {
             boolean changed = villagersFilling;
@@ -884,18 +894,41 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (!(level instanceof ServerLevel serverLevel)) {
             return 0;
         }
-        return Settlements.of(serverLevel.getServer(), this).map(settlement -> claimHomeBeds(serverLevel, settlement,
-                VillageFolk.seats(settlement, VillageFolk.inhabitantCount(settlement)),
-                VillageFolk.inhabitants(serverLevel, worldPosition))).orElse(0);
+        return Settlements.of(serverLevel.getServer(), this).map(settlement -> {
+            List<VillageFolk.Seat> seats = VillageFolk.seats(settlement, VillageFolk.inhabitantCount(settlement));
+            return VillageHomes.claim(serverLevel, worldPosition, VillageFolk.inhabitants(serverLevel, worldPosition),
+                    seats, homeBeds(settlement, seats));
+        }).orElse(0);
     }
 
-    private int claimHomeBeds(ServerLevel serverLevel, Settlement settlement, List<VillageFolk.Seat> seats,
-            List<Villager> inhabitants) {
-        if (homes == null || settlement.jobPosts().isEmpty()) {
+    /**
+     * Gives to the loaded workers their daily schedule, their job sign and their meeting point (see
+     * {@link VillageWorkers}).
+     *
+     * @return the number of changes in the brains of the workers
+     */
+    public int updateWorkers() {
+        if (!(level instanceof ServerLevel serverLevel)) {
             return 0;
         }
-        List<BlockPos> beds = VillageHomes.beds(seats, settlement.jobPosts().get(), homes);
-        return VillageHomes.claim(serverLevel, worldPosition, inhabitants, seats, beds);
+        return Settlements.of(serverLevel.getServer(), this).map(settlement -> {
+            List<VillageFolk.Seat> seats = VillageFolk.seats(settlement, VillageFolk.inhabitantCount(settlement));
+            return workers.update(serverLevel, this, VillageFolk.inhabitants(serverLevel, worldPosition), seats,
+                    homeBeds(settlement, seats), settlement.jobPosts().orElse(List.of()));
+        }).orElse(0);
+    }
+
+    /** The places of the daily schedule of the workers. */
+    public VillageWorkers workers() {
+        return workers;
+    }
+
+    /** The bed of each place (see {@link VillageHomes#beds}). A village with no list of posts gives no bed. */
+    private List<BlockPos> homeBeds(Settlement settlement, List<VillageFolk.Seat> seats) {
+        if (homes == null || settlement.jobPosts().isEmpty()) {
+            return List.of();
+        }
+        return VillageHomes.beds(seats, settlement.jobPosts().get(), homes);
     }
 
     /** Gives the banner of the faction to the banners of the village. */
