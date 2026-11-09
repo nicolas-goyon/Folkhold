@@ -366,7 +366,7 @@
   "message.folkhold_world.market_closed": "%1$s : Le marché est fermé. Je fais du commerce %2$s de %3$s à %4$s.",
   "message.folkhold_world.market_closed.title": "Le marché est fermé",
   "message.folkhold_world.market_away": "%1$s : Je fais du commerce seulement %2$s, de %3$s à %4$s.",
-  "message.folkhold_world.market_away.title": "Les travailleurs font du commerce seulement au marché",
+  "message.folkhold_world.market_away.title": "Les travailleurs font du commerce seulement %s",
   "message.folkhold_world.market_hours": "Les travailleurs font du commerce %s de %s à %s.",
   "message.folkhold_world.trade_place.market": "au marché",
   "message.folkhold_world.trade_place.plaza": "sur la place",

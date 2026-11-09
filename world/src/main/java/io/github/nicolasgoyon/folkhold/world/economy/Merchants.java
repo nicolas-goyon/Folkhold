@@ -30,12 +30,14 @@ import java.util.Optional;
 import java.util.function.ToIntFunction;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -86,10 +88,10 @@ public final class Merchants {
     /** The price change of an offer for each use, as a share: the vanilla demand. */
     public static final float PRICE_MULTIPLIER = 0.05F;
     /**
-     * The margin around the area of the trade place, in blocks. A worker at the market strolls near the market sign,
-     * and can stand a few blocks out of the box of the market piece.
+     * The margin around the area of the trade place and around the meeting point of the workers, in blocks. A worker
+     * at the market strolls near its meeting point, and can stand a few blocks out of the box of the market piece.
      */
-    public static final int MARKET_MARGIN = 4;
+    public static final int MARKET_MARGIN = 6;
     private static final String MESSAGE = "message.folkhold_world.";
 
     /** The reason of a worker to refuse a trade for the market rule. */
@@ -98,7 +100,7 @@ public final class Merchants {
         NONE,
         /** The time is out of the market hours. */
         CLOSED,
-        /** The worker is out of the trade place of its village. */
+        /** The worker is out of the trade place of its village and far from its meeting point. */
         AWAY
     }
 
@@ -235,9 +237,17 @@ public final class Merchants {
     }
 
     /**
-     * The market rule of a worker: the worker trades only in the area of the trade place of its village (with a margin
-     * of {@link #MARKET_MARGIN} blocks), during the market hours of the village. The market hours have no delay of the
-     * worker (see {@link VillageSchedule#isMarketOpen}).
+     * The market rule of a worker: the worker trades only during the market hours of the village, at the trade place.
+     * The market hours have no delay of the worker (see {@link VillageSchedule#isMarketOpen}).
+     *
+     * <ul>
+     *   <li>The worker is at the trade place when it is in the area of the trade place of its village, or near the
+     *       meeting point of the workers (its memory {@code MEETING_POINT}, or the meeting point of the village), with
+     *       a margin of {@link #MARKET_MARGIN} blocks. The meeting point can be out of the area: for example the bell
+     *       nearest to the heart of a plaza with no bell.</li>
+     *   <li>When the village has no valid meeting point (no bell and no market sign, no calculation of the places yet,
+     *       or a broken market sign before the next scan), no place applies: only the market hours apply.</li>
+     * </ul>
      *
      * @param level  the level
      * @param heart  the heart of the village of the worker
@@ -248,8 +258,24 @@ public final class Merchants {
         if (!VillageSchedule.isMarketOpen(level)) {
             return MarketRefusal.CLOSED;
         }
-        return heart.tradePlace(level).area().inflatedBy(MARKET_MARGIN).isInside(worker.blockPosition())
-                ? MarketRefusal.NONE : MarketRefusal.AWAY;
+        Optional<GlobalPos> meeting = heart.workers().validMeetingPoint(level);
+        if (meeting.isEmpty()) {
+            return MarketRefusal.NONE;
+        }
+        BlockPos pos = worker.blockPosition();
+        boolean atPlace = heart.tradePlace(level).area().inflatedBy(MARKET_MARGIN).isInside(pos)
+                || isNear(meeting.get().pos(), pos)
+                || worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT)
+                        .filter(point -> point.dimension().equals(level.dimension()))
+                        .filter(point -> isNear(point.pos(), pos)).isPresent();
+        return atPlace ? MarketRefusal.NONE : MarketRefusal.AWAY;
+    }
+
+    /** True if a position is at {@link #MARKET_MARGIN} blocks or less from a point on each axis. */
+    private static boolean isNear(BlockPos point, BlockPos pos) {
+        return Math.abs(point.getX() - pos.getX()) <= MARKET_MARGIN
+                && Math.abs(point.getY() - pos.getY()) <= MARKET_MARGIN
+                && Math.abs(point.getZ() - pos.getZ()) <= MARKET_MARGIN;
     }
 
     /**
@@ -264,7 +290,7 @@ public final class Merchants {
         String end = DaySchedule.clock(schedule.marketEnd());
         String key = refusalKey(refusal);
         player.displayClientMessage(Component.translatable(key, villager.getDisplayName(), where, start, end), true);
-        Notices.warn(player, key, Component.translatable(key + ".title"),
+        Notices.warn(player, key, Component.translatable(key + ".title", where),
                 Component.translatable(MESSAGE + "market_hours", where, start, end));
         villager.playSound(SoundEvents.VILLAGER_NO, 1.0F, 1.0F);
     }

@@ -366,7 +366,7 @@
   "message.folkhold_world.market_closed": "%1$s: The market is closed. I trade %2$s from %3$s to %4$s.",
   "message.folkhold_world.market_closed.title": "The market is closed",
   "message.folkhold_world.market_away": "%1$s: I trade only %2$s, from %3$s to %4$s.",
-  "message.folkhold_world.market_away.title": "The workers trade only at the market",
+  "message.folkhold_world.market_away.title": "The workers trade only %s",
   "message.folkhold_world.market_hours": "The workers trade %s from %s to %s.",
   "message.folkhold_world.trade_place.market": "at the market",
   "message.folkhold_world.trade_place.plaza": "at the plaza",

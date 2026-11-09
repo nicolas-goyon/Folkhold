@@ -110,6 +110,23 @@ public final class VillageWorkers {
         return changes;
     }
 
+    /**
+     * The meeting point of the workers, when its block stands at its position: the market sign or the bell. A position
+     * in a chunk that is not loaded counts as present.
+     *
+     * @param level the level of the village
+     * @return the meeting point, or empty with no meeting point, before the first calculation, or with no sign or bell
+     *         block at the position (a broken market sign before the next scan)
+     */
+    public Optional<GlobalPos> validMeetingPoint(ServerLevel level) {
+        GlobalPos point = meetingPoint;
+        if (point == null || !point.dimension().equals(level.dimension())
+                || !holds(level, point.pos(), meetingBlock, new HashMap<>())) {
+            return Optional.empty();
+        }
+        return Optional.of(point);
+    }
+
     /** The number of calculations of the places since the creation of this instance. */
     public int calculations() {
         return calculations;
