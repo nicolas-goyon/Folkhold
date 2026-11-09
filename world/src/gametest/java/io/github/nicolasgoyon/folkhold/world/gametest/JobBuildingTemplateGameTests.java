@@ -78,17 +78,13 @@ public final class JobBuildingTemplateGameTests {
     private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD, STONE, CRAFTS, CLOTH).stream()
             .flatMap(List::stream).toList();
     /**
-     * The groups of 4 or 5 jobs of the scan tests of the Valeholm pieces, by name: all the jobs of {@link #JOBS}.
-     * The Valeholm style has a piece of its own for each job (NORSE_JOBS in the structure script).
+     * The groups of 4 or 5 jobs of the scan tests of the pieces of the styles, by name: all the jobs of
+     * {@link #JOBS}. The Valeholm and the Sunreach styles have a piece of their own for each job (NORSE_JOBS and
+     * SUNREACH_JOBS in the structure script).
      */
-    private static final Map<String, List<String>> VALEHOLM_GROUPS = valeholmGroups();
+    private static final Map<String, List<String>> STYLE_GROUPS = styleGroups();
     /** The size of a Norse long house of the Valeholm style (x, y, z): it fits each plot of a Norse street. */
     private static final Vec3i LONG_HOUSE = new Vec3i(9, 16, 17);
-    /**
-     * The groups of the scan tests of the Sunreach pieces, by name: the jobs with a Sunreach piece of their own
-     * (SUNREACH_JOBS in the structure script). The other jobs use the pieces of all the cultures.
-     */
-    private static final Map<String, List<String>> SUNREACH_GROUPS = sunreachGroups();
     /**
      * The size of a Sunreach house-workshop (x, y, z): as wide as a flat house and as deep as a courtyard house of
      * the style.
@@ -264,22 +260,12 @@ public final class JobBuildingTemplateGameTests {
     /** The styles of {@link #STYLE_JOBS}, in the order of their scan tests. */
     private static Map<String, StyleJobs> styleJobs() {
         Map<String, StyleJobs> styles = new LinkedHashMap<>();
-        styles.put("valeholm/", new StyleJobs(VALEHOLM_GROUPS, LONG_HOUSE, true));
-        styles.put("sunreach/", new StyleJobs(SUNREACH_GROUPS, SUN_WORKSHOP, false));
+        styles.put("valeholm/", new StyleJobs(STYLE_GROUPS, LONG_HOUSE, true));
+        styles.put("sunreach/", new StyleJobs(STYLE_GROUPS, SUN_WORKSHOP, true));
         return styles;
     }
 
-    private static Map<String, List<String>> sunreachGroups() {
-        Map<String, List<String>> groups = new LinkedHashMap<>();
-        groups.put("fields", FIELDS);
-        groups.put("food", FOOD);
-        groups.put("wood", WOOD.subList(0, 5));
-        groups.put("wood_2", WOOD.subList(5, 10));
-        groups.put("stone", STONE);
-        return groups;
-    }
-
-    private static Map<String, List<String>> valeholmGroups() {
+    private static Map<String, List<String>> styleGroups() {
         Map<String, List<String>> groups = new LinkedHashMap<>();
         groups.put("fields", FIELDS);
         groups.put("food", FOOD);

@@ -3040,8 +3040,9 @@ NORSE_JOBS = {
 # ---------------------------------------------------------------- house-workshops of the Sunreach style
 
 # A Sunreach house-workshop is FW blocks wide, as the flat houses of the style, and CD blocks deep, as the courtyard
-# houses of the style. The jobs of the fields, the gardens, the animals, the lumberjacks, the miner and the digger have a
-# flat house on the street (z = 1..SUN_SHED - 1) and a walled yard behind it.
+# houses of the style. The jobs of the fields, the gardens, the animals, the lumberjacks, the miner, the digger, the
+# fletcher, the tanner, the shepherd and the dyer have a flat house on the street (z = 1..SUN_SHED - 1) and a walled
+# yard behind it.
 SUN_SHED = 7
 SUN_YARD_Z = range(SUN_SHED, CD - 1)
 SUN_YARD_X = range(1, FW - 1)
@@ -3241,8 +3242,9 @@ def sun_butchery():
     return shaped(t)
 
 
-# The beds of a Sunreach workshop of the wood and the stone: on the 2 side walls, in the middle of the room. The
-# front of the room stays free for the counter and the tools, and the back of the room for the work.
+# The beds of a Sunreach workshop with no yard of style_jobs (the sawyers, the mason, the smelters, the blacksmith, the
+# tinker, the carpenter, the weaver and the papermaker): on the 2 side walls, in the middle of the room. The front of
+# the room stays free for the counter and the tools, and the back of the room for the work.
 SUN_CRAFT_BEDS = ((1, 5), (FW - 2, 5))
 
 # The Sunreach style of the house-workshops: flat houses of FW x CD blocks (see WorkshopStyle).
@@ -3252,14 +3254,10 @@ SUNREACH = WorkshopStyle(
     places={"sawmill_lantern": (FW - 2, 1, 3), "mason_cutter": (2, 3), "mason_lantern": (FW - 2, 1, 8),
             "smelter_furnaces": (1, 2), "smelter_ores": FW - 2, "smelter_coal": (FW - 3, CD - 2),
             "smelter_cauldron": (FW - 2, CD - 4), "smelter_lanterns": ((1, 1, 8),)})
-# The jobs of the crafts and of the cloth and the paper. They have no Sunreach piece: they use the pieces of all the
-# cultures.
-SUN_ALL_CULTURES_JOBS = ("blacksmith", "tinker", "fletcher", "carpenter", "tanner", "shepherd", "weaver", "dyer",
-                         "papermaker")
 
-# The house-workshops of the Sunreach style, by job. The jobs with no piece here use the pieces of all the cultures.
+# The house-workshops of the Sunreach style, by job: each job of JOBS has a piece of the style.
 SUNREACH_JOBS = {
-    **{job: build for job, build in style_jobs(SUNREACH).items() if job not in SUN_ALL_CULTURES_JOBS},
+    **style_jobs(SUNREACH),
     "beekeeper": sun_apiary,
     "fisher": sun_fisher_hut,
     "baker": sun_bakery,
@@ -3406,7 +3404,7 @@ JOBS = {
 # The house-workshops of the styles of the cultures, by culture and job.
 STYLE_JOBS = {"valeholm": NORSE_JOBS, "sunreach": SUNREACH_JOBS}
 # The cultures whose style has a house-workshop for each job of JOBS. Add a culture here when its style is complete.
-COMPLETE_STYLES = ("valeholm",)
+COMPLETE_STYLES = ("valeholm", "sunreach")
 
 
 def check_style_jobs():
