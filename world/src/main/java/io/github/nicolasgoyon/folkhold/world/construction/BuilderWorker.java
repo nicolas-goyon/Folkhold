@@ -616,10 +616,13 @@ final class BuilderWorker {
         }
     }
 
-    /** The villager stops where it is. */
+    /**
+     * The villager stops where it is: no walk target, no path, no walk input and no jump (see
+     * {@link BuilderSite#stopMoving}).
+     */
     private static void stay(Villager villager) {
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getNavigation().stop();
+        BuilderSite.stopMoving(villager);
     }
 
     /**
