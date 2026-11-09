@@ -16,10 +16,12 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.PoiTypeTags;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.behavior.BehaviorControl;
+import net.minecraft.world.entity.ai.behavior.OneShot;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
@@ -56,6 +58,11 @@ import net.minecraft.world.entity.schedule.ScheduleBuilder;
  *       villager of the village holds (see {@link #releaseWorkstation}): the worker releases this workstation within
  *       about 2 seconds and keeps its profession. The villagers outside the faction villages keep the vanilla
  *       rules.</li>
+ *   <li>A worker keeps its job sign and its meeting point while its brain ticks, also when no player is near the
+ *       heart (see {@link #keepPlace}). The vanilla behavior that walks to the place erases the place after a long
+ *       time with no path to it. A worker cannot stand on a sign, so a walk to a sign often has no path to it.</li>
+ *   <li>A villager of a faction village keeps its profession with no job site (see {@link #keepProfession}). The
+ *       village gives the professions to its villagers (see {@link VillageFolk#assign}).</li>
  * </ul>
  */
 public final class WorkerBrains {
@@ -232,7 +239,46 @@ public final class WorkerBrains {
      * @return the behavior
      */
     public static BehaviorControl<PathfinderMob> withoutWorkstation(BehaviorControl<PathfinderMob> acquire) {
-        return new NoWorkstation(acquire);
+        return new VanillaOnly<>(acquire);
+    }
+
+    /**
+     * The behavior of the core package that removes the profession of a villager with no job site, no experience and
+     * the level 1. This behavior does not start for a villager of a faction village. The other villagers keep the
+     * vanilla behavior.
+     *
+     * @param reset the vanilla behavior
+     * @return the behavior
+     */
+    public static BehaviorControl<Villager> keepProfession(BehaviorControl<Villager> reset) {
+        return new VanillaOnly<>(reset);
+    }
+
+    /**
+     * The vanilla behavior that sets a walk target to the place of a memory ({@code JOB_SITE} in the work package,
+     * {@code MEETING_POINT} in the meeting package). For a worker (see {@link #isWorker}), the place of the memory
+     * stays:
+     *
+     * <ul>
+     *   <li>When the memory {@code CANT_REACH_WALK_TARGET_SINCE} is older than the limit of the behavior, and the
+     *       worker has no walk target, the memory gets the current time. Then the vanilla behavior sets a new walk
+     *       target to the place, and does not erase the place.</li>
+     *   <li>When the vanilla behavior erases the place for an other cause (a place in an other dimension, or no
+     *       position toward the place), the place comes back at once. Then the worker does not try the behavior again
+     *       before the limit of the behavior.</li>
+     * </ul>
+     *
+     * <p>The other villagers keep the vanilla behavior. The vanilla brain creates the behaviors for each villager, so
+     * each instance of the behavior serves one villager.
+     *
+     * @param walk             the vanilla behavior
+     * @param place            the memory of the place
+     * @param unreachableTicks the limit of the vanilla behavior: the time with no path to the place, in ticks
+     * @return the behavior
+     */
+    public static OneShot<Villager> keepPlace(OneShot<Villager> walk, MemoryModuleType<GlobalPos> place,
+            int unreachableTicks) {
+        return new KeepPlace(walk, place, unreachableTicks);
     }
 
     /**
@@ -258,34 +304,77 @@ public final class WorkerBrains {
         return meeting.or(holder -> holder.is(ModPoiTypes.MARKET_SIGN_KEY));
     }
 
-    /** A behavior that claims a workstation and does not start for a villager of a faction village. */
-    private record NoWorkstation(BehaviorControl<PathfinderMob> acquire) implements BehaviorControl<PathfinderMob> {
+    /** A vanilla behavior that does not start for a villager of a faction village. */
+    private record VanillaOnly<E extends LivingEntity>(BehaviorControl<E> behavior) implements BehaviorControl<E> {
         @Override
         public Behavior.Status getStatus() {
-            return acquire.getStatus();
+            return behavior.getStatus();
         }
 
         @Override
-        public boolean tryStart(ServerLevel level, PathfinderMob entity, long gameTime) {
+        public boolean tryStart(ServerLevel level, E entity, long gameTime) {
             if (entity instanceof Villager villager && VillageFolk.isVillageFolk(villager)) {
                 return false;
             }
-            return acquire.tryStart(level, entity, gameTime);
+            return behavior.tryStart(level, entity, gameTime);
         }
 
         @Override
-        public void tickOrStop(ServerLevel level, PathfinderMob entity, long gameTime) {
-            acquire.tickOrStop(level, entity, gameTime);
+        public void tickOrStop(ServerLevel level, E entity, long gameTime) {
+            behavior.tickOrStop(level, entity, gameTime);
         }
 
         @Override
-        public void doStop(ServerLevel level, PathfinderMob entity, long gameTime) {
-            acquire.doStop(level, entity, gameTime);
+        public void doStop(ServerLevel level, E entity, long gameTime) {
+            behavior.doStop(level, entity, gameTime);
         }
 
         @Override
         public String debugString() {
-            return acquire.debugString();
+            return behavior.debugString();
+        }
+    }
+
+    /** The walk to the place of a memory, with no erase of the place for a worker (see {@link #keepPlace}). */
+    private static final class KeepPlace extends OneShot<Villager> {
+        private final OneShot<Villager> walk;
+        private final MemoryModuleType<GlobalPos> place;
+        private final int unreachableTicks;
+        /** The worker does not try the walk before this game time. */
+        private long nextTry;
+
+        KeepPlace(OneShot<Villager> walk, MemoryModuleType<GlobalPos> place, int unreachableTicks) {
+            this.walk = walk;
+            this.place = place;
+            this.unreachableTicks = unreachableTicks;
+        }
+
+        @Override
+        public boolean trigger(ServerLevel level, Villager villager, long gameTime) {
+            Brain<Villager> brain = villager.getBrain();
+            Optional<GlobalPos> kept = brain.getMemory(place);
+            if (kept.isEmpty() || !isWorker(villager)) {
+                return walk.trigger(level, villager, gameTime);
+            }
+            if (gameTime < nextTry) {
+                return false;
+            }
+            if (!brain.hasMemoryValue(MemoryModuleType.WALK_TARGET)
+                    && brain.getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE)
+                            .filter(since -> gameTime - since > unreachableTicks).isPresent()) {
+                brain.setMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE, gameTime);
+            }
+            boolean started = walk.trigger(level, villager, gameTime);
+            if (!brain.hasMemoryValue(place)) {
+                brain.setMemory(place, kept.get());
+                nextTry = gameTime + unreachableTicks;
+            }
+            return started;
+        }
+
+        @Override
+        public String debugString() {
+            return walk.debugString();
         }
     }
 

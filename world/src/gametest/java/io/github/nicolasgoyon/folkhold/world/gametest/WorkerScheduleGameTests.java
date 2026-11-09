@@ -1,11 +1,13 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.registry.ModPoiTypes;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
@@ -36,6 +38,8 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.schedule.Activity;
 import net.minecraft.world.entity.schedule.Schedule;
+import net.minecraft.world.entity.schedule.ScheduleBuilder;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
@@ -82,6 +86,17 @@ public final class WorkerScheduleGameTests {
     private static final int MARKET_MARGIN = 4;
     /** The interval of the villager checks of the heart when a player is near it, in ticks. */
     private static final int HEART_CHECK_TICKS = 40;
+    /** The cell of a villager with no path out, in the small arena. The places are far from it. */
+    private static final BlockPos CELL = new BlockPos(3, 1, 8);
+    private static final BlockPos CELL_MARKET_SIGN = new BlockPos(13, 1, 4);
+    private static final BlockPos CELL_JOB_SIGN = new BlockPos(13, 1, 12);
+    /**
+     * The age of the memory {@code CANT_REACH_WALK_TARGET_SINCE} in the tests of the places, in ticks: more than the
+     * limit of the vanilla walk to the meeting point (200 ticks) and to the job site (1200 ticks).
+     */
+    private static final long UNREACHABLE_AGE = 2_000L;
+    /** The vanilla brain runs the walk to a place in this time, in ticks. */
+    private static final int BRAIN_TICKS = 100;
 
     private WorkerScheduleGameTests() {
     }
@@ -178,8 +193,7 @@ public final class WorkerScheduleGameTests {
                 "The heart must not calculate the places again in the same phase");
         BoundingBox marketArea = market.area().inflatedBy(MARKET_MARGIN, 0, MARKET_MARGIN);
         // The heart checks the villagers only when a player is near it. A GameTest has no player near the heart, so
-        // the test runs the worker check of the heart. If not, a worker that loses a place (the vanilla brain erases
-        // a place after a walk that takes too long) does not get it again. The heart does not check the villagers in
+        // the test runs the worker check of the heart at the same interval. The heart does not check the villagers in
         // an alert.
         helper.onEachTick(() -> {
             if (helper.getTick() % HEART_CHECK_TICKS == 0 && heart.getAlertState() == AlertState.CALM) {
@@ -319,6 +333,168 @@ public final class WorkerScheduleGameTests {
                         && villager.getVillagerData().getProfession() == VillagerProfession.FARMER,
                         "The vanilla villager must hold the ticket of the composter"))
                 .thenSucceed();
+    }
+
+    /**
+     * A worker in a cell with no path out, with no player near and no heart. The memory
+     * {@code CANT_REACH_WALK_TARGET_SINCE} is older than the limits of the vanilla walks to the places. The worker
+     * keeps its meeting point in {@code MEET} and its job sign in {@code WORK}. It also keeps a meeting point in an
+     * other dimension.
+     */
+    @GameTest(template = "arena", timeoutTicks = 600, batch = "worker_places")
+    public static void workerKeepsItsPlacesWithNoPlayer(GameTestHelper helper) {
+        Places places = cellPlaces(helper);
+        Villager worker = cellVillager(helper, true, 1);
+        helper.assertTrue(WorkerBrains.isWorker(worker), "The villager must be a worker");
+        worker.getBrain().setMemory(MemoryModuleType.MEETING_POINT, places.market());
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, places.job());
+        GlobalPos nether = GlobalPos.of(Level.NETHER, places.market().pos());
+        helper.startSequence()
+                .thenExecute(() -> unreachable(helper, worker, Activity.MEET))
+                .thenIdle(BRAIN_TICKS)
+                .thenExecute(() -> {
+                    helper.assertTrue(worker.getBrain().isActive(Activity.MEET), "Expected MEET");
+                    helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT)
+                            .filter(places.market()::equals).isPresent(),
+                            "The worker must keep the market sign as its meeting point: "
+                                    + worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT));
+                    unreachable(helper, worker, Activity.WORK);
+                })
+                .thenIdle(BRAIN_TICKS)
+                .thenExecute(() -> {
+                    helper.assertTrue(worker.getBrain().isActive(Activity.WORK), "Expected WORK");
+                    helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.JOB_SITE)
+                            .filter(places.job()::equals).isPresent(),
+                            "The worker must keep the job sign as its job site: "
+                                    + worker.getBrain().getMemory(MemoryModuleType.JOB_SITE));
+                    helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT)
+                            .filter(places.market()::equals).isPresent(), "The worker must keep its meeting point");
+                    // The vanilla walk erases a place in an other dimension also with a recent memory
+                    // CANT_REACH_WALK_TARGET_SINCE.
+                    worker.getBrain().setMemory(MemoryModuleType.MEETING_POINT, nether);
+                    unreachable(helper, worker, Activity.MEET);
+                    worker.getBrain().setMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE,
+                            helper.getLevel().getGameTime());
+                })
+                .thenIdle(BRAIN_TICKS)
+                .thenExecute(() -> helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT)
+                        .filter(nether::equals).isPresent(), "The worker must keep a meeting point in an other "
+                                + "dimension: " + worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT)))
+                .thenSucceed();
+    }
+
+    /**
+     * A worker with no experience, in a cell with no path out, with no player near and no heart. It keeps its
+     * profession when the memory {@code CANT_REACH_WALK_TARGET_SINCE} is older than the limit of the vanilla walk to
+     * the job site, and also with no job site.
+     */
+    @GameTest(template = "arena", timeoutTicks = 600, batch = "worker_places_profession")
+    public static void workerWithNoExperienceKeepsItsProfession(GameTestHelper helper) {
+        Places places = cellPlaces(helper);
+        Villager worker = cellVillager(helper, true, 0);
+        VillagerProfession farmer = VillageFolk.professionOf(FARMER);
+        helper.assertTrue(WorkerBrains.isWorker(worker) && worker.getVillagerXp() == 0,
+                "The villager must be a worker with no experience");
+        worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, places.job());
+        helper.startSequence()
+                .thenExecute(() -> unreachable(helper, worker, Activity.WORK))
+                .thenIdle(BRAIN_TICKS)
+                .thenExecute(() -> {
+                    helper.assertTrue(worker.getVillagerData().getProfession() == farmer,
+                            "The worker must keep its profession after a long walk with no path to its job sign: "
+                                    + worker.getVillagerData().getProfession());
+                    helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.JOB_SITE)
+                            .filter(places.job()::equals).isPresent(), "The worker must keep its job sign");
+                    worker.getBrain().eraseMemory(MemoryModuleType.JOB_SITE);
+                })
+                .thenIdle(BRAIN_TICKS)
+                .thenExecute(() -> helper.assertTrue(worker.getVillagerData().getProfession() == farmer,
+                        "The worker must keep its profession with no job site: "
+                                + worker.getVillagerData().getProfession()))
+                .thenSucceed();
+    }
+
+    /**
+     * A villager outside the faction villages keeps the vanilla rules. In a cell with no path out, it loses its
+     * meeting point after the limit of the vanilla walk. With no experience and no job site, it loses its profession.
+     */
+    @GameTest(template = "arena", timeoutTicks = 600, batch = "worker_places_vanilla")
+    public static void vanillaVillagerLosesAnUnreachablePlace(GameTestHelper helper) {
+        Places places = cellPlaces(helper);
+        Villager villager = cellVillager(helper, false, 1);
+        helper.assertFalse(VillageFolk.isVillageFolk(villager), "The villager must not belong to a village");
+        villager.getBrain().setMemory(MemoryModuleType.MEETING_POINT, places.market());
+        helper.startSequence()
+                .thenExecute(() -> unreachable(helper, villager, Activity.MEET))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        villager.getBrain().getMemory(MemoryModuleType.MEETING_POINT).isEmpty(),
+                        "The vanilla villager must lose its meeting point"))
+                .thenExecute(() -> villager.setVillagerXp(0))
+                .thenWaitUntil(() -> helper.assertTrue(
+                        villager.getVillagerData().getProfession() == VillagerProfession.NONE,
+                        "The vanilla villager with no experience must lose its profession with no job site"))
+                .thenSucceed();
+    }
+
+    /** The places of the tests in the cell: a market sign and a job sign, with their points of interest. */
+    private record Places(GlobalPos market, GlobalPos job) {
+    }
+
+    /** Builds the floor, the cell and the 2 signs, and removes them at the end of the test. */
+    private static Places cellPlaces(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ServerLevel level = helper.getLevel();
+        List<BlockPos> walls = List.of(CELL.west(), CELL.east(), CELL.north(), CELL.south(), CELL.above().west(),
+                CELL.above().east(), CELL.above().north(), CELL.above().south(), CELL.above(2));
+        walls.forEach(pos -> helper.setBlock(pos, Blocks.GLASS));
+        helper.setBlock(CELL_MARKET_SIGN, ModBlocks.buildingSign(BuildingSignKind.MARKET));
+        helper.setBlock(CELL_JOB_SIGN, ModBlocks.JOB_SIGN.get());
+        TestSupport.atTestEnd(helper, () -> {
+            walls.forEach(pos -> helper.setBlock(pos, Blocks.AIR));
+            helper.setBlock(CELL_MARKET_SIGN, Blocks.AIR);
+            helper.setBlock(CELL_JOB_SIGN, Blocks.AIR);
+        });
+        BlockPos market = helper.absolutePos(CELL_MARKET_SIGN);
+        BlockPos job = helper.absolutePos(CELL_JOB_SIGN);
+        helper.assertTrue(level.getPoiManager().exists(market, type -> type.is(ModPoiTypes.MARKET_SIGN_KEY)),
+                "The market sign must have its point of interest");
+        helper.assertTrue(level.getPoiManager().exists(job, type -> type.is(ModPoiTypes.JOB_SIGN_KEY)),
+                "The job sign must have its point of interest");
+        return new Places(GlobalPos.of(level.dimension(), market), GlobalPos.of(level.dimension(), job));
+    }
+
+    /**
+     * Creates an adult farmer in the cell.
+     *
+     * @param village    true for a villager of a faction village (the village tag, with no heart at the position)
+     * @param experience the experience of the villager
+     */
+    private static Villager cellVillager(GameTestHelper helper, boolean village, int experience) {
+        ServerLevel level = helper.getLevel();
+        Villager villager = EntityType.VILLAGER.create(level);
+        TestSupport.atTestEnd(helper, villager::discard);
+        if (village) {
+            villager.getPersistentData().putLong(Merchants.VILLAGE_TAG, helper.absolutePos(HEART).asLong());
+        }
+        villager.setVillagerData(villager.getVillagerData().setProfession(VillageFolk.professionOf(FARMER))
+                .setLevel(1));
+        villager.setVillagerXp(experience);
+        villager.moveTo(Vec3.atBottomCenterOf(helper.absolutePos(CELL)));
+        level.addFreshEntity(villager);
+        villager.refreshBrain(level);
+        return villager;
+    }
+
+    /**
+     * Gives a villager a schedule with one activity, and a memory {@code CANT_REACH_WALK_TARGET_SINCE} older than the
+     * limits of the vanilla walks to the places: the conditions of the vanilla erase of a place.
+     */
+    private static void unreachable(GameTestHelper helper, Villager villager, Activity activity) {
+        villager.getBrain().setSchedule(new ScheduleBuilder(new Schedule()).changeActivityAt(0, activity).build());
+        villager.getBrain().setActiveActivityIfPossible(activity);
+        villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+        villager.getBrain().setMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE,
+                helper.getLevel().getGameTime() - UNREACHABLE_AGE);
     }
 
     /** True if the composter has a free ticket. */
