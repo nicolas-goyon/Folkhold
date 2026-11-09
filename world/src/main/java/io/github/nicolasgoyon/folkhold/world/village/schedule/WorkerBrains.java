@@ -15,8 +15,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.PoiTypeTags;
+import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.Brain;
+import net.minecraft.world.entity.ai.behavior.Behavior;
+import net.minecraft.world.entity.ai.behavior.BehaviorControl;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
@@ -44,6 +49,13 @@ import net.minecraft.world.entity.schedule.ScheduleBuilder;
  *   <li>A villager that is not a worker has no job sign as its job site, and a worker has only the job sign of its
  *       home. The build of the brain goals and each check of the heart erase an other job sign (see
  *       {@link #forgetJobSign}). Thus a villager that loses its job or its post does not walk to the old sign.</li>
+ *   <li>A villager of a faction village does not claim a vanilla workstation, for example a composter (see
+ *       {@link #withoutWorkstation}). Thus a worker with no job sign (a worker of a legacy job slot) keeps its job and
+ *       its profession. The vanilla behavior {@code YieldJobSite} can give the potential job site of a vanilla
+ *       villager with no job to a worker near it. Each check of the heart releases a vanilla workstation that a
+ *       villager of the village holds (see {@link #releaseWorkstation}): the worker releases this workstation within
+ *       about 2 seconds and keeps its profession. The villagers outside the faction villages keep the vanilla
+ *       rules.</li>
  * </ul>
  */
 public final class WorkerBrains {
@@ -177,6 +189,53 @@ public final class WorkerBrains {
     }
 
     /**
+     * Erases the job site and the potential job site of a villager of a faction village when the memory points to a
+     * vanilla workstation (a point of interest of the tag {@code minecraft:acquirable_job_site}), and releases the
+     * ticket of the workstation. A place in a chunk that is not loaded stays.
+     *
+     * @param villager the villager of a faction village
+     * @param brain    the brain of the villager
+     * @return true if a memory was erased
+     */
+    static boolean releaseWorkstation(Villager villager, Brain<Villager> brain) {
+        if (villager.level().getServer() == null) {
+            return false;
+        }
+        boolean erased = false;
+        for (MemoryModuleType<GlobalPos> memory : List.of(MemoryModuleType.JOB_SITE,
+                MemoryModuleType.POTENTIAL_JOB_SITE)) {
+            Optional<GlobalPos> site = brain.getMemory(memory);
+            if (site.isEmpty()) {
+                continue;
+            }
+            ServerLevel level = villager.level().getServer().getLevel(site.get().dimension());
+            BlockPos pos = site.get().pos();
+            if (level == null || !level.isLoaded(pos)) {
+                continue;
+            }
+            PoiManager poi = level.getPoiManager();
+            if (poi.getType(pos).filter(type -> type.is(PoiTypeTags.ACQUIRABLE_JOB_SITE)).isPresent()) {
+                brain.eraseMemory(memory);
+                // Releases the ticket as the vanilla Villager.releasePoi does.
+                poi.release(pos);
+                erased = true;
+            }
+        }
+        return erased;
+    }
+
+    /**
+     * The behavior of the core package that claims a vanilla workstation (memory {@code POTENTIAL_JOB_SITE}). This
+     * behavior does not start for a villager of a faction village. The other villagers keep the vanilla behavior.
+     *
+     * @param acquire the vanilla behavior
+     * @return the behavior
+     */
+    public static BehaviorControl<PathfinderMob> withoutWorkstation(BehaviorControl<PathfinderMob> acquire) {
+        return new NoWorkstation(acquire);
+    }
+
+    /**
      * The validator of the memory {@code JOB_SITE} of the core package of a villager: the job site of the profession,
      * or a job sign. A job sign does not match the job site of the profession, so the vanilla rules that share or
      * release a job site ignore it.
@@ -197,6 +256,37 @@ public final class WorkerBrains {
      */
     public static Predicate<Holder<PoiType>> withMarketSign(Predicate<Holder<PoiType>> meeting) {
         return meeting.or(holder -> holder.is(ModPoiTypes.MARKET_SIGN_KEY));
+    }
+
+    /** A behavior that claims a workstation and does not start for a villager of a faction village. */
+    private record NoWorkstation(BehaviorControl<PathfinderMob> acquire) implements BehaviorControl<PathfinderMob> {
+        @Override
+        public Behavior.Status getStatus() {
+            return acquire.getStatus();
+        }
+
+        @Override
+        public boolean tryStart(ServerLevel level, PathfinderMob entity, long gameTime) {
+            if (entity instanceof Villager villager && VillageFolk.isVillageFolk(villager)) {
+                return false;
+            }
+            return acquire.tryStart(level, entity, gameTime);
+        }
+
+        @Override
+        public void tickOrStop(ServerLevel level, PathfinderMob entity, long gameTime) {
+            acquire.tickOrStop(level, entity, gameTime);
+        }
+
+        @Override
+        public void doStop(ServerLevel level, PathfinderMob entity, long gameTime) {
+            acquire.doStop(level, entity, gameTime);
+        }
+
+        @Override
+        public String debugString() {
+            return acquire.debugString();
+        }
     }
 
     /** The brain schedules of the delay steps of one daily schedule. */

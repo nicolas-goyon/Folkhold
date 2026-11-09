@@ -50,11 +50,13 @@ import net.minecraft.world.level.block.Blocks;
  *       of the heart, the loaded workers get the places with no new search.</li>
  *   <li>A sign in a point of interest section with no record for the sign gets its record from the calculation,
  *       because the vanilla brain erases a memory with no point of interest.</li>
- *   <li>A place of the cache with no sign or bell block any more (a broken sign before the next scan) does not go to
- *       the workers.</li>
+ *   <li>A place of the cache with no sign or bell block at the place (a broken sign before the next scan) does not
+ *       go to the workers.</li>
  *   <li>At each check, each loaded inhabitant loses a job sign as its job site when this sign is not the sign of its
  *       home (see {@link WorkerBrains#forgetJobSign}): an inhabitant with no job, a builder, a handyman, or a worker
- *       of a post that the village does not have any more.</li>
+ *       of a post that is not in the posts of the village.</li>
+ *   <li>At each check, each loaded inhabitant releases a vanilla workstation that it holds (see
+ *       {@link WorkerBrains#releaseWorkstation}).</li>
  * </ul>
  */
 public final class VillageWorkers {
@@ -96,6 +98,9 @@ public final class VillageWorkers {
         int changes = 0;
         Map<BlockPos, Boolean> present = new HashMap<>();
         for (Villager villager : inhabitants) {
+            if (WorkerBrains.releaseWorkstation(villager, villager.getBrain())) {
+                changes++;
+            }
             if (WorkerBrains.isWorker(villager)) {
                 changes += apply(level, villager, present);
             } else if (WorkerBrains.forgetJobSign(villager, villager.getBrain(), null)) {
