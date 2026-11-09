@@ -29,8 +29,9 @@ import net.minecraft.world.level.block.state.properties.Property;
  *       board (the offered quests of the village).</li>
  *   <li>The properties that come from the neighbors: the connections of fences, walls and panes, the shape of stairs
  *       and of rails.</li>
- *   <li>The contents of a cauldron: the rain fills an empty cauldron, and a player takes the water. All the cauldrons
- *       are one family.</li>
+ *   <li>The contents of a cauldron: the rain or the snow fills an empty cauldron, and a player takes the water. An
+ *       empty cauldron, a water cauldron and a powder snow cauldron are one family. A lava cauldron is not in the
+ *       family: no weather gives lava.</li>
  *   <li>The fruit of a melon stem or of a pumpkin stem: a stem with its fruit and a stem with no fruit are one
  *       family.</li>
  *   <li>The color of a banner: the village heart gives the color of the faction to the banners.</li>
@@ -75,7 +76,7 @@ public final class RepairRules {
 
     /** The families of blocks that the weather, the growth or the normal use change into one another. */
     private static final List<Set<Block>> FAMILIES = List.of(
-            Set.of(Blocks.CAULDRON, Blocks.WATER_CAULDRON, Blocks.LAVA_CAULDRON, Blocks.POWDER_SNOW_CAULDRON),
+            Set.of(Blocks.CAULDRON, Blocks.WATER_CAULDRON, Blocks.POWDER_SNOW_CAULDRON),
             Set.of(Blocks.MELON_STEM, Blocks.ATTACHED_MELON_STEM),
             Set.of(Blocks.PUMPKIN_STEM, Blocks.ATTACHED_PUMPKIN_STEM));
 
