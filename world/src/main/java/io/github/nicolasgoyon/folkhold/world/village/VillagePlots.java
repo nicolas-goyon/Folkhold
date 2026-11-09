@@ -10,6 +10,9 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
@@ -33,14 +36,17 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       connector is the name of the connector of a house.</li>
  *   <li>The generation puts a house of the pool of the connector on a plot, or leaves the plot free. A plot with a
  *       house has a junction of the jigsaw structure in front of its connector.</li>
- *   <li>The wall of the village keeps the space of a home on each free plot (see
- *       {@link io.github.nicolasgoyon.folkhold.world.village.structure.VillageWall}). The builders of the village
- *       build a home on a free plot when the village needs places (see {@link VillageGrowth}).</li>
+ *   <li>The wall of the village keeps the space of a new home on each free plot (see {@link #reserved} and
+ *       {@link io.github.nicolasgoyon.folkhold.world.village.structure.VillageWall}). This space holds each piece of
+ *       the pools of the homes and of the house-workshops of the variant (see {@link #homePools}). The builders of the
+ *       village build a house-workshop on a free plot when the village needs places (see {@link VillageGrowth}).</li>
  * </ul>
  */
 public final class VillagePlots {
     /** The name of the connector of a plot, in the street templates. */
     public static final ResourceLocation PLOT = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "plot");
+    /** The name of the pool of the house-workshops of a variant, in the folder of the pool of its homes. */
+    public static final String JOBS = "jobs";
     /** The order of the connectors of a template does not matter here: a fixed random source is enough. */
     private static final long SEED = 0L;
 
@@ -142,21 +148,75 @@ public final class VillagePlots {
     }
 
     /**
-     * The space of the homes of a pool on a plot, on the horizontal plane: the box around the placements of all the
-     * elements of the pool.
+     * The space of the new homes on a plot: the box around the placements of all the elements of the pools. The
+     * connector of each element goes at the Y of the connector of the plot.
      *
      * @param templates the structure templates of the server
-     * @param homes     the pool of the homes
+     * @param pools     the pools of the new homes (see {@link #homePools})
      * @param plot      the plot
-     * @return the box, or empty if no element of the pool fits the plot
+     * @return the box, or empty if no element of the pools fits the plot
      */
-    public static Optional<BoundingBox> space(StructureTemplateManager templates, StructureTemplatePool homes,
+    public static Optional<BoundingBox> space(StructureTemplateManager templates, List<StructureTemplatePool> pools,
             Plot plot) {
         List<BoundingBox> boxes = new ArrayList<>();
-        for (StructurePoolElement element : homes.getShuffledTemplates(RandomSource.create(SEED))) {
-            place(templates, element, plot, plot.connector().getY()).ifPresent(placement -> boxes.add(placement.box()));
+        for (StructureTemplatePool pool : pools) {
+            for (StructurePoolElement element : pool.getShuffledTemplates(RandomSource.create(SEED))) {
+                place(templates, element, plot, plot.connector().getY())
+                        .ifPresent(placement -> boxes.add(placement.box()));
+            }
         }
         return BoundingBox.encapsulatingBoxes(boxes);
+    }
+
+    /**
+     * The pools of the new homes of a variant: the pool of its homes, and the pool {@link #JOBS} in the same folder
+     * when it exists. Each new home of the growth is a house-workshop of the pool {@link #JOBS} (see
+     * {@link VillageGrowth}). The pieces of the 2 pools can have different sizes: the space of a plot holds all of
+     * them.
+     *
+     * @param registries the registries of the server
+     * @param homes      the pool of the homes of the variant
+     * @return the pools, the pool of the homes first
+     */
+    public static List<StructureTemplatePool> homePools(RegistryAccess registries,
+            Holder<StructureTemplatePool> homes) {
+        List<StructureTemplatePool> pools = new ArrayList<>();
+        pools.add(homes.value());
+        homes.unwrapKey()
+                .flatMap(key -> registries.registryOrThrow(Registries.TEMPLATE_POOL)
+                        .getOptional(sibling(key.location(), JOBS)))
+                .filter(jobs -> jobs != homes.value())
+                .ifPresent(pools::add);
+        return pools;
+    }
+
+    /**
+     * The spaces that the wall of a village keeps for its growth: the space of the new homes on each free plot of the
+     * pieces (see {@link #space}).
+     *
+     * @param templates the structure templates of the server
+     * @param pools     the pools of the new homes (see {@link #homePools})
+     * @param pieces    the pieces of the village structure
+     * @return the spaces, one for each free plot that an element of the pools fits
+     */
+    public static List<BoundingBox> reserved(StructureTemplateManager templates, List<StructureTemplatePool> pools,
+            List<StructurePiece> pieces) {
+        return of(templates, pieces).stream()
+                .filter(plot -> !plot.built())
+                .flatMap(plot -> space(templates, pools, plot).stream())
+                .toList();
+    }
+
+    /**
+     * The id of a pool of a variant, in the folder of the pool of its homes.
+     *
+     * @param homes the id of the pool of the homes of the variant
+     * @param name  the name of the pool
+     * @return the id of the pool with this name in the same folder
+     */
+    public static ResourceLocation sibling(ResourceLocation homes, String name) {
+        String path = homes.getPath();
+        return homes.withPath(path.substring(0, path.lastIndexOf('/') + 1) + name);
     }
 
     /**

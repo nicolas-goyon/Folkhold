@@ -21,34 +21,55 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
+import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
+import io.github.nicolasgoyon.folkhold.world.village.structure.VillageWall;
+import io.github.nicolasgoyon.folkhold.world.village.structure.WallSettings;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
+import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.StructurePiece;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
+import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.templatesystem.JigsawReplacementProcessor;
+import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
  * In-game tests for the growth of a village: its builders build a house-workshop or a building of the level on a free
  * plot (see {@link VillageGrowth}). Most villages of the tests have the house-workshop of the farmer (a food post that
- * trades) as a piece of their village structure, south-west of the heart.
+ * trades) as a piece of their village structure, south-west of the heart. The tests of the Sunreach style grow the
+ * pieces of a village structure with the rules of the growth, with no heart and no block in the level.
  * See {@link TestSupport} for the templates and the helpers.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
@@ -76,6 +97,22 @@ public final class VillageGrowthGameTests {
     private static final String LEGACY_JOB = FolkholdWorld.MOD_ID + ":miner";
     private static final ResourceLocation BARRACKS = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
             "village/house_barracks");
+    /** The folder of the pools and the pieces of the Sunreach style. */
+    private static final String SUNREACH = "village/sunreach/";
+    /** The id of the Sunreach culture. */
+    private static final String SUNREACH_CULTURE = "sunreach";
+    /** The first candidate chunk of the generated Sunreach villages: far from the areas of the other tests. */
+    private static final int SUNREACH_FIRST_CHUNK = 18000;
+    /** The distance between 2 candidate chunks, in chunks. */
+    private static final int SUNREACH_STEP = 12;
+    private static final int SUNREACH_CANDIDATES = 40;
+    /** The size of a Sunreach house-workshop (x, y, z). */
+    private static final Vec3i SUNREACH_WORKSHOP = new Vec3i(9, 7, 13);
+    /** The size of the Sunreach plaza, in blocks. */
+    private static final int PLAZA_SIZE = 15;
+    /** The position of the north-west corner of the plaza of the test of the wall: far from the other tests. */
+    private static final int WALL_TEST_X = 16 * (SUNREACH_FIRST_CHUNK - 40);
+    private static final int WALL_TEST_Z = 16 * (SUNREACH_FIRST_CHUNK - 40);
 
     private VillageGrowthGameTests() {
     }
@@ -283,6 +320,191 @@ public final class VillageGrowthGameTests {
             end(helper, village);
         }
         helper.succeed();
+    }
+
+    /**
+     * The growth of generated Sunreach villages (see {@link #grow}): each new house-workshop is a Sunreach piece of
+     * 9 x 7 x 13 blocks, it has room on its plot, and it intersects no piece of the generation and no palisade.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "village_growth_sunreach")
+    public static void sunreachVillageGrowsSunreachHouseWorkshops(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        Registry<StructureTemplatePool> pools = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
+        // The style with no variants: the biome and the culture of the GameTest world do not select another style.
+        FortifiedVillageStructure sunreach = new FortifiedVillageStructure(new Structure.StructureSettings(
+                structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
+                poolHolder(pools, SUNREACH + "plaza"), structure.size(), structure.maxDistanceFromCenter(),
+                structure.wall(), poolHolder(pools, SUNREACH + "homes"), List.of());
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        List<String> problems = new ArrayList<>();
+        int workshops = 0;
+        for (int i = 0; i < SUNREACH_CANDIDATES; i++) {
+            ChunkPos chunk = new ChunkPos(SUNREACH_FIRST_CHUNK + i * SUNREACH_STEP, SUNREACH_FIRST_CHUNK);
+            StructureStart start = sunreach.generate(level.registryAccess(), generator, generator.getBiomeSource(),
+                    level.getChunkSource().randomState(), level.getServer().getStructureManager(), level.getSeed(),
+                    chunk, 0, level, biome -> true);
+            helper.assertTrue(start.isValid(), "The village must start in " + chunk);
+            workshops += grow(level, start.getPieces(), problems);
+        }
+        helper.assertTrue(problems.isEmpty(), "Problems of the growth of the Sunreach villages: " + problems);
+        helper.assertTrue(workshops > 0, "The growth of the Sunreach villages must build a house-workshop");
+        helper.succeed();
+    }
+
+    /**
+     * The wall keeps the space of a Sunreach house-workshop on a free plot, also when the plot is at the edge of the
+     * village. The village has the Sunreach plaza and a street to the east of it. The plot to the east of the street is
+     * free, and its space is the east end of the village. The north-east corner tower of the wall and its stair go
+     * along the east side, in front of this plot. The wall comes from {@link VillageWall#add} with the spaces of
+     * {@link VillagePlots#reserved}, as in the generation. The line of the palisade is 5 blocks (the margin of 4 blocks
+     * and 1 block) from the east end of the spaces, and the tower goes 4 blocks inside the line: 1 free block stays
+     * between the tower and the space of the plot. Then the growth (see {@link #grow}) builds a Sunreach
+     * house-workshop on this plot: the tower and its stair are not in its space. A space that is 2 blocks less deep
+     * than the house-workshop puts the tower in the house-workshop.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "village_growth_sunreach_wall")
+    public static void wallKeepsTheSpaceOfASunreachHouseWorkshop(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        StructureTemplateManager templates = level.getStructureManager();
+        Registry<StructureTemplatePool> pools = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
+        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        BlockPos corner = new BlockPos(WALL_TEST_X, 0, WALL_TEST_Z);
+        BlockPos origin = corner.atY(generator.getBaseHeight(corner.getX(), corner.getZ(),
+                Heightmap.Types.WORLD_SURFACE_WG, level, level.getChunkSource().randomState()) - 1);
+        StructurePoolElement plaza = element(level, pools, SUNREACH + "plaza", SUNREACH + "plaza");
+        StructurePoolElement street = element(level, pools, SUNREACH + "streets_first", SUNREACH + "street");
+        // The street starts at the east side of the plaza (15 x 15 blocks). Its plots are 8 blocks from its start.
+        BlockPos streetOrigin = origin.east(PLAZA_SIZE);
+        List<StructurePiece> village = new ArrayList<>(List.of(piece(templates, plaza, origin),
+                piece(templates, street, streetOrigin)));
+        Structure.GenerationContext context = new Structure.GenerationContext(level.registryAccess(), generator,
+                generator.getBiomeSource(), level.getChunkSource().randomState(), templates, level.getSeed(),
+                new ChunkPos(origin), level, biome -> true);
+        List<BoundingBox> reserved = VillagePlots.reserved(templates,
+                VillagePlots.homePools(level.registryAccess(), poolHolder(pools, SUNREACH + "homes")), village);
+        List<StructurePiece> pieces = new ArrayList<>(village);
+        WallSettings wall = structure.variants().stream()
+                .filter(variant -> variant.culture().equals(Optional.of(SUNREACH_CULTURE)))
+                .filter(variant -> variant.biomes().size() == 0)
+                .findFirst().orElseThrow().wall();
+        pieces.addAll(VillageWall.add(context, village, reserved,
+                origin.offset(PLAZA_SIZE / 2, 0, PLAZA_SIZE / 2), wall, false));
+        List<String> problems = new ArrayList<>();
+        int workshops = grow(level, pieces, problems);
+        helper.assertTrue(problems.isEmpty(), "Problems of the growth of the Sunreach village: " + problems);
+        helper.assertTrue(workshops == 1, "The free plot east of the street must get a house-workshop: "
+                + workshops);
+        helper.succeed();
+    }
+
+    /**
+     * Grows a village with the rules of {@link VillageGrowth}: the free plots come in the order of their distance to
+     * the middle of the first piece. A plot with room for a home of the Sunreach pool {@code homes} gets the next
+     * Sunreach house-workshop of the pool {@code jobs}, in the order of the template ids. The connector of a piece goes
+     * at the surface of the terrain at the plot. The new house-workshops count as pieces of the village for the next
+     * plots.
+     *
+     * @param pieces   the pieces of the village structure
+     * @param problems the list that gets the problems: a house-workshop with no room, of another style, or that
+     *                 intersects a piece of the village structure
+     * @return the number of new house-workshops
+     */
+    private static int grow(ServerLevel level, List<StructurePiece> pieces, List<String> problems) {
+        StructureTemplateManager templates = level.getStructureManager();
+        Registry<StructureTemplatePool> pools = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
+        List<StructurePoolElement> homes = poolHolder(pools, SUNREACH + "homes").value()
+                .getShuffledTemplates(RandomSource.create(0L));
+        List<StructurePoolElement> jobs = poolHolder(pools, SUNREACH + "jobs").value()
+                .getShuffledTemplates(RandomSource.create(0L)).stream()
+                .sorted(Comparator.comparing(element -> VillageReference.templateOf(level, element).orElseThrow()))
+                .toList();
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        VillageReference generated = VillageReference.of(level, pieces).orElseThrow();
+        BlockPos middle = pieces.get(0).getBoundingBox().getCenter();
+        List<VillageReference.Piece> grown = new ArrayList<>(generated.pieces());
+        List<VillagePlots.Plot> plots = generated.plots().stream().filter(plot -> !plot.built())
+                .sorted(Comparator.comparingDouble(plot -> plot.connector().distSqr(middle))).toList();
+        int workshops = 0;
+        for (VillagePlots.Plot plot : plots) {
+            VillageReference village = new VillageReference(grown, generated.palisades(), generated.area(),
+                    List.of(), Optional.empty());
+            int ground = generator.getBaseHeight(plot.connector().getX(), plot.connector().getZ(),
+                    Heightmap.Types.WORLD_SURFACE_WG, level, level.getChunkSource().randomState());
+            boolean home = homes.stream().map(element -> VillagePlots.place(templates, element, plot, ground))
+                    .flatMap(Optional::stream)
+                    .anyMatch(placement -> VillageGrowth.hasRoom(templates, village, placement.box()));
+            if (!home) {
+                continue;
+            }
+            StructurePoolElement job = jobs.get(workshops % jobs.size());
+            ResourceLocation template = VillageReference.templateOf(level, job).orElseThrow();
+            VillagePlots.Placement placement = VillagePlots.place(templates, job, plot, ground).orElseThrow();
+            BoundingBox box = placement.box();
+            if (!VillageGrowth.hasRoom(templates, village, box)) {
+                problems.add("no room for " + template.getPath() + " " + box + " at the plot " + plot.connector()
+                        + ": " + obstacles(level, generated, pieces, box));
+                continue;
+            }
+            Vec3i size = templates.get(template).orElseThrow().getSize();
+            if (!template.getPath().startsWith(SUNREACH + "job_") || !size.equals(SUNREACH_WORKSHOP)) {
+                problems.add("not a Sunreach house-workshop: " + template + " " + size);
+            }
+            List<String> obstacles = obstacles(level, generated, pieces, box);
+            if (!obstacles.isEmpty()) {
+                problems.add(template.getPath() + " at the plot " + plot.connector() + " intersects " + obstacles);
+            }
+            grown.add(new VillageReference.Piece(template, placement.origin(), placement.rotation()));
+            workshops++;
+        }
+        return workshops;
+    }
+
+    /**
+     * The pieces of a village structure in a box: the template pieces that intersect it, and a palisade with a column
+     * in it.
+     */
+    private static List<String> obstacles(ServerLevel level, VillageReference reference, List<StructurePiece> pieces,
+            BoundingBox box) {
+        List<String> found = new ArrayList<>();
+        for (StructurePiece piece : pieces) {
+            if (piece instanceof PoolElementStructurePiece pool
+                    && pool.getElement().getProjection() == StructureTemplatePool.Projection.RIGID
+                    && pool.getBoundingBox().intersects(box)) {
+                found.add(VillageReference.templateOf(level, pool.getElement()).map(ResourceLocation::getPath)
+                        .orElse("piece") + " " + pool.getBoundingBox());
+            }
+        }
+        reference.palisadeBlocks().keySet().stream()
+                .filter(column -> column.getX() >= box.minX() && column.getX() <= box.maxX()
+                        && column.getZ() >= box.minZ() && column.getZ() <= box.maxZ())
+                .findFirst()
+                .ifPresent(column -> found.add("palisade " + column));
+        return found;
+    }
+
+    /** The element of a pool with a template. */
+    private static StructurePoolElement element(ServerLevel level, Registry<StructureTemplatePool> pools, String pool,
+            String template) {
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, template);
+        return poolHolder(pools, pool).value().getShuffledTemplates(RandomSource.create(0L)).stream()
+                .filter(element -> VillageReference.templateOf(level, element).filter(id::equals).isPresent())
+                .findFirst().orElseThrow();
+    }
+
+    /** A piece of a pool element at a position, with no rotation, as the jigsaw makes it. */
+    private static PoolElementStructurePiece piece(StructureTemplateManager templates, StructurePoolElement element,
+            BlockPos origin) {
+        return new PoolElementStructurePiece(templates, element, origin, 1, Rotation.NONE,
+                element.getBoundingBox(templates, origin, Rotation.NONE), LiquidSettings.APPLY_WATERLOGGING);
+    }
+
+    private static Holder<StructureTemplatePool> poolHolder(Registry<StructureTemplatePool> pools, String path) {
+        return pools.getHolderOrThrow(ResourceKey.create(Registries.TEMPLATE_POOL,
+                ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, path)));
     }
 
     private record Village(VillageHeartBlockEntity heart, Settlement settlement, List<BoundingBox> boxes) {

@@ -403,7 +403,8 @@ public final class FortifiedVillageGameTests {
 
     /**
      * The plots of the generated villages: a plot with a house has a junction, a free plot has none. The wall keeps
-     * the space of a home on each free plot: the space is inside the area of the village, and has no palisade.
+     * the space of a new home on each free plot (see {@link VillagePlots#reserved}): the space is inside the area of
+     * the village, and has no palisade.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_plots")
     public static void wallKeepsTheSpaceOfTheFreePlots(GameTestHelper helper) {
@@ -420,8 +421,8 @@ public final class FortifiedVillageGameTests {
             helper.assertTrue(start.isValid(), "The village must start in " + chunk);
             VillageReference reference = VillageReference.of(level, start.getPieces()).orElseThrow();
             BoundingBox area = reference.area().orElseThrow();
-            StructureTemplatePool homes = ((FortifiedVillageStructure) structure)
-                    .variantOf(level, start.getPieces()).homes().value();
+            List<StructureTemplatePool> homes = VillagePlots.homePools(level.registryAccess(),
+                    ((FortifiedVillageStructure) structure).variantOf(level, start.getPieces()).homes());
             long houses = reference.pieces().stream().map(piece -> name(piece.template()))
                     .filter(name -> HOUSES.contains(name) || name.startsWith("job_")).count();
             long built = reference.plots().stream().filter(VillagePlots.Plot::built).count();

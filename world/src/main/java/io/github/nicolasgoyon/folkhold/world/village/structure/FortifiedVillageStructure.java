@@ -50,9 +50,9 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       discovery of the settlements uses the same check: a settlement has a village.</li>
  *   <li>The other pieces of the pools go on the connectors of the start piece, as in a vanilla jigsaw
  *       structure.</li>
- *   <li>Then the structure adds the wall around all the pieces and around the space of a home on each free plot (see
- *       {@link VillageWall}, {@link VillagePlots}). The wall has towers, a gate on each axis of the start piece and
- *       the palisade. Paths go from the gates to the streets.</li>
+ *   <li>Then the structure adds the wall around all the pieces and around the space of a new home on each free plot
+ *       (see {@link VillageWall}, {@link VillagePlots#reserved}). The wall has towers, a gate on each axis of the start
+ *       piece and the palisade. Paths go from the gates to the streets.</li>
  * </ul>
  *
  * <p>Type {@code folkhold_world:fortified_village}. The JSON object has the fields of all the structures, and these
@@ -325,19 +325,17 @@ public final class FortifiedVillageStructure extends Structure {
     }
 
     /**
-     * Adds the pieces of the pools, then the pieces of the wall around them. The wall also keeps the space of a home on
-     * each free plot (see {@link VillagePlots}). A maritime village has the palisade on its land side only (see
-     * {@link VillageWall}).
+     * Adds the pieces of the pools, then the pieces of the wall around them. The wall also keeps the space of a new
+     * home on each free plot (see {@link VillagePlots#reserved}). A maritime village has the palisade on its land side
+     * only (see {@link VillageWall}).
      */
     private void generate(GenerationContext context, GenerationStub village, Variant variant, boolean maritime,
             StructurePiecesBuilder builder) {
         List<StructurePiece> pieces = village.getPiecesBuilder().build().pieces();
         pieces.forEach(builder::addPiece);
         StructureTemplateManager templates = context.structureTemplateManager();
-        List<BoundingBox> freePlots = VillagePlots.of(templates, pieces).stream()
-                .filter(plot -> !plot.built())
-                .flatMap(plot -> VillagePlots.space(templates, variant.homes().value(), plot).stream())
-                .toList();
+        List<BoundingBox> freePlots = VillagePlots.reserved(templates,
+                VillagePlots.homePools(context.registryAccess(), variant.homes()), pieces);
         VillageWall.add(context, pieces, freePlots, village.position(), variant.wall(), maritime)
                 .forEach(builder::addPiece);
     }

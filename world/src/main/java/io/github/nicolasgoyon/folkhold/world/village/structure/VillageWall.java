@@ -38,7 +38,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 /**
  * The wall of a fortified village: the pieces of the wall around the pieces of the pools, and around the space of a
- * home on each free plot (see {@link WallLayout}).
+ * new home on each free plot (see {@link WallLayout} and {@link VillagePlots#reserved}).
  *
  * <ul>
  *   <li>A gate goes on each side, on the axis of the start piece: the streets go out of the start piece on these
@@ -99,7 +99,7 @@ public final class VillageWall {
      *
      * @param context  the context of the generation
      * @param village  the pieces of the pools
-     * @param reserved the spaces for later buildings, for example the homes of the free plots
+     * @param reserved the spaces for later buildings, for example the new homes of the free plots
      * @param center   the middle of the start piece
      * @param settings the settings of the wall
      * @param maritime true for a maritime village: the water is the wall, and the palisade stands on the land side
