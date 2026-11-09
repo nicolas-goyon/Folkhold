@@ -67,8 +67,12 @@ public final class MarketGrowthGameTests {
             "village/homes");
     private static final ResourceLocation MARKET = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
             "village/market");
-    private static final ResourceLocation COTTAGE = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
-            "village/house_cottage");
+    /** The path of the template of a house-workshop starts with this text: each new home is a house-workshop. */
+    private static final String WORKSHOP_PREFIX = "village/job_";
+    private static final ResourceLocation FARM = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
+            "village/job_farmer");
+    /** The origin of the house-workshop of the farmer: out of the space of the plots. */
+    private static final BlockPos FARM_ORIGIN = new BlockPos(1, 1, 22);
     private static final ResourceLocation PLAZA = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
             "village/plaza");
 
@@ -147,7 +151,7 @@ public final class MarketGrowthGameTests {
                     helper.assertTrue(place.area().equals(box), "The market area must be the box of the piece " + box
                             + ", found " + place.area());
                     helper.assertTrue(place.area().isInside(place.point()), "The market sign must be in the area");
-                    helper.assertTrue(next.isPresent() && next.get().template().equals(COTTAGE),
+                    helper.assertTrue(next.isPresent() && next.get().template().getPath().startsWith(WORKSHOP_PREFIX),
                             "A village keeps one market: the next site must be a home, found "
                             + next.map(BuilderSite::template));
                     helper.assertFalse(box.isInside(nextOrigin), "The home must go on the second plot");
@@ -212,7 +216,7 @@ public final class MarketGrowthGameTests {
                     helper.assertTrue(markets.equals(List.of(sign)), "The market sign must stand again at " + sign
                             + ": " + markets);
                     helper.assertTrue(state == VillageMarket.State.BUILT, "Expected the state BUILT, found " + state);
-                    helper.assertTrue(next.isPresent() && next.get().template().equals(COTTAGE)
+                    helper.assertTrue(next.isPresent() && next.get().template().getPath().startsWith(WORKSHOP_PREFIX)
                             && !box.isInside(next.get().origin()), "The second plot must stay free for a home: "
                             + next.map(BuilderSite::template));
                 })
@@ -294,7 +298,7 @@ public final class MarketGrowthGameTests {
         Optional<BuilderSite> next = VillageGrowth.check(level, heart);
 
         helper.assertTrue(state == VillageMarket.State.BLOCKED, "Expected the state BLOCKED, found " + state);
-        helper.assertTrue(home.isPresent() && home.get().template().equals(COTTAGE)
+        helper.assertTrue(home.isPresent() && home.get().template().getPath().startsWith(WORKSHOP_PREFIX)
                 && !box.isInside(home.get().origin()), "The growth must go on with a home on the second plot: "
                 + home.map(BuilderSite::template));
         helper.assertTrue(next.isEmpty() || !next.get().template().equals(MARKET),
@@ -435,13 +439,21 @@ public final class MarketGrowthGameTests {
     private static VillageHeartBlockEntity village(GameTestHelper helper, int size, List<VillagePlots.Plot> plots) {
         ServerLevel level = helper.getLevel();
         TestSupport.buildFloor(helper, size);
+        // The house-workshop of the farmer: the village has its food post that trades, so a new home comes after
+        // the market (see VillageGrowth).
+        StructureTemplate farm = level.getStructureManager().get(FARM).orElseThrow();
+        BlockPos farmOrigin = helper.absolutePos(FARM_ORIGIN);
+        farm.placeInWorld(level, farmOrigin, farmOrigin, new StructurePlaceSettings()
+                .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true), level.getRandom(),
+                Block.UPDATE_CLIENTS);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
         heart.ensureSettlement();
-        heart.setRepairReference(new VillageReference(List.of(), List.of(), Optional.empty(), plots,
-                Optional.of(HOMES)));
+        heart.setRepairReference(new VillageReference(List.of(new VillageReference.Piece(FARM, farmOrigin,
+                Rotation.NONE)), List.of(), Optional.empty(), plots, Optional.of(HOMES)));
         Settlement settlement = Settlements.of(level.getServer(), heart).orElseThrow();
         settlement.setProgress(1, 0);
+        settlement.setBiome("minecraft:plains");
         settlement.economy().setPopulation(3);
         heart.ensureGarrison(level.getGameTime());
         return heart;

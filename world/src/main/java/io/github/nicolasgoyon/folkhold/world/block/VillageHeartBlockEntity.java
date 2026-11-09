@@ -135,6 +135,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String FACTION_TAG = "Faction";
     private static final String NAME_TAG = "Name";
     private static final String MARKET_PLOT_TAG = "MarketPlot";
+    private static final String GROWTH_JOB_TAG = "GrowthJob";
+    private static final String GROWTH_BOX_TAG = "GrowthBox";
     /** Name of the village, or null before the village has a faction. */
     @Nullable
     private String villageName;
@@ -159,6 +161,9 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean repairReferenceSearched;
     /** True if the last check of the growth found no free plot for the market. Not saved: the next check sets it. */
     private boolean marketNoSpace;
+    /** The last house-workshop of the growth while the scan does not show its post, or null. */
+    @Nullable
+    private GrowthWorkshop growthWorkshop;
     /** The plot of the market of the village, or null before the growth starts the market. */
     @Nullable
     private VillageMarket.Plot marketPlot;
@@ -959,6 +964,37 @@ public class VillageHeartBlockEntity extends BlockEntity {
     }
 
     /**
+     * The house-workshop of a site of the growth (see {@link VillageGrowth}).
+     *
+     * @param job the job id of the post of the house-workshop
+     * @param box the box of the house-workshop
+     */
+    public record GrowthWorkshop(String job, BoundingBox box) {
+    }
+
+    /**
+     * The last house-workshop of the growth, while the scan does not show a post in its box. The growth counts its job
+     * as a post: thus the next site does not take the same need.
+     *
+     * @return the house-workshop, or empty
+     */
+    public Optional<GrowthWorkshop> growthWorkshop() {
+        return Optional.ofNullable(growthWorkshop);
+    }
+
+    /**
+     * Sets the last house-workshop of the growth.
+     *
+     * @param workshop the house-workshop, or null when the scan shows its post
+     */
+    public void setGrowthWorkshop(@Nullable GrowthWorkshop workshop) {
+        if (!Objects.equals(growthWorkshop, workshop)) {
+            growthWorkshop = workshop;
+            setChanged();
+        }
+    }
+
+    /**
      * The plot of the market of the village (see {@link VillageMarket.Plot}). The growth builds the market again on
      * this plot when the market is broken or not finished.
      *
@@ -1358,6 +1394,12 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (villageName != null) {
             tag.putString(NAME_TAG, villageName);
         }
+        if (growthWorkshop != null) {
+            BoundingBox box = growthWorkshop.box();
+            tag.putString(GROWTH_JOB_TAG, growthWorkshop.job());
+            tag.putIntArray(GROWTH_BOX_TAG, new int[] {box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(),
+                box.maxZ()});
+        }
         if (marketPlot != null) {
             tag.put(MARKET_PLOT_TAG, marketPlot.save());
         }
@@ -1390,6 +1432,11 @@ public class VillageHeartBlockEntity extends BlockEntity {
         villagersFilling = tag.getBoolean(VILLAGERS_FILLING_TAG);
         factionId = tag.contains(FACTION_TAG) ? tag.getString(FACTION_TAG) : null;
         villageName = tag.contains(NAME_TAG) ? tag.getString(NAME_TAG) : null;
+        int[] growthBox = tag.getIntArray(GROWTH_BOX_TAG);
+        growthWorkshop = tag.contains(GROWTH_JOB_TAG) && growthBox.length == 6
+                ? new GrowthWorkshop(tag.getString(GROWTH_JOB_TAG), new BoundingBox(growthBox[0], growthBox[1],
+                        growthBox[2], growthBox[3], growthBox[4], growthBox[5]))
+                : null;
         marketPlot = tag.contains(MARKET_PLOT_TAG, Tag.TAG_COMPOUND)
                 ? VillageMarket.Plot.load(tag.getCompound(MARKET_PLOT_TAG)).orElse(null)
                 : null;
