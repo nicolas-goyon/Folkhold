@@ -873,12 +873,16 @@ def unlit_campfire(facing="north"):
     return "minecraft:campfire", {"facing": facing, "lit": "false", "signal_fire": "false", "waterlogged": "false"}
 
 
-def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
+def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False, depth=LD, hearth=True, ridge_slab=True):
     """A deep Norse long house: a base of cobblestone, walls of horizontal spruce logs between posts of stripped spruce
     logs, a steep roof of dark oak with a ridge along the house, and carved horns at the ends of the ridge.
 
-    The building sign of the kind stands on the porch, next to the east porch post. A hearth of stone bricks is in the
-    middle of the body, with a campfire that is not lit.
+    The building sign of the kind stands on the porch, next to the east porch post. With hearth, a hearth of stone
+    bricks is in the middle of the body, with a campfire that is not lit. The body goes from z = 1 to z = depth - 1. A
+    depth less than LD leaves the back of the plot empty.
+
+    Without ridge_slab, the row of planks under the ridge is the top of the roof: a builder stands on a scaffolding in
+    the house to place it (see ConstructionPlanner). No position to stand reaches the middle of a slab on these planks.
     """
     t = Template(LW, LH, LD)
     t.fill(0, 1, 0, LW - 1, LH - 1, LD - 1, "minecraft:air")
@@ -886,14 +890,14 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
     # Porch and floor.
     for x in range(LW):
         t.set(x, 0, 0, "minecraft:cobblestone" if x in (0, LW - 1) else "minecraft:spruce_planks")
-        for z in range(1, LD):
-            edge = x in (0, LW - 1) or z in (1, LD - 1)
+        for z in range(1, depth):
+            edge = x in (0, LW - 1) or z in (1, depth - 1)
             t.set(x, 0, z, cobble(rng) if edge else "minecraft:spruce_planks")
     # Walls: posts at the corners and every 4 blocks along the sides, logs between them.
     for x in range(LW):
-        for z in range(1, LD):
+        for z in range(1, depth):
             side = x in (0, LW - 1)
-            end = z in (1, LD - 1)
+            end = z in (1, depth - 1)
             if not (side or end):
                 continue
             post = (side and end) or (side and (z - 1) % 4 == 0) or (end and x == mid)
@@ -906,8 +910,9 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
                     t.set(x, y, z, "minecraft:spruce_log", {"axis": "z" if side else "x"})
     # Small windows on the sides.
     for z in (3, 7, 11, 15):
-        for x in (0, LW - 1):
-            t.set(x, 2, z, "minecraft:glass_pane")
+        if z < depth - 1:
+            for x in (0, LW - 1):
+                t.set(x, 2, z, "minecraft:glass_pane")
     # Front opening.
     if wide_front:
         for x in (mid - 1, mid, mid + 1):
@@ -929,8 +934,10 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
     # Steep roof (ridge along z), over the porch.
     for x in range(LW):
         top = steep_roof_top(x, LW)
-        for z in range(LD):
+        for z in range(depth):
             t.set(x, top - 1, z, "minecraft:dark_oak_planks")
+            if x == mid and not ridge_slab:
+                continue
             if x == mid:
                 t.set(x, top, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
             else:
@@ -938,20 +945,22 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
         # Gable walls under the roof, at the front and the back of the body.
         if 0 < x < LW - 1:
             for y in range(LONG_WALL_TOP + 1, top - 1):
-                for z in (1, LD - 1):
+                for z in (1, depth - 1):
                     t.set(x, y, z, "minecraft:spruce_planks")
     # Carved horns at the 2 ends of the ridge.
-    for z in (0, LD - 1):
+    for z in (0, depth - 1):
         for x in (mid - 1, mid + 1):
             t.set(x, steep_roof_top(x, LW) + 1, z, "minecraft:spruce_fence")
             t.set(x, steep_roof_top(x, LW) + 2, z, "minecraft:spruce_fence")
-        t.set(mid, steep_roof_top(mid, LW) + 1, z, "minecraft:spruce_fence")
-    # Long hearth in the middle of the body.
-    hearth = LD // 2
-    for z in range(hearth - 2, hearth + 3):
-        t.set(mid, 0, z, "minecraft:stone_bricks")
-    t.set(mid, 1, hearth, *unlit_campfire())
-    t.set(mid, steep_roof_top(mid, LW) - 2, hearth + 4, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+        t.set(mid, steep_roof_top(mid, LW) + (1 if ridge_slab else 0), z, "minecraft:spruce_fence")
+    # Long hearth in the middle of the body, and a lantern under the ridge.
+    middle = depth // 2
+    if hearth:
+        for z in range(middle - 2, middle + 3):
+            t.set(mid, 0, z, "minecraft:stone_bricks")
+        t.set(mid, 1, middle, *unlit_campfire())
+    t.set(mid, steep_roof_top(mid, LW) - 2, middle + 4 if hearth else middle, "minecraft:lantern",
+          {"hanging": "true", "waterlogged": "false"})
     building_sign(t, LW - 2, 1, 0, sign)
     # Jigsaw connector in the porch, facing out (north).
     t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
@@ -1526,17 +1535,78 @@ def connect_fences(t, y):
         t.set(x, y, z, name, props, nbt)
 
 
+# The blocks over a wall that raise its post (the block tag minecraft:wall_post_override).
+WALL_POST_OVERRIDE = ("torch", "_sign", "_banner", "pressure_plate", "tripwire")
+
+
+def covers(above, side=None):
+    """True if the bottom of the block above a wall covers a side of the wall (side), or its post (no side), as in the
+    game (WallBlock). above is the name and the properties of the block above the wall."""
+    name, props = above
+    if name.endswith("_wall"):
+        return props[side] != "none" if side else props["up"] == "true" or any(props[s] != "none" for s in SIDES)
+    if name.endswith("_slab") or name.endswith("_stairs"):
+        return props.get("type", props.get("half")) == "bottom"
+    if name == "minecraft:lantern" and props.get("hanging") == "false":
+        return side is None
+    return name.endswith(FENCE_SUPPORTS)
+
+
+def connect_walls(t):
+    """Sets the sides and the post of each wall from its neighbors, as the game does (WallBlock).
+
+    - A wall connects to a wall, a pane, a fence gate across the side, and a full block (FENCE_SUPPORTS).
+    - A side is tall when the block above the wall covers it, else low.
+    - The post goes up at an end, at a corner, under a raised post, under a torch, a sign or a banner, and under a
+      block that covers the post. The post of a straight wall with 2 tall sides does not go up.
+
+    The walls go from the top to the bottom: the shape of a wall depends on the wall above it.
+    """
+    walls = sorted((pos for pos, ((name, _), _) in t.blocks.items() if name.endswith("_wall")), key=lambda p: -p[1])
+    for x, y, z in walls:
+        (name, _), nbt = t.blocks[(x, y, z)]
+        entry = t.blocks.get((x, y + 1, z))
+        above = (entry[0][0], dict(entry[0][1])) if entry else ("minecraft:air", {})
+        props = {}
+        for side, (dx, dz) in SIDES.items():
+            entry = t.blocks.get((x + dx, y, z + dz))
+            other, other_props = (entry[0][0], dict(entry[0][1])) if entry else ("minecraft:air", {})
+            across = other.endswith("_fence_gate") and (other_props["facing"] in ("north", "south")) == bool(dx)
+            connects = other.endswith(("_wall",) + FENCE_SUPPORTS) or other in PANES or across
+            props[side] = ("tall" if covers(above, side) else "low") if connects else "none"
+        none = {side: props[side] == "none" for side in SIDES}
+        if above[0].endswith("_wall") and above[1]["up"] == "true":
+            up = True
+        elif all(none.values()) or none["north"] != none["south"] or none["east"] != none["west"]:
+            up = True
+        elif props["north"] == props["south"] == "tall" or props["east"] == props["west"] == "tall":
+            up = False
+        else:
+            up = above[0].startswith("minecraft:") and above[0].endswith(WALL_POST_OVERRIDE) or covers(above)
+        t.set(x, y, z, name, {**props, "up": "true" if up else "false", "waterlogged": "false"}, nbt)
+
+
+def shaped(t):
+    """The template with the shapes of the game: each fence connects to its neighbors (see connect_fences), and each
+    wall of a biome variant gets its shape after the block replacement (see connect_walls). Thus the fences of a pen
+    are walls with no gaps in the desert."""
+    for y in range(1, t.size[1]):
+        connect_fences(t, y)
+    t.shape_walls = True
+    return t
+
+
 # The water of a field: a waterlogged slab. The slab holds the water on uneven ground, and the foundation goes under
 # it. Farmland and sugar cane get their water from the slab.
 WATER_SLAB = ("minecraft:spruce_slab", {"type": "bottom", "waterlogged": "true"})
 
 
-def field_ground(x, z):
+def field_ground(x, z, water=WATER):
     """Farmland around the water of the field, and a path of coarse dirt from the back door to the water: a builder
     stands on the path to add the water."""
-    if (x, z) == WATER:
+    if (x, z) == water:
         return WATER_SLAB
-    return "minecraft:coarse_dirt" if x == WATER[0] else FARMLAND
+    return "minecraft:coarse_dirt" if x == water[0] else FARMLAND
 
 
 def crop(name, rng, top=7):
@@ -1634,25 +1704,30 @@ def jungle_garden():
     return t
 
 
+FLOWERS = ("minecraft:dandelion", "minecraft:poppy", "minecraft:cornflower")
+
+
+def forage_ground(x, z):
+    """The ground of the yard of the forager: podzol in the west half, grass in the east half, and a path of coarse
+    dirt in the middle."""
+    if x == W // 2:
+        return "minecraft:coarse_dirt"
+    return "minecraft:podzol" if x < W // 2 else GRASS
+
+
+def forage_plants(x, z):
+    """The finds of the forager: mushrooms on the podzol and wild flowers on the grass."""
+    if x == W // 2:
+        return None
+    if x < W // 2:
+        return "minecraft:brown_mushroom" if (x + z) % 2 == 0 else "minecraft:red_mushroom"
+    return FLOWERS[(x + z) % len(FLOWERS)]
+
+
 def forager_hut():
     """The building of the forager: mushrooms on podzol, wild flowers on grass, and the finds in a barrel."""
     rng = random.Random(54)
-    mid = W // 2
-    flowers = ("minecraft:dandelion", "minecraft:poppy", "minecraft:cornflower")
-
-    def ground(x, z):
-        if x == mid:
-            return "minecraft:coarse_dirt"
-        return "minecraft:podzol" if x < mid else GRASS
-
-    def plants(x, z):
-        if x == mid:
-            return None
-        if x < mid:
-            return "minecraft:brown_mushroom" if (x + z) % 2 == 0 else "minecraft:red_mushroom"
-        return flowers[(x + z) % len(flowers)]
-
-    t = job_building(rng, "forager", "minecraft:red_mushroom", ground, plants)
+    t = job_building(rng, "forager", "minecraft:red_mushroom", forage_ground, forage_plants)
     t.set(1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(2, 1, 2, "minecraft:moss_block")
     return t
@@ -2182,6 +2257,325 @@ def paper_mill():
     return t
 
 
+# ---------------------------------------------------------------- house-workshops of the Valeholm style
+
+# A Norse house-workshop is a deep long house of LW x LD blocks: it fits each plot of a Norse street, as a long house.
+# The jobs of the fields, the gardens and the animals have a short long house on the street (z = 1..NORSE_SHED - 1)
+# and a fenced yard behind it.
+NORSE_SHED = 9
+NORSE_YARD_Z = range(NORSE_SHED, LD - 1)
+NORSE_YARD_X = range(1, LW - 1)
+# The water of a Norse field, in the middle of the yard: it gives water to all the farmland of the yard.
+NORSE_WATER = (LW // 2, NORSE_SHED + 3)
+# The beds of a Norse long house: on the 2 side walls, behind the hearth, with the heads to the back wall.
+NORSE_BEDS = ((1, 10), (LW - 2, 10))
+COMPOSTER = ("minecraft:composter", {"level": "0"})
+
+
+def norse_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
+    """The house-workshop of a job of the fields, the gardens and the animals in the Valeholm style: a short long house
+    on the street and a fenced yard behind it.
+
+    - The house: the long house shell (see long_house_shell) with no hearth, a door on the street and a back door to
+      the yard. The job sign stands on the porch next to the west porch post, and the house sign next to the east
+      porch post.
+    - The work blocks: the work block of the vanilla profession of the job in the west back corner, and a barrel next
+      to the door.
+    - The home: 2 beds side by side in the east half, with the heads to the east. The path from the door to the back
+      door (x = 4) goes along the feet of the beds.
+    - The yard: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
+      None. A fence goes around the yard, with a lantern on each back corner.
+
+    The caller adds the blocks of the job, then gives the template to shaped.
+    """
+    t = long_house_shell(rng, "house", cobble, depth=NORSE_SHED, hearth=False, ridge_slab=False)
+    mid = LW // 2
+    back = NORSE_SHED - 1
+    for y, half in ((1, "lower"), (2, "upper")):
+        t.set(mid, y, back, "minecraft:spruce_door",
+              {"facing": "south", "half": half, "hinge": "left", "open": "false", "powered": "false"})
+    t.set(mid, 3, back, "minecraft:stripped_spruce_log", {"axis": "x"})
+    t.set(1, 1, back - 1, *work)
+    t.set(mid - 1, 1, 2, *BARREL)
+    lantern(t, LW - 2, 1, 2)
+    home_beds(t, (mid + 1, back - 3), (mid + 1, back - 2), facing="east")
+    job_sign(t, 1, 1, 0, job, icon)
+    for x in range(LW):
+        for z in range(NORSE_SHED, LD):
+            if x in NORSE_YARD_X and z in NORSE_YARD_Z:
+                t.set(x, 0, z, *block(ground(x, z)))
+                plant = plants(x, z)
+                if plant:
+                    t.set(x, 1, z, *block(plant))
+            else:
+                t.set(x, 0, z, cobble(rng))
+                t.set(x, 1, z, "minecraft:spruce_fence")
+    for x in (0, LW - 1):
+        lantern(t, x, 2, LD - 1)
+    return t
+
+
+def norse_farm():
+    """The Valeholm building of the farmer: a field of wheat, carrots, potatoes and beetroots around the water, and hay
+    bales in the house."""
+    rng = random.Random(61)
+    rows = {1: "wheat", 2: "wheat", 3: "carrots", 5: "potatoes", 6: "beetroots", 7: "beetroots"}
+
+    def plants(x, z):
+        if x == NORSE_WATER[0]:
+            return None
+        return crop(f"minecraft:{rows[x]}", rng, 3 if rows[x] == "beetroots" else 7)
+
+    t = norse_yard_workshop(rng, "farmer", "minecraft:wheat", functools.partial(field_ground, water=NORSE_WATER),
+                            plants)
+    for x, y in ((1, 1), (2, 1), (1, 2)):
+        t.set(x, y, 2, "minecraft:hay_block", LOG_Y)
+    return shaped(t)
+
+
+def norse_garden():
+    """The Valeholm building of the gardener: 2 rows of pumpkins and melons on their stems, and sugar cane next to the
+    water. The sugar cane is 1 block high, with no block next to it (see garden)."""
+    rng = random.Random(62)
+    mid, row = NORSE_WATER
+    stems = (row - 2, row + 2)
+
+    def ground(x, z):
+        if x == mid:
+            return field_ground(x, z, NORSE_WATER)
+        return FARMLAND if abs(x - mid) == 2 and z in stems else GRASS
+
+    def plants(x, z):
+        side = x - mid
+        if z == row and abs(side) == 1:
+            return "minecraft:sugar_cane", {"age": "0"}
+        if z not in stems:
+            return None
+        fruit = "pumpkin" if side < 0 else "melon"
+        if abs(side) == 3:
+            return f"minecraft:{fruit}"
+        if abs(side) == 2:
+            return f"minecraft:attached_{fruit}_stem", {"facing": "west" if side < 0 else "east"}
+        return None
+
+    t = norse_yard_workshop(rng, "gardener", "minecraft:pumpkin", ground, plants)
+    t.set(1, 1, 2, "minecraft:pumpkin")
+    t.set(2, 1, 2, "minecraft:melon")
+    return shaped(t)
+
+
+def norse_jungle_garden():
+    """The Valeholm building of the gardener of the jungle: cocoa pods on 2 posts of jungle logs, 2 melons on their
+    stems next to the water, and ferns."""
+    rng = random.Random(63)
+    mid, row = NORSE_WATER
+    posts = ((2, row), (LW - 3, row))
+    melons = {(mid, row - 1): "west", (mid, row + 1): "east"}
+
+    def ground(x, z):
+        if (x, z) == NORSE_WATER:
+            return WATER_SLAB
+        if x == mid:
+            return FARMLAND if (x, z) in melons else "minecraft:coarse_dirt"
+        return GRASS
+
+    def plants(x, z):
+        if (x, z) in posts:
+            return "minecraft:jungle_log", LOG_Y
+        if (x, z) in melons:
+            return "minecraft:attached_melon_stem", {"facing": melons[(x, z)]}
+        if (x - mid, z - row) in ((-1, -1), (1, 1)):
+            return "minecraft:melon"
+        if abs(x - mid) == 3 and z != row:
+            return "minecraft:fern" if rng.random() < 0.5 else None
+        return None
+
+    t = norse_yard_workshop(rng, "gardener_jungle", "minecraft:cocoa_beans", ground, plants)
+    # The posts: 3 jungle logs high, with a cocoa pod on each side. A pod faces its log.
+    for px, pz in posts:
+        for y in (2, 3):
+            t.set(px, y, pz, "minecraft:jungle_log", LOG_Y)
+        for side, (dx, dz) in SIDES.items():
+            t.set(px + dx, 2, pz + dz, "minecraft:cocoa", {"age": str(rng.randint(1, 2)), "facing": TOWARD[side]})
+    t.set(1, 1, 2, "minecraft:melon")
+    return shaped(t)
+
+
+def norse_forager_hut():
+    """The Valeholm building of the forager: mushrooms on podzol, wild flowers on grass (see forage_plants), and the
+    finds in a barrel."""
+    rng = random.Random(64)
+    t = norse_yard_workshop(rng, "forager", "minecraft:red_mushroom", forage_ground, forage_plants)
+    t.set(1, 1, 2, *BARREL)
+    t.set(2, 1, 2, "minecraft:moss_block")
+    return shaped(t)
+
+
+def norse_apiary():
+    """The Valeholm building of the beekeeper: 2 beehives on stands of stripped logs among the flowers, and a path of
+    coarse dirt. The yard has no campfire: a campfire burns, and the heart takes it as a brazier."""
+    rng = random.Random(65)
+    mid, row = NORSE_WATER
+    hives = ((2, row), (LW - 3, row))
+    flowers = FLOWERS + ("minecraft:oxeye_daisy", "minecraft:allium")
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == mid else GRASS
+
+    def plants(x, z):
+        if (x, z) in hives:
+            return "minecraft:stripped_spruce_log", LOG_Y
+        if x == mid or (x + z) % 2:
+            return None
+        return flowers[rng.randrange(len(flowers))]
+
+    t = norse_yard_workshop(rng, "beekeeper", "minecraft:honeycomb", ground, plants)
+    for x, z in hives:
+        t.set(x, 2, z, "minecraft:beehive", {"facing": "south", "honey_level": str(rng.randint(2, 5))})
+    t.set(1, 1, 2, *BARREL)
+    return shaped(t)
+
+
+def norse_ranch():
+    """The Valeholm building of the rancher: a house with a smoker (the work block of the vanilla butcher) and a pen
+    behind it, with hay and a water trough. The doors of the house and the fence keep the animals in the pen. The
+    template has no animals (see ranch)."""
+    rng = random.Random(66)
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if (x, z) == (LW // 2, NORSE_SHED) else GRASS
+
+    def plants(x, z):
+        # The hay and the trough are not next to the fence: a fence connects to a full block.
+        if (x, z) in ((2, NORSE_SHED + 2), (2, NORSE_SHED + 5)):
+            return "minecraft:hay_block", LOG_Y
+        if (x, z) == (LW - 3, NORSE_SHED + 2):
+            return WATER_CAULDRON
+        return None
+
+    t = norse_yard_workshop(rng, "rancher", "minecraft:lead", ground, plants,
+                            work=("minecraft:smoker", {"facing": "east", "lit": "false"}))
+    t.set(1, 1, 2, "minecraft:hay_block", LOG_Y)
+    return shaped(t)
+
+
+def norse_fisher_hut():
+    """The Valeholm building of the fisher: a house with barrels (the work block of the vanilla fisherman) and a tub,
+    and a yard with a pond for the live catch. The pond is a row of waterlogged slabs, with a path of coarse dirt next
+    to it: a builder stands on the path to add the water."""
+    rng = random.Random(67)
+    pond = range(2, LW - 2)
+    row = LD - 3
+
+    def ground(x, z):
+        if z == row and x in pond:
+            return WATER_SLAB
+        return "minecraft:coarse_dirt" if z == row - 1 or x == LW // 2 else GRASS
+
+    def plants(x, z):
+        return BARREL if (x, z) in ((2, NORSE_SHED), (LW - 3, NORSE_SHED)) else None
+
+    t = norse_yard_workshop(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
+    t.set(1, 1, 2, *WATER_CAULDRON)
+    return shaped(t)
+
+
+def norse_workshop(rng, job, icon, wide_front=False):
+    """The house-workshop of a job in a Valeholm long house: the long house shell with the hearth (see
+    long_house_shell), a door on the street or an open shop front. The job sign stands on the porch next to the west
+    porch post, and the house sign next to the east porch post. The 2 beds of the home stand on the side walls behind
+    the hearth (NORSE_BEDS). The caller adds the blocks of the job, then gives the template to shaped."""
+    t = long_house_shell(rng, "house", cobble, wide_front=wide_front, ridge_slab=False)
+    home_beds(t, *NORSE_BEDS)
+    job_sign(t, 1, 1, 0, job, icon)
+    return t
+
+
+def norse_oven(t):
+    """A brick oven on the back wall of a long house: a furnace in bricks, with a chimney of bricks through the steep
+    roof. The chimney takes the place of the roof blocks, so the roof has no hole. The oven is east of the middle: the
+    chimney does not touch the carved horns of the ridge."""
+    x, z = LW // 2 + 1, LD - 2
+    t.set(x, 1, z, "minecraft:furnace", {"facing": "north", "lit": "false"})
+    for dx in (-1, 0, 1):
+        t.set(x + dx, 2, z, "minecraft:bricks")
+        if dx:
+            t.set(x + dx, 1, z, "minecraft:bricks")
+    for y in range(3, steep_roof_top(x + 1, LW) + 2):
+        t.set(x + 1, y, z, "minecraft:bricks")
+
+
+def norse_bakery():
+    """The Valeholm building of the baker: a brick oven, a crafting table to knead the dough, barrels of flour, the
+    wheat on hay bales and a cake on the counter."""
+    rng = random.Random(68)
+    t = norse_workshop(rng, "baker", "minecraft:bread")
+    norse_oven(t)
+    t.set(1, 1, LD - 2, "minecraft:crafting_table")
+    for x, z in ((1, LD - 4), (2, LD - 2)):
+        t.set(x, 1, z, *BARREL)
+    for x, y, z in ((LW - 2, 1, LD - 2), (LW - 2, 1, LD - 3), (LW - 2, 2, LD - 3)):
+        t.set(x, y, z, "minecraft:hay_block", LOG_Y)
+    t.set(LW - 2, 1, 4, *TOP_SLAB)
+    t.set(LW - 2, 2, 4, "minecraft:cake", {"bites": "0"})
+    lantern(t, 1, 1, 2)
+    return shaped(t)
+
+
+def norse_pastry_shop():
+    """The Valeholm building of the pastry cook: an open shop front, a counter with cakes, a brick oven, pumpkins and
+    barrels of sugar."""
+    rng = random.Random(69)
+    t = norse_workshop(rng, "pastry_cook", "minecraft:pumpkin_pie", wide_front=True)
+    norse_oven(t)
+    # The counter behind the open front, with a free passage in the middle.
+    for x in (1, 2, LW - 3, LW - 2):
+        t.set(x, 1, 3, *TOP_SLAB)
+    for x in (2, LW - 3):
+        t.set(x, 2, 3, "minecraft:candle_cake", {"lit": "false"})
+    for x, y in ((1, 1), (2, 1), (2, 2)):
+        t.set(x, y, LD - 2, "minecraft:pumpkin")
+    for z in (LD - 3, LD - 4):
+        t.set(LW - 2, 1, z, *BARREL)
+    lantern(t, 1, 1, 5)
+    return shaped(t)
+
+
+def norse_butchery():
+    """The Valeholm building of the butcher: 2 smokers (the work block of the vanilla butcher), a block of coal, a
+    chopping block, and a rack of chains on a beam across the room. The chains leave 2 blocks of space under them."""
+    rng = random.Random(70)
+    t = norse_workshop(rng, "butcher", "minecraft:cooked_beef")
+    for x in (5, 6):
+        t.set(x, 1, LD - 2, "minecraft:smoker", {"facing": "north", "lit": "false"})
+    t.set(LW - 2, 1, LD - 2, "minecraft:coal_block")
+    for x in range(1, LW - 1):
+        t.set(x, 4, 12, "minecraft:stripped_spruce_log", {"axis": "x"})
+    for x in (2, 3, 6):
+        t.set(x, 3, 12, "minecraft:chain", {"axis": "y", "waterlogged": "false"})
+    t.set(2, 1, 4, "minecraft:stripped_oak_log", LOG_Y)
+    for z in (LD - 2, LD - 3):
+        t.set(1, 1, z, *BARREL)
+    t.set(LW - 2, 1, 4, *WATER_CAULDRON)
+    lantern(t, 1, 1, 2)
+    return shaped(t)
+
+
+# The house-workshops of the Valeholm style, by job. The other jobs use the pieces of all the cultures.
+NORSE_JOBS = {
+    "farmer": norse_farm,
+    "gardener": norse_garden,
+    "gardener_jungle": norse_jungle_garden,
+    "forager": norse_forager_hut,
+    "beekeeper": norse_apiary,
+    "baker": norse_bakery,
+    "pastry_cook": norse_pastry_shop,
+    "rancher": norse_ranch,
+    "butcher": norse_butchery,
+    "fisher": norse_fisher_hut,
+}
+
+
 # ---------------------------------------------------------------- market
 
 # The market square takes the plot of one house. x goes along the street, z goes away from the street: z = 0 is the
@@ -2350,6 +2744,7 @@ STYLES = {
         "house_storehouse": norse_storehouse,
         "house_storehouse_side": norse_storehouse_side,
         "market": functools.partial(market, "deep"),
+        **{f"job_{job}": build for job, build in NORSE_JOBS.items()},
     },
     "sunreach": {
         "house_cottage": sun_cottage,
@@ -2584,6 +2979,8 @@ class Variant:
             if nbt is not None and nbt.get("id") == "minecraft:jigsaw" and nbt["pool"].startswith(prefix):
                 nbt = dict(nbt, pool=self.id(nbt["pool"][len(prefix):]))
             out.blocks[pos] = ((name, props) if pos in t.fixed else self.replace(name, props), nbt)
+        if t.shape_walls:
+            connect_walls(out)
         return out
 
 
