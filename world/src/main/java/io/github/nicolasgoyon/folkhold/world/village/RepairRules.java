@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.util.Set;
 import net.minecraft.core.registries.Registries;
@@ -22,7 +23,8 @@ import net.minecraft.world.level.block.state.properties.Property;
  *
  * <ul>
  *   <li>The properties that the villagers, the players, the redstone, the weather or the growth change: open doors and
- *       gates, lit braziers, the age of a plant, the water in a block. Also the properties that come from the
+ *       gates, lit braziers, the age of a plant, the water in a block, the papers of a quest board (the offered
+ *       quests of the village). Also the properties that come from the
  *       neighbors: the connections of fences, walls and panes, the shape of stairs.</li>
  *   <li>The color of a banner: the village heart gives the color of the faction to the banners.</li>
  *   <li>A brazier in the place of a campfire.</li>
@@ -58,7 +60,7 @@ public final class RepairRules {
             BlockStateProperties.NORTH_WALL, BlockStateProperties.EAST_WALL, BlockStateProperties.SOUTH_WALL,
             BlockStateProperties.WEST_WALL, BlockStateProperties.NORTH_REDSTONE, BlockStateProperties.EAST_REDSTONE,
             BlockStateProperties.SOUTH_REDSTONE, BlockStateProperties.WEST_REDSTONE,
-            BlockStateProperties.STAIRS_SHAPE, BlockStateProperties.CHEST_TYPE);
+            BlockStateProperties.STAIRS_SHAPE, BlockStateProperties.CHEST_TYPE, QuestBoardBlock.PAPERS);
 
     private RepairRules() {
     }
