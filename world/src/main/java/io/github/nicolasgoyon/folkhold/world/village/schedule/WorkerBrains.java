@@ -51,8 +51,11 @@ import net.minecraft.world.entity.schedule.ScheduleBuilder;
  *       {@link #forgetJobSign}). Thus a villager that loses its job or its post does not walk to the old sign.</li>
  *   <li>A villager of a faction village does not claim a vanilla workstation, for example a composter (see
  *       {@link #withoutWorkstation}). Thus a worker with no job sign (a worker of a legacy job slot) keeps its job and
- *       its profession. Each check of the heart releases a vanilla workstation that a villager of the village holds
- *       (see {@link #releaseWorkstation}). The villagers outside the faction villages keep the vanilla rules.</li>
+ *       its profession. The vanilla behavior {@code YieldJobSite} can give the potential job site of a vanilla
+ *       villager with no job to a worker near it. Each check of the heart releases a vanilla workstation that a
+ *       villager of the village holds (see {@link #releaseWorkstation}): the worker releases this workstation within
+ *       about 2 seconds and keeps its profession. The villagers outside the faction villages keep the vanilla
+ *       rules.</li>
  * </ul>
  */
 public final class WorkerBrains {
@@ -213,6 +216,7 @@ public final class WorkerBrains {
             PoiManager poi = level.getPoiManager();
             if (poi.getType(pos).filter(type -> type.is(PoiTypeTags.ACQUIRABLE_JOB_SITE)).isPresent()) {
                 brain.eraseMemory(memory);
+                // Releases the ticket as the vanilla Villager.releasePoi does.
                 poi.release(pos);
                 erased = true;
             }
