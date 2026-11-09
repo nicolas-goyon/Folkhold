@@ -26,7 +26,8 @@ import net.minecraft.server.level.ServerLevel;
  * <ul>
  *   <li><b>market</b> (first rows of the economy section): the state of the market (see {@link VillageMarket.State}),
  *       or "not checked yet" before the first scan of the heart after a load, the market hours with the open or
- *       closed state at this time, and the days to the next market day;</li>
+ *       closed state at this time, and the days to the next market day with the extra offers of each worker on
+ *       this day (no count when the config gives no extra offers);</li>
  *   <li><b>jobs</b> (a section): the number of active jobs, one row for each job post in the order of the posts (the
  *       job, the state of the post, the workers and the beds of its home), the number of homes with no post, the
  *       legacy job slots of a legacy village and their jobs, and a row when the last check of the growth found no
@@ -64,9 +65,32 @@ public final class VillageLife {
                 Component.translatable(marketHoursKey(VillageSchedule.isMarketOpen(level)),
                         DaySchedule.clock(schedule.marketStart()), DaySchedule.clock(schedule.marketEnd()))));
         int days = VillageSchedule.daysToMarketDay(level, settlement);
-        rows.add(new Row(Component.translatable(KEY + "market_day"), Component.translatable(marketDayKey(days),
-                days)));
+        rows.add(new Row(Component.translatable(KEY + "market_day"),
+                marketDayText(days, schedule.marketDayOffers())));
         return rows;
+    }
+
+    /**
+     * The text of the market day: the days to the next market day, and the extra offers of each worker on this day.
+     * With no extra offers, the text has no count.
+     *
+     * @param days   the days to the next market day, 0 on a market day
+     * @param offers the extra offers of each worker on a market day
+     * @return the text
+     */
+    static Component marketDayText(int days, int offers) {
+        Component day = Component.translatable(marketDayKey(days), days);
+        String key = marketDayOffersKey(offers);
+        return key == null ? day : Component.translatable(key, day, offers);
+    }
+
+    /** The text of the extra offers of the market day: one offer, more offers, or null for no offer. */
+    @Nullable
+    static String marketDayOffersKey(int offers) {
+        if (offers <= 0) {
+            return null;
+        }
+        return KEY + (offers == 1 ? "market_day.offer" : "market_day.offers");
     }
 
     /**

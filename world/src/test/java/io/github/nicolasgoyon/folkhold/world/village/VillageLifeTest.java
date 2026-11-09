@@ -75,6 +75,26 @@ class VillageLifeTest {
         }
     }
 
+    /** The market day shows the extra offers: one offer, more offers, and no count with no extra offers. */
+    @Test
+    void marketDayShowsTheExtraOffers() throws IOException {
+        Component none = VillageLife.marketDayText(1, 0);
+        assertTrue(none.getContents() instanceof TranslatableContents contents
+                && contents.getKey().equals(KEY + "market_day.tomorrow"), "Expected no count: " + none);
+        Component one = VillageLife.marketDayText(0, 1);
+        assertTrue(one.getContents() instanceof TranslatableContents contents
+                && contents.getKey().equals(KEY + "market_day.offer") && contents.getArgs()[1].equals(1)
+                && contents.getArgs()[0] instanceof Component day && day.getContents() instanceof TranslatableContents
+                        dayContents && dayContents.getKey().equals(KEY + "market_day.today"),
+                "Expected today with 1 offer: " + one);
+        Component two = VillageLife.marketDayText(3, 2);
+        assertTrue(two.getContents() instanceof TranslatableContents contents
+                && contents.getKey().equals(KEY + "market_day.offers") && contents.getArgs()[1].equals(2),
+                "Expected 2 offers: " + two);
+        assertTranslated(VillageLife.marketDayOffersKey(1));
+        assertTranslated(VillageLife.marketDayOffersKey(2));
+    }
+
     /** Each job file of the mod has a name in English and in French. */
     @Test
     void eachJobHasAName() throws IOException, URISyntaxException {

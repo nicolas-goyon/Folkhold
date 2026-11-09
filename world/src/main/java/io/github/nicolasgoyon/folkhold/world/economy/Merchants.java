@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.JobTrades;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Stock;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
+import io.github.nicolasgoyon.folkhold.core.sim.schedule.DaySchedule;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
@@ -19,6 +20,8 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import io.github.nicolasgoyon.folkhold.world.village.VillageMarket;
+import io.github.nicolasgoyon.folkhold.world.village.schedule.VillageSchedule;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -62,7 +65,15 @@ import net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent;
  *       count of the level divides between the traders of the village, with 2 offers or more for each trader.</li>
  *   <li>Each trade changes the stock and the treasury.</li>
  *   <li>A worker does not trade with a player below the neutral tier. Friends and allies get a discount.</li>
+ *   <li>A worker trades only at the trade place of its village during the market hours (see
+ *       {@link #marketRefusal}). The trade place is the market, or the plaza for a village with no market (see
+ *       {@link VillageMarket}). Out of the trade place or out of the market hours, the worker refuses, and the player
+ *       gets the place and the market hours.</li>
+ *   <li>On the market day of the village, each trader has extra offers (see {@link JobTrades#offers}).</li>
  * </ul>
+ *
+ * <p>The caravan merchants have their own rule: they trade at all the hours during their stay (see
+ * {@link io.github.nicolasgoyon.folkhold.world.group.CaravanInteractions}).
  *
  * <p>The profession {@link ModProfessions#MERCHANT} does not trade: a villager with this profession becomes an
  * inhabitant at the next check of the heart (see {@link VillageFolk#inhabitants}).
@@ -74,6 +85,22 @@ public final class Merchants {
     private static final int MAX_USES = 64;
     /** The price change of an offer for each use, as a share: the vanilla demand. */
     public static final float PRICE_MULTIPLIER = 0.05F;
+    /**
+     * The margin around the area of the trade place, in blocks. A worker at the market strolls near the market sign,
+     * and can stand a few blocks out of the box of the market piece.
+     */
+    public static final int MARKET_MARGIN = 4;
+    private static final String MESSAGE = "message.folkhold_world.";
+
+    /** The reason of a worker to refuse a trade for the market rule. */
+    public enum MarketRefusal {
+        /** The worker trades: it is at the trade place during the market hours. */
+        NONE,
+        /** The time is out of the market hours. */
+        CLOSED,
+        /** The worker is out of the trade place of its village. */
+        AWAY
+    }
 
     private Merchants() {
     }
@@ -195,8 +222,61 @@ public final class Merchants {
             event.setCanceled(true);
             return;
         }
+        MarketRefusal refusal = marketRefusal(level, heart, villager);
+        if (refusal != MarketRefusal.NONE) {
+            refuseOutOfMarket(player, villager, heart.tradePlace(level), refusal);
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            event.setCanceled(true);
+            return;
+        }
         ReputationTier tier = Reputations.tier(level.getServer(), player, heart);
-        villager.setOffers(offers(level.getServer(), settlement, tier, villager.getVillagerData().getProfession()));
+        villager.setOffers(offers(level.getServer(), settlement, tier, villager.getVillagerData().getProfession(),
+                VillageSchedule.extraOffers(level, settlement)));
+    }
+
+    /**
+     * The market rule of a worker: the worker trades only in the area of the trade place of its village (with a margin
+     * of {@link #MARKET_MARGIN} blocks), during the market hours of the village. The market hours have no delay of the
+     * worker (see {@link VillageSchedule#isMarketOpen}).
+     *
+     * @param level  the level
+     * @param heart  the heart of the village of the worker
+     * @param worker the worker
+     * @return {@link MarketRefusal#NONE} if the worker trades, else the reason of the refusal
+     */
+    public static MarketRefusal marketRefusal(ServerLevel level, VillageHeartBlockEntity heart, Villager worker) {
+        if (!VillageSchedule.isMarketOpen(level)) {
+            return MarketRefusal.CLOSED;
+        }
+        return heart.tradePlace(level).area().inflatedBy(MARKET_MARGIN).isInside(worker.blockPosition())
+                ? MarketRefusal.NONE : MarketRefusal.AWAY;
+    }
+
+    /**
+     * Tells the player why a worker refuses the trade: a message on the screen each time, and a notice with the place
+     * and the market hours at most once in the cooldown of the notices.
+     */
+    private static void refuseOutOfMarket(ServerPlayer player, Villager villager, VillageMarket.TradePlace place,
+            MarketRefusal refusal) {
+        DaySchedule schedule = VillageSchedule.schedule();
+        Component where = Component.translatable(placeKey(place.market()));
+        String start = DaySchedule.clock(schedule.marketStart());
+        String end = DaySchedule.clock(schedule.marketEnd());
+        String key = refusalKey(refusal);
+        player.displayClientMessage(Component.translatable(key, villager.getDisplayName(), where, start, end), true);
+        Notices.warn(player, key, Component.translatable(key + ".title"),
+                Component.translatable(MESSAGE + "market_hours", where, start, end));
+        villager.playSound(SoundEvents.VILLAGER_NO, 1.0F, 1.0F);
+    }
+
+    /** The text of a refusal of the market rule. */
+    public static String refusalKey(MarketRefusal refusal) {
+        return MESSAGE + (refusal == MarketRefusal.CLOSED ? "market_closed" : "market_away");
+    }
+
+    /** The name of the trade place in a message: the market, or the plaza. */
+    public static String placeKey(boolean market) {
+        return MESSAGE + (market ? "trade_place.market" : "trade_place.plaza");
     }
 
     /**
@@ -243,24 +323,49 @@ public final class Merchants {
     }
 
     /**
+     * The offers of a worker of a settlement for a player on a day that is not a market day.
+     *
+     * @see #offers(MinecraftServer, Settlement, ReputationTier, VillagerProfession, int)
+     */
+    public static MerchantOffers offers(MinecraftServer server, Settlement settlement, ReputationTier tier,
+            VillagerProfession profession) {
+        return offers(server, settlement, tier, profession, 0);
+    }
+
+    /**
+     * The number of offers of a worker of a settlement: its share of the offer count of the level and the extra
+     * offers of the day (see {@link JobTrades#offers}). The stock and the treasury can give fewer offers.
+     *
+     * @param settlement the settlement
+     * @param profession the profession of the worker
+     * @param extra      the extra offers of the day (see {@link VillageSchedule#extraOffers})
+     * @return the number of offers, 0 if the profession does not trade
+     */
+    public static int offerCount(Settlement settlement, VillagerProfession profession, int extra) {
+        List<VillagerProfession> traders = traders(settlement);
+        int index = traders.indexOf(profession);
+        return index < 0 ? 0 : JobTrades.offers(LevelTables.get().traits(settlement.level()).tradeOffers(),
+                traders.size(), index, extra);
+    }
+
+    /**
      * The offers of a worker of a settlement for a player: the goods of its active jobs (see {@link JobTrades}).
      *
      * @param server     the server
      * @param settlement the settlement
      * @param tier       the reputation tier of the player
      * @param profession the profession of the worker
+     * @param extra      the extra offers of the day (see {@link VillageSchedule#extraOffers})
      * @return the offers, empty if the worker does not trade
      */
     public static MerchantOffers offers(MinecraftServer server, Settlement settlement, ReputationTier tier,
-            VillagerProfession profession) {
+            VillagerProfession profession, int extra) {
         MerchantOffers offers = new MerchantOffers();
         List<Job> jobs = tradedJobs(settlement, profession);
         if (jobs.isEmpty()) {
             return offers;
         }
-        List<VillagerProfession> traders = traders(settlement);
-        int count = JobTrades.share(LevelTables.get().traits(settlement.level()).tradeOffers(), traders.size(),
-                traders.indexOf(profession));
+        int count = offerCount(settlement, profession, extra);
         EconomySettings settings = Economies.settings();
         Stock stock = settlement.economy().stock();
         int population = settlement.economy().population();

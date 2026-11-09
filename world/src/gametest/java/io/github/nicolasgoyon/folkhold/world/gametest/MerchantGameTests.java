@@ -60,6 +60,8 @@ public final class MerchantGameTests {
     private static final String FISHER = "folkhold_world:fisher";
     /** The test job of the GameTest data: it needs its building and shows the weaponsmith profession. */
     private static final String TEST_SMITH = "folkhold_world:test_smith";
+    /** A day time in the market phase of the default schedule. */
+    private static final long MARKET_TIME = 6000;
     /** The tests call the checks of the heart this number of times to create all the villagers. */
     private static final int FILL_CHECKS = 30;
 
@@ -415,14 +417,23 @@ public final class MerchantGameTests {
         reputation.get(player.getUUID()).setVillage(village.settlement().id(), 0);
         List<VillagerProfession> professions = List.of(ModProfessions.BAKER.get(), ModProfessions.INHABITANT.get(),
                 VillagerProfession.FARMER, ModProfessions.MERCHANT.get());
-        List<Boolean> canceled = professions.stream().map(profession -> {
-            Villager villager = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(), profession);
-            PlayerInteractEvent.EntityInteract event =
-                    new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, villager);
-            NeoForge.EVENT_BUS.post(event);
-            villager.discard();
-            return event.isCanceled();
-        }).toList();
+        // The workers trade only during the market hours. The test sets a time of the market and the old time again
+        // in the same tick: the other tests of the batch do not see the change.
+        long oldTime = helper.getLevel().getDayTime();
+        helper.getLevel().setDayTime(MARKET_TIME);
+        List<Boolean> canceled;
+        try {
+            canceled = professions.stream().map(profession -> {
+                Villager villager = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(), profession);
+                PlayerInteractEvent.EntityInteract event =
+                        new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, villager);
+                NeoForge.EVENT_BUS.post(event);
+                villager.discard();
+                return event.isCanceled();
+            }).toList();
+        } finally {
+            helper.getLevel().setDayTime(oldTime);
+        }
 
         helper.getLevel().getServer().getPlayerList().remove(player);
         helper.assertTrue(canceled.equals(List.of(false, true, true, true)),
