@@ -42,8 +42,6 @@ public final class HomeTemplateGameTests {
      * homes, in each of the 6 variants.
      */
     private static final int HOME_PIECES = (4 + 6 + 5 + 6) * 6;
-    /** The number of Valeholm home pieces: 6 homes in each of the 6 variants. */
-    private static final int VALEHOLM_HOME_PIECES = 6 * 6;
     /** The size of the floor of the plan test, in blocks: a long house (17 blocks deep) and a margin around it. */
     private static final int PLAN_FLOOR = 24;
     /** The origin of the template of the plan test: the floor goes around the piece on each side. */
@@ -61,7 +59,7 @@ public final class HomeTemplateGameTests {
     @GameTest(template = "empty", timeoutTicks = 20, batch = "home_templates")
     public static void eachHomeWorkBlockAndBedCanBeReached(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        Set<ResourceLocation> pieces = homePieces(level, JobBuildingTemplateGameTests.STYLES);
+        Set<ResourceLocation> pieces = homePieces(level);
         List<String> problems = new ArrayList<>();
         for (ResourceLocation id : pieces) {
             Optional<StructureTemplate> template = level.getStructureManager().get(id);
@@ -82,15 +80,15 @@ public final class HomeTemplateGameTests {
     }
 
     /**
-     * Builders can place each block of each Valeholm home piece of the pools in each variant: the construction plan
-     * of the piece on a flat floor has no warning. A block with no position to stand for a builder gives the warning
-     * {@code NO_STAND}. The test checks exactly {@link #VALEHOLM_HOME_PIECES} pieces: a missing template fails it.
+     * Builders can place each block of each home piece of the pools of each style and each variant: the construction
+     * plan of the piece on a flat floor has no warning. A block with no position to stand for a builder gives the
+     * warning {@code NO_STAND}. The test checks exactly {@link #HOME_PIECES} pieces: a missing template fails it.
      */
     @GameTest(template = "arena_huge", timeoutTicks = 20, batch = "home_templates", skyAccess = true)
-    public static void eachValeholmHomePlanHasNoWarning(GameTestHelper helper) {
+    public static void eachHomePlanHasNoWarning(GameTestHelper helper) {
         TestSupport.buildFloor(helper, PLAN_FLOOR);
         ServerLevel level = helper.getLevel();
-        Set<ResourceLocation> pieces = homePieces(level, List.of("valeholm/"));
+        Set<ResourceLocation> pieces = homePieces(level);
         BlockPos origin = helper.absolutePos(PLAN_ORIGIN);
         List<String> problems = new ArrayList<>();
         for (ResourceLocation id : pieces) {
@@ -106,20 +104,20 @@ public final class HomeTemplateGameTests {
                         + relative(warning.pos(), origin)).toList());
             }
         }
-        helper.assertTrue(pieces.size() == VALEHOLM_HOME_PIECES, "Expected " + VALEHOLM_HOME_PIECES
-                + " Valeholm home pieces to check: " + pieces.size());
-        helper.assertTrue(problems.isEmpty(), "Plans of Valeholm home pieces with warnings: " + problems);
+        helper.assertTrue(pieces.size() == HOME_PIECES, "Expected " + HOME_PIECES + " home pieces to check: "
+                + pieces.size());
+        helper.assertTrue(problems.isEmpty(), "Plans of home pieces with warnings: " + problems);
         helper.succeed();
     }
 
     /**
-     * The templates of the pieces of the pools {@link #HOME_POOLS} of the given styles in each variant of
-     * {@link JobBuildingTemplateGameTests#VARIANTS}.
+     * The templates of the pieces of the pools {@link #HOME_POOLS} of each style of
+     * {@link JobBuildingTemplateGameTests#STYLES} in each variant of {@link JobBuildingTemplateGameTests#VARIANTS}.
      */
-    private static Set<ResourceLocation> homePieces(ServerLevel level, List<String> styles) {
+    private static Set<ResourceLocation> homePieces(ServerLevel level) {
         Registry<StructureTemplatePool> pools = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
         Set<ResourceLocation> pieces = new TreeSet<>();
-        for (String style : styles) {
+        for (String style : JobBuildingTemplateGameTests.STYLES) {
             for (String variant : JobBuildingTemplateGameTests.VARIANTS) {
                 for (String name : HOME_POOLS) {
                     ResourceKey<StructureTemplatePool> key = ResourceKey.create(Registries.TEMPLATE_POOL,
