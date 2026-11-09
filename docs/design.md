@@ -463,7 +463,7 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
   - the gates close;
   - the inhabitants hide.
 - Archers: when the village is calm, each archer moves between the towers at random intervals. A tower with a large view to the outside has a higher chance. When the village is in alert, each archer goes to the nearest free tower: one archer on each tower, if possible. A tower with no view is not used.
-- Chase area: a unit chases a target only near its village (the chase radius around the heart), in the territory of its faction, and out of deep water (3 blocks or more). A target that swims away from an island or a coast is safe, and the guards stay on land.
+- Chase area: a unit chases a target only near its village (the chase radius around the heart), in the territory of its faction, and out of deep water (3 blocks or more). A target that swims away from an island or a coast is safe, and the guards stay on land. When a unit stops a chase (the unit or its target leaves the chase area, or the unit cannot reach the target for 10 seconds), the unit ignores all targets for 5 seconds. An attack stops this time when the unit and the attacker are both in the chase area: the unit then targets the attacker. An attack from outside the chase area does not stop this time, so the unit stays near its post. Only the unit that takes the hit answers the attacker: the alert of this unit does not stop the give-up time of the other units.
 - Aggression depends on reputation. Below the hostile threshold, the guards attack on sight. At neutral, they give a warning, then attack if the player breaks blocks or steals.
 
 ### Daily schedule
