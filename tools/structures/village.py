@@ -45,6 +45,7 @@ import json
 import os
 import random
 import sys
+from collections.abc import Callable
 
 sys.path.insert(0, os.path.dirname(__file__))
 from nbt import Template  # noqa: E402
@@ -2466,6 +2467,24 @@ RAIL = ("minecraft:rail", {"shape": "north_south", "waterlogged": "false"})
 
 
 @dataclasses.dataclass(frozen=True)
+class SmelteryLayout:
+    """The places of the blocks of a smeltery of a style (see style_smeltery). The back row is the row in front of the
+    back wall.
+
+    - furnaces: the x of the 2 blast furnaces on the back row.
+    - ore_x: the x of the 2 blocks of raw ore on the back row and the row in front of it.
+    - coal: (x, z) of the block of coal.
+    - cauldron: (x, z) of the water cauldron. The barrel of sand of the smelter is 1 block in front of it (z - 1).
+    - lanterns: (x, y, z) of each lantern after the lantern next to the door.
+    """
+    furnaces: tuple[int, int]
+    ore_x: int
+    coal: tuple[int, int]
+    cauldron: tuple[int, int]
+    lanterns: tuple[tuple[int, int, int], ...]
+
+
+@dataclasses.dataclass(frozen=True)
 class WorkshopStyle:
     """The style of the house-workshops of a culture (VALEHOLM, SUNREACH): the values that the builders of the styles
     (see style_jobs) take from the style.
@@ -2478,21 +2497,24 @@ class WorkshopStyle:
     - workshop(rng, job, icon, beds, wide_front, wall_lower): the house of a job with no yard.
     - oven(t): a brick oven with a chimney on the back wall of a house with no yard.
     - beds: the foot of each home bed of a house with no yard (see home_beds).
-    - places: the places of the blocks that are different in the styles. Keys: sawmill_lantern (x, y, z),
-      mason_cutter (x, z) of the stonecutter, mason_lantern (x, y, z), smelter_furnaces (the x of the 2 blast
-      furnaces), smelter_ores (the x of the raw ore), smelter_coal (x, z), smelter_cauldron (x, z), smelter_lanterns
-      (the lanterns of a smeltery after the lantern next to the door).
+    - sawmill_lantern: (x, y, z) of the lantern of a sawmill after the lantern next to the door.
+    - mason_cutter: (x, z) of the stonecutter of the mason. The block of stone to cut is in front of it (z - 1).
+    - mason_lantern: (x, y, z) of the lantern of the mason after the lantern next to the door.
+    - smeltery: the places of the blocks of a smeltery (see SmelteryLayout).
     """
     width: int
     depth: int
     shed: int
-    water: tuple
+    water: tuple[int, int]
     seed: int
-    yard_workshop: object
-    workshop: object
-    oven: object
-    beds: tuple
-    places: dict
+    yard_workshop: Callable[..., Template]
+    workshop: Callable[..., Template]
+    oven: Callable[[Template], None]
+    beds: tuple[tuple[int, int], ...]
+    sawmill_lantern: tuple[int, int, int]
+    mason_cutter: tuple[int, int]
+    mason_lantern: tuple[int, int, int]
+    smeltery: SmelteryLayout
 
 
 def style_farm(s):
@@ -2671,7 +2693,7 @@ def style_sawmill(s, job, wood):
     t.set(1, 1, 3, "minecraft:crafting_table")
     t.set(w - 2, 1, 2, *BARREL)
     lantern(t, 1, 1, 2)
-    lantern(t, *s.places["sawmill_lantern"])
+    lantern(t, *s.sawmill_lantern)
     return shaped(t)
 
 
@@ -2756,12 +2778,12 @@ def style_mason(s):
         t.set(w - 2, y, back, "minecraft:bricks")
     t.set(w - 2, 1, back - 1, "minecraft:smooth_stone")
     t.set(w - 2, 1, back - 2, "minecraft:terracotta")
-    cx, cz = s.places["mason_cutter"]
+    cx, cz = s.mason_cutter
     t.set(cx, 1, cz, "minecraft:stonecutter", {"facing": "east"})
     t.set(cx, 1, cz - 1, "minecraft:stone")
     t.set(w - 2, 1, 3, *BARREL)
     lantern(t, 1, 1, 2)
-    lantern(t, *s.places["mason_lantern"])
+    lantern(t, *s.mason_lantern)
     return shaped(t)
 
 
@@ -2775,16 +2797,16 @@ def style_smeltery(s, job):
     """
     icon, ores, plate = SMELTERS[job]
     rng = random.Random(s.seed + 76)
-    places = s.places
+    layout = s.smeltery
     t = s.workshop(rng, job, icon, s.beds, wall_lower=lambda r: "minecraft:bricks")
     s.oven(t)
     back = s.depth - 2
-    for x in places["smelter_furnaces"]:
+    for x in layout.furnaces:
         t.set(x, 1, back, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
     for z, ore in zip((back, back - 1), ores):
-        t.set(places["smelter_ores"], 1, z, ore)
-    t.set(places["smelter_coal"][0], 1, places["smelter_coal"][1], "minecraft:coal_block")
-    cx, cz = places["smelter_cauldron"]
+        t.set(layout.ore_x, 1, z, ore)
+    t.set(layout.coal[0], 1, layout.coal[1], "minecraft:coal_block")
+    cx, cz = layout.cauldron
     t.set(cx, 1, cz, *WATER_CAULDRON)
     if job == "smelter":
         t.set(cx, 1, cz - 1, *BARREL)
@@ -2792,7 +2814,7 @@ def style_smeltery(s, job):
         t.set(x, 1, 3, *TOP_SLAB)
         t.set(x, 2, 3, plate, {"power": "0"})
     lantern(t, 1, 1, 2)
-    for pos in places["smelter_lanterns"]:
+    for pos in layout.lanterns:
         lantern(t, *pos)
     return shaped(t)
 
@@ -3022,9 +3044,8 @@ def style_jobs(s):
 VALEHOLM = WorkshopStyle(
     width=LW, depth=LD, shed=NORSE_SHED, water=NORSE_WATER, seed=0, yard_workshop=norse_yard_workshop,
     workshop=norse_workshop, oven=norse_oven, beds=NORSE_BEDS,
-    places={"sawmill_lantern": (LW - 2, 1, 4), "mason_cutter": (2, 4), "mason_lantern": (LW - 2, 1, 6),
-            "smelter_furnaces": (2, 3), "smelter_ores": 1, "smelter_coal": (1, LD - 4),
-            "smelter_cauldron": (LW - 2, LD - 3), "smelter_lanterns": ()})
+    sawmill_lantern=(LW - 2, 1, 4), mason_cutter=(2, 4), mason_lantern=(LW - 2, 1, 6),
+    smeltery=SmelteryLayout(furnaces=(2, 3), ore_x=1, coal=(1, LD - 4), cauldron=(LW - 2, LD - 3), lanterns=()))
 
 # The house-workshops of the Valeholm style, by job: each job of JOBS has a piece of the style.
 NORSE_JOBS = {
@@ -3040,9 +3061,9 @@ NORSE_JOBS = {
 # ---------------------------------------------------------------- house-workshops of the Sunreach style
 
 # A Sunreach house-workshop is FW blocks wide, as the flat houses of the style, and CD blocks deep, as the courtyard
-# houses of the style. The jobs of the fields, the gardens, the animals, the lumberjacks, the miner, the digger, the
-# fletcher, the tanner, the shepherd and the dyer have a flat house on the street (z = 1..SUN_SHED - 1) and a walled
-# yard behind it.
+# houses of the style. The farmer, the gardeners, the forager, the beekeeper, the rancher, the fisher, the lumberjacks,
+# the miner, the digger, the fletcher, the tanner, the shepherd and the dyer have a flat house on the street
+# (z = 1..SUN_SHED - 1) and a walled yard behind it.
 SUN_SHED = 7
 SUN_YARD_Z = range(SUN_SHED, CD - 1)
 SUN_YARD_X = range(1, FW - 1)
@@ -3064,8 +3085,9 @@ def sun_workshop_shell(rng, depth=CD, wide_front=False):
 
 
 def sun_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
-    """The house-workshop of a job with a yard in the Sunreach style (the beekeeper, the fisher, and the Sunreach jobs
-    with a yard of style_jobs): a flat house on the street and a walled yard behind it.
+    """The house-workshop of a job with a yard in the Sunreach style (the beekeeper, the fisher, and the jobs with a
+    yard of style_jobs: the farmer, the gardeners, the forager, the rancher, the lumberjacks, the miner, the digger,
+    the fletcher, the tanner, the shepherd and the dyer): a flat house on the street and a walled yard behind it.
 
     - The house: the flat house shell with a door on the street and a back door to the yard. The job sign stands on
       the porch west of the door, and the house sign east of the door.
@@ -3159,7 +3181,8 @@ def sun_fisher_hut():
 
 def sun_workshop(rng, job, icon, beds, wide_front=False, wall_lower=None):
     """The house-workshop of a job in a Sunreach flat house of FW x CD blocks (the baker, the pastry cook, the butcher,
-    and the Sunreach jobs with no yard of style_jobs), with a door on the street or an open shop front. The job sign
+    and the jobs with no yard of style_jobs: the sawyers, the mason, the smelters, the blacksmith, the tinker, the
+    carpenter, the weaver and the papermaker), with a door on the street or an open shop front. The job sign
     stands on the porch west of the door, and the house sign east of the door. beds gives the foot of each bed of the
     home (see home_beds): the head is 1 block to the back wall. The walls of a flat house have no lower layer of other
     blocks: the workshop does not use wall_lower. The caller adds the blocks of the job, then gives the template to
@@ -3251,9 +3274,9 @@ SUN_CRAFT_BEDS = ((1, 5), (FW - 2, 5))
 SUNREACH = WorkshopStyle(
     width=FW, depth=CD, shed=SUN_SHED, water=SUN_WATER, seed=20, yard_workshop=sun_yard_workshop,
     workshop=sun_workshop, oven=sun_oven, beds=SUN_CRAFT_BEDS,
-    places={"sawmill_lantern": (FW - 2, 1, 3), "mason_cutter": (2, 3), "mason_lantern": (FW - 2, 1, 8),
-            "smelter_furnaces": (1, 2), "smelter_ores": FW - 2, "smelter_coal": (FW - 3, CD - 2),
-            "smelter_cauldron": (FW - 2, CD - 4), "smelter_lanterns": ((1, 1, 8),)})
+    sawmill_lantern=(FW - 2, 1, 3), mason_cutter=(2, 3), mason_lantern=(FW - 2, 1, 8),
+    smeltery=SmelteryLayout(furnaces=(1, 2), ore_x=FW - 2, coal=(FW - 3, CD - 2), cauldron=(FW - 2, CD - 4),
+                            lanterns=((1, 1, 8),)))
 
 # The house-workshops of the Sunreach style, by job: each job of JOBS has a piece of the style.
 SUNREACH_JOBS = {
