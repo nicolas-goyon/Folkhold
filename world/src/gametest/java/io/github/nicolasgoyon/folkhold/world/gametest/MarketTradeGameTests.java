@@ -81,7 +81,7 @@ public final class MarketTradeGameTests {
     private MarketTradeGameTests() {
     }
 
-    /** A village heart with its settlement. The end of the test removes it, also after a failure. */
+    /** A village heart with its settlement at level 1. The end of the test removes it, also after a failure. */
     private static VillageHeartBlockEntity village(GameTestHelper helper) {
         TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_GROWTH, false);
         TestSupport.buildFloor(helper, SIZE);
@@ -89,6 +89,8 @@ public final class MarketTradeGameTests {
         VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
         heart.ensureSettlement();
         Settlement settlement = Settlements.of(helper.getLevel().getServer(), heart).orElseThrow();
+        // A known level: a hamlet with 3 offers, so a single trader has 3 offers and 5 on the market day.
+        settlement.setProgress(1, 0);
         settlement.economy().setPopulation(10);
         TestSupport.emptyStock(settlement);
         TestSupport.atTestEnd(helper, () -> {
@@ -170,7 +172,8 @@ public final class MarketTradeGameTests {
         data.addTreasury(faction, TREASURY - original);
         settlement.economy().setJobs(List.of(MINER));
         for (String item : List.of("minecraft:cobblestone", "minecraft:raw_iron", "minecraft:raw_copper",
-                "minecraft:coal", "minecraft:flint", "minecraft:redstone")) {
+                "minecraft:coal", "minecraft:flint", "minecraft:redstone", "minecraft:lapis_lazuli",
+                "minecraft:raw_gold", "minecraft:diamond")) {
             settlement.economy().stock().set(item, 64);
         }
     }
