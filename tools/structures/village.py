@@ -705,11 +705,12 @@ def bed(t, x, z_foot, color="blue", facing="south"):
 def cottage():
     rng = random.Random(2)
     t = house_shell(rng, cobble, calcite, "house")
-    # 3 beds: each bed gives a place to an inhabitant of the village.
-    for x in (1, 2, 3):
+    # 3 beds: each bed gives a place to an inhabitant of the village. A free floor block between 2 beds lets a
+    # villager walk to the head of each bed.
+    for x in (1, 3, 5):
         bed(t, x, 6, "red")
     t.set(6, 1, 7, "minecraft:crafting_table")
-    t.set(5, 1, 7, "minecraft:chest", {"facing": "north", "type": "single", "waterlogged": "false"})
+    t.set(7, 1, 6, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
     t.set(4, 0, 4, "minecraft:spruce_planks")
     t.set(4, 1, 4, "minecraft:red_carpet")
     t.set(7, 1, 2, "minecraft:flower_pot")
@@ -762,9 +763,10 @@ def forge(home=False):
 def storehouse():
     rng = random.Random(5)
     t = house_shell(rng, cobble, lambda r: "minecraft:spruce_planks", "storehouse")
-    for (x, z) in ((1, 7), (2, 7), (1, 6), (7, 7), (7, 6)):
+    # Each barrel has a free floor block next to it: a villager can walk to it.
+    for (x, z) in ((1, 7), (2, 6), (1, 6), (6, 6), (7, 6)):
         t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
-    for (x, z) in ((6, 7), (6, 6), (5, 7)):
+    for (x, z) in ((6, 7), (7, 7), (5, 7)):
         t.set(x, 1, z, "minecraft:hay_block", LOG_Y)
     t.set(6, 2, 7, "minecraft:hay_block", LOG_Y)
     t.set(1, 1, 3, "minecraft:composter", {"level": "0"})
@@ -1069,8 +1071,8 @@ def norse_cottage():
 def norse_cottage_side():
     rng = random.Random(22)
     t = side_house_shell(rng, "house", cobble)
-    # 3 beds along the back wall.
-    for x in (2, 3, SL - 3):
+    # 3 beds along the back wall, with a free floor block next to the head of each bed.
+    for x in (2, 4, SL - 3):
         bed(t, x, SD - 3, "blue")
     t.set(1, 1, 2, "minecraft:crafting_table")
     t.set(SL - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
@@ -1288,8 +1290,9 @@ def flat_house_shell(rng, sign, width, depth, wide_front=False, courtyard=False)
 def sun_cottage():
     rng = random.Random(42)
     t = flat_house_shell(rng, "house", FW, FD)
-    # 3 beds: each bed gives a place to an inhabitant of the village.
-    for x in (1, 2, FW - 2):
+    # 3 beds: each bed gives a place to an inhabitant of the village. A free floor block next to the head of each bed
+    # lets a villager walk to it.
+    for x in (1, 3, FW - 2):
         bed(t, x, FD - 3, "orange")
     t.set(1, 1, 2, "minecraft:crafting_table")
     t.set(FW - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
@@ -1303,8 +1306,8 @@ def sun_cottage():
 def sun_cottage_courtyard():
     rng = random.Random(43)
     t = flat_house_shell(rng, "house", CW, CD, courtyard=True)
-    # 3 beds in the back rooms.
-    for x in (1, 2, CW - 2):
+    # 3 beds in the back rooms, with a free floor block next to the head of each bed.
+    for x in (1, 3, CW - 2):
         bed(t, x, CD - 3, "orange")
     t.set(1, 1, 2, "minecraft:crafting_table")
     t.set(CW - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
@@ -1317,7 +1320,8 @@ def sun_cottage_courtyard():
 def sun_barracks():
     rng = random.Random(44)
     t = flat_house_shell(rng, "barracks", CW, CD, courtyard=True)
-    for x in (1, 2, CW - 3, CW - 2):
+    # A free floor block next to the head of each bed lets a villager walk to it.
+    for x in (1, 3, CW - 4, CW - 2):
         bed(t, x, CD - 3, "red")
     t.set(1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(CW - 2, 1, 2, BANNER, {"rotation": "4"})
@@ -1388,11 +1392,12 @@ def fishing_hut():
     rng = random.Random(21)
     t = house_shell(rng, weathered, planks, "house")
     iron_windows(t)
-    for x in (1, 2):
+    # A free floor block between the 2 beds lets a villager walk to the head of each bed.
+    for x in (1, 3):
         bed(t, x, 6, "cyan")
     t.set(7, 1, 7, "minecraft:smoker", {"facing": "north", "lit": "false"})
     t.set(6, 1, 7, "minecraft:barrel", {"facing": "up", "open": "false"})
-    t.set(7, 1, 6, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(7, 1, 5, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(7, 1, 2, "minecraft:water_cauldron", {"level": "3"})
     # The nets: cobwebs on the back wall, over the beds.
     for x in (1, 2, 3):
@@ -1434,7 +1439,8 @@ def smokehouse():
     # The racks: chains from the roof beam, over the smokers.
     for x in (2, 4, 6):
         t.set(x, 3, 6, "minecraft:chain", {"axis": "y", "waterlogged": "false"})
-    for (x, z) in ((1, 7), (7, 7), (1, 6), (7, 6)):
+    # The barrels in the back corners have a free floor block in front of them: a villager can walk to them.
+    for (x, z) in ((1, 7), (7, 7), (1, 5), (7, 5)):
         t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(1, 1, 2, "minecraft:composter", {"level": "0"})
     lantern(t, 4, 1, 3)
