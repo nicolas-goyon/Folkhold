@@ -100,9 +100,7 @@ public final class JobBuildingTemplateGameTests {
      * The styles with house-workshops of their own, by folder. A complete style has a piece of its own for each job
      * of {@link #JOBS}.
      */
-    private static final Map<String, StyleJobs> STYLE_JOBS = Map.of(
-            "valeholm/", new StyleJobs(VALEHOLM_GROUPS, LONG_HOUSE, true),
-            "sunreach/", new StyleJobs(SUNREACH_GROUPS, SUN_WORKSHOP, false));
+    private static final Map<String, StyleJobs> STYLE_JOBS = styleJobs();
     /** The biome variants of the scan tests of the pieces of a style: the base variant, the desert and the swamp. */
     private static final List<String> STYLE_SCAN_VARIANTS = List.of("", "desert/", "swamp/");
     /** The origin of the template of each job of a group: 3 buildings north of the heart, 2 south of it. */
@@ -239,9 +237,10 @@ public final class JobBuildingTemplateGameTests {
     @GameTestGenerator
     public static List<TestFunction> styleScans() {
         List<TestFunction> tests = new ArrayList<>();
-        for (String style : List.of("valeholm/", "sunreach/")) {
+        for (Map.Entry<String, StyleJobs> entry : STYLE_JOBS.entrySet()) {
+            String style = entry.getKey();
             for (String variant : STYLE_SCAN_VARIANTS) {
-                for (Map.Entry<String, List<String>> group : STYLE_JOBS.get(style).groups().entrySet()) {
+                for (Map.Entry<String, List<String>> group : entry.getValue().groups().entrySet()) {
                     String name = (style + variant).replace("/", "_") + group.getKey();
                     tests.add(new TestFunction("job_building_scan_" + name, "jobbuildingtemplategametests.heartfinds_"
                             + name, FolkholdWorld.MOD_ID + ":arena_huge", Rotation.NONE, 40, 0L, true, false, 1, 1,
@@ -260,6 +259,14 @@ public final class JobBuildingTemplateGameTests {
         List<String> jobs() {
             return groups.values().stream().flatMap(List::stream).toList();
         }
+    }
+
+    /** The styles of {@link #STYLE_JOBS}, in the order of their scan tests. */
+    private static Map<String, StyleJobs> styleJobs() {
+        Map<String, StyleJobs> styles = new LinkedHashMap<>();
+        styles.put("valeholm/", new StyleJobs(VALEHOLM_GROUPS, LONG_HOUSE, true));
+        styles.put("sunreach/", new StyleJobs(SUNREACH_GROUPS, SUN_WORKSHOP, false));
+        return styles;
     }
 
     private static Map<String, List<String>> sunreachGroups() {
