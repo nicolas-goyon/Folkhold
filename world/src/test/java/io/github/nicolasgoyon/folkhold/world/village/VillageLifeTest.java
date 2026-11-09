@@ -21,6 +21,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import org.junit.jupiter.api.Test;
 
 class VillageLifeTest {
@@ -37,6 +39,8 @@ class VillageLifeTest {
             assertTranslated(key);
         }
         assertEquals(KEY + "market.no_space", VillageLife.marketStateKey(VillageMarket.State.NO_SPACE));
+        assertEquals(KEY + "market.unknown", VillageLife.marketStateKey(null));
+        assertTranslated(VillageLife.marketStateKey(null));
         assertTrue(VillageLife.isBad(VillageMarket.State.NO_SPACE) && VillageLife.isBad(VillageMarket.State.BLOCKED));
         assertFalse(VillageLife.isBad(VillageMarket.State.BUILT) || VillageLife.isBad(VillageMarket.State.HAMLET)
                 || VillageLife.isBad(VillageMarket.State.MISSING) || VillageLife.isBad(VillageMarket.State.BUILDING));
@@ -89,6 +93,18 @@ class VillageLifeTest {
             }
         }
         assertEquals("job.folkhold_world.farmer", VillageLife.jobKey("folkhold_world:farmer"));
+    }
+
+    /** A blank job sign (an empty job id) gives the text "No job", not an empty name. */
+    @Test
+    void postWithNoJobHasAName() throws IOException {
+        Component name = VillageLife.jobName("");
+        assertTrue(name.getContents() instanceof TranslatableContents contents
+                && contents.getKey().equals(KEY + "post.no_job"), "Expected the text for no job: " + name);
+        assertTranslated(KEY + "post.no_job");
+        assertTrue(VillageLife.jobName("folkhold_world:farmer").getContents() instanceof TranslatableContents farmer
+                && farmer.getKey().equals("job.folkhold_world.farmer") && farmer.getFallback().equals("farmer"),
+                "Expected the key and the fallback of the farmer");
     }
 
     private static void assertTranslated(String key) throws IOException {

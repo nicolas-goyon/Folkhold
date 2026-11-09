@@ -105,8 +105,9 @@ public final class VillageBeds {
      * @param beds     the head part of each home bed of the village, in the scan order: the beds of the homes with
      *                 a post and with no post, and the beds that are not in a building
      * @param cottages the number of homes with no post: the buildings (pieces of the village structure or boxes of the
-     *                 construction sites) with 1 home bed or more and no post. A bed that is not in a building does not
-     *                 count
+     *                 construction sites) with 1 home bed or more and no post. Each piece that is not a garrison
+     *                 building and has a home bed and no post counts as one home with no post, also a piece that is not
+     *                 a house (for example a plaza piece with a bed). A bed that is not in a building does not count
      */
     public record Homes(List<JobPosts.Post> posts, Map<BlockPos, List<BlockPos>> postBeds, List<BlockPos> beds,
             int cottages) {

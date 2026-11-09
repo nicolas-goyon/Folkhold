@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import javax.annotation.Nullable;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
 import net.minecraft.server.MinecraftServer;
@@ -24,7 +25,8 @@ import net.minecraft.server.level.ServerLevel;
  *
  * <ul>
  *   <li><b>market</b> (first rows of the economy section): the state of the market (see {@link VillageMarket.State}),
- *       the market hours with the open or closed state at this time, and the days to the next market day;</li>
+ *       or "not checked yet" before the first scan of the heart after a load, the market hours with the open or
+ *       closed state at this time, and the days to the next market day;</li>
  *   <li><b>jobs</b> (a section): the number of active jobs, one row for each job post in the order of the posts (the
  *       job, the state of the post, the workers and the beds of its home), the number of homes with no post, the
  *       legacy job slots of a legacy village and their jobs, and a row when the last check of the growth found no
@@ -52,9 +54,10 @@ public final class VillageLife {
         if (!(heart.getLevel() instanceof ServerLevel level)) {
             return rows;
         }
-        VillageMarket.State state = heart.marketState(level);
+        boolean scanned = heart.getLayout().isScanned();
+        VillageMarket.State state = scanned ? heart.marketState(level) : null;
         Component stateText = Component.translatable(marketStateKey(state));
-        rows.add(new Row(Component.translatable(KEY + "market"), isBad(state)
+        rows.add(new Row(Component.translatable(KEY + "market"), state != null && isBad(state)
                 ? stateText.copy().withColor(TEXT_BAD) : stateText));
         DaySchedule schedule = VillageSchedule.schedule();
         rows.add(new Row(Component.translatable(KEY + "market_hours"),
@@ -62,7 +65,7 @@ public final class VillageLife {
                         DaySchedule.clock(schedule.marketStart()), DaySchedule.clock(schedule.marketEnd()))));
         int days = VillageSchedule.daysToMarketDay(level, settlement);
         rows.add(new Row(Component.translatable(KEY + "market_day"), Component.translatable(marketDayKey(days),
-                days == 0 ? VillageSchedule.extraOffers(level, settlement) : days)));
+                days)));
         return rows;
     }
 
@@ -119,12 +122,15 @@ public final class VillageLife {
 
     /**
      * The name of a job: the key {@code job.<namespace>.<path>}, with the path of the id as the fallback for a job of a
-     * data pack with no name.
+     * data pack with no name. A blank job sign (an empty job id) gives the text "No job".
      *
-     * @param jobId the job id, for example {@code folkhold_world:farmer}
+     * @param jobId the job id, for example {@code folkhold_world:farmer}, or an empty text
      * @return the name
      */
     public static Component jobName(String jobId) {
+        if (jobId.isEmpty()) {
+            return Component.translatable(KEY + "post.no_job");
+        }
         return Component.translatableWithFallback(jobKey(jobId), jobId.substring(jobId.indexOf(':') + 1));
     }
 
@@ -133,9 +139,9 @@ public final class VillageLife {
         return "job." + jobId.replace(':', '.');
     }
 
-    /** The text of a market state. */
-    static String marketStateKey(VillageMarket.State state) {
-        return KEY + "market." + state.name().toLowerCase(Locale.ROOT);
+    /** The text of a market state, or of "not checked yet" for a null state (no scan after a load). */
+    static String marketStateKey(@Nullable VillageMarket.State state) {
+        return KEY + "market." + (state == null ? "unknown" : state.name().toLowerCase(Locale.ROOT));
     }
 
     /** True for a market state that the player can change: no free plot, or a block of a player. */
