@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.Quest;
 import io.github.nicolasgoyon.folkhold.core.sim.quest.QuestKind;
@@ -86,8 +87,8 @@ public final class VillageRepairGameTests {
     }
 
     /**
-     * The comparison of the repairs ignores the life of a village: open gates, lit braziers, the colors of the
-     * banners, the soil, the connections of the fences, ice for water, the plants on an empty position and the
+     * The comparison of the repairs ignores the life of a village: open gates, lit braziers, the papers of the quest
+     * board, the colors of the banners, the soil, the connections of the fences, ice for water, the plants on an empty position and the
      * jigsaw blocks. A missing block, a block of another kind and stairs with another facing are damaged.
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_rules")
@@ -99,6 +100,9 @@ public final class VillageRepairGameTests {
         assertDamaged(helper, false, gate.setValue(FenceGateBlock.OPEN, true), gate, "an open gate");
         assertDamaged(helper, false, ModBlocks.BRAZIER.get().defaultBlockState().setValue(BrazierBlock.LIT, true),
                 ModBlocks.BRAZIER.get().defaultBlockState(), "a lit brazier");
+        BlockState board = ModBlocks.QUEST_BOARD.get().defaultBlockState();
+        assertDamaged(helper, false, board.setValue(QuestBoardBlock.PAPERS, 2), board.setValue(QuestBoardBlock.PAPERS,
+                0), "a quest board with papers");
         assertDamaged(helper, false, Blocks.RED_WALL_BANNER.defaultBlockState().setValue(WallBannerBlock.FACING,
                 Direction.NORTH), banner, "a banner of the faction");
         assertDamaged(helper, true, Blocks.RED_WALL_BANNER.defaultBlockState().setValue(WallBannerBlock.FACING,
