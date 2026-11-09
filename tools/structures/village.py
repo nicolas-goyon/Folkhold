@@ -877,7 +877,7 @@ def unlit_campfire(facing="north"):
     return "minecraft:campfire", {"facing": facing, "lit": "false", "signal_fire": "false", "waterlogged": "false"}
 
 
-def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False, depth=LD, hearth=True, ridge_slab=True):
+def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False, depth=LD, hearth=True):
     """A deep Norse long house: a base of cobblestone, walls of horizontal spruce logs between posts of stripped spruce
     logs, a steep roof of dark oak with a ridge along the house, and carved horns at the ends of the ridge.
 
@@ -885,8 +885,9 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False, depth=L
     bricks is in the middle of the body, with a campfire that is not lit. The body goes from z = 1 to z = depth - 1. A
     depth less than LD leaves the back of the plot empty.
 
-    Without ridge_slab, the row of planks under the ridge is the top of the roof: a builder stands on a scaffolding in
-    the house to place it (see ConstructionPlanner). No position to stand reaches the middle of a slab on these planks.
+    The ridge is a row of planks with no slab on it, and the middle horn stands on these planks. A builder stands on a
+    scaffolding in the house to place the ridge (see ConstructionPlanner). A slab on the ridge has no position to stand
+    for a builder: a builder does not stand on the 1-block strips of the roof stairs.
     """
     t = Template(LW, LH, LD)
     t.fill(0, 1, 0, LW - 1, LH - 1, LD - 1, "minecraft:air")
@@ -940,11 +941,7 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False, depth=L
         top = steep_roof_top(x, LW)
         for z in range(depth):
             t.set(x, top - 1, z, "minecraft:dark_oak_planks")
-            if x == mid and not ridge_slab:
-                continue
-            if x == mid:
-                t.set(x, top, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
-            else:
+            if x != mid:
                 t.set(x, top, z, "minecraft:dark_oak_stairs", stairs("east" if x < mid else "west"))
         # Gable walls under the roof, at the front and the back of the body.
         if 0 < x < LW - 1:
@@ -956,7 +953,7 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False, depth=L
         for x in (mid - 1, mid + 1):
             t.set(x, steep_roof_top(x, LW) + 1, z, "minecraft:spruce_fence")
             t.set(x, steep_roof_top(x, LW) + 2, z, "minecraft:spruce_fence")
-        t.set(mid, steep_roof_top(mid, LW) + (1 if ridge_slab else 0), z, "minecraft:spruce_fence")
+        t.set(mid, steep_roof_top(mid, LW), z, "minecraft:spruce_fence")
     # Long hearth in the middle of the body, and a lantern under the ridge.
     middle = depth // 2
     if hearth:
@@ -974,7 +971,7 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False, depth=L
 def side_house_shell(rng, sign, wall_lower):
     """A side Norse long house: the same walls and roof as a deep long house, with the ridge along the street and the
     door in the middle of the long side. A small porch with 2 posts is in front of the door. The hearth is in the
-    middle of the body, along the ridge.
+    middle of the body, along the ridge. The ridge is a row of planks with no slab on it, as on a deep long house.
     """
     t = Template(SL, LH, SD)
     t.fill(0, 1, 1, SL - 1, LH - 1, SD - 1, "minecraft:air")
@@ -1026,9 +1023,7 @@ def side_house_shell(rng, sign, wall_lower):
         top = steep_roof_top(z - 1, SD - 1)
         for x in range(SL):
             t.set(x, top - 1, z, "minecraft:dark_oak_planks")
-            if z == ridge:
-                t.set(x, top, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
-            else:
+            if z != ridge:
                 t.set(x, top, z, "minecraft:dark_oak_stairs", stairs("south" if z < ridge else "north"))
         if 1 < z < SD - 1:
             for y in range(LONG_WALL_TOP + 1, top - 1):
@@ -1041,7 +1036,7 @@ def side_house_shell(rng, sign, wall_lower):
         for z in (ridge - 1, ridge + 1):
             t.set(x, steep_roof_top(z - 1, SD - 1) + 1, z, "minecraft:spruce_fence")
             t.set(x, steep_roof_top(z - 1, SD - 1) + 2, z, "minecraft:spruce_fence")
-        t.set(x, steep_roof_top(ridge - 1, SD - 1) + 1, ridge, "minecraft:spruce_fence")
+        t.set(x, steep_roof_top(ridge - 1, SD - 1), ridge, "minecraft:spruce_fence")
     # Long hearth along the ridge.
     for x in range(mid - 3, mid + 4):
         t.set(x, 0, ridge, "minecraft:stone_bricks")
@@ -2311,7 +2306,7 @@ def norse_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
 
     The caller adds the blocks of the job, then gives the template to shaped.
     """
-    t = long_house_shell(rng, "house", cobble, depth=NORSE_SHED, hearth=False, ridge_slab=False)
+    t = long_house_shell(rng, "house", cobble, depth=NORSE_SHED, hearth=False)
     mid = LW // 2
     back = NORSE_SHED - 1
     for y, half in ((1, "lower"), (2, "upper")):
@@ -2392,7 +2387,7 @@ def norse_workshop(rng, job, icon, beds=NORSE_BEDS, wide_front=False, wall_lower
     next to the west porch post, and the house sign next to the east porch post. beds gives the foot of each bed of the
     home (see home_beds): the beds stand on the side walls behind the hearth (NORSE_BEDS). The caller adds the blocks
     of the job, then gives the template to shaped."""
-    t = long_house_shell(rng, "house", wall_lower, wide_front=wide_front, ridge_slab=False)
+    t = long_house_shell(rng, "house", wall_lower, wide_front=wide_front)
     home_beds(t, *beds)
     job_sign(t, 1, 1, 0, job, icon)
     return t
