@@ -15,13 +15,17 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestGenerator;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.TestFunction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
@@ -73,6 +77,18 @@ public final class JobBuildingTemplateGameTests {
     /** The jobs with a building template. */
     private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD, STONE, CRAFTS, CLOTH).stream()
             .flatMap(List::stream).toList();
+    /**
+     * The groups of 5 jobs of the scan tests of the Valeholm pieces, by name. The Valeholm style has a piece
+     * of its own for each job of these groups (NORSE_JOBS in the structure script).
+     */
+    private static final Map<String, List<String>> VALEHOLM_GROUPS = valeholmGroups();
+    /** The jobs with a Valeholm piece of their own: a Norse long house of {@link #LONG_HOUSE} blocks. */
+    private static final List<String> VALEHOLM_JOBS = VALEHOLM_GROUPS.values().stream().flatMap(List::stream)
+            .toList();
+    /** The size of a Norse long house of the Valeholm style (x, y, z): it fits each plot of a Norse street. */
+    private static final Vec3i LONG_HOUSE = new Vec3i(9, 16, 17);
+    /** The biome variants of the scan tests of the Valeholm pieces: the base variant, the desert and the swamp. */
+    private static final List<String> VALEHOLM_SCAN_VARIANTS = List.of("", "desert/", "swamp/");
     /** The origin of the template of each job of a group: 3 buildings north of the heart, 2 south of it. */
     private static final List<BlockPos> ORIGINS = List.of(new BlockPos(1, 1, 1), new BlockPos(11, 1, 1),
             new BlockPos(21, 1, 1), new BlockPos(6, 1, 21), new BlockPos(16, 1, 21));
@@ -108,6 +124,13 @@ public final class JobBuildingTemplateGameTests {
             for (String style : STYLES) {
                 for (String variant : VARIANTS) {
                     checkTemplate(templates, piece(style + variant, "job_" + job), job, problems);
+                }
+            }
+            if (VALEHOLM_JOBS.contains(job)) {
+                for (String variant : VARIANTS) {
+                    ResourceLocation id = piece("valeholm/" + variant, "job_" + job);
+                    templates.get(id).filter(template -> !template.getSize().equals(LONG_HOUSE))
+                            .ifPresent(template -> problems.add(id + " is not a long house: " + template.getSize()));
                 }
             }
         }
@@ -169,35 +192,34 @@ public final class JobBuildingTemplateGameTests {
         checkScan(helper, FIELDS);
     }
 
-    /** The 5 Valeholm job buildings of the fields and the gardens: see {@link #checkScan}. */
-    @GameTest(template = "arena_huge", timeoutTicks = 40, batch = "job_building_scan_valeholm", skyAccess = true)
-    public static void heartFindsTheValeholmJobPosts(GameTestHelper helper) {
-        checkScan(helper, "valeholm/", FIELDS);
-    }
-
-    /** The 5 Valeholm job buildings of the food and the animals: see {@link #checkScan}. */
-    @GameTest(template = "arena_huge", timeoutTicks = 40, batch = "job_building_scan_valeholm_food", skyAccess = true)
-    public static void heartFindsTheValeholmFoodJobPosts(GameTestHelper helper) {
-        checkScan(helper, "valeholm/", FOOD);
-    }
-
     /**
-     * The 5 Valeholm job buildings of the fields and the gardens in the desert: see {@link #checkScan}. The fences of
-     * the yards are sandstone walls with no gaps.
+     * The scan tests of the Valeholm pieces: one test for each group of {@link #VALEHOLM_GROUPS} in each variant of
+     * {@link #VALEHOLM_SCAN_VARIANTS}, in the arena {@code arena_huge} (see {@link #checkScan}). In the desert, the
+     * fences of the yards and the pens are sandstone walls with no gaps. In the swamp, the pieces have mangrove wood
+     * and mud bricks.
      */
-    @GameTest(template = "arena_huge", timeoutTicks = 40, batch = "job_building_scan_valeholm_desert", skyAccess = true)
-    public static void heartFindsTheValeholmDesertJobPosts(GameTestHelper helper) {
-        checkScan(helper, "valeholm/desert/", FIELDS);
+    @GameTestGenerator
+    public static List<TestFunction> valeholmScans() {
+        List<TestFunction> tests = new ArrayList<>();
+        for (String variant : VALEHOLM_SCAN_VARIANTS) {
+            for (Map.Entry<String, List<String>> group : VALEHOLM_GROUPS.entrySet()) {
+                String name = "valeholm_" + (variant.isEmpty() ? "" : variant.replace("/", "_")) + group.getKey();
+                tests.add(new TestFunction("job_building_scan_" + name, "jobbuildingtemplategametests.heartfinds_"
+                        + name, FolkholdWorld.MOD_ID + ":arena_huge", Rotation.NONE, 40, 0L, true, false, 1, 1, true,
+                        helper -> checkScan(helper, "valeholm/" + variant, group.getValue())));
+            }
+        }
+        return tests;
     }
 
-    /**
-     * The 5 Valeholm job buildings of the food and the animals in the desert: see {@link #checkScan}. The pen of the
-     * rancher is a ring of sandstone walls with no gaps.
-     */
-    @GameTest(template = "arena_huge", timeoutTicks = 40, batch = "job_building_scan_valeholm_desert_food",
-            skyAccess = true)
-    public static void heartFindsTheValeholmDesertFoodJobPosts(GameTestHelper helper) {
-        checkScan(helper, "valeholm/desert/", FOOD);
+    private static Map<String, List<String>> valeholmGroups() {
+        Map<String, List<String>> groups = new LinkedHashMap<>();
+        groups.put("fields", FIELDS);
+        groups.put("food", FOOD);
+        groups.put("wood", WOOD.subList(0, 5));
+        groups.put("wood_2", WOOD.subList(5, 10));
+        groups.put("stone", STONE);
+        return groups;
     }
 
     /** The 5 job buildings of the food and the animals: see {@link #checkScan}. */
@@ -292,7 +314,8 @@ public final class JobBuildingTemplateGameTests {
      * has no warning. After the placement of the templates, each job sign has its job and its icon item, each fence
      * and each wall has the shape of its neighbors, and the scan of the heart finds 1 job post for each building with
      * the beds of the building, 1 home (house sign) for each building and the beds of the templates as the home beds
-     * of the village. The Valeholm pieces are long houses: their tests use the arena {@code arena_huge}.
+     * of the village. The Valeholm pieces are long houses of {@link #LONG_HOUSE} blocks: their tests use the arena
+     * {@code arena_huge}.
      */
     private static void checkScan(GameTestHelper helper, String folder, List<String> jobs) {
         boolean norse = folder.startsWith("valeholm/");
@@ -308,6 +331,8 @@ public final class JobBuildingTemplateGameTests {
             for (int i = 0; i < jobs.size(); i++) {
                 String job = jobs.get(i);
                 StructureTemplate template = templates.get(piece(folder, "job_" + job)).orElseThrow();
+                helper.assertTrue(!norse || template.getSize().equals(LONG_HOUSE), "The Valeholm piece of " + job
+                        + " must be a long house of " + LONG_HOUSE + ": " + template.getSize());
                 BlockPos origin = helper.absolutePos(ORIGINS.get(i));
                 Plan plan = ConstructionPlanner.plan(ConstructionTargets.fromTemplate(level, template, origin,
                         new StructurePlaceSettings()), ConstructionTargets.view(level), Reach.DEFAULT);

@@ -1707,19 +1707,19 @@ def jungle_garden():
 FLOWERS = ("minecraft:dandelion", "minecraft:poppy", "minecraft:cornflower")
 
 
-def forage_ground(x, z):
-    """The ground of the yard of the forager: podzol in the west half, grass in the east half, and a path of coarse
-    dirt in the middle."""
-    if x == W // 2:
+def forage_ground(x, z, width=W):
+    """The ground of the yard of the forager in a building of this width: podzol in the west half, grass in the east
+    half, and a path of coarse dirt in the middle."""
+    if x == width // 2:
         return "minecraft:coarse_dirt"
-    return "minecraft:podzol" if x < W // 2 else GRASS
+    return "minecraft:podzol" if x < width // 2 else GRASS
 
 
-def forage_plants(x, z):
-    """The finds of the forager: mushrooms on the podzol and wild flowers on the grass."""
-    if x == W // 2:
+def forage_plants(x, z, width=W):
+    """The finds of the forager in a building of this width: mushrooms on the podzol and wild flowers on the grass."""
+    if x == width // 2:
         return None
-    if x < W // 2:
+    if x < width // 2:
         return "minecraft:brown_mushroom" if (x + z) % 2 == 0 else "minecraft:red_mushroom"
     return FLOWERS[(x + z) % len(FLOWERS)]
 
@@ -2260,8 +2260,8 @@ def paper_mill():
 # ---------------------------------------------------------------- house-workshops of the Valeholm style
 
 # A Norse house-workshop is a deep long house of LW x LD blocks: it fits each plot of a Norse street, as a long house.
-# The jobs of the fields, the gardens and the animals have a short long house on the street (z = 1..NORSE_SHED - 1)
-# and a fenced yard behind it.
+# The jobs of the fields, the gardens, the animals, the lumberjacks, the miner and the digger have a short long house
+# on the street (z = 1..NORSE_SHED - 1) and a fenced yard behind it.
 NORSE_SHED = 9
 NORSE_YARD_Z = range(NORSE_SHED, LD - 1)
 NORSE_YARD_X = range(1, LW - 1)
@@ -2273,8 +2273,8 @@ COMPOSTER = ("minecraft:composter", {"level": "0"})
 
 
 def norse_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
-    """The house-workshop of a job of the fields, the gardens and the animals in the Valeholm style: a short long house
-    on the street and a fenced yard behind it.
+    """The house-workshop of a job with a yard in the Valeholm style (the fields, the gardens, the animals, the
+    lumberjacks, the miner and the digger): a short long house on the street and a fenced yard behind it.
 
     - The house: the long house shell (see long_house_shell) with no hearth, a door on the street and a back door to
       the yard. The job sign stands on the porch next to the west porch post, and the house sign next to the east
@@ -2405,7 +2405,8 @@ def norse_forager_hut():
     """The Valeholm building of the forager: mushrooms on podzol, wild flowers on grass (see forage_plants), and the
     finds in a barrel."""
     rng = random.Random(64)
-    t = norse_yard_workshop(rng, "forager", "minecraft:red_mushroom", forage_ground, forage_plants)
+    t = norse_yard_workshop(rng, "forager", "minecraft:red_mushroom", functools.partial(forage_ground, width=LW),
+                            functools.partial(forage_plants, width=LW))
     t.set(1, 1, 2, *BARREL)
     t.set(2, 1, 2, "minecraft:moss_block")
     return shaped(t)
@@ -2480,12 +2481,13 @@ def norse_fisher_hut():
     return shaped(t)
 
 
-def norse_workshop(rng, job, icon, wide_front=False):
+def norse_workshop(rng, job, icon, wide_front=False, wall_lower=cobble):
     """The house-workshop of a job in a Valeholm long house: the long house shell with the hearth (see
-    long_house_shell), a door on the street or an open shop front. The job sign stands on the porch next to the west
-    porch post, and the house sign next to the east porch post. The 2 beds of the home stand on the side walls behind
-    the hearth (NORSE_BEDS). The caller adds the blocks of the job, then gives the template to shaped."""
-    t = long_house_shell(rng, "house", cobble, wide_front=wide_front, ridge_slab=False)
+    long_house_shell), a door on the street or an open shop front. wall_lower gives the blocks of the lowest layer of
+    the walls. The job sign stands on the porch next to the west porch post, and the house sign next to the east porch
+    post. The 2 beds of the home stand on the side walls behind the hearth (NORSE_BEDS). The caller adds the blocks of
+    the job, then gives the template to shaped."""
+    t = long_house_shell(rng, "house", wall_lower, wide_front=wide_front, ridge_slab=False)
     home_beds(t, *NORSE_BEDS)
     job_sign(t, 1, 1, 0, job, icon)
     return t
@@ -2561,6 +2563,177 @@ def norse_butchery():
     return shaped(t)
 
 
+def norse_lumber_yard(job, wood):
+    """The Valeholm building of a lumberjack: the short long house with a grindstone for the axes and a potted sapling,
+    and a yard with a pile of logs of the wood of the job, a chopping block and the split wood (see lumber_yard).
+
+    All the lumberjacks have this shape. Only the wood of the logs, of the chopping block and of the sapling changes.
+    """
+    log = f"minecraft:{wood}_log"
+    sapling = POTTED.get(wood, f"minecraft:potted_{wood}_sapling")
+    rng = random.Random(71)
+
+    def ground(x, z):
+        return GRASS if x in (1, 2, LW - 2) else "minecraft:coarse_dirt"
+
+    t = norse_yard_workshop(rng, job, log, ground, lambda x, z: None,
+                            work=("minecraft:grindstone", {"face": "floor", "facing": "north"}))
+    t.set(1, 1, 2, sapling)
+    # The west pile: 2 rows of logs along the fence, the row on the fence 2 logs high.
+    for z in range(NORSE_SHED + 1, LD - 2):
+        for x, top in ((1, 2), (2, 1)):
+            for y in range(1, top + 1):
+                job_material(t, x, y, z, log, {"axis": "z"})
+    # The chopping block: a log on its end. The split wood: stripped logs in the east back corner.
+    job_material(t, LW - 3, 1, NORSE_WATER[1], log, LOG_Y)
+    for x, y in ((LW - 3, 1), (LW - 2, 1), (LW - 2, 2)):
+        job_material(t, x, y, LD - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
+    t.set(LW - 2, 1, NORSE_SHED, sapling)
+    return shaped(t)
+
+
+def norse_sawmill(job, wood):
+    """The Valeholm building of a sawyer: a long house with a saw bench across the room behind the beds (a stonecutter
+    between the logs and the slabs), a pile of logs and a stack of planks on the back wall, a crafting table and a
+    barrel (see sawmill).
+
+    All the sawyers have this shape. Only the wood of the logs, the planks and the slabs changes.
+    """
+    rng = random.Random(72)
+    t = norse_workshop(rng, job, f"minecraft:{wood}_planks")
+    bench = LD - 4
+    for x in (2, 3):
+        job_material(t, x, 1, bench, f"minecraft:{wood}_log", {"axis": "x"})
+    t.set(4, 1, bench, "minecraft:stonecutter", {"facing": "north"})
+    for x in (5, 6):
+        job_material(t, x, 1, bench, f"minecraft:{wood}_slab", {"type": "bottom", "waterlogged": "false"})
+    # The logs to saw (west) and the planks (east) on the back wall. The passages at the ends of the bench stay free.
+    for x, y in ((1, 1), (2, 1), (3, 1), (1, 2), (2, 2)):
+        job_material(t, x, y, LD - 2, f"minecraft:{wood}_log", {"axis": "x"})
+    for x, y, z in ((LW - 3, 1, LD - 2), (LW - 2, 1, LD - 2), (LW - 2, 2, LD - 2), (LW - 2, 1, LD - 3)):
+        job_material(t, x, y, z, f"minecraft:{wood}_planks")
+    t.set(1, 1, 3, "minecraft:crafting_table")
+    t.set(LW - 2, 1, 2, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, LW - 2, 1, 4)
+    return shaped(t)
+
+
+RAIL = ("minecraft:rail", {"shape": "north_south", "waterlogged": "false"})
+
+
+def norse_mine():
+    """The Valeholm building of the miner: the short long house with a smithing table (the work block of the vanilla
+    toolsmith), and a yard with a rock face at the back (see mine). A timber frame in the rock face makes the mouth of
+    the mine, with a lantern under the beam. A rail goes from the back door to the mouth. A pile of cobblestone stands
+    next to the rail. The cobblestone of the pile stays cobblestone in all the variants."""
+    rng = random.Random(73)
+    mid = LW // 2
+    face = LD - 2
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == mid else "minecraft:gravel"
+
+    def plants(x, z):
+        return RAIL if x == mid else None
+
+    t = norse_yard_workshop(rng, "miner", "minecraft:iron_pickaxe", ground, plants,
+                            work=("minecraft:smithing_table", None))
+    # The rock face: 3 blocks high, with stone at its foot on the 2 sides.
+    rock = {1: ("minecraft:stone", "minecraft:andesite", "minecraft:stone"),
+            2: ("minecraft:coal_ore", "minecraft:stone", "minecraft:andesite"),
+            LW - 3: ("minecraft:iron_ore", "minecraft:stone", "minecraft:stone"),
+            LW - 2: ("minecraft:andesite", "minecraft:copper_ore", "minecraft:stone")}
+    for x, column in rock.items():
+        for y, name in enumerate(column, 1):
+            t.set(x, y, face, name)
+    for x in (1, LW - 2):
+        t.set(x, 1, face - 1, "minecraft:stone")
+    # The mouth: 2 posts and a beam in the rock face, and the rock behind it in place of the back fence.
+    for x in (mid - 1, mid + 1):
+        for y in (1, 2):
+            t.set(x, y, face, "minecraft:spruce_log", LOG_Y)
+    for x in (mid - 1, mid, mid + 1):
+        t.set(x, 3, face, "minecraft:spruce_log", {"axis": "x"})
+        for y in (1, 2, 3):
+            t.set(x, y, LD - 1, "minecraft:stone")
+    t.set(mid, 2, face, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    for x, z in ((1, NORSE_SHED), (2, NORSE_SHED), (1, NORSE_SHED + 1)):
+        job_material(t, x, 1, z, "minecraft:cobblestone")
+    t.set(1, 1, 2, *BARREL)
+    return shaped(t)
+
+
+def norse_dig_yard():
+    """The Valeholm building of the digger: the short long house with a stonecutter (the work block of the vanilla
+    mason), and a yard with heaps of sand, gravel, clay and dirt along the fence (see dig_yard). A path of coarse dirt
+    goes from the back door to the back fence."""
+    rng = random.Random(74)
+    back = LD - 2
+    heaps = {(1, back): "sand", (2, back): "sand", (1, back - 1): "sand", (3, back): "gravel",
+             (LW - 4, back): "clay", (LW - 3, back): "dirt", (LW - 2, back): "dirt", (LW - 2, back - 1): "gravel",
+             (1, NORSE_SHED + 2): "clay", (LW - 2, NORSE_SHED + 2): "sand"}
+
+    def plants(x, z):
+        return f"minecraft:{heaps[(x, z)]}" if (x, z) in heaps else None
+
+    t = norse_yard_workshop(rng, "digger", "minecraft:iron_shovel", lambda x, z: "minecraft:coarse_dirt", plants,
+                            work=("minecraft:stonecutter", {"facing": "east"}))
+    t.set(1, 2, back, "minecraft:sand")
+    t.set(LW - 2, 2, back, "minecraft:dirt")
+    t.set(1, 1, 2, *BARREL)
+    return shaped(t)
+
+
+def norse_mason():
+    """The Valeholm building of the mason: a long house with a base of stone bricks, a stonecutter (the work block of
+    the vanilla mason) and a block of stone to cut, a brick kiln with a chimney on the back wall, and stacks of stone
+    bricks, bricks, smooth stone and terracotta (see mason_workshop). The stacks of stone bricks stay stone bricks in
+    all the variants."""
+    rng = random.Random(75)
+    t = norse_workshop(rng, "mason", "minecraft:stone_bricks", wall_lower=stone_bricks)
+    norse_oven(t)
+    for x, y, z in ((1, 1, LD - 2), (1, 2, LD - 2), (2, 1, LD - 2), (1, 1, LD - 3)):
+        job_material(t, x, y, z, "minecraft:stone_bricks")
+    for y in (1, 2):
+        t.set(LW - 2, y, LD - 2, "minecraft:bricks")
+    t.set(LW - 2, 1, LD - 3, "minecraft:smooth_stone")
+    t.set(LW - 2, 1, LD - 4, "minecraft:terracotta")
+    t.set(2, 1, 4, "minecraft:stonecutter", {"facing": "east"})
+    t.set(2, 1, 3, "minecraft:stone")
+    t.set(LW - 2, 1, 3, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, LW - 2, 1, 6)
+    return shaped(t)
+
+
+def norse_smeltery(job):
+    """The Valeholm building of a smelter: a long house with a base of bricks, 2 blast furnaces (the work block of the
+    vanilla armorer) next to a furnace in a brick oven with a chimney, the raw ore and a block of coal, a water
+    cauldron to cool the metal, and the ingots on a counter (see smeltery). The smelter also makes glass: its building
+    has a barrel of sand.
+
+    All the smelters have this shape. Only the ore and the ingots change.
+    """
+    icon, ores, plate = SMELTERS[job]
+    rng = random.Random(76)
+    t = norse_workshop(rng, job, icon, wall_lower=lambda r: "minecraft:bricks")
+    norse_oven(t)
+    for x in (2, 3):
+        t.set(x, 1, LD - 2, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
+    for z, ore in zip((LD - 2, LD - 3), ores):
+        t.set(1, 1, z, ore)
+    t.set(1, 1, LD - 4, "minecraft:coal_block")
+    if job == "smelter":
+        t.set(LW - 2, 1, LD - 4, *BARREL)
+    t.set(LW - 2, 1, LD - 3, *WATER_CAULDRON)
+    for x in (LW - 3, LW - 2):
+        t.set(x, 1, 3, *TOP_SLAB)
+        t.set(x, 2, 3, plate, {"power": "0"})
+    lantern(t, 1, 1, 2)
+    return shaped(t)
+
+
 # The house-workshops of the Valeholm style, by job. The other jobs use the pieces of all the cultures.
 NORSE_JOBS = {
     "farmer": norse_farm,
@@ -2573,6 +2746,12 @@ NORSE_JOBS = {
     "rancher": norse_ranch,
     "butcher": norse_butchery,
     "fisher": norse_fisher_hut,
+    **{job: functools.partial(norse_lumber_yard, job, wood) for job, wood in LUMBERJACKS.items()},
+    **{job: functools.partial(norse_sawmill, job, wood) for job, wood in SAWYERS.items()},
+    "miner": norse_mine,
+    "digger": norse_dig_yard,
+    "mason": norse_mason,
+    **{job: functools.partial(norse_smeltery, job) for job in SMELTERS},
 }
 
 
