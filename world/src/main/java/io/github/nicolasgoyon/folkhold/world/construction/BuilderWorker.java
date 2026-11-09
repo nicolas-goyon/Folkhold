@@ -474,6 +474,8 @@ final class BuilderWorker {
             }
             teleported = true;
             BuilderSite.teleport(villager, stand);
+            // The brain must not walk back to the old walk target, for example to the bottom of the column.
+            stay(villager);
             // The builder gets some ticks to land at its position before it works from where it is. The walk makes no
             // progress after the move.
             stuckTicks = MOVE_TIMEOUT - LANDING_TICKS;

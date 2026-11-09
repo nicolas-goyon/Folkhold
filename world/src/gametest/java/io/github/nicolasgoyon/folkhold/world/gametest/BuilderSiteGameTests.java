@@ -109,17 +109,22 @@ public final class BuilderSiteGameTests {
     private static final double PENDING_STEPS = 200.0;
     /** The failure message of a test with builders shows this number of losses of health at most. */
     private static final int MAX_HURT_RECORDS = 20;
-    /** The distance from the block of the test of a builder that goes directly to a column to the glass ring. */
+    /** In the test of a direct move to a column, the glass ring is at this distance from the block of the site. */
     private static final int RING = 2;
     /**
-     * In the test of a builder that goes directly to a column, the builder jumps when it has no path to its position
-     * for this number of ticks: a short time before it goes there directly.
+     * In the test of a direct move to a column, the builder jumps when it has no path for this number of ticks. The
+     * builder goes to its position directly after 100 ticks with no path.
      */
     private static final int JUMP_BEFORE_DIRECT = 95;
-    /** The horizontal speed of the jump of the builder in the test of a column, in blocks for each tick. */
-    private static final double JUMP_SPEED = 0.2;
-    /** The vertical speed of the jump of the builder in the test of a column, in blocks for each tick. */
+    /**
+     * In the test of a direct move to a column, the horizontal speed of the jump on each axis that goes out from the
+     * block of the site, in blocks for each tick.
+     */
+    private static final double JUMP_SPEED = 0.4;
+    /** In the test of a direct move to a column, the vertical speed of the jump, in blocks for each tick. */
     private static final double JUMP_UP = 0.25;
+    /** In the test of a direct move to a column, the last jump is this number of ticks before the move or fewer. */
+    private static final int JUMP_TO_MOVE_TICKS = 2;
 
     private BuilderSiteGameTests() {
     }
@@ -498,13 +503,17 @@ public final class BuilderSiteGameTests {
     }
 
     /**
-     * A builder that goes directly to the top of a scaffolding column stays on the top, also when it jumps at that time.
+     * A builder that goes directly to the top of a scaffolding column stays on the top. This is also true when the
+     * builder jumps at that time.
      *
-     * <p>The block of the site is 7 blocks above the floor. A glass ring, 2 blocks high, at 2 blocks from the block,
-     * stops the builders. The plan puts a scaffolding column of 3 blocks on the ring: its top is 5 blocks above the
-     * floor. The builder cannot walk to the bottom of this column, so it goes directly to the
-     * top of the column. Before that, the builder jumps away from the block, as a builder that cannot get out of a
-     * place. The test records each loss of health with the data of the builder (see {@link #recordHurts}).
+     * <p>The block of the site is 7 blocks above the floor. A glass ring is around the block, at 2 blocks from it. The
+     * ring is 2 blocks high, and the builders cannot go over it. The plan puts a scaffolding column of 3 blocks on the
+     * ring. The top of the column is 5 blocks above the floor. The builder cannot walk to the bottom of the column. Thus
+     * it goes directly to the top of the column.
+     *
+     * <p>A builder that has no path often jumps. In the last ticks before the direct move, the test makes the builder
+     * jump. The jump goes out from the block, on the axes where the column is on the ring. The test records each loss of
+     * health with the data of the builder (see {@link #recordHurts}).
      */
     @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_direct", skyAccess = true)
     public static void builderThatGoesDirectlyStaysOnTheColumn(GameTestHelper helper) {
@@ -526,16 +535,27 @@ public final class BuilderSiteGameTests {
         List<String> hurts = new ArrayList<>();
         recordHurts(helper, site, builders, hurts);
         double[] highest = {0.0};
-        Vec3 center = Vec3.atBottomCenterOf(origin);
+        // The tick of the last jump, and the first tick on the top of the column.
+        long[] lastJump = {-1L};
+        long[] arrival = {-1L};
+        int floorY = helper.absolutePos(BlockPos.ZERO).getY();
         helper.onEachTick(() -> {
-            highest[0] = Math.max(highest[0], builder.getY() - helper.absolutePos(BlockPos.ZERO).getY());
+            double feet = builder.getY() - floorY;
+            highest[0] = Math.max(highest[0], feet);
+            if (arrival[0] < 0 && feet >= block.getY() - 2) {
+                arrival[0] = level.getGameTime();
+            }
             Optional<Long> since = builder.getBrain().getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
             boolean stuck = since.isPresent() && level.getGameTime() - since.get() >= JUMP_BEFORE_DIRECT;
-            if (stuck && builder.getY() < helper.absolutePos(BlockPos.ZERO).getY() + RING + 1) {
-                // The builder jumps away from the block of the site.
-                Vec3 away = new Vec3(builder.getX() - center.x, 0.0, builder.getZ() - center.z).normalize()
-                        .scale(JUMP_SPEED);
-                builder.setDeltaMovement(away.x, JUMP_UP, away.z);
+            Optional<BlockPos> column = columnOnRing(helper, block);
+            if (arrival[0] < 0 && stuck && column.isPresent()) {
+                // The jump goes out from the block, on the axes where the column is on the ring.
+                int outX = Integer.signum(column.get().getX() - block.getX());
+                int outZ = Integer.signum(column.get().getZ() - block.getZ());
+                boolean onX = Math.abs(column.get().getX() - block.getX()) == RING;
+                boolean onZ = Math.abs(column.get().getZ() - block.getZ()) == RING;
+                builder.setDeltaMovement(onX ? outX * JUMP_SPEED : 0.0, JUMP_UP, onZ ? outZ * JUMP_SPEED : 0.0);
+                lastJump[0] = level.getGameTime();
             }
         });
         helper.startSequence()
@@ -556,11 +576,29 @@ public final class BuilderSiteGameTests {
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
                     helper.assertTrue(highest[0] >= block.getY() - 1, "The builder must go to the top of the column: "
                             + highest[0]);
+                    helper.assertTrue(lastJump[0] >= 0 && arrival[0] >= 0
+                            && arrival[0] - lastJump[0] <= JUMP_TO_MOVE_TICKS, "The builder must jump just before it"
+                            + " goes directly to the column: last jump at " + lastJump[0] + ", arrival at "
+                            + arrival[0]);
                     helper.assertTrue(alive, "The builder must stay alive, damage: " + hurts);
                     helper.assertTrue(healthy, "The builder must not fall: its health is " + health + ", damage: "
                             + hurts);
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * The top block of the scaffolding column on the glass ring of the test of a direct move, or empty before the plan
+     * puts the column.
+     */
+    private static Optional<BlockPos> columnOnRing(GameTestHelper helper, BlockPos block) {
+        for (BlockPos pos : BlockPos.betweenClosed(block.getX() - RING, block.getY() - 2, block.getZ() - RING,
+                block.getX() + RING, block.getY() - 2, block.getZ() + RING)) {
+            if (helper.getBlockState(pos).is(Blocks.SCAFFOLDING)) {
+                return Optional.of(pos.immutable());
+            }
+        }
+        return Optional.empty();
     }
 
     /**
