@@ -72,6 +72,8 @@ public final class VillageGrowthGameTests {
     /** The origin of the house-workshop of the farmer: out of the space of the plot. */
     private static final BlockPos FARM_ORIGIN = new BlockPos(1, 1, 22);
     private static final String FARMER = FolkholdWorld.MOD_ID + ":farmer";
+    /** The job of the job slots of a legacy village: not a food job, so the first post is not a legacy job. */
+    private static final String LEGACY_JOB = FolkholdWorld.MOD_ID + ":miner";
     private static final ResourceLocation BARRACKS = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID,
             "village/house_barracks");
 
@@ -93,7 +95,7 @@ public final class VillageGrowthGameTests {
         try {
             boolean enoughPlaces = VillageGrowth.check(level, heart).isEmpty();
             settlement.economy().setPopulation(20);
-            String job = nextJob(level, heart, settlement);
+            String job = nextJob(level, settlement);
             int places = VillageBeds.places(settlement);
             Optional<BuilderSite> site = VillageGrowth.check(level, heart);
 
@@ -101,8 +103,6 @@ public final class VillageGrowthGameTests {
             helper.assertTrue(site.isPresent(), "A village that needs places must start a home on the free plot");
             helper.assertTrue(site.get().template().equals(workshop(job)), "The home must be the house-workshop of "
                     + job + ": " + site.get().template());
-            helper.assertTrue(heart.growthWorkshop().map(VillageHeartBlockEntity.GrowthWorkshop::job)
-                    .equals(Optional.of(job)), "The heart must keep the job of the site: " + heart.growthWorkshop());
             // The connector of the house-workshop is at (4, 1, 0) and faces north. To face the west, the piece turns
             // counterclockwise: the connector goes to (0, 1, -4) from the origin. The connector of the piece is in
             // front of the connector of the plot (one block to the east), at the Y of the first free block above the
@@ -122,8 +122,7 @@ public final class VillageGrowthGameTests {
                     "The scan must give the post of the new home: " + posts);
             helper.assertTrue(VillageBeds.places(settlement) > places, "The new home must give places: "
                     + VillageBeds.places(settlement) + " places, " + places + " before");
-            VillageGrowth.postJobs(level.getServer(), heart, settlement);
-            helper.assertTrue(heart.growthWorkshop().isEmpty(), "The scan shows the post: the heart forgets the job");
+            helper.assertFalse(heart.isHomeNoSpace(), "A free plot held the new home");
         } finally {
             end(helper, village);
         }
@@ -141,7 +140,7 @@ public final class VillageGrowthGameTests {
         try {
             helper.assertFalse(VillageGrowth.needsPlaces(village.settlement()), "The village must have its places");
             Optional<BuilderSite> site = VillageGrowth.check(level, village.heart());
-            String job = village.heart().growthWorkshop().map(VillageHeartBlockEntity.GrowthWorkshop::job).orElse("");
+            String job = site.map(found -> jobOf(found.template())).orElse("");
             helper.assertTrue(site.isPresent() && site.get().template().equals(workshop(job)),
                     "The village must start a house-workshop: " + site.map(BuilderSite::template));
             helper.assertTrue(Economies.producesFood(job) && Merchants.trades(job),
@@ -165,13 +164,14 @@ public final class VillageGrowthGameTests {
             Optional<BuilderSite> site = VillageGrowth.check(level, village.heart());
             helper.assertTrue(site.isPresent() && site.get().template().equals(STOREHOUSE),
                     "The growth must go on with the storehouse: " + site.map(BuilderSite::template));
-            helper.assertTrue(village.heart().growthWorkshop().isEmpty(), "No house-workshop must start");
+            helper.assertTrue(village.heart().isHomeNoSpace(), "No free plot holds a house-workshop of the jobs");
 
             BuilderSites.stop(level);
             village.heart().setRepairReference(new VillageReference(List.of(), List.of(), Optional.empty(),
                     List.of(plot(helper, true)), Optional.of(HOMES)));
             helper.assertTrue(VillageGrowth.check(level, village.heart()).isEmpty(),
                     "With no free plot, the growth must start no site");
+            helper.assertTrue(village.heart().isHomeNoSpace(), "With no free plot, the home has no space");
         } finally {
             end(helper, village);
         }
@@ -191,7 +191,7 @@ public final class VillageGrowthGameTests {
         try {
             List<String> before = Economies.activeJobIds(settlement);
             Optional<BuilderSite> site = VillageGrowth.check(level, village.heart());
-            String job = village.heart().growthWorkshop().map(VillageHeartBlockEntity.GrowthWorkshop::job).orElse("");
+            String job = site.map(found -> jobOf(found.template())).orElse("");
             helper.assertTrue(site.isPresent() && site.get().template().equals(workshop(job)),
                     "The legacy village must start a house-workshop: " + site.map(BuilderSite::template));
             finish(level, village.heart(), site.get());
@@ -200,8 +200,43 @@ public final class VillageGrowthGameTests {
             helper.assertTrue(before.size() == slots, "Before the site, the legacy slots give the jobs: " + before);
             helper.assertTrue(after.size() == slots && after.get(0).equals(job),
                     "The post must take one legacy slot: " + after);
-            helper.assertTrue(JobPosts.legacySlots(slots, 1) == slots - 1, "The legacy slots must go down by 1");
+            long legacyJobs = after.stream().filter(found -> found.equals(LEGACY_JOB)).count();
+            helper.assertTrue(legacyJobs == slots - 1, "The legacy slots must go down by 1: " + after);
+            helper.assertTrue(settlement.jobPosts().orElseThrow().size() == 1, "The village must have 1 post: "
+                    + settlement.jobPosts());
             helper.assertTrue(settlement.legacyJobs(), "The village stays a legacy village");
+        } finally {
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A site of a house-workshop that stops before its end leaves no post: the village keeps no job of this site.
+     * The space of the stopped site stays taken, so the next check starts the food house-workshop again on the second
+     * plot.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "village_growth_stopped")
+    public static void stoppedHouseWorkshopLeavesNoPost(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        VillagePlots.Plot second = new VillagePlots.Plot(helper.absolutePos(CONNECTOR.north(12)), Direction.EAST,
+                HOUSE_FRONT, false);
+        Village village = village(helper, HOMES, false, List.of(plot(helper, false), second), 3, 3, false);
+        try {
+            BuilderSite first = VillageGrowth.check(level, village.heart()).orElseThrow();
+            String job = jobOf(first.template());
+            BuilderSites.stop(level);
+            village.heart().requestScan();
+            village.heart().ensureGarrison(level.getGameTime());
+            List<String> posts = VillageGrowth.postJobs(level.getServer(), village.settlement());
+            Optional<BuilderSite> again = VillageGrowth.check(level, village.heart());
+
+            helper.assertTrue(Economies.producesFood(job), "The first site must be a food house-workshop: " + job);
+            helper.assertTrue(posts.isEmpty(), "A stopped site must give no post: " + posts);
+            helper.assertTrue(VillageGrowth.needsFirstPost(posts), "The village must need its food post again");
+            helper.assertTrue(again.isPresent() && again.get().template().equals(first.template())
+                    && !again.get().origin().equals(first.origin()),
+                    "The food house-workshop must start again on the second plot: " + again.map(BuilderSite::origin));
         } finally {
             end(helper, village);
         }
@@ -291,7 +326,7 @@ public final class VillageGrowthGameTests {
         settlement.setBiome("minecraft:plains");
         settlement.economy().setPopulation(population);
         int slots = LevelTables.get().traits(level).jobSlots();
-        settlement.economy().setJobs(legacy ? Collections.nCopies(slots, "folkhold_world:miner") : List.of());
+        settlement.economy().setJobs(legacy ? Collections.nCopies(slots, LEGACY_JOB) : List.of());
         settlement.setLegacyJobs(legacy);
         settlement.setJobPosts(Optional.empty());
         heart.ensureGarrison(serverLevel.getGameTime());
@@ -310,11 +345,17 @@ public final class VillageGrowthGameTests {
     }
 
     /** The job that {@link JobAssignment#next} gives for the next house-workshop of a village. */
-    private static String nextJob(ServerLevel level, VillageHeartBlockEntity heart, Settlement settlement) {
-        List<String> posts = VillageGrowth.postJobs(level.getServer(), heart, settlement);
+    private static String nextJob(ServerLevel level, Settlement settlement) {
+        List<String> posts = VillageGrowth.postJobs(level.getServer(), settlement);
         return JobAssignment.next(posts, Economies.eligibleJobs(level.getServer(), settlement), EconomyData.catalog(),
                 Merchants::trades, JobAssignment.postSeed(Settlements.seed(settlement.id()), posts.size()))
                 .orElseThrow();
+    }
+
+    /** The job id of the template of a house-workshop: {@code village/job_<id>} gives {@code folkhold_world:<id>}. */
+    private static String jobOf(ResourceLocation template) {
+        String path = template.getPath();
+        return FolkholdWorld.MOD_ID + ":" + path.substring(path.lastIndexOf("/job_") + "/job_".length());
     }
 
     /** The template of the house-workshop of a job in the base variant. */
