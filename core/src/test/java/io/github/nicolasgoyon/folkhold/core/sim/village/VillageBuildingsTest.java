@@ -89,4 +89,27 @@ class VillageBuildingsTest {
     void minimumLevelIsOneOrMore() {
         assertThrows(IllegalArgumentException.class, () -> new Requirement("forge", 0));
     }
+
+    private static final Step FIRST_POST = new Step(StepType.FIRST_POST, "");
+
+    /** A village with no food post or no post that trades gets a house-workshop first, before the market. */
+    @Test
+    void firstPostComesBeforeTheMarket() {
+        assertEquals(List.of(FIRST_POST, MARKET), VillageBuildings.steps(WITH_MARKET, 5, Map.of(), true, true, true));
+        assertEquals(List.of(FIRST_POST), VillageBuildings.steps(WITH_MARKET, 4, Map.of(), true, true, true));
+        assertEquals(List.of(MARKET, HOME), VillageBuildings.steps(WITH_MARKET, 5, Map.of(), true, true, false));
+    }
+
+    /** With no free plot for the first post, the growth goes on with the building of the level. */
+    @Test
+    void firstPostDoesNotStopTheBuildingOfTheLevel() {
+        assertEquals(List.of(FIRST_POST, new Step(StepType.BUILDING, "storehouse")),
+                VillageBuildings.steps(WITH_MARKET, 4, Map.of(), true, false, true));
+    }
+
+    /** A village with no scan has no known posts: no first post step. */
+    @Test
+    void villageWithNoScanNeedsNoFirstPost() {
+        assertEquals(List.of(HOME), VillageBuildings.steps(WITH_MARKET, 9, Map.of(), false, true, true));
+    }
 }

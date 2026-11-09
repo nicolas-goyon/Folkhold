@@ -135,6 +135,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final String FACTION_TAG = "Faction";
     private static final String NAME_TAG = "Name";
     private static final String MARKET_PLOT_TAG = "MarketPlot";
+
     /** Name of the village, or null before the village has a faction. */
     @Nullable
     private String villageName;
@@ -159,6 +160,11 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private boolean repairReferenceSearched;
     /** True if the last check of the growth found no free plot for the market. Not saved: the next check sets it. */
     private boolean marketNoSpace;
+    /**
+     * True if the last check of the growth found no free plot for a new home: no house-workshop of the tried jobs has
+     * a piece and a free plot. Not saved: the next check sets it.
+     */
+    private boolean homeNoSpace;
     /** The plot of the market of the village, or null before the growth starts the market. */
     @Nullable
     private VillageMarket.Plot marketPlot;
@@ -956,6 +962,20 @@ public class VillageHeartBlockEntity extends BlockEntity {
     /** Records the result of the last check of the growth for the market (see {@link VillageGrowth}). */
     public void setMarketNoSpace(boolean noSpace) {
         marketNoSpace = noSpace;
+    }
+
+    /**
+     * True if the last check of the growth found no free plot for a new home (see {@link VillageGrowth}): the village
+     * needs a home or a first post, and no house-workshop of the tried jobs has a piece and a free plot. The heart
+     * screen shows it.
+     */
+    public boolean isHomeNoSpace() {
+        return homeNoSpace;
+    }
+
+    /** Records the result of the last check of the growth for a new home (see {@link VillageGrowth}). */
+    public void setHomeNoSpace(boolean noSpace) {
+        homeNoSpace = noSpace;
     }
 
     /**

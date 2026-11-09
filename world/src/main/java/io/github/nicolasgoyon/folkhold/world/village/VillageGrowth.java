@@ -1,5 +1,8 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobAssignment;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
@@ -9,15 +12,20 @@ import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.GhostPlacement;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -28,9 +36,19 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 /**
  * The growth of a village: its builders build new homes and the buildings of its level on the free plots of its
- * streets (see {@link VillagePlots}).
+ * streets (see {@link VillagePlots}). Each new home is a house-workshop: a home with the job post of a job.
  *
  * <ul>
+ *   <li>A scanned village with no valid food post or no valid post that trades gets a house-workshop first, before the
+ *       market, also when it does not need places. The inhabitants of the homes fill the first valid post first (see
+ *       {@link JobPosts}): a valid food post that trades is active with 1 inhabitant of the homes.</li>
+ *   <li>The job of a house-workshop comes from {@link JobAssignment#next} with the job ids of the valid posts. The
+ *       growth starts no site while the village has a site, and the heart checks the growth only after a scan: thus
+ *       the post of the last house-workshop counts before the next choice. The piece is
+ *       {@code job_<id>} of the pool {@code jobs} of the variant, where {@code <id>} is the path of the job id. A
+ *       variant with no such piece, or no free plot that holds it, tries the next job of the eligible jobs with the
+ *       same rule: {@link #WORKSHOP_JOBS} jobs at most. Then the growth builds no home in this check, and the heart
+ *       records that no free plot holds a new home (see {@link VillageHeartBlockEntity#isHomeNoSpace()}).</li>
  *   <li>From the level 5, a village with no market gets its market first (see {@link VillageBuildings#steps}): the
  *       piece of the pool of the market of the village structure. A village keeps one market. With no free plot for the
  *       market, the village has no market and trades at the plaza (see {@link VillageMarket}). A plot in a chunk that is
@@ -43,7 +61,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       step. Before the steps, the heart scans the village again when a market sign of its scan is broken (see
  *       {@link VillageHeartBlockEntity#checkMarkets}).</li>
  *   <li>A village that needs places gets a new home: the population of the settlement is more than the places (see
- *       {@link VillageBeds}). The home comes from the pool of the homes of the village structure.</li>
+ *       {@link VillageBeds}). The home is a house-workshop.</li>
  *   <li>Else, a village with a missing building of its level gets this building (see {@link VillageBuildings} and
  *       {@link VillageBuildingTable}). The scan of the heart counts the building signs of each kind. The building comes
  *       from the pool of the houses of the variant of the village: the piece {@code house_<kind>}. A variant with no
@@ -70,10 +88,17 @@ public final class VillageGrowth {
     private static final String BUILDING_PREFIX = "house_";
     /** The name of the pool of the market of a variant, in the folder of the pool of its homes. */
     private static final String MARKET = "market";
+    /** The name of the pool of the house-workshops of a variant, in the folder of the pool of its homes. */
+    private static final String JOBS = "jobs";
+    /** The name of the piece of a house-workshop starts with this text. */
+    private static final String JOB_PREFIX = "job_";
+    /** The number of jobs that one check of the growth tries for a house-workshop. */
+    public static final int WORKSHOP_JOBS = 3;
 
     /**
-     * Starts the construction of the market, of a home or of a missing building of the level on a free plot. The steps
-     * come in the order of {@link VillageBuildings#steps}: the first step with a piece and a free plot starts.
+     * Starts the construction of a house-workshop, of the market or of a missing building of the level on a free
+     * plot. The steps come in the order of {@link VillageBuildings#steps}: the first step with a piece and a free plot
+     * starts.
      *
      * @param level the level
      * @param heart the village heart
@@ -92,13 +117,30 @@ public final class VillageGrowth {
         }
         heart.checkMarkets(level);
         VillageLayout layout = heart.getLayout();
+        List<String> posts = postJobs(level.getServer(), settlement.get());
         List<VillageBuildings.Step> steps = VillageBuildings.steps(VillageBuildingTable.get(),
-                settlement.get().level(), layout.buildings(), layout.isScanned(), needsPlaces(settlement.get()));
+                settlement.get().level(), layout.buildings(), layout.isScanned(), needsPlaces(settlement.get()),
+                settlement.get().jobPosts().isPresent() && needsFirstPost(posts));
         List<VillagePlots.Plot> plots = reference.get().plots().stream()
                 .filter(plot -> !plot.built())
                 .sorted(Comparator.comparingDouble(plot -> plot.connector().distSqr(heartPos)))
                 .toList();
+        boolean homeStep = steps.stream().anyMatch(VillageGrowth::isHouseWorkshop);
+        if (!homeStep) {
+            heart.setHomeNoSpace(false);
+        }
         for (VillageBuildings.Step step : steps) {
+            if (isHouseWorkshop(step)) {
+                Attempt attempt = startWorkshop(level, heart, settlement.get(), reference.get(), plots, posts);
+                if (attempt.site().isPresent() || attempt.complete()) {
+                    // A plot in a chunk that is not ready can be free: the heart keeps the last known state.
+                    heart.setHomeNoSpace(attempt.site().isEmpty());
+                }
+                if (attempt.site().isPresent()) {
+                    return attempt.site();
+                }
+                continue;
+            }
             boolean market = step.type() == VillageBuildings.StepType.MARKET;
             Optional<VillageMarket.Plot> marketPlot = market ? heart.marketPlot().filter(plot -> hasTemplate(level,
                     heartPos, plot)) : Optional.empty();
@@ -131,6 +173,84 @@ public final class VillageGrowth {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * The job ids of the valid posts of a village (see {@link Economies#isValidJob}), in the order of the posts.
+     *
+     * @param server     the server
+     * @param settlement the settlement of the village
+     * @return the job ids, or an empty list when the posts are unknown
+     */
+    public static List<String> postJobs(MinecraftServer server, Settlement settlement) {
+        return settlement.jobPosts().orElse(List.of()).stream().map(JobPosts.Post::jobId)
+                .filter(job -> Economies.isValidJob(server, settlement, job))
+                .toList();
+    }
+
+    /** True for a step that builds a house-workshop: a first post or a new home. */
+    private static boolean isHouseWorkshop(VillageBuildings.Step step) {
+        return step.type() == VillageBuildings.StepType.FIRST_POST || step.type() == VillageBuildings.StepType.HOME;
+    }
+
+    /**
+     * True if a village needs a first post: it has no food post or no post that trades.
+     *
+     * @param posts the job ids of the valid posts (see {@link #postJobs})
+     * @return true if the village needs a house-workshop before the other buildings
+     */
+    public static boolean needsFirstPost(List<String> posts) {
+        return posts.stream().noneMatch(Economies::producesFood) || posts.stream().noneMatch(Merchants::trades);
+    }
+
+    /**
+     * Starts the construction of a house-workshop: the job comes from {@link JobAssignment#next}. A job with no piece in
+     * the variant, or with no free plot, gives its place to the next job, {@link #WORKSHOP_JOBS} jobs at most.
+     *
+     * @return the construction site, or no site when no job of this check has a piece and a free plot
+     */
+    private static Attempt startWorkshop(ServerLevel level, VillageHeartBlockEntity heart, Settlement settlement,
+            VillageReference reference, List<VillagePlots.Plot> plots, List<String> posts) {
+        List<Job> eligible = new ArrayList<>(Economies.eligibleJobs(level.getServer(), settlement));
+        long seed = JobAssignment.postSeed(Settlements.seed(settlement.id()), posts.size());
+        ResourceLocation homes = reference.homes().orElseThrow();
+        boolean complete = true;
+        for (int i = 0; i < WORKSHOP_JOBS; i++) {
+            Optional<String> job = JobAssignment.next(posts, eligible, EconomyData.catalog(), Merchants::trades,
+                    seed);
+            if (job.isEmpty()) {
+                break;
+            }
+            Attempt attempt = workshop(level, homes, job.get())
+                    .map(element -> start(level, heart, reference, plots, element))
+                    .orElse(Attempt.NONE);
+            if (attempt.site().isPresent()) {
+                return attempt;
+            }
+            complete &= attempt.complete();
+            eligible.removeIf(candidate -> candidate.id().equals(job.get()));
+        }
+        return new Attempt(Optional.empty(), complete);
+    }
+
+    /**
+     * The piece of the house-workshop of a job, from the pool of the jobs of the variant of a village.
+     *
+     * @param level the level
+     * @param homes the id of the pool of the homes of the variant of the village
+     * @param jobId the job id
+     * @return the piece {@code job_<path of the job id>}, or empty when the variant has no such piece
+     */
+    static Optional<StructurePoolElement> workshop(ServerLevel level, ResourceLocation homes, String jobId) {
+        ResourceLocation job = ResourceLocation.tryParse(jobId);
+        if (job == null) {
+            return Optional.empty();
+        }
+        String suffix = "/" + JOB_PREFIX + job.getPath();
+        return pool(level, sibling(homes, JOBS)).flatMap(pool -> pool.getShuffledTemplates(level.random).stream()
+                .filter(element -> VillageReference.templateOf(level, element)
+                        .filter(template -> template.getPath().endsWith(suffix)).isPresent())
+                .findFirst());
     }
 
     /**
@@ -221,11 +341,12 @@ public final class VillageGrowth {
      * @param level the level
      * @param step  the step
      * @param homes the id of the pool of the homes of the variant of the village
-     * @return the piece, or empty when the variant has no piece for the step
+     * @return the piece, or empty when the variant has no piece for the step. A home is a house-workshop: its piece
+     *     comes from {@link #workshop}, and this method gives no piece for it.
      */
     static Optional<StructurePoolElement> piece(ServerLevel level, VillageBuildings.Step step, ResourceLocation homes) {
         return switch (step.type()) {
-            case HOME -> pool(level, homes).map(pool -> pool.getRandomTemplate(level.random));
+            case FIRST_POST, HOME -> Optional.empty();
             case MARKET -> pool(level, sibling(homes, MARKET)).map(pool -> pool.getRandomTemplate(level.random));
             case BUILDING -> {
                 String suffix = "/" + BUILDING_PREFIX + step.kind();
