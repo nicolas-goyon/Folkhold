@@ -6,20 +6,27 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Walk;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.construction.BlockKinds;
 import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -30,6 +37,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.AbstractCauldronBlock;
+import net.minecraft.world.level.block.AnvilBlock;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -113,6 +122,14 @@ public final class JobBuildingTemplateGameTests {
     private static final List<String> STYLES = List.of("", "valeholm/", "sunreach/", "maritime/");
     /** The folders of the biome variants in a style. The base variant has no folder. */
     private static final List<String> VARIANTS = List.of("", "plains/", "birch/", "savanna/", "desert/", "swamp/");
+    /**
+     * The work blocks of the job buildings: the job sites of the vanilla professions, the containers and the work
+     * tables. A cauldron and an anvil of each kind are work blocks too (see {@link #isWorkBlock}).
+     */
+    private static final Set<Block> WORK_BLOCKS = Set.of(Blocks.BARREL, Blocks.CHEST, Blocks.TRAPPED_CHEST,
+            Blocks.CRAFTING_TABLE, Blocks.FURNACE, Blocks.BLAST_FURNACE, Blocks.SMOKER, Blocks.SMITHING_TABLE,
+            Blocks.GRINDSTONE, Blocks.LOOM, Blocks.LECTERN, Blocks.FLETCHING_TABLE, Blocks.STONECUTTER,
+            Blocks.COMPOSTER, Blocks.CARTOGRAPHY_TABLE, Blocks.BREWING_STAND);
 
     private JobBuildingTemplateGameTests() {
     }
@@ -151,6 +168,115 @@ public final class JobBuildingTemplateGameTests {
         }
         helper.assertTrue(problems.isEmpty(), "Problems of the job building templates: " + problems);
         helper.succeed();
+    }
+
+    /**
+     * In each job piece of each style and each variant, a worker can go from the porch to each work block and to each
+     * bed: a walk from the porch (z = 0, at the feet level y = 1) reaches a position next to the block (see
+     * {@link #unreachable}).
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "job_building_templates")
+    public static void eachWorkBlockAndBedCanBeReached(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        StructureTemplateManager templates = level.getStructureManager();
+        List<String> problems = new ArrayList<>();
+        int pieces = 0;
+        for (String style : STYLES) {
+            for (String variant : VARIANTS) {
+                for (String job : JOBS) {
+                    ResourceLocation id = piece(style + variant, "job_" + job);
+                    Optional<StructureTemplate> template = templates.get(id);
+                    if (template.isPresent()) {
+                        pieces++;
+                        List<String> blocks = unreachable(level, template.get());
+                        if (!blocks.isEmpty()) {
+                            problems.add(id + ": " + blocks);
+                        }
+                    }
+                }
+            }
+        }
+        int expected = STYLES.size() * VARIANTS.size() * JOBS.size();
+        helper.assertTrue(pieces == expected, "Expected " + expected + " job pieces to check: " + pieces);
+        helper.assertTrue(problems.isEmpty(), "Work blocks and beds that a worker cannot reach from the porch: "
+                + problems);
+        helper.succeed();
+    }
+
+    /**
+     * The work blocks and the bed heads of a template that a walk from the porch does not reach.
+     *
+     * <p>A position is a position to stand when the block at the feet and the block at the head let a villager walk
+     * through them, and a villager walks on the block below (see {@link BlockKinds#describe}). A villager cannot stand in
+     * the space of a work block or a bed, but it can stand on top of it. The walk starts at each position of the porch
+     * (z = 0, y = 1) with the feet and the head free: the street gives the floor of the porch. From a position, the walk
+     * goes to a position to stand 1 block to the north, south, east or west, at the same level or 1 block higher or
+     * lower. A step 1 block higher also needs a free block 2 blocks above the start position: the head of the villager
+     * goes through it. A block is reached when a
+     * reached position is next to it, to the north, south, east or west, with the feet or the head at the level of the
+     * block.
+     */
+    private static List<String> unreachable(ServerLevel level, StructureTemplate template) {
+        Map<BlockPos, BlockState> states = new HashMap<>();
+        for (ConstructionTargets.TemplateBlock block : ConstructionTargets.templateBlocks(level, template)) {
+            states.put(block.pos(), block.state());
+        }
+        Vec3i size = template.getSize();
+        Deque<BlockPos> open = new ArrayDeque<>();
+        Set<BlockPos> reached = new HashSet<>();
+        for (int x = 0; x < size.getX(); x++) {
+            BlockPos porch = new BlockPos(x, 1, 0);
+            if (free(states, porch) && free(states, porch.above()) && reached.add(porch)) {
+                open.add(porch);
+            }
+        }
+        while (!open.isEmpty()) {
+            BlockPos pos = open.poll();
+            for (Direction side : Direction.Plane.HORIZONTAL) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    BlockPos next = pos.relative(side).above(dy);
+                    if (next.getX() >= 0 && next.getX() < size.getX() && next.getZ() >= 0 && next.getZ() < size.getZ()
+                            && (dy <= 0 || free(states, pos.above(2))) && standable(states, next)
+                            && reached.add(next)) {
+                        open.add(next);
+                    }
+                }
+            }
+        }
+        List<String> blocks = new ArrayList<>();
+        states.forEach((pos, state) -> {
+            boolean bedHead = state.getBlock() instanceof BedBlock && state.getValue(BedBlock.PART) == BedPart.HEAD;
+            if ((isWorkBlock(state) || bedHead) && Direction.Plane.HORIZONTAL.stream().map(pos::relative)
+                    .noneMatch(next -> reached.contains(next) || reached.contains(next.below()))) {
+                blocks.add(BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath() + " " + pos.toShortString());
+            }
+        });
+        blocks.sort(null);
+        return blocks;
+    }
+
+    /** A villager can stand at the position: the feet and the head are free, and the block below carries it. */
+    private static boolean standable(Map<BlockPos, BlockState> states, BlockPos pos) {
+        return free(states, pos) && free(states, pos.above()) && walk(states, pos.below()) == Walk.ON;
+    }
+
+    /**
+     * A villager walks through the block at the position. The space of a work block or a bed is never free: a villager
+     * cannot stand in it, but it can stand on top of it (see {@link #standable}).
+     */
+    private static boolean free(Map<BlockPos, BlockState> states, BlockPos pos) {
+        BlockState state = states.getOrDefault(pos, Blocks.AIR.defaultBlockState());
+        return !isWorkBlock(state) && !(state.getBlock() instanceof BedBlock) && walk(states, pos) == Walk.THROUGH;
+    }
+
+    private static Walk walk(Map<BlockPos, BlockState> states, BlockPos pos) {
+        return BlockKinds.describe(pos, states.getOrDefault(pos, Blocks.AIR.defaultBlockState()), Optional.empty())
+                .walk();
+    }
+
+    private static boolean isWorkBlock(BlockState state) {
+        return WORK_BLOCKS.contains(state.getBlock()) || state.getBlock() instanceof AbstractCauldronBlock
+                || state.getBlock() instanceof AnvilBlock;
     }
 
     /**
