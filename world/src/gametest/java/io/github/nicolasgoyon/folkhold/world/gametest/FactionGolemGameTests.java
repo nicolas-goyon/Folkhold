@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -111,20 +112,75 @@ public final class FactionGolemGameTests {
         helper.succeed();
     }
 
-    /** A golem kills a monster near its post, then goes back to its post. */
+    /**
+     * A golem kills a monster near its post, then goes back to its post.
+     *
+     * <p>The post is at the center of the arena. All the arena is in the chase area of the golem, so the golem does
+     * not stop the chase when the husk walks or when a hit pushes the husk. The walls of the test keep the husk in the
+     * arena.
+     */
     @GameTest(template = "arena", timeoutTicks = 600, batch = "golem_kill")
     public static void golemKillsAMonsterNearItsPost(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
-        FactionGolemEntity golem = golemWithPost(helper, new BlockPos(4, 1, 4));
-        BlockPos post = helper.absolutePos(new BlockPos(4, 1, 4));
-        // A husk does not burn in daylight.
-        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(11, 1, 11));
+        BlockPos relativePost = new BlockPos(8, 1, 8);
+        FactionGolemEntity golem = golemWithPost(helper, relativePost);
+        BlockPos post = helper.absolutePos(relativePost);
+        int last = TestSupport.ARENA_SIZE - 1;
+        boolean arenaInChaseArea = Stream.of(new BlockPos(0, 1, 0), new BlockPos(last, 1, 0),
+                        new BlockPos(0, 1, last), new BlockPos(last, 1, last), new BlockPos(0, 3, 0))
+                .allMatch(corner -> golem.isInChaseArea(helper.absolutePos(corner)));
+        helper.assertTrue(arenaInChaseArea, "All the arena must be in the chase area of the golem");
+        // A husk does not burn in daylight. It starts near a corner, 7 blocks from the post on each axis.
+        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(1, 1, 1));
 
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(!husk.isAlive(), "The husk is still alive"))
                 .thenWaitUntil(() -> helper.assertTrue(golem.blockPosition().closerThan(post, AT_POST),
                         "The golem must go back to its post: " + golem.blockPosition()))
                 .thenExecute(golem::discard)
+                .thenSucceed();
+    }
+
+    /**
+     * A golem does not walk into lava to get to a target that it can see but cannot reach. A strip of lava 2 blocks
+     * wide goes across all the arena, between the golem and the husk. The husk has no AI, so that it stays near the
+     * lava.
+     */
+    @GameTest(template = "arena", timeoutTicks = 200, batch = "golem_lava")
+    public static void golemDoesNotWalkIntoLavaToATarget(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        for (int z = 0; z < TestSupport.ARENA_SIZE; z++) {
+            helper.setBlock(new BlockPos(6, 0, z), Blocks.LAVA);
+            helper.setBlock(new BlockPos(7, 0, z), Blocks.LAVA);
+        }
+        FactionGolemEntity golem = golemWithPost(helper, new BlockPos(3, 1, 8));
+        Husk husk = helper.spawn(EntityType.HUSK, new BlockPos(8, 1, 8));
+        husk.setNoAi(true);
+        // The feet of a golem on the floor are at this height. A golem lower than this fell into the lava strip.
+        double floorTop = helper.absolutePos(new BlockPos(0, 1, 0)).getY();
+        float health = golem.getMaxHealth();
+        boolean[] entered = {false};
+        helper.onEachTick(() -> {
+            if (golem.isInLava() || golem.getHealth() < health || golem.getY() < floorTop - 0.1) {
+                entered[0] = true;
+            }
+        });
+
+        helper.startSequence()
+                .thenExecute(() -> golem.setTarget(husk))
+                .thenIdle(150)
+                .thenExecute(() -> {
+                    LivingEntity target = golem.getTarget();
+                    boolean alive = golem.isAlive();
+                    golem.discard();
+                    husk.discard();
+                    for (int z = 0; z < TestSupport.ARENA_SIZE; z++) {
+                        helper.setBlock(new BlockPos(6, 0, z), Blocks.SMOOTH_STONE);
+                        helper.setBlock(new BlockPos(7, 0, z), Blocks.SMOOTH_STONE);
+                    }
+                    helper.assertTrue(alive && !entered[0], "The golem must not walk into the lava");
+                    helper.assertTrue(target == husk, "The golem must keep the husk as target: it can see it");
+                })
                 .thenSucceed();
     }
 
