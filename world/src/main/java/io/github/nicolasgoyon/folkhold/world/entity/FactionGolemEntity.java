@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.entity;
 
 import io.github.nicolasgoyon.folkhold.world.config.UnitStats;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.ai.GolemMeleeAttackGoal;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModSounds;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
@@ -23,7 +24,6 @@ import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -101,7 +101,7 @@ public class FactionGolemEntity extends FactionUnit {
 
     @Override
     protected void registerAttackGoals() {
-        goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.0, true));
+        goalSelector.addGoal(2, new GolemMeleeAttackGoal(this, 1.0));
     }
 
     /** The chase area of a golem is around its anchor: its post at a gate, or its home. */
