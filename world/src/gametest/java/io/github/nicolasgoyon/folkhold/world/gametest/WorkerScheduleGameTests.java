@@ -97,6 +97,8 @@ public final class WorkerScheduleGameTests {
     private static final long UNREACHABLE_AGE = 2_000L;
     /** The vanilla brain runs the walk to a place in this time, in ticks. */
     private static final int BRAIN_TICKS = 100;
+    /** A worker walks to a new place in this time, in ticks: less than the wait after a place that comes back. */
+    private static final int NEW_PLACE_TICKS = 40;
 
     private WorkerScheduleGameTests() {
     }
@@ -339,7 +341,7 @@ public final class WorkerScheduleGameTests {
      * A worker in a cell with no path out, with no player near and no heart. The memory
      * {@code CANT_REACH_WALK_TARGET_SINCE} is older than the limits of the vanilla walks to the places. The worker
      * keeps its meeting point in {@code MEET} and its job sign in {@code WORK}. It also keeps a meeting point in an
-     * other dimension.
+     * other dimension, and walks at once to a new meeting point after it.
      */
     @GameTest(template = "arena", timeoutTicks = 600, batch = "worker_places")
     public static void workerKeepsItsPlacesWithNoPlayer(GameTestHelper helper) {
@@ -349,6 +351,7 @@ public final class WorkerScheduleGameTests {
         worker.getBrain().setMemory(MemoryModuleType.MEETING_POINT, places.market());
         worker.getBrain().setMemory(MemoryModuleType.JOB_SITE, places.job());
         GlobalPos nether = GlobalPos.of(Level.NETHER, places.market().pos());
+        long[] newPlaceTick = {0L};
         helper.startSequence()
                 .thenExecute(() -> unreachable(helper, worker, Activity.MEET))
                 .thenIdle(BRAIN_TICKS)
@@ -377,9 +380,21 @@ public final class WorkerScheduleGameTests {
                             helper.getLevel().getGameTime());
                 })
                 .thenIdle(BRAIN_TICKS)
-                .thenExecute(() -> helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT)
-                        .filter(nether::equals).isPresent(), "The worker must keep a meeting point in an other "
-                                + "dimension: " + worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT)))
+                .thenExecute(() -> {
+                    helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT)
+                            .filter(nether::equals).isPresent(), "The worker must keep a meeting point in an other "
+                                    + "dimension: " + worker.getBrain().getMemory(MemoryModuleType.MEETING_POINT));
+                    // A new place has no wait: the worker walks to it at once.
+                    worker.getBrain().setMemory(MemoryModuleType.MEETING_POINT, places.market());
+                    worker.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
+                    newPlaceTick[0] = helper.getTick();
+                })
+                .thenWaitUntil(() -> helper.assertTrue(worker.getBrain().getMemory(MemoryModuleType.WALK_TARGET)
+                        .filter(target -> target.getTarget().currentBlockPosition().equals(places.market().pos()))
+                        .isPresent(), "The worker must walk to the new meeting point"))
+                .thenExecute(() -> helper.assertTrue(helper.getTick() - newPlaceTick[0] <= NEW_PLACE_TICKS,
+                        "The worker must walk to a new meeting point within " + NEW_PLACE_TICKS + " ticks, not "
+                                + (helper.getTick() - newPlaceTick[0])))
                 .thenSucceed();
     }
 

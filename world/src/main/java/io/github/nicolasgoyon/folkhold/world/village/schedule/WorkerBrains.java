@@ -263,9 +263,11 @@ public final class WorkerBrains {
      *   <li>When the memory {@code CANT_REACH_WALK_TARGET_SINCE} is older than the limit of the behavior, and the
      *       worker has no walk target, the memory gets the current time. Then the vanilla behavior sets a new walk
      *       target to the place, and does not erase the place.</li>
-     *   <li>When the vanilla behavior erases the place for an other cause (a place in an other dimension, or no
-     *       position toward the place), the place comes back at once. Then the worker does not try the behavior again
-     *       before the limit of the behavior.</li>
+     *   <li>When the vanilla behavior erases the place for an other cause, the place comes back at once. The other
+     *       causes are a place in an other dimension, and a place more than 100 blocks away (Manhattan distance) with
+     *       no position toward it after 1000 tries. Then the worker does not try the walk to this place again before
+     *       the limit of the behavior. A different place in the memory (for example a new sign from the heart) has no
+     *       wait.</li>
      * </ul>
      *
      * <p>The other villagers keep the vanilla behavior. The vanilla brain creates the behaviors for each villager, so
@@ -340,7 +342,10 @@ public final class WorkerBrains {
         private final OneShot<Villager> walk;
         private final MemoryModuleType<GlobalPos> place;
         private final int unreachableTicks;
-        /** The worker does not try the walk before this game time. */
+        /** The place that this wrapper gave back, or null. */
+        @Nullable
+        private GlobalPos restored;
+        /** The worker does not try the walk to {@link #restored} before this game time. */
         private long nextTry;
 
         KeepPlace(OneShot<Villager> walk, MemoryModuleType<GlobalPos> place, int unreachableTicks) {
@@ -356,7 +361,7 @@ public final class WorkerBrains {
             if (kept.isEmpty() || !isWorker(villager)) {
                 return walk.trigger(level, villager, gameTime);
             }
-            if (gameTime < nextTry) {
+            if (kept.get().equals(restored) && gameTime < nextTry) {
                 return false;
             }
             if (!brain.hasMemoryValue(MemoryModuleType.WALK_TARGET)
@@ -367,6 +372,7 @@ public final class WorkerBrains {
             boolean started = walk.trigger(level, villager, gameTime);
             if (!brain.hasMemoryValue(place)) {
                 brain.setMemory(place, kept.get());
+                restored = kept.get();
                 nextTry = gameTime + unreachableTicks;
             }
             return started;
