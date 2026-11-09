@@ -78,13 +78,10 @@ public final class JobBuildingTemplateGameTests {
     private static final List<String> JOBS = List.of(FIELDS, FOOD, WOOD, STONE, CRAFTS, CLOTH).stream()
             .flatMap(List::stream).toList();
     /**
-     * The groups of 5 jobs of the scan tests of the Valeholm pieces, by name. The Valeholm style has a piece
-     * of its own for each job of these groups (NORSE_JOBS in the structure script).
+     * The groups of 4 or 5 jobs of the scan tests of the Valeholm pieces, by name: all the jobs of {@link #JOBS}.
+     * The Valeholm style has a piece of its own for each job (NORSE_JOBS in the structure script).
      */
     private static final Map<String, List<String>> VALEHOLM_GROUPS = valeholmGroups();
-    /** The jobs with a Valeholm piece of their own: a Norse long house of {@link #LONG_HOUSE} blocks. */
-    private static final List<String> VALEHOLM_JOBS = VALEHOLM_GROUPS.values().stream().flatMap(List::stream)
-            .toList();
     /** The size of a Norse long house of the Valeholm style (x, y, z): it fits each plot of a Norse street. */
     private static final Vec3i LONG_HOUSE = new Vec3i(9, 16, 17);
     /** The biome variants of the scan tests of the Valeholm pieces: the base variant, the desert and the swamp. */
@@ -111,7 +108,8 @@ public final class JobBuildingTemplateGameTests {
      * Each variant of each job building has one job sign, with the job id and an icon, and no entities: a template
      * with entities adds them again at each placement. Each job building and the maritime fishing hut are homes: 1
      * house sign and {@link #HOME_BEDS} beds or more. The maritime fishing hut has the job sign of the fisher. The
-     * forge of each style has no job sign: it is not a job post.
+     * forge of each style has no job sign: it is not a job post. The Valeholm piece of each job is a long house of
+     * {@link #LONG_HOUSE} blocks.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "job_building_templates")
     public static void eachVariantHasItsJobSign(GameTestHelper helper) {
@@ -126,12 +124,10 @@ public final class JobBuildingTemplateGameTests {
                     checkTemplate(templates, piece(style + variant, "job_" + job), job, problems);
                 }
             }
-            if (VALEHOLM_JOBS.contains(job)) {
-                for (String variant : VARIANTS) {
-                    ResourceLocation id = piece("valeholm/" + variant, "job_" + job);
-                    templates.get(id).filter(template -> !template.getSize().equals(LONG_HOUSE))
-                            .ifPresent(template -> problems.add(id + " is not a long house: " + template.getSize()));
-                }
+            for (String variant : VARIANTS) {
+                ResourceLocation id = piece("valeholm/" + variant, "job_" + job);
+                templates.get(id).filter(template -> !template.getSize().equals(LONG_HOUSE))
+                        .ifPresent(template -> problems.add(id + " is not a long house: " + template.getSize()));
             }
         }
         for (String variant : VARIANTS) {
@@ -219,6 +215,8 @@ public final class JobBuildingTemplateGameTests {
         groups.put("wood", WOOD.subList(0, 5));
         groups.put("wood_2", WOOD.subList(5, 10));
         groups.put("stone", STONE);
+        groups.put("crafts", CRAFTS);
+        groups.put("cloth", CLOTH);
         return groups;
     }
 
@@ -310,11 +308,11 @@ public final class JobBuildingTemplateGameTests {
     }
 
     /**
-     * The 5 job buildings of a group in a folder of the pieces (a style and a biome variant): the plan of each template
-     * has no warning. After the placement of the templates, each job sign has its job and its icon item, each fence
-     * and each wall has the shape of its neighbors, and the scan of the heart finds 1 job post for each building with
-     * the beds of the building, 1 home (house sign) for each building and the beds of the templates as the home beds
-     * of the village. The Valeholm pieces are long houses of {@link #LONG_HOUSE} blocks: their tests use the arena
+     * The 4 or 5 job buildings of a group in a folder of the pieces (a style and a biome variant): the plan of each
+     * template has no warning. After the placement of the templates, each job sign has its job and its icon item, each
+     * fence and each wall has the shape of its neighbors, and the scan of the heart finds 1 job post for each building
+     * with the beds of the building, 1 home (house sign) for each building and the beds of the templates as the home
+     * beds of the village. The Valeholm pieces are long houses of {@link #LONG_HOUSE} blocks: their tests use the arena
      * {@code arena_huge}.
      */
     private static void checkScan(GameTestHelper helper, String folder, List<String> jobs) {
