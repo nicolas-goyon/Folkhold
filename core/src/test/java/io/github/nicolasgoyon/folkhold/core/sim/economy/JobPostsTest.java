@@ -29,6 +29,17 @@ class JobPostsTest {
     }
 
     @Test
+    void householdsFillTheHomesOfTheValidPostsInOrder() {
+        Post cottage = new Post("smith", 30, 64, 0, 3);
+        List<Post> posts = List.of(FARMER, cottage, MASON);
+        int none = JobPosts.NO_POST;
+        assertEquals(List.of(0, 0, 2, 2, none), JobPosts.households(posts, job -> !job.equals("smith"), 5));
+        assertEquals(List.of(0), JobPosts.households(posts, JobPostsTest::allValid, 1));
+        assertEquals(List.of(), JobPosts.households(posts, JobPostsTest::allValid, 0));
+        assertEquals(List.of(none, none), JobPosts.households(List.of(), JobPostsTest::allValid, 2));
+    }
+
+    @Test
     void legacyVillageWithOnePostKeepsItsJobSlots() {
         List<String> jobs = JobPosts.jobs(Optional.of(List.of(FARMER)), true, SLOT_JOBS.subList(0, 4), 4,
                 JobPostsTest::allValid, 10);

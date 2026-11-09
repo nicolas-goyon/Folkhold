@@ -8,18 +8,29 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
+import io.github.nicolasgoyon.folkhold.world.village.VillageHomes;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
+import net.minecraft.world.entity.ai.village.poi.PoiTypes;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.block.Block;
@@ -29,6 +40,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.JigsawReplacementProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -258,6 +270,112 @@ public final class JobPostGameTests {
             end(helper, village);
         }
         helper.succeed();
+    }
+
+    /**
+     * A village with the house-workshop of the farmer (2 beds) and a cottage (3 beds), with 5 inhabitants of the homes:
+     * the 2 inhabitants of the workshop are farmers and their {@code HOME} is a bed of the workshop. The 3 inhabitants
+     * with no post sleep in the cottage. An inhabitant in excess gets no bed, and a vanilla villager that holds a bed of
+     * the workshop loses it.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_posts_households", skyAccess = true)
+    public static void workersOfAPostSleepInItsHome(GameTestHelper helper) {
+        startStaff(helper);
+        Village village = village(helper, List.of("job_farmer", "house_cottage"), 3);
+        List<Villager> villagers = new ArrayList<>();
+        TestSupport.atTestEnd(helper, () -> villagers.forEach(Entity::discard));
+        try {
+            ServerLevel level = helper.getLevel();
+            BlockPos heartPos = village.heart().getBlockPos();
+            helper.assertTrue(Economies.homeInhabitants(village.settlement()) == 5,
+                    "Expected 5 inhabitants of the homes: " + Economies.homeInhabitants(village.settlement()));
+            List<VillagerProfession> professions = VillageFolk.professions(village.settlement(),
+                    VillageFolk.inhabitantCount(village.settlement()));
+            professions.forEach(profession -> villagers.add(VillageFolk.spawn(level, heartPos, profession)));
+            Villager extra = VillageFolk.spawn(level, heartPos, ModProfessions.INHABITANT.get());
+            villagers.add(extra);
+            BlockPos workshopBed = village.heart().getLayout().beds().stream()
+                    .filter(village.boxes().get(0)::isInside).findFirst().orElseThrow();
+            Villager stranger = EntityType.VILLAGER.create(level);
+            stranger.moveTo(Vec3.atBottomCenterOf(heartPos.above()));
+            stranger.getBrain().setMemory(MemoryModuleType.HOME, GlobalPos.of(level.dimension(), workshopBed));
+            level.addFreshEntity(stranger);
+            villagers.add(stranger);
+
+            helper.assertTrue(village.heart().claimHomeBeds() == 5, "Expected 5 villagers with a new bed");
+            VillagerProfession farmer = VillageFolk.professionOf(FARMER);
+            List<BlockPos> farmerBeds = homes(level, villagers, farmer);
+            helper.assertTrue(farmerBeds.size() == 2 && farmerBeds.stream().distinct().count() == 2
+                    && farmerBeds.stream().allMatch(village.boxes().get(0)::isInside),
+                    "The 2 farmers must sleep in the workshop: " + farmerBeds);
+            helper.assertTrue(farmerBeds.stream().allMatch(bed -> level.getPoiManager().getInRange(
+                    type -> type.is(PoiTypes.HOME), bed, 1, PoiManager.Occupancy.HAS_SPACE)
+                    .noneMatch(record -> record.getPos().equals(bed))),
+                    "The farmers must hold the tickets of their beds");
+            List<BlockPos> otherBeds = homes(level, villagers, ModProfessions.INHABITANT.get());
+            helper.assertTrue(otherBeds.size() == 3 && otherBeds.stream().distinct().count() == 3
+                    && otherBeds.stream().allMatch(village.boxes().get(1)::isInside),
+                    "The 3 inhabitants with no post must sleep in the cottage: " + otherBeds);
+            helper.assertTrue(VillageHomes.home(level, stranger).isEmpty(),
+                    "The vanilla villager must lose the bed of the workshop");
+            helper.assertTrue(village.heart().claimHomeBeds() == 0, "The villagers must keep their beds");
+        } finally {
+            villagers.forEach(Entity::discard);
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A legacy village: the household of its post does the job of the post, and its legacy job slots go to the
+     * inhabitants of the cottage. With no list of posts, the heart gives no bed: the vanilla rules apply.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 40, batch = "job_posts_legacy_households", skyAccess = true)
+    public static void legacyVillageGivesItsJobSlotsToTheOtherHomes(GameTestHelper helper) {
+        startStaff(helper);
+        Village village = village(helper, "", List.of("job_farmer", "house_cottage"), 3, POPULATION,
+                List.of("folkhold_world:baker", "folkhold_world:miner", "folkhold_world:fisher"), true,
+                "minecraft:plains");
+        List<Villager> villagers = new ArrayList<>();
+        TestSupport.atTestEnd(helper, () -> villagers.forEach(Entity::discard));
+        try {
+            ServerLevel level = helper.getLevel();
+            BlockPos heartPos = village.heart().getBlockPos();
+            VillageFolk.professions(village.settlement(), VillageFolk.inhabitantCount(village.settlement()))
+                    .forEach(profession -> villagers.add(VillageFolk.spawn(level, heartPos, profession)));
+            village.heart().claimHomeBeds();
+            List<BlockPos> farmerBeds = homes(level, villagers, VillageFolk.professionOf(FARMER));
+            helper.assertTrue(farmerBeds.size() == 2 && farmerBeds.stream().allMatch(village.boxes().get(0)::isInside),
+                    "The 2 farmers must sleep in the workshop: " + farmerBeds);
+            long cottageWorkers = villagers.stream().filter(villager -> VillageHomes.home(level, villager)
+                    .filter(village.boxes().get(1)::isInside).isPresent())
+                    .filter(villager -> villager.getVillagerData().getProfession() != ModProfessions.INHABITANT.get())
+                    .count();
+            helper.assertTrue(cottageWorkers == 2, "Expected 2 workers of a legacy job slot in the cottage, found "
+                    + cottageWorkers);
+
+            villagers.forEach(Entity::discard);
+            villagers.clear();
+            village.settlement().setJobPosts(Optional.empty());
+            List<VillageFolk.Seat> seats = VillageFolk.seats(village.settlement(),
+                    VillageFolk.inhabitantCount(village.settlement()));
+            helper.assertTrue(seats.stream().allMatch(seat -> seat.post() == VillageFolk.NO_HOME),
+                    "A village with no list of posts gives no home: " + seats);
+            seats.forEach(seat -> villagers.add(VillageFolk.spawn(level, heartPos, seat.profession())));
+            helper.assertTrue(village.heart().claimHomeBeds() == 0
+                    && villagers.stream().allMatch(villager -> VillageHomes.home(level, villager).isEmpty()),
+                    "A village with no list of posts must give no bed");
+        } finally {
+            villagers.forEach(Entity::discard);
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /** The beds of the villagers with a profession. */
+    private static List<BlockPos> homes(ServerLevel level, List<Villager> villagers, VillagerProfession profession) {
+        return villagers.stream().filter(villager -> villager.getVillagerData().getProfession() == profession)
+                .map(villager -> VillageHomes.home(level, villager)).flatMap(Optional::stream).toList();
     }
 
     /** The village has the posts, each post has a valid job, and its job sign shows this job and an icon. */

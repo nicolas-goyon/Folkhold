@@ -10,7 +10,9 @@ import io.github.nicolasgoyon.folkhold.world.construction.GhostPlacement;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
@@ -91,6 +93,44 @@ public final class VillageBeds {
      */
     public static List<JobPosts.Post> posts(ServerLevel level, BlockPos heart, List<VillageLayout.JobSign> signs,
             List<BlockPos> beds, VillageReference reference) {
+        return homes(level, heart, signs, beds, reference).posts();
+    }
+
+    /**
+     * The homes of a village: its job posts (see {@link #posts}), the home beds of each post, and all its home beds.
+     *
+     * @param posts    the posts, in the scan order
+     * @param postBeds the home beds of the home of each post, by the position of its job sign
+     * @param beds     the head part of each home bed of the village, in the scan order: the beds of the homes with
+     *                 a post and with no post, and the beds that are not in a building
+     */
+    public record Homes(List<JobPosts.Post> posts, Map<BlockPos, List<BlockPos>> postBeds, List<BlockPos> beds) {
+        /** No homes: a village with no structure. */
+        public static final Homes NONE = new Homes(List.of(), Map.of(), List.of());
+
+        /**
+         * The home beds of the home of a post.
+         *
+         * @param post the post
+         * @return the beds, or an empty list for a post that is not in these homes
+         */
+        public List<BlockPos> bedsOf(JobPosts.Post post) {
+            return postBeds.getOrDefault(new BlockPos(post.x(), post.y(), post.z()), List.of());
+        }
+    }
+
+    /**
+     * The homes of a village (see {@link #posts} for the rules of the posts).
+     *
+     * @param level     the level
+     * @param heart     the position of the village heart
+     * @param signs     the job signs of the village, in the scan order
+     * @param beds      the head part of each bed of the village
+     * @param reference the reference of the village structure
+     * @return the homes
+     */
+    public static Homes homes(ServerLevel level, BlockPos heart, List<VillageLayout.JobSign> signs,
+            List<BlockPos> beds, VillageReference reference) {
         List<BoundingBox> pieces = new ArrayList<>();
         for (VillageReference.Piece piece : reference.pieces()) {
             if (!piece.template().getPath().endsWith(GARRISON_SUFFIX)) {
@@ -99,9 +139,12 @@ public final class VillageBeds {
             }
         }
         List<BoundingBox> garrison = garrisonBuildings(level, reference);
+        List<BlockPos> homeBeds = beds.stream()
+                .filter(bed -> garrison.stream().noneMatch(other -> other.isInside(bed))).toList();
         VillageRepairData repairs = VillageRepairData.get(level);
         List<BoundingBox> homes = new ArrayList<>();
         List<JobPosts.Post> posts = new ArrayList<>();
+        Map<BlockPos, List<BlockPos>> postBeds = new HashMap<>();
         List<VillageLayout.JobSign> withJobFirst = new ArrayList<>(signs);
         withJobFirst.sort(Comparator.comparing(sign -> sign.jobId().isEmpty()));
         for (VillageLayout.JobSign sign : withJobFirst) {
@@ -111,16 +154,16 @@ public final class VillageBeds {
                 continue;
             }
             BoundingBox box = building.get();
-            int homeBeds = (int) beds.stream().filter(box::isInside)
-                    .filter(bed -> garrison.stream().noneMatch(other -> other.isInside(bed))).count();
-            if (homeBeds > 0) {
+            List<BlockPos> inHome = homeBeds.stream().filter(box::isInside).toList();
+            if (!inHome.isEmpty()) {
                 homes.add(box);
                 posts.add(new JobPosts.Post(sign.jobId(), sign.pos().getX(), sign.pos().getY(), sign.pos().getZ(),
-                        homeBeds));
+                        inHome.size()));
+                postBeds.put(sign.pos().immutable(), inHome);
             }
         }
         posts.sort(Comparator.comparingInt(post -> signIndex(signs, post)));
-        return posts;
+        return new Homes(List.copyOf(posts), Map.copyOf(postBeds), homeBeds);
     }
 
     private static int signIndex(List<VillageLayout.JobSign> signs, JobPosts.Post post) {
