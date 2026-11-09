@@ -273,6 +273,9 @@ public final class JobBuildingTemplateGameTests {
         Map<String, List<String>> groups = new LinkedHashMap<>();
         groups.put("fields", FIELDS);
         groups.put("food", FOOD);
+        groups.put("wood", WOOD.subList(0, 5));
+        groups.put("wood_2", WOOD.subList(5, 10));
+        groups.put("stone", STONE);
         return groups;
     }
 

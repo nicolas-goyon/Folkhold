@@ -3291,6 +3291,181 @@ def sun_butchery():
     return shaped(t)
 
 
+def sun_lumber_yard(job, wood):
+    """The Sunreach building of a lumberjack: a flat house with a grindstone for the axes and a potted sapling, and a
+    yard with a pile of logs of the wood of the job along the west wall, a chopping block and the split wood (see
+    lumber_yard).
+
+    All the lumberjacks have this shape. Only the wood of the logs, of the chopping block and of the sapling changes.
+    """
+    log = f"minecraft:{wood}_log"
+    sapling = POTTED.get(wood, f"minecraft:potted_{wood}_sapling")
+    rng = random.Random(91)
+
+    def ground(x, z):
+        return GRASS if x in (1, 2, FW - 2) else "minecraft:coarse_dirt"
+
+    t = sun_yard_workshop(rng, job, log, ground, lambda x, z: None,
+                          work=("minecraft:grindstone", {"face": "floor", "facing": "north"}))
+    t.set(1, 1, 2, sapling)
+    # The west pile: 2 rows of logs along the wall, the row on the wall 2 logs high.
+    for z in range(SUN_SHED + 1, CD - 2):
+        for x, top in ((1, 2), (2, 1)):
+            for y in range(1, top + 1):
+                job_material(t, x, y, z, log, {"axis": "z"})
+    # The chopping block: a log on its end. The split wood: stripped logs in the east back corner.
+    job_material(t, FW - 3, 1, SUN_WATER[1], log, LOG_Y)
+    for x, y in ((FW - 3, 1), (FW - 2, 1), (FW - 2, 2)):
+        job_material(t, x, y, CD - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
+    t.set(FW - 2, 1, SUN_SHED, sapling)
+    return shaped(t)
+
+
+def sun_mine():
+    """The Sunreach building of the miner: a flat house with a smithing table (the work block of the vanilla
+    toolsmith), and a yard with a rock face at the back (see mine). A timber frame in the rock face makes the mouth of
+    the mine, with a lantern under the beam. A rail goes from the back door to the mouth. A pile of cobblestone stands
+    next to the rail. The cobblestone of the pile stays cobblestone in all the variants."""
+    rng = random.Random(92)
+    mid = FW // 2
+    face = CD - 2
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == mid else "minecraft:gravel"
+
+    def plants(x, z):
+        return RAIL if x == mid else None
+
+    t = sun_yard_workshop(rng, "miner", "minecraft:iron_pickaxe", ground, plants,
+                          work=("minecraft:smithing_table", None))
+    # The rock face: 3 blocks high, with stone at its foot on the 2 sides.
+    rock = {1: ("minecraft:stone", "minecraft:andesite", "minecraft:stone"),
+            2: ("minecraft:coal_ore", "minecraft:stone", "minecraft:andesite"),
+            FW - 3: ("minecraft:iron_ore", "minecraft:stone", "minecraft:stone"),
+            FW - 2: ("minecraft:andesite", "minecraft:copper_ore", "minecraft:stone")}
+    for x, column in rock.items():
+        for y, name in enumerate(column, 1):
+            t.set(x, y, face, name)
+    for x in (1, FW - 2):
+        t.set(x, 1, face - 1, "minecraft:stone")
+    # The mouth: 2 posts and a beam in the rock face, and the rock behind it in place of the back wall.
+    for x in (mid - 1, mid + 1):
+        for y in (1, 2):
+            t.set(x, y, face, "minecraft:spruce_log", LOG_Y)
+    for x in (mid - 1, mid, mid + 1):
+        t.set(x, 3, face, "minecraft:spruce_log", {"axis": "x"})
+        for y in (1, 2, 3):
+            t.set(x, y, CD - 1, "minecraft:stone")
+    t.set(mid, 2, face, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    for x, z in ((1, SUN_SHED), (2, SUN_SHED), (1, SUN_SHED + 1)):
+        job_material(t, x, 1, z, "minecraft:cobblestone")
+    t.set(1, 1, 2, *BARREL)
+    return shaped(t)
+
+
+def sun_dig_yard():
+    """The Sunreach building of the digger: a flat house with a stonecutter (the work block of the vanilla mason), and
+    a yard with heaps of sand, gravel, clay and dirt along the wall (see dig_yard). A path of coarse dirt goes from the
+    back door to the back wall."""
+    rng = random.Random(93)
+    back = CD - 2
+    heaps = {(1, back): "sand", (2, back): "sand", (1, back - 1): "sand", (3, back): "gravel",
+             (FW - 4, back): "clay", (FW - 3, back): "dirt", (FW - 2, back): "dirt", (FW - 2, back - 1): "gravel",
+             (1, SUN_SHED + 1): "clay", (FW - 2, SUN_SHED + 1): "sand"}
+
+    def plants(x, z):
+        return f"minecraft:{heaps[(x, z)]}" if (x, z) in heaps else None
+
+    t = sun_yard_workshop(rng, "digger", "minecraft:iron_shovel", lambda x, z: "minecraft:coarse_dirt", plants,
+                          work=("minecraft:stonecutter", {"facing": "east"}))
+    t.set(1, 2, back, "minecraft:sand")
+    t.set(FW - 2, 2, back, "minecraft:dirt")
+    t.set(1, 1, 2, *BARREL)
+    return shaped(t)
+
+
+# The beds of a Sunreach workshop of the wood and the stone: on the 2 side walls, in the middle of the room. The
+# front of the room stays free for the counter and the tools, and the back of the room for the work.
+SUN_CRAFT_BEDS = ((1, 5), (FW - 2, 5))
+
+
+def sun_sawmill(job, wood):
+    """The Sunreach building of a sawyer: a flat house with a saw bench across the room behind the beds (a stonecutter
+    between the logs and the slabs), a pile of logs and a stack of planks on the back wall, a crafting table and a
+    barrel (see sawmill).
+
+    All the sawyers have this shape. Only the wood of the logs, the planks and the slabs changes.
+    """
+    rng = random.Random(94)
+    t = sun_workshop(rng, job, f"minecraft:{wood}_planks", SUN_CRAFT_BEDS)
+    bench = CD - 4
+    for x in (2, 3):
+        job_material(t, x, 1, bench, f"minecraft:{wood}_log", {"axis": "x"})
+    t.set(4, 1, bench, "minecraft:stonecutter", {"facing": "north"})
+    for x in (5, 6):
+        job_material(t, x, 1, bench, f"minecraft:{wood}_slab", {"type": "bottom", "waterlogged": "false"})
+    # The logs to saw (west) and the planks (east) on the back wall. The passages at the ends of the bench stay free.
+    for x, y in ((1, 1), (2, 1), (3, 1), (1, 2), (2, 2)):
+        job_material(t, x, y, CD - 2, f"minecraft:{wood}_log", {"axis": "x"})
+    for x, y, z in ((FW - 3, 1, CD - 2), (FW - 2, 1, CD - 2), (FW - 2, 2, CD - 2), (FW - 2, 1, CD - 3)):
+        job_material(t, x, y, z, f"minecraft:{wood}_planks")
+    t.set(1, 1, 3, "minecraft:crafting_table")
+    t.set(FW - 2, 1, 2, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, FW - 2, 1, 3)
+    return shaped(t)
+
+
+def sun_mason():
+    """The Sunreach building of the mason: a flat house with a stonecutter (the work block of the vanilla mason) and a
+    block of stone to cut, a brick kiln with a chimney through the flat roof (see sun_oven), and stacks of stone
+    bricks, bricks, smooth stone and terracotta on the back wall (see mason_workshop). The stacks of stone bricks stay
+    stone bricks in all the variants."""
+    rng = random.Random(95)
+    t = sun_workshop(rng, "mason", "minecraft:stone_bricks", SUN_CRAFT_BEDS)
+    sun_oven(t)
+    for x, y, z in ((1, 1, CD - 2), (1, 2, CD - 2), (2, 1, CD - 2), (1, 1, CD - 3)):
+        job_material(t, x, y, z, "minecraft:stone_bricks")
+    for y in (1, 2):
+        t.set(FW - 2, y, CD - 2, "minecraft:bricks")
+    t.set(FW - 2, 1, CD - 3, "minecraft:smooth_stone")
+    t.set(FW - 2, 1, CD - 4, "minecraft:terracotta")
+    t.set(2, 1, 3, "minecraft:stonecutter", {"facing": "east"})
+    t.set(2, 1, 2, "minecraft:stone")
+    t.set(FW - 2, 1, 3, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, FW - 2, 1, 8)
+    return shaped(t)
+
+
+def sun_smeltery(job):
+    """The Sunreach building of a smelter: a flat house with 2 blast furnaces (the work block of the vanilla armorer)
+    next to a furnace in a brick oven with a chimney through the flat roof (see sun_oven), the raw ore and a block of
+    coal, a water cauldron to cool the metal, and the ingots on a counter (see smeltery). The smelter also makes glass:
+    its building has a barrel of sand.
+
+    All the smelters have this shape. Only the ore and the ingots change.
+    """
+    icon, ores, plate = SMELTERS[job]
+    rng = random.Random(96)
+    t = sun_workshop(rng, job, icon, SUN_CRAFT_BEDS)
+    sun_oven(t)
+    for x in (1, 2):
+        t.set(x, 1, CD - 2, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
+    for z, ore in zip((CD - 2, CD - 3), ores):
+        t.set(FW - 2, 1, z, ore)
+    t.set(FW - 3, 1, CD - 2, "minecraft:coal_block")
+    t.set(FW - 2, 1, CD - 4, *WATER_CAULDRON)
+    if job == "smelter":
+        t.set(FW - 2, 1, CD - 5, *BARREL)
+    for x in (FW - 3, FW - 2):
+        t.set(x, 1, 3, *TOP_SLAB)
+        t.set(x, 2, 3, plate, {"power": "0"})
+    lantern(t, 1, 1, 2)
+    lantern(t, 1, 1, 8)
+    return shaped(t)
+
+
 # The house-workshops of the Sunreach style, by job. The jobs with no piece here use the pieces of all the cultures.
 SUNREACH_JOBS = {
     "farmer": sun_farm,
@@ -3303,6 +3478,12 @@ SUNREACH_JOBS = {
     "rancher": sun_ranch,
     "butcher": sun_butchery,
     "fisher": sun_fisher_hut,
+    **{job: functools.partial(sun_lumber_yard, job, wood) for job, wood in LUMBERJACKS.items()},
+    **{job: functools.partial(sun_sawmill, job, wood) for job, wood in SAWYERS.items()},
+    "miner": sun_mine,
+    "digger": sun_dig_yard,
+    "mason": sun_mason,
+    **{job: functools.partial(sun_smeltery, job) for job in SMELTERS},
 }
 
 
