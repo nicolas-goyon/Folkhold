@@ -21,6 +21,7 @@ import java.util.function.Predicate;
  *       need below its target, if the worker does not sell this item.</li>
  *   <li>The offer count of the level divides between the traders of the village (see {@link #share}). A worker has
  *       {@link #MIN_OFFERS} offers or more, and not more than the offer count of the level.</li>
+ *   <li>On a market day, each trader has extra offers, up to {@link #MAX_OFFERS} offers (see {@link #offers}).</li>
  *   <li>Of the offers of a worker, two thirds are sell offers, and the rest are buy offers, with 1 buy offer or more.
  *       When a worker has fewer items to sell than sell offers, the free offers buy, and the reverse.</li>
  *   <li>The items of the stock that no worker sells go to the caravan merchant during its stay (see
@@ -30,6 +31,11 @@ import java.util.function.Predicate;
 public final class JobTrades {
     /** The minimum number of offers of a trader: 1 sell offer and 1 buy offer. */
     public static final int MIN_OFFERS = 2;
+    /**
+     * The maximum number of offers of a trader with the extra offers of the market day: the offer count of the
+     * largest level (22) and the default extra offers (2). The extra offers do not go above this cap.
+     */
+    public static final int MAX_OFFERS = 24;
 
     private JobTrades() {
     }
@@ -63,6 +69,25 @@ public final class JobTrades {
         }
         int part = levelOffers / traders + (index < levelOffers % traders ? 1 : 0);
         return Math.min(levelOffers, Math.max(MIN_OFFERS, part));
+    }
+
+    /**
+     * The number of offers of one trader on a day: its share of the offer count of the level (see {@link #share}) and
+     * the extra offers of the market day. The extra offers do not take a trader above {@link #MAX_OFFERS} offers. A
+     * share above this cap (a data pack with a large offer count) stays the same.
+     *
+     * @param levelOffers the offer count of the level
+     * @param traders     the number of traders of the village
+     * @param index       the index of the trader (0 to {@code traders - 1})
+     * @param extra       the extra offers of each trader on this day, 0 on a day that is not a market day
+     * @return the number of offers, or 0 when the village has no traders or no offers
+     */
+    public static int offers(int levelOffers, int traders, int index, int extra) {
+        int share = share(levelOffers, traders, index);
+        if (share == 0 || extra <= 0) {
+            return share;
+        }
+        return Math.max(share, Math.min(MAX_OFFERS, share + extra));
     }
 
     /**

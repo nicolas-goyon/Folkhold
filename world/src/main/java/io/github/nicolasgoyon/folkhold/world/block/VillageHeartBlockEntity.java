@@ -192,6 +192,14 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private VillageBeds.Homes homes;
     /** The places of the daily schedule of the workers. Not saved: the next check calculates them again. */
     private final VillageWorkers workers = new VillageWorkers();
+    /**
+     * The trade place of the last calculation, or null. Not saved: a scan, a request for a scan and a new reference
+     * of the village structure clear it.
+     */
+    @Nullable
+    private TradePlaceCache tradePlaceCache;
+    /** The number of calculations of the trade place. Not saved. For the tests. */
+    private int tradePlaceCalculations;
     /** Game time of the last ring of the bells. Not saved. */
     private long lastBellTick = Long.MIN_VALUE / 2;
     /** Game time of the last shared target. Not saved. */
@@ -697,6 +705,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
      */
     public void requestScan() {
         layout.invalidate();
+        tradePlaceCache = null;
         setChanged();
     }
 
@@ -715,6 +724,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         ensureSettlement();
         if (!layout.isScanned()) {
             layout.scan(serverLevel, scanArea(serverLevel));
+            tradePlaceCache = null;
             recordMarketPlot(serverLevel);
             paintBanners();
             setChanged();
@@ -985,6 +995,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
     public void setRepairReference(@Nullable VillageReference reference) {
         repairReference = reference;
         repairReferenceSearched = true;
+        tradePlaceCache = null;
     }
 
     /** True if the last check of the growth found no free plot for the market (see {@link VillageMarket.State}). */
@@ -1047,6 +1058,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
             return false;
         }
         layout.scan(serverLevel, scanArea(serverLevel));
+        tradePlaceCache = null;
         recordMarketPlot(serverLevel);
         paintBanners();
         setChanged();
@@ -1080,13 +1092,30 @@ public class VillageHeartBlockEntity extends BlockEntity {
 
     /**
      * The trade place of the village: the area of its market, or the area of its plaza with no market (see
-     * {@link VillageMarket}).
+     * {@link VillageMarket}). The heart keeps the result until the next scan, a request for a scan, a change of the
+     * market signs of the scan or a new reference of the village structure. Thus a trade or a check of the workers
+     * does not calculate the place again.
      *
      * @param serverLevel the level of the heart
      * @return the trade place
      */
     public VillageMarket.TradePlace tradePlace(ServerLevel serverLevel) {
-        return VillageMarket.tradePlace(serverLevel, this);
+        TradePlaceCache cache = tradePlaceCache;
+        if (cache == null || !cache.markets().equals(layout.markets())) {
+            tradePlaceCalculations++;
+            cache = new TradePlaceCache(List.copyOf(layout.markets()), VillageMarket.tradePlace(serverLevel, this));
+            tradePlaceCache = cache;
+        }
+        return cache.place();
+    }
+
+    /** The number of calculations of the trade place since the creation of this heart. For the tests. */
+    public int tradePlaceCalculations() {
+        return tradePlaceCalculations;
+    }
+
+    /** A trade place and the market signs of the scan that gave it. */
+    private record TradePlaceCache(List<BlockPos> markets, VillageMarket.TradePlace place) {
     }
 
     /**
@@ -1442,6 +1471,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         lastThreatTick = tag.getLong(LAST_THREAT_TAG);
         garrison.load(tag.getList(GARRISON_TAG, Garrison.TAG_TYPE));
         layout.load(tag.getCompound(LAYOUT_TAG));
+        tradePlaceCache = null;
         nightMode = tag.getBoolean(NIGHT_TAG);
         exitStairs = tag.getBoolean(EXITS_TAG);
         catsSpawned = tag.getBoolean(CATS_TAG);

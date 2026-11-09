@@ -437,7 +437,7 @@ public final class JobPostGameTests {
             helper.assertTrue(market.size() == 3 && key(market.get(0).value()).equals(SCREEN + "market.hamlet"),
                     "A village of level 3 must be a hamlet: " + market);
             int days = VillageSchedule.daysToMarketDay(helper.getLevel(), village.settlement());
-            helper.assertTrue(key(market.get(2).value()).equals(SCREEN + (days == 0 ? "market_day.today"
+            helper.assertTrue(key(dayOf(market.get(2).value())).equals(SCREEN + (days == 0 ? "market_day.today"
                     : days == 1 ? "market_day.tomorrow" : "market_day.days")), "Wrong market day: " + market.get(2));
             String hours = key(market.get(1).value());
             helper.assertTrue(hours.equals(SCREEN + (VillageSchedule.isMarketOpen(helper.getLevel())
@@ -520,17 +520,17 @@ public final class JobPostGameTests {
             helper.assertTrue(key(noon.get(0).value()).equals(SCREEN + "market.no_space"),
                     "Expected no free plot for the market: " + noon.get(0));
             assertText(helper, noon.get(1), SCREEN + "market_hours.open", "11:00", "14:00");
-            assertText(helper, noon.get(2), SCREEN + "market_day.today", 0);
+            assertMarketDay(helper, noon.get(2), SCREEN + "market_day.today", 0);
 
             level.setDayTime((marketDay + 6) * DaySchedule.DAY_TICKS + 1000);
             List<Row> morning = VillageLife.marketRows(village.heart(), village.settlement());
             assertText(helper, morning.get(1), SCREEN + "market_hours.closed", "11:00", "14:00");
-            assertText(helper, morning.get(2), SCREEN + "market_day.tomorrow", 1);
+            assertMarketDay(helper, morning.get(2), SCREEN + "market_day.tomorrow", 1);
 
             level.setDayTime((marketDay + 3) * DaySchedule.DAY_TICKS + 9000);
             List<Row> afternoon = VillageLife.marketRows(village.heart(), village.settlement());
             assertText(helper, afternoon.get(1), SCREEN + "market_hours.closed", "11:00", "14:00");
-            assertText(helper, afternoon.get(2), SCREEN + "market_day.days", 4);
+            assertMarketDay(helper, afternoon.get(2), SCREEN + "market_day.days", 4);
 
             village.heart().getLayout().invalidate();
             List<Row> unknown = VillageLife.marketRows(village.heart(), village.settlement());
@@ -570,6 +570,26 @@ public final class JobPostGameTests {
         helper.assertTrue(key(row.value()).equals(expectedKey)
                 && Arrays.equals(args(row.value()), expectedArgs),
                 "Expected " + expectedKey + " " + Arrays.toString(expectedArgs) + ": " + row.value());
+    }
+
+    /**
+     * The market day row has the text of the days and the extra offers of the default schedule (2 offers for each
+     * worker).
+     */
+    private static void assertMarketDay(GameTestHelper helper, Row row, String expectedKey, int days) {
+        int offers = VillageSchedule.schedule().marketDayOffers();
+        helper.assertTrue(offers == 2 && key(row.value()).equals(SCREEN + "market_day.offers")
+                && args(row.value())[1].equals(offers), "Expected 2 extra offers: " + row.value());
+        Component day = dayOf(row.value());
+        helper.assertTrue(key(day).equals(expectedKey) && Arrays.equals(args(day), new Object[] {days}),
+                "Expected " + expectedKey + " " + days + ": " + row.value());
+    }
+
+    /** The text of the days in the value of the market day row, with no extra offers. */
+    private static Component dayOf(Component value) {
+        String key = key(value);
+        return key.equals(SCREEN + "market_day.offers") || key.equals(SCREEN + "market_day.offer")
+                ? (Component) args(value)[0] : value;
     }
 
     /** The row with a label key. */
