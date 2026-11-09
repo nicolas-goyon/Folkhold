@@ -196,7 +196,8 @@ public final class JobBuildingTemplateGameTests {
                 }
             }
         }
-        helper.assertTrue(pieces > 0, "No job piece to check");
+        int expected = STYLES.size() * VARIANTS.size() * JOBS.size();
+        helper.assertTrue(pieces == expected, "Expected " + expected + " job pieces to check: " + pieces);
         helper.assertTrue(problems.isEmpty(), "Work blocks and beds that a worker cannot reach from the porch: "
                 + problems);
         helper.succeed();
@@ -206,10 +207,12 @@ public final class JobBuildingTemplateGameTests {
      * The work blocks and the bed heads of a template that a walk from the porch does not reach.
      *
      * <p>A position is a position to stand when the block at the feet and the block at the head let a villager walk
-     * through them, and a villager walks on the block below (see {@link BlockKinds#describe}). A work block and a bed
-     * are never a position to stand. The walk starts at each position of the porch (z = 0, y = 1) with the feet and the
-     * head free: the street gives the floor of the porch. From a position, the walk goes to a position to stand 1 block
-     * to the north, south, east or west, at the same level or 1 block higher or lower. A block is reached when a
+     * through them, and a villager walks on the block below (see {@link BlockKinds#describe}). A villager cannot stand in
+     * the space of a work block or a bed, but it can stand on top of it. The walk starts at each position of the porch
+     * (z = 0, y = 1) with the feet and the head free: the street gives the floor of the porch. From a position, the walk
+     * goes to a position to stand 1 block to the north, south, east or west, at the same level or 1 block higher or
+     * lower. A step 1 block higher also needs a free block 2 blocks above the start position: the head of the villager
+     * goes through it. A block is reached when a
      * reached position is next to it, to the north, south, east or west, with the feet or the head at the level of the
      * block.
      */
@@ -233,7 +236,8 @@ public final class JobBuildingTemplateGameTests {
                 for (int dy = -1; dy <= 1; dy++) {
                     BlockPos next = pos.relative(side).above(dy);
                     if (next.getX() >= 0 && next.getX() < size.getX() && next.getZ() >= 0 && next.getZ() < size.getZ()
-                            && standable(states, next) && reached.add(next)) {
+                            && (dy <= 0 || free(states, pos.above(2))) && standable(states, next)
+                            && reached.add(next)) {
                         open.add(next);
                     }
                 }
@@ -256,7 +260,10 @@ public final class JobBuildingTemplateGameTests {
         return free(states, pos) && free(states, pos.above()) && walk(states, pos.below()) == Walk.ON;
     }
 
-    /** A villager walks through the block at the position. A work block and a bed are never free. */
+    /**
+     * A villager walks through the block at the position. The space of a work block or a bed is never free: a villager
+     * cannot stand in it, but it can stand on top of it (see {@link #standable}).
+     */
     private static boolean free(Map<BlockPos, BlockState> states, BlockPos pos) {
         BlockState state = states.getOrDefault(pos, Blocks.AIR.defaultBlockState());
         return !isWorkBlock(state) && !(state.getBlock() instanceof BedBlock) && walk(states, pos) == Walk.THROUGH;
