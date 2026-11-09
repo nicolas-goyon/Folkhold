@@ -15,7 +15,6 @@ import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.ItemIds;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
-import io.github.nicolasgoyon.folkhold.world.faction.Reputations;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import io.github.nicolasgoyon.folkhold.world.village.VillageMarket;
 import java.util.HashMap;
@@ -24,9 +23,7 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraft.world.level.Level;
@@ -185,19 +182,6 @@ public final class CaravanStays {
 
     private static boolean isFree(Level level, BlockPos pos) {
         return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
-    }
-
-    /**
-     * The tier of a player in the destination village of a caravan.
-     *
-     * @param server     the server
-     * @param player     the player
-     * @param settlement the destination settlement
-     * @return the tier
-     */
-    public static ReputationTier tier(MinecraftServer server, Player player, Settlement settlement) {
-        return Reputations.effective(server, player, settlement.factionId(), settlement.id())
-                .map(ReputationTier::of).orElse(ReputationTier.NEUTRAL);
     }
 
     /**

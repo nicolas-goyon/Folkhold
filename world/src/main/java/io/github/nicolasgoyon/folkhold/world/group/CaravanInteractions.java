@@ -128,7 +128,8 @@ public final class CaravanInteractions {
             merchant.setOffers(new MerchantOffers());
             return;
         }
-        ReputationTier tier = CaravanStays.tier(server, player, settlement.get());
+        ReputationTier tier = Reputations.effective(server, player, settlement.get().factionId(),
+                settlement.get().id()).map(ReputationTier::of).orElse(ReputationTier.NEUTRAL);
         if (tier.isHostile()) {
             player.displayClientMessage(Component.translatable("message.folkhold_world.merchant_refuses",
                     merchant.getDisplayName()), true);
