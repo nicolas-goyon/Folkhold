@@ -349,8 +349,10 @@ public final class VillageFolk {
         BlockPos pos = Garrison.groundSpawnPos(level, heartPos);
         villager.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, level.random.nextFloat() * 360.0F, 0.0F);
         EventHooks.finalizeMobSpawn(villager, level, level.getCurrentDifficultyAt(pos), MobSpawnType.STRUCTURE, null);
-        setProfession(villager, profession);
+        // The tag comes before the profession: the refresh of the brain gives the worker schedule to a villager of a
+        // village (see WorkerBrains).
         villager.getPersistentData().putLong(Merchants.VILLAGE_TAG, heartPos.asLong());
+        setProfession(villager, profession);
         level.addFreshEntity(villager);
         return villager;
     }

@@ -482,6 +482,24 @@ The workers of a village follow one schedule each day. The core class `DaySchedu
 - **Market day for each village** (`marketDayForEachVillage`, default true): each village has a shift of 0 to `marketDayPeriod` - 1 days (0 to 6 with the default) from the chunk of its structure start. Thus each day of the period is the market day of some villages, and a player has a reason to travel. False: the days 0, `marketDayPeriod`, 2 × `marketDayPeriod`… are the market days of all the villages. `/time set <value>` sets the day number to `value` / 24000: `/time set day` or `/time set noon` sets it to 0, so it also moves the market days.
 - **Spread of the workers** (`workerSpreadTicks`, default 400): each worker changes its phase 0 to `workerSpreadTicks` ticks after the bound. The UUID of the worker gives one of 4 steps (`DaySchedule.WORKER_STEPS`) with equal delays, so the workers of a village need at most 4 brain schedules (`DaySchedule.bounds(step)` gives the moved bounds, wrapped at 24000). The path calculations of the workers of a village do not all occur in the same tick. The market hours of the village (the rule of the trade) do not have this delay. `DaySchedule.clock` gives the clock time of a day time (0 is 06:00).
 
+#### Workers in the village
+
+A worker is an adult villager of a faction village with the profession of a job. The vanilla villager brain does the walks, the work, the meeting and the sleep. Folkhold gives the brain a schedule and two memories (`WorkerBrains`, `VillageWorkers`).
+
+| Phase | Vanilla activity | Place |
+| --- | --- | --- |
+| Work | `WORK` | The job sign of the home of the worker (memory `JOB_SITE`) |
+| Market | `MEET` | The market sign, or the plaza bell for a village with no market (memory `MEETING_POINT`) |
+| Home | `IDLE` | Near the home |
+| Sleep | `REST` | A bed of the home of the worker (memory `HOME`, see Households) |
+
+- **Schedule**: `DaySchedule.transitions(step)` gives the phase changes of a delay step, sorted by time. Two bounds at the same time make an empty phase: only the later phase of the day stays. Each delay step has one vanilla `Schedule`. The vanilla villager sets its default schedule each time that it builds its brain goals (creation, load, `refreshBrain` after a change of profession or at the adult age). The mixin `VillagerMixin` gives the worker schedule at the end of `registerBrainGoals`, so all these paths keep it. A change of profession at night wakes the worker, and the activity `REST` puts it in its bed again.
+- **Job model**: each home with a job sign is one post, and the whole household of the home does its job. The job site of a worker is the job sign of the home of its bed. A worker with no bed in the home of a post (a worker of a legacy job slot) has no job sign, thus no activity `WORK`: it goes to the market and to its bed.
+- **Other inhabitants**: the inhabitants with no job, the builders and the handymen keep the vanilla schedule. The builders and the handymen keep their work.
+- **Points of interest**: `folkhold_world:job_sign` and `folkhold_world:market_sign` (`ModPoiTypes`) have 0 tickets, so no vanilla villager claims a sign. Near a memory of a place, the vanilla brain erases the memory if the place is not a point of interest of the expected type. The mixin `VillagerGoalPackagesMixin` also accepts a job sign for `JOB_SITE` (core package) and a market sign for `MEETING_POINT` (meeting package). A job sign is not the job site of its profession, so the vanilla rules that share or release a job site ignore it. A sign of a chunk that was saved before the point of interest types existed gets its point of interest from the heart.
+- **Alert, raid, panic**: the vanilla activities `HIDE`, `PRE_RAID`, `RAID` and `PANIC` have priority over the schedule. In an alert, the heart rings the bells of the village every 5 seconds, and the loaded workers of the village hear them also far from a bell: they hide.
+- **Cost**: the heart calculates the places (the job sign of each home bed, the meeting point, the missing points of interest) only when the phase of the village, the posts, the places of the inhabitants or the scan change. At each check of the villagers (every 2 seconds, with a player near the heart), the loaded workers get the places from this cache. No code of Folkhold searches the village on each tick. The walks are the vanilla cost: a vanilla villager also walks to the bell each day.
+
 ### Balancing
 
 Difficulty target: a player in iron armor with no enchantments loses a frontal attack against the garrison of an average village in most cases. This is a design target, not an automatic test.

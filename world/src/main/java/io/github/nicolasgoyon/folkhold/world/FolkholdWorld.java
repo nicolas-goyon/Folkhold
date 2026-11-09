@@ -40,6 +40,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModBlockFeatures;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.registry.ModItems;
 import io.github.nicolasgoyon.folkhold.world.registry.ModMapDecorations;
+import io.github.nicolasgoyon.folkhold.world.registry.ModPoiTypes;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.registry.ModSounds;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructurePlacements;
@@ -86,6 +87,7 @@ public final class FolkholdWorld {
         ModBlockEntities.register(modEventBus);
         ModEntities.register(modEventBus);
         ModProfessions.register(modEventBus);
+        ModPoiTypes.register(modEventBus);
         AnimatedVillagers.init();
         ModItems.register(modEventBus);
         ModSounds.register(modEventBus);

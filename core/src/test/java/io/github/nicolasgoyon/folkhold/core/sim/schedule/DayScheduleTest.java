@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -192,5 +193,60 @@ class DayScheduleTest {
         DaySchedule marketAllDay = new DaySchedule(0, 0, 12000, 12000, 12000, 7, 0, 0);
         assertEquals(DayPhase.MARKET, marketAllDay.phaseAt(0));
         assertEquals(DayPhase.SLEEP, marketAllDay.phaseAt(12000));
+    }
+
+    @Test
+    void transitionsOfTheDefaultSchedule() {
+        assertEquals(List.of(new DaySchedule.Transition(0, DayPhase.HOME), new DaySchedule.Transition(2000,
+                DayPhase.WORK), new DaySchedule.Transition(5000, DayPhase.MARKET), new DaySchedule.Transition(8000,
+                DayPhase.WORK), new DaySchedule.Transition(11000, DayPhase.HOME), new DaySchedule.Transition(12000,
+                DayPhase.SLEEP)), SCHEDULE.transitions(0));
+    }
+
+    @Test
+    void transitionsKeepTheLastPhaseOfAnEmptyPhase() {
+        DaySchedule marketAllDay = new DaySchedule(0, 0, 12000, 12000, 12000, 7, 0, 0);
+        assertEquals(List.of(new DaySchedule.Transition(0, DayPhase.MARKET),
+                new DaySchedule.Transition(12000, DayPhase.SLEEP)), marketAllDay.transitions(0));
+        assertTransitionsMatchThePhases(marketAllDay);
+    }
+
+    @Test
+    void transitionsAreSortedAfterTheWrap() {
+        DaySchedule late = new DaySchedule(2000, 5000, 8000, 11000, 23900, 7, 2, 300);
+        List<DaySchedule.Transition> changes = late.transitions(3);
+        assertEquals(new DaySchedule.Transition(200, DayPhase.SLEEP), changes.get(0));
+        assertEquals(new DaySchedule.Transition(300, DayPhase.HOME), changes.get(1));
+        assertTransitionsMatchThePhases(late);
+    }
+
+    @Test
+    void transitionsMatchThePhasesOfEachStep() {
+        assertTransitionsMatchThePhases(SCHEDULE);
+        assertTransitionsMatchThePhases(new DaySchedule(0, 5000, 8000, 23999, 23999, 7, 2, 2000));
+        assertTransitionsMatchThePhases(new DaySchedule(2000, 2000, 3000, 3000, 22500, 7, 2, 1999));
+    }
+
+    /**
+     * For each step and each tick of the day, the phase of the last transition at or before the tick (or the last
+     * transition of the list before the first one) is the phase of the worker.
+     */
+    private static void assertTransitionsMatchThePhases(DaySchedule schedule) {
+        for (int step = 0; step < DaySchedule.WORKER_STEPS; step++) {
+            List<DaySchedule.Transition> changes = schedule.transitions(step);
+            for (int i = 1; i < changes.size(); i++) {
+                assertTrue(changes.get(i - 1).time() < changes.get(i).time(), "sorted with no tie: " + changes);
+            }
+            int delay = schedule.stepDelay(step);
+            for (int time = 0; time < DaySchedule.DAY_TICKS; time++) {
+                DayPhase phase = changes.get(changes.size() - 1).phase();
+                for (DaySchedule.Transition change : changes) {
+                    if (change.time() <= time) {
+                        phase = change.phase();
+                    }
+                }
+                assertEquals(schedule.phaseAt(time, delay), phase, "step " + step + " at " + time);
+            }
+        }
     }
 }
