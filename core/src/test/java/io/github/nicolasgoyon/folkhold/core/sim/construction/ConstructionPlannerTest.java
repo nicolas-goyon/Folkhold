@@ -162,6 +162,29 @@ class ConstructionPlannerTest {
                 "The torch must come back after its wall");
     }
 
+    /**
+     * The same block with only other properties gets the state of the target with no removal. Another block, or the
+     * same block with other data, goes first.
+     */
+    @Test
+    void otherStateOfTheSameBlockHasNoRemoval() {
+        Map<BuildPos, BuildBlock> levelBlocks = new HashMap<>();
+        levelBlocks.put(pos(0, 1, 0), BuildBlock.solid("minecraft:oak_stairs[facing=east]"));
+        levelBlocks.put(pos(1, 1, 0), BuildBlock.solid("minecraft:oak_sign[rotation=0]").withData("{text:a}"));
+        levelBlocks.put(pos(2, 1, 0), BuildBlock.solid("minecraft:spruce_stairs[facing=north]"));
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        blocks.put(pos(0, 1, 0), BuildBlock.solid("minecraft:oak_stairs[facing=north]"));
+        blocks.put(pos(1, 1, 0), BuildBlock.solid("minecraft:oak_sign[rotation=4]").withData("{text:b}"));
+        blocks.put(pos(2, 1, 0), BuildBlock.solid("minecraft:oak_stairs[facing=north]"));
+
+        Plan plan = ConstructionPlanner.plan(new Target(blocks), level(levelBlocks), REACH);
+
+        assertEquals(-1, index(plan, StepType.REMOVE, pos(0, 1, 0)));
+        assertTrue(index(plan, StepType.PLACE, pos(0, 1, 0)) >= 0);
+        assertTrue(index(plan, StepType.REMOVE, pos(1, 1, 0)) >= 0, "Other data needs a removal");
+        assertTrue(index(plan, StepType.REMOVE, pos(2, 1, 0)) >= 0, "Another block needs a removal");
+    }
+
     /** A waterlogged block comes with no water, and the water comes at the end. A water source also. */
     @Test
     void fluidsComeAtTheEnd() {

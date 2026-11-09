@@ -141,16 +141,26 @@ public final class ConstructionRun {
         if (state.isEmpty()) {
             return;
         }
-        Clearable.tryClear(level.getBlockEntity(pos));
+        clearOther(pos, state.get());
         level.setBlock(pos, state.get(), Block.UPDATE_ALL);
         if (step.partner().isPresent() && step.partnerState().isPresent()) {
             BlockPos other = BlockKinds.toBlockPos(step.partner().get());
             state(step.partnerState().get()).ifPresent(partnerState -> {
-                Clearable.tryClear(level.getBlockEntity(other));
+                clearOther(other, partnerState);
                 level.setBlock(other, partnerState, Block.UPDATE_ALL);
             });
         }
         step.data().ifPresent(data -> loadData(pos, state.get(), data));
+    }
+
+    /**
+     * Clears the contents of the block entity at a position before a placement. The same block with other properties
+     * keeps its contents: a placement changes only its state (see {@code ConstructionPlanner}).
+     */
+    private void clearOther(BlockPos pos, BlockState placed) {
+        if (!level.getBlockState(pos).is(placed.getBlock())) {
+            Clearable.tryClear(level.getBlockEntity(pos));
+        }
     }
 
     private void loadData(BlockPos pos, BlockState state, String data) {

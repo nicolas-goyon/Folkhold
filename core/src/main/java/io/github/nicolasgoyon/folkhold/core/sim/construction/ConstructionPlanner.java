@@ -22,9 +22,10 @@ import java.util.function.Predicate;
  *
  * <p>Rules:
  * <ul>
- *   <li>A block of the level that is equal to the block of the target stays. A block with another state is an
- *       obstacle: the plan removes it, and places the block of the target. A block that needs an obstacle as its
- *       support also goes, and comes back if it is in the target.</li>
+ *   <li>A block of the level that is equal to the block of the target stays. The same block with only other
+ *       properties gets the state of the target with no removal: thus a block of more than one part keeps its other
+ *       parts. Another block is an obstacle: the plan removes it, and places the block of the target. A block that
+ *       needs an obstacle as its support also goes, and comes back if it is in the target.</li>
  *   <li>The removals come first: the attached blocks first, then from the top to the bottom.</li>
  *   <li>The placements go from the bottom to the top. A block comes after the block below it, and after its support.
  *       For example, a falling block comes after the block below it, and an attached block after its support. A
@@ -106,7 +107,7 @@ public final class ConstructionPlanner {
             if (have.sameBlock(entry.getValue())) {
                 continue;
             }
-            if (have.kind() != BlockKind.AIR) {
+            if (have.kind() != BlockKind.AIR && !have.sameBlockOtherState(entry.getValue())) {
                 remove.add(pos);
             }
             markToPlace(pos, place, fluids);
