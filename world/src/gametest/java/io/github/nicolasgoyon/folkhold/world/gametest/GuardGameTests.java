@@ -5,25 +5,31 @@ import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.entity.FactionGolemEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.AnchorStrollGoal;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.UnitNavigation;
+import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonEquipment;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.monster.Husk;
+import net.minecraft.world.entity.monster.Vindicator;
+import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
@@ -371,6 +377,41 @@ public final class GuardGameTests {
                             "The guard must go through the gap of the signs. Guard at " + guard.blockPosition());
                 })
                 .thenExecute(guard::discard)
+                .thenSucceed();
+    }
+
+    /**
+     * A melee hit of a unit does not hurt a villager: a guard and a golem hit a villager, and the villager keeps its
+     * full health. Control: a hit of a vindicator hurts a villager.
+     */
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "guard_villager")
+    public static void unitHitDoesNotHurtAVillager(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        GuardEntity guard = TestSupport.spawnGuard(helper, new BlockPos(2, 1, 2));
+        FactionGolemEntity golem = TestSupport.spawnUnit(helper, ModEntities.FACTION_GOLEM.get(), new BlockPos(2, 1, 8));
+        Vindicator vindicator = helper.spawn(EntityType.VINDICATOR, new BlockPos(2, 1, 14));
+        Villager guarded = helper.spawn(EntityType.VILLAGER, new BlockPos(3, 1, 2));
+        Villager near = helper.spawn(EntityType.VILLAGER, new BlockPos(4, 1, 8));
+        Villager victim = helper.spawn(EntityType.VILLAGER, new BlockPos(3, 1, 14));
+        for (var mob : List.of(guard, golem, vindicator, guarded, near, victim)) {
+            mob.setNoAi(true);
+        }
+
+        helper.startSequence()
+                .thenExecuteAfter(1, () -> {
+                    guard.doHurtTarget(guarded);
+                    golem.doHurtTarget(near);
+                    vindicator.doHurtTarget(victim);
+                })
+                .thenExecuteAfter(5, () -> {
+                    helper.assertTrue(guarded.getHealth() == guarded.getMaxHealth(),
+                            "A hit of a guard must not hurt a villager, health: " + guarded.getHealth());
+                    helper.assertTrue(near.getHealth() == near.getMaxHealth(),
+                            "A hit of a golem must not hurt a villager, health: " + near.getHealth());
+                    helper.assertTrue(victim.getHealth() < victim.getMaxHealth(),
+                            "A hit of a vindicator must hurt a villager");
+                })
+                .thenExecute(() -> List.of(guard, golem, vindicator, guarded, near, victim).forEach(Entity::discard))
                 .thenSucceed();
     }
 }
