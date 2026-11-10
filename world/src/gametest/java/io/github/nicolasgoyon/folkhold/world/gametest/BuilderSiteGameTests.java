@@ -32,10 +32,12 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
@@ -109,6 +111,11 @@ public final class BuilderSiteGameTests {
     private static final double PENDING_STEPS = 200.0;
     /** The failure message of a test with builders shows this number of losses of health at most. */
     private static final int MAX_HURT_RECORDS = 20;
+    /** The failure message of the test of the cottage shows this number of positions on a wall at most. */
+    private static final int MAX_WALL_RECORDS = 20;
+    /** The walls of the cottage go from this layer of the template to {@link #COTTAGE_WALL_TOP}. */
+    private static final int COTTAGE_WALL_BOTTOM = 1;
+    private static final int COTTAGE_WALL_TOP = 4;
     /** In the test of a direct move to a column, the glass ring is at this distance from the block of the site. */
     private static final int RING = 2;
     /**
@@ -644,7 +651,8 @@ public final class BuilderSiteGameTests {
     /**
      * The builders build the cottage of the villages: the walls, the roof, the door and the windows, with scaffolding
      * for the high blocks. The blocks of the level are the blocks of the template at the end. No builder falls: a
-     * scaffolding block goes only when no builder is on its column.
+     * scaffolding block goes only when no builder is on its column. No builder stands on the top block of a wall: the
+     * test records the position of each builder at each tick (see {@link #recordWallSteps}).
      */
     @GameTest(template = "arena_huge", timeoutTicks = 24000, batch = "builder_site_cottage", skyAccess = true)
     public static void buildersBuildTheCottage(GameTestHelper helper) {
@@ -667,10 +675,14 @@ public final class BuilderSiteGameTests {
                 helper.absolutePos(HEART), null);
         List<String> hurts = new ArrayList<>();
         recordHurts(helper, site, builders, hurts);
+        List<String> onWalls = new ArrayList<>();
+        recordWallSteps(helper, site, builders, cottageWalls(box), onWalls);
+        long start = level.getGameTime();
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
                         + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
                 .thenExecute(() -> {
+                    FolkholdWorld.LOGGER.info("The builders build the cottage in {} ticks", level.getGameTime() - start);
                     daylight.set(cycle, level.getServer());
                     List<String> differences = differences(expected, ConstructionTargets.fromLevel(level,
                             new BlockPos(box.minX(), box.minY(), box.minZ()),
@@ -685,8 +697,63 @@ public final class BuilderSiteGameTests {
                     helper.assertTrue(alive, "The builders must stay alive, damage: " + hurts);
                     helper.assertTrue(healthy, "The builders must not fall: their health is " + health
                             + ", damage: " + hurts);
+                    helper.assertTrue(onWalls.isEmpty(), "The builders must not stand on the top of a wall: "
+                            + onWalls);
                 })
                 .thenSucceed();
+    }
+
+    /**
+     * The positions of the blocks of the walls of the cottage: the sides of the body of the house (the template
+     * without the porch, at the north side), from the layer {@value #COTTAGE_WALL_BOTTOM} to the layer
+     * {@value #COTTAGE_WALL_TOP}.
+     */
+    private static Set<BlockPos> cottageWalls(BoundingBox box) {
+        Set<BlockPos> walls = new HashSet<>();
+        int north = box.minZ() + 1;
+        for (BlockPos pos : BlockPos.betweenClosed(box.minX(), box.minY() + COTTAGE_WALL_BOTTOM, north, box.maxX(),
+                box.minY() + COTTAGE_WALL_TOP, box.maxZ())) {
+            if (pos.getX() == box.minX() || pos.getX() == box.maxX() || pos.getZ() == north
+                    || pos.getZ() == box.maxZ()) {
+                walls.add(pos.immutable());
+            }
+        }
+        return walls;
+    }
+
+    /**
+     * Records each tick where a builder stands on the top block of a wall: the block below its feet is a block of a
+     * wall in the level, and its feet are in a position with no collision. The failure message of the test shows the
+     * first {@value #MAX_WALL_RECORDS} records, and the number of the other records.
+     */
+    private static void recordWallSteps(GameTestHelper helper, BuilderSite site, List<Villager> builders,
+            Set<BlockPos> walls, List<String> records) {
+        int[] more = {0};
+        helper.onEachTick(() -> {
+            ServerLevel level = helper.getLevel();
+            for (Villager builder : builders) {
+                BlockPos feet = builder.blockPosition();
+                BlockPos below = feet.below();
+                boolean onWall = walls.contains(below) && !level.getBlockState(below).isAir()
+                        && level.getBlockState(feet).getCollisionShape(level, feet).isEmpty();
+                if (!onWall) {
+                    continue;
+                }
+                if (records.size() < MAX_WALL_RECORDS) {
+                    records.add(String.format(Locale.ROOT, "{builder %d, tick %d, position %s, %s}", builder.getId(),
+                            helper.getTick(), helper.relativeVec(builder.position()),
+                            site.describeBuilder(builder.getUUID())));
+                } else {
+                    more[0]++;
+                    String note = "{" + more[0] + " other ticks on a wall}";
+                    if (more[0] == 1) {
+                        records.add(note);
+                    } else {
+                        records.set(records.size() - 1, note);
+                    }
+                }
+            }
+        });
     }
 
     /**

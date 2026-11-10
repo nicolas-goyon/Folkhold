@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.construction;
 
+import io.github.nicolasgoyon.folkhold.core.sim.construction.BlockKind;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildBlock;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildPos;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
@@ -64,6 +65,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -258,6 +260,12 @@ public final class BuilderSite {
     @Nullable
     private WalkSearch ways;
     private long waysTime;
+    /**
+     * The positions of the blocks of the target, with no air, or null before the first plan of the site. A builder
+     * does not walk on the top of a new wall (see {@link #isWallTop}).
+     */
+    @Nullable
+    private Set<BlockPos> targetBlocks;
 
     BuilderSite(int id, ResourceLocation template, BlockPos origin, Rotation rotation, Mirror mirror, BlockPos heart,
             @Nullable UUID operator) {
@@ -768,6 +776,9 @@ public final class BuilderSite {
 
     /** Makes the steps of the current phase. */
     private void prepare(ServerLevel level) {
+        if (targetBlocks == null) {
+            targetBlocks = target(level).map(BuilderSite::solidPositions).orElse(Set.of());
+        }
         switch (phase) {
             case FENCES -> prepareFences(level);
             case BUILD -> prepareBuild(level);
@@ -810,22 +821,37 @@ public final class BuilderSite {
 
     /** The plan of the structure, from the blocks of the level now. */
     private void prepareBuild(ServerLevel level) {
-        Target target;
-        if (repairReference != null) {
-            target = repairTarget(level, repairReference);
-        } else {
-            Optional<StructureTemplate> found = level.getStructureManager().get(template);
-            if (found.isEmpty()) {
-                setSteps(List.of(), true, null);
-                return;
-            }
-            target = ConstructionTargets.fromTemplate(level, found.get(), origin,
-                    GhostPlacement.settings(rotation, mirror));
+        Optional<Target> found = target(level);
+        if (found.isEmpty()) {
+            setSteps(List.of(), true, null);
+            return;
         }
+        Target target = found.get();
+        targetBlocks = solidPositions(target);
         Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), reach);
         FolkholdWorld.LOGGER.debug("Builder site {}: plan of {} steps with {} warnings", id, plan.steps().size(),
                 plan.warnings().size());
         setSteps(plan.steps(), true, new ConstructionRun(level, plan, 1));
+    }
+
+    /** The target of the site: the blocks of the template, or of the damaged positions. Empty with no template. */
+    private Optional<Target> target(ServerLevel level) {
+        if (repairReference != null) {
+            return Optional.of(repairTarget(level, repairReference));
+        }
+        return level.getStructureManager().get(template).map(found -> ConstructionTargets.fromTemplate(level, found,
+                origin, GhostPlacement.settings(rotation, mirror)));
+    }
+
+    /** The positions of the blocks of a target, with no air. */
+    private static Set<BlockPos> solidPositions(Target target) {
+        Set<BlockPos> positions = new HashSet<>();
+        target.blocks().forEach((pos, block) -> {
+            if (block.kind() != BlockKind.AIR) {
+                positions.add(BlockKinds.toBlockPos(pos));
+            }
+        });
+        return Set.copyOf(positions);
     }
 
     /**
@@ -1089,7 +1115,8 @@ public final class BuilderSite {
 
     /**
      * True if a builder can stand at a position for a step. The position is free (see {@link #isStandFree}) and not in
-     * the blocks of the step. The block of the step is in the reach zone.
+     * the blocks of the step. The block of the step is in the reach zone. The block below is not the top of a new wall
+     * (see {@link #isWallTop}).
      */
     boolean isStandFor(ServerLevel level, BlockPos feet, int index) {
         if (!reach.contains(BlockKinds.toBuildPos(feet), BlockKinds.toBuildPos(reachTarget(level, index)))) {
@@ -1099,7 +1126,42 @@ public final class BuilderSite {
         if (busy.contains(feet) || busy.contains(feet.above()) || busy.contains(feet.below())) {
             return false;
         }
-        return isStandFree(level, feet);
+        return isStandFree(level, feet) && !isWallTop(level, feet.below());
+    }
+
+    /**
+     * True if a block is the top of a new wall: a builder does not stand or walk on it (see {@link BuilderNavigation}).
+     * The rule is the rule of the plan for a floor (see {@link ConstructionPlanner}). The block is a block of the
+     * target and a floor now (see {@link #isFloor}). It is not on a floor of the level, and it is not in a square of
+     * 2 × 2 floor blocks. Examples: the top of a wall of 1 block, the top of a column of the plan. The floor of a house
+     * on the ground and the floor of an upper storey are not the top of a wall.
+     *
+     * @param level the blocks of the level, or the blocks of a search of a path
+     * @param block the position of the block
+     */
+    boolean isWallTop(BlockGetter level, BlockPos block) {
+        Set<BlockPos> blocks = targetBlocks;
+        if (blocks == null || !blocks.contains(block) || !isFloor(level, block)) {
+            return false;
+        }
+        BlockPos below = block.below();
+        if (!blocks.contains(below) && isFloor(level, below)) {
+            return false;
+        }
+        return !inWideFloor(level, block);
+    }
+
+    /** True if a floor block is in a square of 2 × 2 floor blocks at the same height. */
+    private static boolean inWideFloor(BlockGetter level, BlockPos block) {
+        for (int dx = -1; dx <= 1; dx += 2) {
+            for (int dz = -1; dz <= 1; dz += 2) {
+                if (isFloor(level, block.offset(dx, 0, 0)) && isFloor(level, block.offset(0, 0, dz))
+                        && isFloor(level, block.offset(dx, 0, dz))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -1117,7 +1179,7 @@ public final class BuilderSite {
                 && !state.is(Blocks.SCAFFOLDING);
     }
 
-    private static boolean isFloor(Level level, BlockPos pos) {
+    private static boolean isFloor(BlockGetter level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         if (state.is(Blocks.SCAFFOLDING)) {
             return true;
