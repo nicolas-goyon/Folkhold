@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.construction.Step;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.StepType;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.WalkSearch;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.WalkSearch.Way;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.WorkZone;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemCatalog;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
@@ -104,7 +105,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *   <li>A block of the plan does not go into an entity. The entity moves out after some time.</li>
  *   <li>The site keeps its template, its position, its phase, its fences, its scaffolding and the positions of the
  *       blocks of its plans (see {@link #isWallTop}). After a load, the site makes a new plan from the blocks of the
- *       level: the blocks in place give no steps.</li>
+ *       level: the blocks in place give no steps. For the new plan, the blocks of the plans before it are blocks of the
+ *       plan (see {@link ConstructionPlanner#isWallTop}).</li>
  *   <li>The builders take the materials of the blocks of the plan from the stock of the village (see
  *       {@link SiteMaterials}). The fences and the scaffolding use no materials. A removed block drops no item.</li>
  *   <li>A repair site (see {@link VillageRepairs}) builds only some positions of the structure pieces of its village:
@@ -821,26 +823,48 @@ public final class BuilderSite {
 
     /** The plan of the structure, from the blocks of the level now. */
     private void prepareBuild(ServerLevel level) {
+        Optional<Plan> found = plan(level);
+        if (found.isEmpty()) {
+            setSteps(List.of(), true, null);
+            return;
+        }
+        Plan plan = found.get();
+        Set<BlockPos> placed = new HashSet<>(planBlocks);
+        placed.addAll(placedPositions(plan.steps()));
+        planBlocks = Set.copyOf(placed);
+        // The tops of the walls change with the blocks of the plan: the next search reads them again.
+        ways = null;
+        dirty = true;
+        FolkholdWorld.LOGGER.debug("Builder site {}: plan of {} steps with {} warnings", id, plan.steps().size(),
+                plan.warnings().size());
+        setSteps(plan.steps(), true, new ConstructionRun(level, plan, 1));
+    }
+
+    /**
+     * The plan of the structure from the blocks of the level now. The blocks of the plans of the site before it are
+     * blocks of the plan (see {@link #planBlocks}): a builder does not stand on the top of a wall that the site built
+     * before a load.
+     *
+     * @param level the level of the site
+     * @return the plan, or empty when the template of the site is not found
+     */
+    public Optional<Plan> plan(ServerLevel level) {
         Target target;
         if (repairReference != null) {
             target = repairTarget(level, repairReference);
         } else {
             Optional<StructureTemplate> found = level.getStructureManager().get(template);
             if (found.isEmpty()) {
-                setSteps(List.of(), true, null);
-                return;
+                return Optional.empty();
             }
             target = ConstructionTargets.fromTemplate(level, found.get(), origin,
                     GhostPlacement.settings(rotation, mirror));
         }
-        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), reach);
-        Set<BlockPos> placed = new HashSet<>(planBlocks);
-        placed.addAll(placedPositions(plan.steps()));
-        planBlocks = Set.copyOf(placed);
-        dirty = true;
-        FolkholdWorld.LOGGER.debug("Builder site {}: plan of {} steps with {} warnings", id, plan.steps().size(),
-                plan.warnings().size());
-        setSteps(plan.steps(), true, new ConstructionRun(level, plan, 1));
+        Set<BuildPos> placedBefore = new HashSet<>();
+        for (BlockPos pos : planBlocks) {
+            placedBefore.add(BlockKinds.toBuildPos(pos));
+        }
+        return Optional.of(ConstructionPlanner.plan(target, ConstructionTargets.view(level), reach, placedBefore));
     }
 
     /**
@@ -1041,9 +1065,9 @@ public final class BuilderSite {
     /**
      * The position where a builder stands for a step: the position of the plan if it is free. Else, the free position
      * nearest to the builder with the block of the step in its reach zone, and with a way from the ground (see
-     * {@link WalkSearch}). On a scaffolding column, the way goes to the bottom of the column. When the step can apply
-     * and no free position has a way, it is the nearest free position: the builder goes there directly (see
-     * {@link BuilderWorker}).
+     * {@link WalkSearch}). A position with a clear way comes before a position with a way over the top of a new wall.
+     * On a scaffolding column, the way goes to the bottom of the column. When the step can apply and no free position
+     * has a way, it is the nearest free position: the builder goes there directly (see {@link BuilderWorker}).
      *
      * @return the position, or null with no such position
      */
@@ -1070,20 +1094,37 @@ public final class BuilderSite {
             return null;
         }
         free.sort(Comparator.comparingDouble(feet -> feet.distToCenterSqr(villager.position())));
+        BlockPos overWall = null;
         for (BlockPos feet : free) {
-            if (hasWay(level, feet)) {
+            Way way = way(level, feet);
+            if (way == Way.CLEAR) {
                 return feet;
             }
+            if (way == Way.OVER_WALL && overWall == null) {
+                overWall = feet;
+            }
+        }
+        if (overWall != null) {
+            return overWall;
         }
         return schedule().canApply(index) ? free.get(0) : null;
     }
 
     /**
-     * True if a builder can go from the ground to a position to stand, on the blocks of the level now (see
-     * {@link WalkSearch}). On a scaffolding column, the way goes to the bottom of the column.
+     * True if a builder can go from the ground to a position to stand, on a clear way or over the top of a new wall
+     * (see {@link #way}).
      */
     boolean hasWay(ServerLevel level, BlockPos feet) {
-        return ways(level).canReach(BlockKinds.toBuildPos(feet));
+        return way(level, feet) != Way.NONE;
+    }
+
+    /**
+     * The way from the ground to a position to stand, on the blocks of the level now (see {@link WalkSearch}). The
+     * search first looks for a clear way, then for a way over the top of a new wall (see {@link #isWallTop}). On a
+     * scaffolding column, the way goes to the bottom of the column.
+     */
+    Way way(ServerLevel level, BlockPos feet) {
+        return ways(level).way(BlockKinds.toBuildPos(feet));
     }
 
     /**
@@ -1100,7 +1141,8 @@ public final class BuilderSite {
                             new BuildPos(bounds.maxX(), bounds.maxY(), bounds.maxZ()));
             current = WalkSearch.around(corners, reach,
                     pos -> BlockKinds.walk(level.getBlockState(BlockKinds.toBlockPos(pos))),
-                    pos -> isScaffolding(level, BlockKinds.toBlockPos(pos)));
+                    pos -> isScaffolding(level, BlockKinds.toBlockPos(pos)),
+                    pos -> isWallTop(level, BlockKinds.toBlockPos(pos)));
             ways = current;
             waysTime = now;
         }
@@ -1135,11 +1177,10 @@ public final class BuilderSite {
 
     /**
      * True if a block is the top of a new wall: a builder does not stand on it, and walks on it only when no other way
-     * is near (see {@link BuilderNavigation}). The rule and its inputs are the rule and the inputs of the plan for a
-     * floor (see {@link ConstructionPlanner}): a block that a step of the plan places (see {@link #planBlocks}), and
-     * a floor with a sturdy top face (see {@link #isPlanFloor}). The block is such a floor now. It is not on a floor
-     * that the plan did not place, and it is not in a square of 2 × 2 floor blocks. Examples: the top of a wall of 1
-     * block, the top of a pillar of the plan. The floor of a house on the ground and the floor of an upper storey are
+     * is near (see {@link BuilderNavigation}). The rule is the rule of the plan (see
+     * {@link ConstructionPlanner#isWallTop}), with the same inputs: the blocks of the plans of the site (see
+     * {@link #planBlocks}), and the floors of the level now (see {@link #isPlanFloor}). Examples: the top of a wall of
+     * 1 block, the top of a pillar of the plan. The floor of a house on the ground and the floor of an upper storey are
      * not the top of a wall.
      *
      * @param level the blocks of the level, or the blocks of a search of a path
@@ -1147,14 +1188,12 @@ public final class BuilderSite {
      */
     public boolean isWallTop(BlockGetter level, BlockPos block) {
         Set<BlockPos> blocks = planBlocks;
-        if (!blocks.contains(block) || !isPlanFloor(level, block)) {
+        if (!blocks.contains(block)) {
             return false;
         }
-        BlockPos below = block.below();
-        if (!blocks.contains(below) && isPlanFloor(level, below)) {
-            return false;
-        }
-        return !inWideFloor(level, block);
+        return ConstructionPlanner.isWallTop(BlockKinds.toBuildPos(block),
+                pos -> blocks.contains(BlockKinds.toBlockPos(pos)),
+                pos -> isPlanFloor(level, BlockKinds.toBlockPos(pos)));
     }
 
     /**
@@ -1164,19 +1203,6 @@ public final class BuilderSite {
     private static boolean isPlanFloor(BlockGetter level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         return state.is(Blocks.SCAFFOLDING) || BlockKinds.isFloor(state);
-    }
-
-    /** True if a floor block is in a square of 2 × 2 floor blocks at the same height (see {@link #isPlanFloor}). */
-    private static boolean inWideFloor(BlockGetter level, BlockPos block) {
-        for (int dx = -1; dx <= 1; dx += 2) {
-            for (int dz = -1; dz <= 1; dz += 2) {
-                if (isPlanFloor(level, block.offset(dx, 0, 0)) && isPlanFloor(level, block.offset(0, 0, dz))
-                        && isPlanFloor(level, block.offset(dx, 0, dz))) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /**
@@ -1588,7 +1614,8 @@ public final class BuilderSite {
         }
         tag.putLongArray("Fences", fences.stream().mapToLong(BlockPos::asLong).toArray());
         tag.putLongArray("Scaffolding", scaffolding.stream().mapToLong(BlockPos::asLong).toArray());
-        tag.putLongArray("PlanBlocks", planBlocks.stream().mapToLong(BlockPos::asLong).toArray());
+        // The positions go in a fixed order: the same site gives the same data.
+        tag.putLongArray("PlanBlocks", planBlocks.stream().mapToLong(BlockPos::asLong).sorted().toArray());
         tag.put("Materials", materials.save());
         if (repairReference != null) {
             CompoundTag repair = repairReference.save();
