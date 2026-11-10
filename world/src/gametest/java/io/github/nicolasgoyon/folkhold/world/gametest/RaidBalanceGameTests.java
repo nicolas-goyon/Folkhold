@@ -183,8 +183,8 @@ public final class RaidBalanceGameTests {
     /**
      * Exit criterion of version 1: a town (level 9) holds against a raid of level 3. Cell "raid level 3, town" of the
      * targets. Measured: holds in 33 of 33 trials. The 95 % interval of the hold rate is 0.89 to 1, and at 0.89 a
-     * wrong majority occurs in about 1.0 % of the runs. The test is
-     * optional until a wrong majority is below 1 % at the low end of this interval.
+     * wrong majority occurs in about 1.0 % of the runs. The test is optional until a wrong majority is below 1 % at
+     * the low end of this interval.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town",
             required = false)

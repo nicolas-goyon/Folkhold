@@ -18,6 +18,7 @@ import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.entity.monster.Pillager;
 import net.minecraft.world.entity.monster.ZombieVillager;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.item.ItemStack;
@@ -190,8 +191,8 @@ public final class ArcherGameTests {
     /**
      * An arrow of an archer that hits a villager on the line of fire does not hurt the villager. The arrow of the
      * archer flies to a pillager, and a villager stands between them: the arrow stops at the villager, and the
-     * villager keeps its full health. Controls: an arrow of an archer hurts a zombie villager (a monster, not a
-     * {@link Villager}), and an arrow of a pillager hurts a villager.
+     * villager keeps its full health. An arrow of an archer also does not hurt a wandering trader. Controls: an arrow
+     * of an archer hurts a zombie villager (a monster, not a villager), and an arrow of a pillager hurts a villager.
      */
     @GameTest(template = "arena", timeoutTicks = 100, batch = "archer_villager")
     public static void archerArrowDoesNotHurtAVillager(GameTestHelper helper) {
@@ -206,7 +207,11 @@ public final class ArcherGameTests {
         ZombieVillager zombie = still(helper.spawn(EntityType.ZOMBIE_VILLAGER, new BlockPos(6, 1, 8)));
         // A helmet keeps the zombie villager out of the fire of the sun: only the arrow hurts it.
         zombie.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
-        // Lane 3: the arrow of a pillager flies to a villager.
+        // Lane 3: the arrow of an archer flies to a wandering trader.
+        ArcherEntity traderShooter =
+                still(TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 11)));
+        WanderingTrader trader = still(helper.spawn(EntityType.WANDERING_TRADER, new BlockPos(6, 1, 11)));
+        // Lane 4: the arrow of a pillager flies to a villager.
         Pillager raider = still(helper.spawn(EntityType.PILLAGER, new BlockPos(2, 1, 14)));
         Villager victim = still(helper.spawn(EntityType.VILLAGER, new BlockPos(6, 1, 14)));
         Vec3 from = archer.getEyePosition();
@@ -214,9 +219,18 @@ public final class ArcherGameTests {
         double villagerFar = villager.position().subtract(from).dot(line) + villager.getBbWidth() / 2;
         AbstractArrow[] arrow = new AbstractArrow[1];
         double[] arrowFar = {Double.NEGATIVE_INFINITY};
+        AbstractArrow[] traderArrow = new AbstractArrow[1];
+        Vec3 traderFrom = traderShooter.getEyePosition();
+        Vec3 traderLine = trader.position().subtract(traderShooter.position()).normalize();
+        double traderFar = trader.position().subtract(traderFrom).dot(traderLine) + trader.getBbWidth() / 2;
+        double[] traderArrowFar = {Double.NEGATIVE_INFINITY};
         helper.onEachTick(() -> {
             if (arrow[0] != null && !arrow[0].isRemoved()) {
                 arrowFar[0] = Math.max(arrowFar[0], arrow[0].position().subtract(from).dot(line));
+            }
+            if (traderArrow[0] != null && !traderArrow[0].isRemoved()) {
+                traderArrowFar[0] = Math.max(traderArrowFar[0],
+                        traderArrow[0].position().subtract(traderFrom).dot(traderLine));
             }
         });
 
@@ -224,6 +238,7 @@ public final class ArcherGameTests {
                 .thenExecuteAfter(1, () -> {
                     arrow[0] = shoot(helper, archer, pillager);
                     shoot(helper, zombieShooter, zombie);
+                    traderArrow[0] = shoot(helper, traderShooter, trader);
                     shoot(helper, raider, victim);
                 })
                 .thenExecuteAfter(30, () -> {
@@ -237,8 +252,12 @@ public final class ArcherGameTests {
                             "An arrow of an archer must hurt a zombie villager");
                     helper.assertTrue(victim.getHealth() < victim.getMaxHealth(),
                             "An arrow of a pillager must hurt a villager");
+                    helper.assertTrue(traderArrowFar[0] < traderFar,
+                            "The arrow must stop at the wandering trader");
+                    helper.assertTrue(trader.getHealth() == trader.getMaxHealth(),
+                            "An arrow of an archer must not hurt a wandering trader, health: " + trader.getHealth());
                 })
-                .thenExecute(() -> List.of(archer, villager, pillager, zombieShooter, zombie, raider, victim)
+                .thenExecute(() -> List.of(archer, villager, pillager, zombieShooter, zombie, traderShooter, trader, raider, victim)
                         .forEach(Entity::discard))
                 .thenSucceed();
     }
