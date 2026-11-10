@@ -5,13 +5,21 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.entity.ArcherEntity;
 import io.github.nicolasgoyon.folkhold.world.entity.GuardEntity;
 import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.Husk;
+import net.minecraft.world.entity.monster.Pillager;
+import net.minecraft.world.entity.monster.ZombieVillager;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -177,5 +185,79 @@ public final class ArcherGameTests {
             helper.assertTrue(!husk.isAlive(), "The husk is still alive");
             helper.assertTrue(archer.holdsCrossbow(), "The archer must keep its crossbow");
         }, archer, husk);
+    }
+
+    /**
+     * An arrow of an archer that hits a villager on the line of fire does not hurt the villager. The arrow of the
+     * archer flies to a pillager, and a villager stands between them: the arrow stops at the villager, and the
+     * villager keeps its full health. Controls: an arrow of an archer hurts a zombie villager (a monster, not a
+     * {@link Villager}), and an arrow of a pillager hurts a villager.
+     */
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "archer_villager")
+    public static void archerArrowDoesNotHurtAVillager(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        // Lane 1: the arrow of the archer flies to the pillager, and the villager is on the line of fire.
+        ArcherEntity archer = still(TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 2)));
+        Villager villager = still(helper.spawn(EntityType.VILLAGER, new BlockPos(6, 1, 2)));
+        Pillager pillager = still(helper.spawn(EntityType.PILLAGER, new BlockPos(13, 1, 2)));
+        // Lane 2: the arrow of an archer flies to a zombie villager.
+        ArcherEntity zombieShooter =
+                still(TestSupport.spawnUnit(helper, ModEntities.ARCHER.get(), new BlockPos(2, 1, 8)));
+        ZombieVillager zombie = still(helper.spawn(EntityType.ZOMBIE_VILLAGER, new BlockPos(6, 1, 8)));
+        // A helmet keeps the zombie villager out of the fire of the sun: only the arrow hurts it.
+        zombie.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.LEATHER_HELMET));
+        // Lane 3: the arrow of a pillager flies to a villager.
+        Pillager raider = still(helper.spawn(EntityType.PILLAGER, new BlockPos(2, 1, 14)));
+        Villager victim = still(helper.spawn(EntityType.VILLAGER, new BlockPos(6, 1, 14)));
+        Vec3 from = archer.getEyePosition();
+        Vec3 line = villager.position().subtract(archer.position()).normalize();
+        double villagerFar = villager.position().subtract(from).dot(line) + villager.getBbWidth() / 2;
+        AbstractArrow[] arrow = new AbstractArrow[1];
+        double[] arrowFar = {Double.NEGATIVE_INFINITY};
+        helper.onEachTick(() -> {
+            if (arrow[0] != null && !arrow[0].isRemoved()) {
+                arrowFar[0] = Math.max(arrowFar[0], arrow[0].position().subtract(from).dot(line));
+            }
+        });
+
+        helper.startSequence()
+                .thenExecuteAfter(1, () -> {
+                    arrow[0] = shoot(helper, archer, pillager);
+                    shoot(helper, zombieShooter, zombie);
+                    shoot(helper, raider, victim);
+                })
+                .thenExecuteAfter(30, () -> {
+                    helper.assertTrue(villager.getHealth() == villager.getMaxHealth(),
+                            "An arrow of an archer must not hurt a villager, health: " + villager.getHealth());
+                    helper.assertTrue(arrowFar[0] < villagerFar,
+                            "The arrow must stop at the villager on the line of fire");
+                    helper.assertTrue(pillager.getHealth() == pillager.getMaxHealth(),
+                            "The villager must stop the arrow before the pillager");
+                    helper.assertTrue(zombie.getHealth() < zombie.getMaxHealth(),
+                            "An arrow of an archer must hurt a zombie villager");
+                    helper.assertTrue(victim.getHealth() < victim.getMaxHealth(),
+                            "An arrow of a pillager must hurt a villager");
+                })
+                .thenExecute(() -> List.of(archer, villager, pillager, zombieShooter, zombie, raider, victim)
+                        .forEach(Entity::discard))
+                .thenSucceed();
+    }
+
+    /**
+     * Shoots an arrow of the shooter from its eyes to the middle of the target, with no random spread. The speed is
+     * the speed of an arrow of a bow (1.6).
+     */
+    private static AbstractArrow shoot(GameTestHelper helper, Mob shooter, Mob target) {
+        Arrow arrow = new Arrow(helper.getLevel(), shooter, new ItemStack(Items.ARROW), null);
+        Vec3 aim = target.position().add(0, target.getBbHeight() / 2, 0).subtract(arrow.position());
+        arrow.shoot(aim.x, aim.y, aim.z, 1.6F, 0.0F);
+        helper.getLevel().addFreshEntity(arrow);
+        return arrow;
+    }
+
+    /** Removes the AI of a mob: it does not move and does not attack. */
+    private static <T extends Mob> T still(T mob) {
+        mob.setNoAi(true);
+        return mob;
     }
 }
