@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.core.sim.construction;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,9 +27,11 @@ import java.util.function.Predicate;
  * </ul>
  *
  * <p>The search goes back from the position to the ground. A search with no way marks the positions that it visited:
- * a closed area. No way goes from the ground to the positions of a closed area until a block near the area changes
- * (see {@link #blockChanged}). The clear ways and all the ways have their own closed areas. Thus the plan uses one
- * search for all its steps, and tells it about each change. A construction site uses a search on the blocks of the
+ * a closed area. The search does not go into the positions of the closed areas that it finds: the new area depends
+ * on these areas. No way goes from the ground to the positions of a closed area until a block near the area changes
+ * (see {@link #blockChanged}), or until an area that it depends on opens. The clear ways and all the ways have their
+ * own closed areas. Thus the plan uses one search for all its steps, and tells it about each change. The result is
+ * the same as the result of a new search on the blocks now. A construction site uses a search on the blocks of the
  * level, for a position to stand that is not in the plan.
  *
  * <p>The search keeps the walk of the blocks in a grid: the zone and the positions next to it, between two heights.
@@ -83,6 +86,10 @@ public final class WalkSearch {
     private final Areas clearAreas;
     /** The number of the last search that visited each position of the grid. */
     private final int[] visitedBy;
+    /** The closed areas that the current search finds and does not go into: the new area depends on them. */
+    private final List<Area> dependencies = new ArrayList<>();
+    /** The areas to open, see {@link #open}. */
+    private final ArrayDeque<Area> toOpen = new ArrayDeque<>();
     /** The origins of a move that {@link #origins} finds: X, Y and Z of each origin. */
     private final int[] origins = new int[3 * (MAX_DROP + 2)];
     private int searches;
@@ -190,7 +197,7 @@ public final class WalkSearch {
 
     /**
      * Tells the search that the block of a position changed. The closed areas near the position are not closed any
-     * more: the change can open a way to them.
+     * more: the change can open a way to them. The areas that depend on an open area also open (see {@link #open}).
      *
      * @param pos the position of the block
      */
@@ -210,7 +217,7 @@ public final class WalkSearch {
         for (int y = pos.y() - MAX_DROP - 1; y <= pos.y() + 2; y++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
-                    allAreas.openAt(index(pos.x() + dx, y, pos.z() + dz));
+                    open(allAreas, index(pos.x() + dx, y, pos.z() + dz));
                 }
             }
         }
@@ -219,9 +226,35 @@ public final class WalkSearch {
         for (int y = pos.y() - MAX_DROP - 1; y <= pos.y() + 3; y++) {
             for (int dx = -2; dx <= 2; dx++) {
                 for (int dz = -2; dz <= 2; dz++) {
-                    clearAreas.openAt(index(pos.x() + dx, y, pos.z() + dz));
+                    open(clearAreas, index(pos.x() + dx, y, pos.z() + dz));
                 }
             }
+        }
+    }
+
+    /**
+     * Opens the closed area of a position of the grid, if any, and all the areas that depend on it. An area depends on
+     * the closed areas that its search did not go into. When such an area opens, a way can go through it to the area.
+     * An index out of the grid (-1) opens nothing.
+     */
+    private void open(Areas areas, int index) {
+        if (index < 0 || areas.of[index] == 0) {
+            return;
+        }
+        toOpen.add(areas.get(areas.of[index]));
+        while (!toOpen.isEmpty()) {
+            Area area = toOpen.poll();
+            if (area.cells == null) {
+                continue;
+            }
+            for (int cell : area.cells) {
+                area.areas.of[cell] = 0;
+            }
+            area.cells = null;
+            for (int k = 0; k < area.dependentCount; k++) {
+                toOpen.add(area.dependents[k]);
+            }
+            area.dependents = null;
         }
     }
 
@@ -250,9 +283,12 @@ public final class WalkSearch {
             return false;
         }
         searches++;
+        dependencies.clear();
         Queue queue = new Queue();
         int[] visited = new int[64];
         int count = 0;
+        // True when a position of the area has a move from the bottom of the column.
+        boolean fromColumn = false;
         visitedBy[start] = searches;
         visited[count++] = start;
         queue.add(start, zone.toGround(startX, startZ));
@@ -280,7 +316,14 @@ public final class WalkSearch {
                         // Out of the grid: the search does not know the way, and accepts the position.
                         return true;
                     }
-                    if (visitedBy[origin] != searches && !isClosed(origin, clear)) {
+                    if (visitedBy[origin] == searches) {
+                        fromColumn |= column && origin == start;
+                        continue;
+                    }
+                    if (isClosed(origin, clear)) {
+                        // The position stays closed while one of its areas stays closed: one dependency is sufficient.
+                        addDependency(allAreas.of[origin] != 0 ? allAreas : clearAreas, origin);
+                    } else {
                         visitedBy[origin] = searches;
                         if (count == visited.length) {
                             visited = Arrays.copyOf(visited, 2 * count);
@@ -291,9 +334,34 @@ public final class WalkSearch {
                 }
             }
         }
-        // The bottom of a column has its own moves: it is not a usual position for the feet, and not in the area.
-        (clear ? clearAreas : allAreas).close(Arrays.copyOfRange(visited, column ? 1 : 0, count));
+        // The bottom of a column has its own moves: it is not a usual position for the feet, and not in the area. A
+        // position with a move from the bottom of the column has no way only in this search: the search does not go
+        // back into the bottom with all the moves. Thus with such a position, the usual search from the bottom closes
+        // the area. When it finds no way, its area has the bottom and all the positions of this search.
+        if (fromColumn) {
+            search(startX, startY, startZ, false, clear);
+            return false;
+        }
+        Area area = (clear ? clearAreas : allAreas).close(Arrays.copyOfRange(visited, column ? 1 : 0, count));
+        if (area != null) {
+            for (Area dependency : dependencies) {
+                dependency.addDependent(area);
+            }
+        }
         return false;
+    }
+
+    /** Keeps the closed area of a position, if any, as a dependency of the current search. */
+    private void addDependency(Areas areas, int index) {
+        int number = areas.of[index];
+        if (number == 0) {
+            return;
+        }
+        Area area = areas.get(number);
+        if (area.usedBy != searches) {
+            area.usedBy = searches;
+            dependencies.add(area);
+        }
     }
 
     /** True if a position of the grid is in a closed area. With no way at all, there is also no clear way. */
@@ -395,39 +463,60 @@ public final class WalkSearch {
         return (gy * sizeZ + gz) * sizeX + gx;
     }
 
-    /** The closed areas of a search: the closed area of each position of the grid, and the positions of each area. */
+    /** The closed areas of a search: the closed area of each position of the grid, and each area by its number. */
     private static final class Areas {
-        /** The closed area of each position of the grid, or 0. */
+        /** The number of the closed area of each position of the grid, or 0. */
         private final int[] of;
-        /** The positions of each closed area, by its number. An area that is not closed any more is null. */
-        private final List<int[]> positions = new ArrayList<>();
+        /** The areas, by their number. The number 0 is no area. */
+        private final List<Area> areas = new ArrayList<>();
 
         Areas(int cells) {
             of = new int[cells];
-            positions.add(null);
+            areas.add(null);
         }
 
-        void close(int[] area) {
-            if (area.length == 0) {
-                return;
+        Area get(int number) {
+            return areas.get(number);
+        }
+
+        /** Closes the positions of an area. With no positions, there is no area: the result is null. */
+        Area close(int[] cells) {
+            if (cells.length == 0) {
+                return null;
             }
-            int number = positions.size();
-            positions.add(area);
-            for (int index : area) {
+            int number = areas.size();
+            Area area = new Area(this, cells);
+            areas.add(area);
+            for (int index : cells) {
                 of[index] = number;
             }
+            return area;
+        }
+    }
+
+    /**
+     * A closed area: the positions that a search with no way visited. The dependents are the areas that a later search
+     * closed, with no way through this area.
+     */
+    private static final class Area {
+        private final Areas areas;
+        /** The positions of the area, or null when the area is open. */
+        private int[] cells;
+        private Area[] dependents = new Area[0];
+        private int dependentCount;
+        /** The number of the last search that added this area to its dependencies. */
+        private int usedBy;
+
+        Area(Areas areas, int[] cells) {
+            this.areas = areas;
+            this.cells = cells;
         }
 
-        /** Opens the closed area of a position of the grid, if any. An index out of the grid (-1) opens nothing. */
-        void openAt(int index) {
-            if (index < 0 || of[index] == 0) {
-                return;
+        void addDependent(Area dependent) {
+            if (dependentCount == dependents.length) {
+                dependents = Arrays.copyOf(dependents, Math.max(4, 2 * dependentCount));
             }
-            int area = of[index];
-            for (int cell : positions.get(area)) {
-                of[cell] = 0;
-            }
-            positions.set(area, null);
+            dependents[dependentCount++] = dependent;
         }
     }
 
