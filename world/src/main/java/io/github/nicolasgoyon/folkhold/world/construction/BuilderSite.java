@@ -30,6 +30,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -44,6 +45,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -100,8 +102,9 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *   <li>The sites of one village come one after the other: the builders work only on the oldest site.</li>
  *   <li>The fences can go in any order: each builder takes the fence nearest to it.</li>
  *   <li>A block of the plan does not go into an entity. The entity moves out after some time.</li>
- *   <li>The site keeps its template, its position, its phase, its fences and its scaffolding. After a load, the site
- *       makes a new plan from the blocks of the level: the blocks in place give no steps.</li>
+ *   <li>The site keeps its template, its position, its phase, its fences, its scaffolding and the positions of the
+ *       blocks of its plans (see {@link #isWallTop}). After a load, the site makes a new plan from the blocks of the
+ *       level: the blocks in place give no steps.</li>
  *   <li>The builders take the materials of the blocks of the plan from the stock of the village (see
  *       {@link SiteMaterials}). The fences and the scaffolding use no materials. A removed block drops no item.</li>
  *   <li>A repair site (see {@link VillageRepairs}) builds only some positions of the structure pieces of its village:
@@ -260,8 +263,10 @@ public final class BuilderSite {
     private WalkSearch ways;
     private long waysTime;
     /**
-     * The positions where a step of the plan places a block or a fluid, with the other part of a block of two parts.
-     * Empty before the plan of the site. A builder does not stand on the top of a new wall (see {@link #isWallTop}).
+     * The positions where a step of a plan of the site places a block or a fluid, with the other part of a block of
+     * two parts. Empty before the first plan of the site. A new plan after a load adds its positions: the positions of
+     * the plans before it stay. The site keeps them. A builder does not stand on the top of a new wall (see
+     * {@link #isWallTop}).
      */
     private Set<BlockPos> planBlocks = Set.of();
 
@@ -829,7 +834,10 @@ public final class BuilderSite {
                     GhostPlacement.settings(rotation, mirror));
         }
         Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), reach);
-        planBlocks = placedPositions(plan.steps());
+        Set<BlockPos> placed = new HashSet<>(planBlocks);
+        placed.addAll(placedPositions(plan.steps()));
+        planBlocks = Set.copyOf(placed);
+        dirty = true;
         FolkholdWorld.LOGGER.debug("Builder site {}: plan of {} steps with {} warnings", id, plan.steps().size(),
                 plan.warnings().size());
         setSteps(plan.steps(), true, new ConstructionRun(level, plan, 1));
@@ -1137,7 +1145,7 @@ public final class BuilderSite {
      * @param level the blocks of the level, or the blocks of a search of a path
      * @param block the position of the block
      */
-    boolean isWallTop(BlockGetter level, BlockPos block) {
+    public boolean isWallTop(BlockGetter level, BlockPos block) {
         Set<BlockPos> blocks = planBlocks;
         if (!blocks.contains(block) || !isPlanFloor(level, block)) {
             return false;
@@ -1562,7 +1570,7 @@ public final class BuilderSite {
     }
 
     /** The data of the site in the saved data of the level. */
-    CompoundTag save() {
+    public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
         tag.putInt("Id", id);
         tag.putString("Template", template.toString());
@@ -1580,6 +1588,7 @@ public final class BuilderSite {
         }
         tag.putLongArray("Fences", fences.stream().mapToLong(BlockPos::asLong).toArray());
         tag.putLongArray("Scaffolding", scaffolding.stream().mapToLong(BlockPos::asLong).toArray());
+        tag.putLongArray("PlanBlocks", planBlocks.stream().mapToLong(BlockPos::asLong).toArray());
         tag.put("Materials", materials.save());
         if (repairReference != null) {
             CompoundTag repair = repairReference.save();
@@ -1595,7 +1604,7 @@ public final class BuilderSite {
      * @param tag the data of the site
      * @return the site, or empty for data that is not valid
      */
-    static Optional<BuilderSite> load(CompoundTag tag) {
+    public static Optional<BuilderSite> load(CompoundTag tag) {
         ResourceLocation template = ResourceLocation.tryParse(tag.getString("Template"));
         Optional<Rotation> rotation = enumValue(Rotation.class, tag.getString("Rotation"));
         Optional<Mirror> mirror = enumValue(Mirror.class, tag.getString("Mirror"));
@@ -1628,6 +1637,8 @@ public final class BuilderSite {
         for (long pos : tag.getLongArray("Scaffolding")) {
             site.scaffolding.add(BlockPos.of(pos));
         }
+        site.planBlocks = Arrays.stream(tag.getLongArray("PlanBlocks")).mapToObj(BlockPos::of)
+                .collect(Collectors.toUnmodifiableSet());
         site.materials.load(tag.getCompound("Materials"));
         return Optional.of(site);
     }

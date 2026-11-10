@@ -613,8 +613,9 @@ public final class BuilderSiteGameTests {
      * plan does not place this block, thus the block is not the top of a new wall (see {@link BuilderSite}).
      *
      * <p>A stone pillar of 2 blocks is in the level and in the template. A cobblestone block next to the pillar is a
-     * step from the ground to the top of the pillar. The block of the site is 3 blocks above the pillar, next to it. The
-     * plan selects the top of the pillar as the position to stand: no other floor has the block in its reach zone.
+     * step from the ground to the top of the pillar. The block of the site is 3 blocks above the pillar, next to it.
+     * The plan selects the top of the pillar as the position to stand: no other floor has the block in its reach
+     * zone.
      */
     @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_level_floor", skyAccess = true)
     public static void builderStandsOnATargetBlockOfTheLevel(GameTestHelper helper) {
@@ -653,6 +654,57 @@ public final class BuilderSiteGameTests {
                     helper.assertTrue(missing.isEmpty(), "The block of the site must be in place: " + missing);
                     helper.assertTrue(onPillar[0], "The builder must take the position of the plan on the pillar: "
                             + helper.absolutePos(stand));
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A site keeps the blocks of its plan in its saved data: after a load, the top of a wall that the builders built
+     * before the save is still the top of a new wall (see {@link BuilderSite#isWallTop}).
+     *
+     * <p>The builders build a wall of 4 × 2 blocks on the ground. When a block of the upper layer is in place, the
+     * test saves the site and loads a copy of it. The block of the upper layer is on a block of the plan: it is the
+     * top of a new wall for the site and for its copy.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_saved_wall", skyAccess = true)
+    public static void siteKeepsTheTopsOfItsWallsAfterALoad(GameTestHelper helper) {
+        List<Villager> builders = village(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos to = new BlockPos(17, 2, 16);
+        ResourceLocation id = template(helper, "builder_saved_wall", from, to, Blocks.OAK_PLANKS);
+        BlockPos origin = helper.absolutePos(from);
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE, helper.absolutePos(HEART),
+                null);
+        // The first block of the upper layer in place, the result for the site, and the result for its copy.
+        BlockPos[] top = {null};
+        boolean[] results = new boolean[2];
+        helper.onEachTick(() -> {
+            if (top[0] != null || site.phase() != BuilderSite.Phase.BUILD) {
+                return;
+            }
+            for (BlockPos pos : BlockPos.betweenClosed(from.atY(to.getY()), to)) {
+                BlockPos block = helper.absolutePos(pos);
+                if (level.getBlockState(block).is(Blocks.OAK_PLANKS)) {
+                    top[0] = block.immutable();
+                    results[0] = site.isWallTop(level, top[0]);
+                    results[1] = BuilderSite.load(site.save()).map(copy -> copy.isWallTop(level, top[0]))
+                            .orElse(false);
+                    return;
+                }
+            }
+        });
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, from, to, Blocks.OAK_PLANKS);
+                    cleanUp(helper, builders, from, to);
+                    helper.assertTrue(missing.isEmpty(), "The wall must be in place: " + missing);
+                    helper.assertTrue(top[0] != null, "A block of the upper layer must go in place during the build");
+                    helper.assertTrue(results[0], "The block at " + top[0] + " must be the top of a new wall");
+                    helper.assertTrue(results[1], "After a load, the block at " + top[0]
+                            + " must stay the top of a new wall");
                 })
                 .thenSucceed();
     }
@@ -731,7 +783,8 @@ public final class BuilderSiteGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
                         + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
                 .thenExecute(() -> {
-                    FolkholdWorld.LOGGER.debug("The builders build the cottage in {} ticks", level.getGameTime() - start);
+                    FolkholdWorld.LOGGER.debug("The builders build the cottage in {} ticks",
+                            level.getGameTime() - start);
                     daylight.set(cycle, level.getServer());
                     List<String> differences = differences(expected, ConstructionTargets.fromLevel(level,
                             new BlockPos(box.minX(), box.minY(), box.minZ()),
@@ -774,8 +827,9 @@ public final class BuilderSiteGameTests {
 
     /**
      * Records each tick where a builder stands on the top block of a wall: the block that holds the builder (see
-     * {@link Entity#getOnPos}) is a block of a wall in the level, and the position above it has no collision. The failure message of the test shows the
-     * first {@value #MAX_WALL_RECORDS} records, and the number of the other records.
+     * {@link Entity#getOnPos}) is a block of a wall in the level, and the position above it has no collision. The
+     * failure message of the test shows the first {@value #MAX_WALL_RECORDS} records, and the number of the other
+     * records.
      */
     private static void recordWallSteps(GameTestHelper helper, BuilderSite site, List<Villager> builders,
             Set<BlockPos> walls, List<String> records) {
