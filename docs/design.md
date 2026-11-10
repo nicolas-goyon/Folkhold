@@ -414,20 +414,21 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
 | 2 to 3 | Falls | Falls | Holds | Holds | Holds |
 | 4 to 5 | Falls | Falls | Falls | Holds | Holds |
 
-- The exit criterion of version 1 ("a large village resists a raid, a small village falls") is the GameTests of `RaidBalanceGameTests` for the decisive cells of the targets: a hamlet (level 1) falls to a raid of level 1, a village (level 5) holds against a raid of level 1, a town (level 9) holds against a raid of level 3, and a city (level 13) holds against a raid of level 5. The units and the raiders use random sources with no fixed seed: each of these tests runs up to 5 trials and checks the result of 3 trials. A test is required when the probability of a wrong majority is below 1 %, also at the low end of the 95 % interval of the measured rate: the hamlet only. The village, the town and the city tests are optional. For the town (32 / 33), a wrong majority occurs in about 0.03 % of the runs at the measured rate, and in about 2.8 % of the runs at the low end of the interval (0.85). For the city (17 / 21), a wrong majority occurs in about 5.1 % of the runs at the measured rate. For the village (11 / 16), a wrong majority occurs in about 18 % of the runs at the measured rate.
+- The exit criterion of version 1 ("a large village resists a raid, a small village falls") is the GameTests of `RaidBalanceGameTests` for the decisive cells of the targets: a hamlet (level 1) falls to a raid of level 1, a village (level 5) holds against a raid of level 1, a town (level 9) holds against a raid of level 3, and a city (level 13) holds against a raid of level 5. The units and the raiders use random sources with no fixed seed: each of these tests runs up to 5 trials and checks the result of 3 trials. A test is required when the probability of a wrong majority is below 1 %, also at the low end of the 95 % interval of the measured rate: the hamlet only. The village, the town and the city tests are optional. For the town (33 / 33), a wrong majority occurs in about 1.0 % of the runs at the low end of the interval (0.89). For the city (32 / 45), a wrong majority occurs in about 15 % of the runs at the measured rate. For the village (14 / 16), a wrong majority occurs in about 1.6 % of the runs at the measured rate.
 - The harness of these tests measures the garrison against the raiders: a heart, the full garrison of the level, 4 villagers with a bed, no palisade, and no refill of the garrison. A Holds result with no walls is also a Holds result with the palisade. The chunks in the gate radius of the heart (village radius and chase radius) plus one chunk have a ticket of the trial: they stay loaded and ticking. When the test ends, also after a failure, the trial removes its tickets, its raiders and its units. The arena is a cell of the GameTest grid: the barrier cages of the tests that ran before stay near the spawn positions of the raiders. A trial stalls when no raider and no unit dies, the raiders lose no health and no wave spawns during 2 minutes of game time (one game day with a palisade). The environment variable `FOLKHOLD_RAID_MATRIX=<runs>` adds the optional trials of the raid levels 1, 3, 4 and 5 against the first level of each tier, and the trials of the Falls cells with a palisade. With `FOLKHOLD_RAID_MATRIX=<runs>`, the environment variable `FOLKHOLD_RAID_CELLS` (for example `3:9,5:13,5:9:p`) replaces these cells with a list of `raid:level` pairs (suffix `:p`: with a palisade). The palisade of a trial is a square of 4 logs, 20 blocks from the heart, with a gate on each side. A gate is 3 closed fence gates with 3 blocks of free height, as the gate of a generated village. The gates are closed at the start, as at night: the raiders must force them. Each trial writes a line `Raid trial:` in the log of the GameTest server. The worst time of an exit test is 5 × (60 s + 600 s) = 3300 s. The usual time is 15 to 50 s.
 
-**Measured balance** (difficulty Normal, no palisade): the trials of 4 runs of the GameTest server with the current values (`FOLKHOLD_RAID_MATRIX` and `FOLKHOLD_RAID_CELLS`, and the exit tests). Each cell: results / trials. **Bold**: not the target.
+**Measured balance** (difficulty Normal, no palisade): the trials of 2 runs of the GameTest server with the current values: one run of all the cells, and one run of 24 more trials of the cells "raid level 4, town" and "raid level 5, city". Each cell: results / trials. **Bold**: not the target.
 
 | Raid level | Hamlet (1) | Village (5) | Town (9) | City (13) | Capital (17) |
 | --- | --- | --- | --- | --- | --- |
-| 1 | falls 14 / 14 | holds 11, **falls 5** / 16 | holds 2 / 2 | holds 2 / 2 | holds 2 / 2 |
-| 3 | falls 2 / 2 | falls 2 / 2 | holds 32, **falls 1** / 33 | holds 2 / 2 | holds 2 / 2 |
-| 4 | falls 2 / 2 | falls 2 / 2 | falls 12, **holds 8** / 20 | holds 14 / 14 | holds 8 / 8 |
-| 5 | falls 2 / 2 | falls 2 / 2 | falls 10, **holds 4** / 14 | holds 17, **falls 4** / 21 | holds 10 / 10 |
+| 1 | falls 14 / 14 | holds 14, **falls 2** / 16 | holds 2 / 2 | holds 2 / 2 | holds 2 / 2 |
+| 3 | falls 2 / 2 | falls 2 / 2 | holds 33 / 33 | holds 2 / 2 | holds 2 / 2 |
+| 4 | falls 2 / 2 | falls 2 / 2 | falls 16, **holds 28** / 44 | holds 13, **falls 1** / 14 | holds 8 / 8 |
+| 5 | falls 2 / 2 | falls 2 / 2 | falls 14 / 14 | holds 32, **falls 13** / 45 | holds 10 / 10 |
 
 - The city has 6 guards, 5 archers, 2 healers and 2 golems, thus 5 units more than the town. With a difference of one unit, the measured values of extra ravagers (1 / 1 and 1 / 2 at the levels 4 / 5) do not make the town fall and the city hold with a good probability.
-- Gaps: the town falls to a raid of level 4 in 60 % of the trials, and to a raid of level 5 in 71 % of the trials. The city holds against a raid of level 5 in 81 % of the trials.
+- Gaps: the town holds against a raid of level 4 in 64 % of the trials: this cell misses its target (Falls). The town falls to a raid of level 5 in all the trials. The city holds against a raid of level 5 in 71 % of the trials, and the village holds against a raid of level 1 in 88 % of the trials.
+- The hold rates change much from one run of the GameTest server to the next (issue #760): for example, one run gives 0 holds in 24 trials for the town against a raid of level 4, and 1 hold in 24 trials for the city against a raid of level 5. The table does not include this run.
 
 **Measured with a palisade** (the Falls cells, difficulty Normal, closed gates at the start). Each cell: results / trials.
 
@@ -436,7 +437,7 @@ The vanilla raid stays. Near a faction village, Folkhold changes where the raide
 | 1 | falls 2 / 2 | | |
 | 3 | falls 2 / 2 | falls 2 / 2 | |
 | 4 | | | **holds 2** / 2 |
-| 5 | falls 2 / 2 | falls 2 / 2 | falls 8, **holds 2** / 10 |
+| 5 | falls 2 / 2 | falls 2 / 2 | falls 7, **holds 3** / 10 |
 
 ### NPC types
 

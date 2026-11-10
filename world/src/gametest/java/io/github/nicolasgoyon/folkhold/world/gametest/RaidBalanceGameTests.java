@@ -171,7 +171,7 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a village (level 5) holds against a raid of level 1. Cell "raid level 1, village" of
-     * the targets. Measured: holds in 11 of 16 trials, thus a wrong majority in about 18 % of the runs. The test is
+     * the targets. Measured: holds in 14 of 16 trials, thus a wrong majority in about 1.6 % of the runs. The test is
      * optional until a wrong majority is below 1 % at the low end of the 95 % interval of the hold rate.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_village",
@@ -182,8 +182,8 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a town (level 9) holds against a raid of level 3. Cell "raid level 3, town" of the
-     * targets. Measured: holds in 32 of 33 trials, thus a wrong majority in about 0.03 % of the runs. The 95 % interval
-     * of the hold rate is 0.85 to 0.99, and at 0.85 a wrong majority occurs in about 2.8 % of the runs. The test is
+     * targets. Measured: holds in 33 of 33 trials. The 95 % interval of the hold rate is 0.89 to 1, and at 0.89 a
+     * wrong majority occurs in about 1.0 % of the runs. The test is
      * optional until a wrong majority is below 1 % at the low end of this interval.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town",
@@ -194,8 +194,8 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a city (level 13) holds against a raid of level 5, with the extra ravagers of
-     * {@code VillageRaids.extraRavagers}. Cell "raid level 5, city" of the targets. Measured: holds in 17 of 21 trials,
-     * thus a wrong majority in about 5.1 % of the runs. The test is optional until a wrong majority is below 1 % at
+     * {@code VillageRaids.extraRavagers}. Cell "raid level 5, city" of the targets. Measured: holds in 32 of 45 trials,
+     * thus a wrong majority in about 15 % of the runs. The test is optional until a wrong majority is below 1 % at
      * the low end of the 95 % interval of the hold rate.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_city",
