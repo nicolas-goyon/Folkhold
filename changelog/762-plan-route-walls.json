@@ -1,0 +1,5 @@
+{
+  "category": "fixed",
+  "en_us": "Builders take a position with a way through a door before a position with a way over a new wall. After a world reload, they do not stand on the top of a wall that they built before the save.",
+  "fr_fr": "Les bâtisseurs prennent une position avec un chemin par une porte avant une position avec un chemin par-dessus un nouveau mur. Après un rechargement du monde, ils ne se tiennent pas sur le haut d'un mur construit avant la sauvegarde."
+}

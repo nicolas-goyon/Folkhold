@@ -20,12 +20,16 @@ import java.util.function.Predicate;
  *       only the blocks of the zone and of the positions next to it.</li>
  *   <li>A builder climbs a scaffolding column of the plan from the bottom of the column. It does not walk from the
  *       top of a column to another position.</li>
+ *   <li>The search first looks for a clear way: a way with no position above the top of a new wall (see
+ *       {@link ConstructionPlanner#isWallTop}). It uses a way over a wall only when no clear way is found (see
+ *       {@link Way}).</li>
  * </ul>
  *
  * <p>The search goes back from the position to the ground. A search with no way marks the positions that it visited:
  * a closed area. No way goes from the ground to the positions of a closed area until a block near the area changes
- * (see {@link #blockChanged}). Thus the plan uses one search for all its steps, and tells it about each change. A
- * construction site uses a search on the blocks of the level, for a position to stand that is not in the plan.
+ * (see {@link #blockChanged}). The clear ways and all the ways have their own closed areas. Thus the plan uses one
+ * search for all its steps, and tells it about each change. A construction site uses a search on the blocks of the
+ * level, for a position to stand that is not in the plan.
  *
  * <p>The search keeps the walk of the blocks in a grid: the zone and the positions next to it, between two heights.
  */
@@ -46,9 +50,22 @@ public final class WalkSearch {
     private static final byte SCAFFOLDING = 4;
     private static final int[] SIDE_X = {0, 0, -1, 1};
     private static final int[] SIDE_Z = {-1, 1, 0, 0};
+    private static final byte NOT_WALL_TOP = 1;
+    private static final byte WALL_TOP = 2;
+
+    /** The way from the ground to a position. */
+    public enum Way {
+        /** A way with no position above the top of a new wall. */
+        CLEAR,
+        /** Only a way with a position above the top of a new wall: the builder walks on the wall. */
+        OVER_WALL,
+        /** No way. */
+        NONE
+    }
 
     private final Function<BuildPos, Walk> blocks;
     private final Predicate<BuildPos> scaffolding;
+    private final Predicate<BuildPos> wallTop;
     private final Zone zone;
     private final int gridX;
     private final int gridY;
@@ -58,10 +75,12 @@ public final class WalkSearch {
     private final int sizeZ;
     /** The walk of each position of the grid, or {@link #UNKNOWN} before the first read. */
     private final byte[] walks;
-    /** The closed area of each position of the grid, or 0. */
-    private final int[] areaOf;
-    /** The positions of each closed area, by the number of the area. An area that is not closed any more is null. */
-    private final List<int[]> areas = new ArrayList<>();
+    /** For each position of the grid: {@link #WALL_TOP}, {@link #NOT_WALL_TOP}, or {@link #UNKNOWN} before the read. */
+    private final byte[] wallTops;
+    /** The closed areas of all the ways: no way goes from the ground to them. */
+    private final Areas allAreas;
+    /** The closed areas of the clear ways: no clear way goes from the ground to them. */
+    private final Areas clearAreas;
     /** The number of the last search that visited each position of the grid. */
     private final int[] visitedBy;
     /** The origins of a move that {@link #origins} finds: X, Y and Z of each origin. */
@@ -74,14 +93,16 @@ public final class WalkSearch {
      *
      * @param blocks      the walk of the block of each position now
      * @param scaffolding true for a scaffolding block now
+     * @param wallTop     true for the top of a new wall now (see {@link ConstructionPlanner#isWallTop})
      * @param zone        the zone of the search: the ground is out of it
      * @param lowestY     the lowest Y of the grid, for example the lowest bottom of a scaffolding column
      * @param highestY    the highest Y of the grid
      */
-    WalkSearch(Function<BuildPos, Walk> blocks, Predicate<BuildPos> scaffolding, Zone zone, int lowestY,
-            int highestY) {
+    WalkSearch(Function<BuildPos, Walk> blocks, Predicate<BuildPos> scaffolding, Predicate<BuildPos> wallTop,
+            Zone zone, int lowestY, int highestY) {
         this.blocks = blocks;
         this.scaffolding = scaffolding;
+        this.wallTop = wallTop;
         this.zone = zone;
         this.gridX = zone.minX() - 1;
         this.gridZ = zone.minZ() - 1;
@@ -91,9 +112,10 @@ public final class WalkSearch {
         this.sizeY = Math.max(1, highestY - lowestY + 1);
         int cells = sizeX * sizeY * sizeZ;
         this.walks = new byte[cells];
-        this.areaOf = new int[cells];
+        this.wallTops = new byte[cells];
+        this.allAreas = new Areas(cells);
+        this.clearAreas = new Areas(cells);
         this.visitedBy = new int[cells];
-        areas.add(null);
     }
 
     /**
@@ -106,45 +128,64 @@ public final class WalkSearch {
      * @param reach       the reach zone of the builders
      * @param blocks      the walk of the block of each position now
      * @param scaffolding true for a scaffolding block now
+     * @param wallTop     true for the top of a new wall now (see {@link ConstructionPlanner#isWallTop})
      * @return the search
      */
     public static WalkSearch around(Collection<BuildPos> positions, Reach reach, Function<BuildPos, Walk> blocks,
-            Predicate<BuildPos> scaffolding) {
+            Predicate<BuildPos> scaffolding, Predicate<BuildPos> wallTop) {
         Zone zone = Zone.around(positions, reach.horizontal());
         int minY = positions.stream().mapToInt(BuildPos::y).min().orElse(0);
         int maxY = positions.stream().mapToInt(BuildPos::y).max().orElse(0);
-        return new WalkSearch(blocks, scaffolding, zone, minY - ConstructionPlanner.MAX_SCAFFOLDING - MAX_DROP - 2,
-                maxY + reach.above() + MAX_DROP + 2);
+        return new WalkSearch(blocks, scaffolding, wallTop, zone,
+                minY - ConstructionPlanner.MAX_SCAFFOLDING - MAX_DROP - 2, maxY + reach.above() + MAX_DROP + 2);
     }
 
     /**
-     * True if a builder can go from the ground to a position to stand. On a scaffolding column, the builder climbs the
-     * column from its bottom.
+     * True if a builder can go from the ground to a position to stand, on a clear way or over a wall (see
+     * {@link #way}).
      *
      * @param feet the position of the feet
      * @return true if a way goes from the ground to the position
      */
     public boolean canReach(BuildPos feet) {
+        return way(feet) != Way.NONE;
+    }
+
+    /**
+     * The way from the ground to a position to stand. The search first looks for a clear way, then for a way over a
+     * wall. On a scaffolding column, the builder climbs the column from its bottom.
+     *
+     * @param feet the position of the feet
+     * @return the way
+     */
+    public Way way(BuildPos feet) {
         int y = feet.y();
         if (walk(feet.x(), y - 1, feet.z()) != SCAFFOLDING) {
-            return search(feet.x(), y, feet.z(), false);
+            return way(feet.x(), y, feet.z(), false);
         }
         y--;
         while (walk(feet.x(), y - 1, feet.z()) == SCAFFOLDING) {
             y--;
         }
-        return search(feet.x(), y, feet.z(), true);
+        return way(feet.x(), y, feet.z(), true);
     }
 
     /**
-     * True if a builder can go from the ground to the bottom of a scaffolding column, to climb it. The column can be
-     * a column that the plan adds now.
+     * The way from the ground to the bottom of a scaffolding column, to climb it. The column can be a column that the
+     * plan adds now. The search first looks for a clear way, then for a way over a wall.
      *
      * @param bottom the position of the lowest block of the column: the feet of the builder before the climb
-     * @return true if a way goes from the ground to the bottom of the column
+     * @return the way
      */
-    boolean canClimb(BuildPos bottom) {
-        return search(bottom.x(), bottom.y(), bottom.z(), true);
+    Way climbWay(BuildPos bottom) {
+        return way(bottom.x(), bottom.y(), bottom.z(), true);
+    }
+
+    private Way way(int x, int y, int z, boolean column) {
+        if (search(x, y, z, column, true)) {
+            return Way.CLEAR;
+        }
+        return search(x, y, z, column, false) ? Way.OVER_WALL : Way.NONE;
     }
 
     /**
@@ -158,27 +199,46 @@ public final class WalkSearch {
         if (index >= 0) {
             walks[index] = UNKNOWN;
         }
+        // The top of a wall reads its block, the block below it and the blocks next to it at the same height.
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                forget(pos.x() + dx, pos.y(), pos.z() + dz);
+            }
+        }
+        forget(pos.x(), pos.y() + 1, pos.z());
         // The moves to a position read the blocks around it, from 2 blocks below it to MAX_DROP + 1 blocks above it.
         for (int y = pos.y() - MAX_DROP - 1; y <= pos.y() + 2; y++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
-                    int near = index(pos.x() + dx, y, pos.z() + dz);
-                    if (near >= 0 && areaOf[near] != 0) {
-                        open(areaOf[near]);
-                    }
+                    allAreas.openAt(index(pos.x() + dx, y, pos.z() + dz));
+                }
+            }
+        }
+        // A clear move also reads the top of a wall below the origin: from 2 blocks below the position to 2 blocks
+        // above it. The top of a wall reads the blocks next to it, thus the change opens 1 more block on each side.
+        for (int y = pos.y() - MAX_DROP - 1; y <= pos.y() + 3; y++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    clearAreas.openAt(index(pos.x() + dx, y, pos.z() + dz));
                 }
             }
         }
     }
 
-    private void open(int area) {
-        for (int index : areas.get(area)) {
-            areaOf[index] = 0;
+    private void forget(int x, int y, int z) {
+        int index = index(x, y, z);
+        if (index >= 0) {
+            wallTops[index] = UNKNOWN;
         }
-        areas.set(area, null);
     }
 
-    private boolean search(int startX, int startY, int startZ, boolean column) {
+    /**
+     * Searches a way from the ground to a position.
+     *
+     * @param column true for the bottom of a scaffolding column: the builder goes into it with a walk or a jump only
+     * @param clear  true for a clear way only: the feet are not above the top of a new wall
+     */
+    private boolean search(int startX, int startY, int startZ, boolean column, boolean clear) {
         if (!zone.contains(startX, startZ)) {
             return zone.isGround(startY);
         }
@@ -186,7 +246,7 @@ public final class WalkSearch {
         if (start < 0 || visits > MAX_VISITS) {
             return true;
         }
-        if (areaOf[start] != 0) {
+        if (isClosed(start, clear)) {
             return false;
         }
         searches++;
@@ -204,7 +264,7 @@ public final class WalkSearch {
             int y = gridY + feet / (sizeX * sizeZ);
             boolean columnBottom = column && feet == start;
             for (int side = 0; side < SIDE_X.length; side++) {
-                int found = origins(x, y, z, side, columnBottom);
+                int found = origins(x, y, z, side, columnBottom, clear);
                 for (int k = 0; k < 3 * found; k += 3) {
                     int ox = origins[k];
                     int oy = origins[k + 1];
@@ -220,7 +280,7 @@ public final class WalkSearch {
                         // Out of the grid: the search does not know the way, and accepts the position.
                         return true;
                     }
-                    if (visitedBy[origin] != searches && areaOf[origin] == 0) {
+                    if (visitedBy[origin] != searches && !isClosed(origin, clear)) {
                         visitedBy[origin] = searches;
                         if (count == visited.length) {
                             visited = Arrays.copyOf(visited, 2 * count);
@@ -232,15 +292,13 @@ public final class WalkSearch {
             }
         }
         // The bottom of a column has its own moves: it is not a usual position for the feet, and not in the area.
-        int[] area = Arrays.copyOfRange(visited, column ? 1 : 0, count);
-        if (area.length > 0) {
-            int number = areas.size();
-            areas.add(area);
-            for (int index : area) {
-                areaOf[index] = number;
-            }
-        }
+        (clear ? clearAreas : allAreas).close(Arrays.copyOfRange(visited, column ? 1 : 0, count));
         return false;
+    }
+
+    /** True if a position of the grid is in a closed area. With no way at all, there is also no clear way. */
+    private boolean isClosed(int index, boolean clear) {
+        return allAreas.of[index] != 0 || (clear && clearAreas.of[index] != 0);
     }
 
     /**
@@ -249,7 +307,7 @@ public final class WalkSearch {
      *
      * @return the number of positions in {@link #origins}
      */
-    private int origins(int x, int y, int z, int side, boolean columnBottom) {
+    private int origins(int x, int y, int z, int side, boolean columnBottom, boolean clear) {
         int found = 0;
         int sx = x + SIDE_X[side];
         int sz = z + SIDE_Z[side];
@@ -260,12 +318,12 @@ public final class WalkSearch {
             if (drop > 0 && walk(x, y + drop + 1, z) != THROUGH) {
                 break;
             }
-            if (isFeet(sx, y + drop, sz)) {
+            if (isFeet(sx, y + drop, sz, clear)) {
                 found = add(found, sx, y + drop, sz);
             }
         }
         // A jump on the block below the feet, from the next position 1 block lower.
-        if (isFeet(sx, y - 1, sz) && walk(sx, y + 1, sz) == THROUGH) {
+        if (isFeet(sx, y - 1, sz, clear) && walk(sx, y + 1, sz) == THROUGH) {
             found = add(found, sx, y - 1, sz);
         }
         return found;
@@ -280,10 +338,25 @@ public final class WalkSearch {
 
     /**
      * True if the feet of a builder that walks can be in a position. The builder walks through the blocks of its feet
-     * and of its head, and walks on the block below. It is not on the top of a scaffolding column of the plan.
+     * and of its head, and walks on the block below. It is not on the top of a scaffolding column of the plan. On a
+     * clear way, the block below is not the top of a new wall.
      */
-    private boolean isFeet(int x, int y, int z) {
-        return walk(x, y, z) == THROUGH && walk(x, y + 1, z) == THROUGH && walk(x, y - 1, z) == ON;
+    private boolean isFeet(int x, int y, int z, boolean clear) {
+        return walk(x, y, z) == THROUGH && walk(x, y + 1, z) == THROUGH && walk(x, y - 1, z) == ON
+                && !(clear && isWallTop(x, y - 1, z));
+    }
+
+    private boolean isWallTop(int x, int y, int z) {
+        int index = index(x, y, z);
+        if (index < 0) {
+            return wallTop.test(new BuildPos(x, y, z));
+        }
+        byte known = wallTops[index];
+        if (known == UNKNOWN) {
+            known = wallTop.test(new BuildPos(x, y, z)) ? WALL_TOP : NOT_WALL_TOP;
+            wallTops[index] = known;
+        }
+        return known == WALL_TOP;
     }
 
     /** The walk of a position: {@link #THROUGH}, {@link #ON}, {@link #BLOCKED} or {@link #SCAFFOLDING}. */
@@ -320,6 +393,42 @@ public final class WalkSearch {
             return -1;
         }
         return (gy * sizeZ + gz) * sizeX + gx;
+    }
+
+    /** The closed areas of a search: the closed area of each position of the grid, and the positions of each area. */
+    private static final class Areas {
+        /** The closed area of each position of the grid, or 0. */
+        private final int[] of;
+        /** The positions of each closed area, by its number. An area that is not closed any more is null. */
+        private final List<int[]> positions = new ArrayList<>();
+
+        Areas(int cells) {
+            of = new int[cells];
+            positions.add(null);
+        }
+
+        void close(int[] area) {
+            if (area.length == 0) {
+                return;
+            }
+            int number = positions.size();
+            positions.add(area);
+            for (int index : area) {
+                of[index] = number;
+            }
+        }
+
+        /** Opens the closed area of a position of the grid, if any. An index out of the grid (-1) opens nothing. */
+        void openAt(int index) {
+            if (index < 0 || of[index] == 0) {
+                return;
+            }
+            int area = of[index];
+            for (int cell : positions.get(area)) {
+                of[cell] = 0;
+            }
+            positions.set(area, null);
+        }
     }
 
     /**

@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.core.sim.construction;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,7 +28,7 @@ class WalkSearchTest {
     /** Stone at y = 0 and below, air above, and the given blocks. */
     private static WalkSearch search(Map<BuildPos, BuildBlock> blocks, Predicate<BuildPos> scaffolding) {
         return new WalkSearch(pos -> blocks.getOrDefault(pos, pos.y() <= 0 ? STONE : BuildBlock.AIR).walk(),
-                scaffolding, ZONE, -10, 10);
+                scaffolding, pos -> false, ZONE, -10, 10);
     }
 
     private static WalkSearch search(Map<BuildPos, BuildBlock> blocks) {
@@ -179,9 +180,10 @@ class WalkSearchTest {
     /** A builder goes into the bottom of a new column with a walk, and not with a drop. */
     @Test
     void walksToTheBottomOfANewColumn() {
-        assertTrue(search(Map.of()).canClimb(FEET));
+        assertEquals(WalkSearch.Way.CLEAR, search(Map.of()).climbWay(FEET));
         Map<BuildPos, BuildBlock> blocks = ring(1, 2, STONE);
-        assertFalse(search(blocks).canClimb(FEET), "The bottom of the column is in a closed room");
+        assertEquals(WalkSearch.Way.NONE, search(blocks).climbWay(FEET),
+                "The bottom of the column is in a closed room");
     }
 
     /**
@@ -196,11 +198,46 @@ class WalkSearchTest {
             column.add(pos(2, y, 0));
         }
         WalkSearch search = WalkSearch.around(List.of(pos(-1, 1, -1), pos(1, 4, 1)), Reach.DEFAULT,
-                pos -> blocks.getOrDefault(pos, pos.y() <= 0 ? STONE : BuildBlock.AIR).walk(), column::contains);
+                pos -> blocks.getOrDefault(pos, pos.y() <= 0 ? STONE : BuildBlock.AIR).walk(), column::contains,
+                pos -> false);
 
         assertTrue(search.canReach(pos(2, 5, 0)), "On the top of the column");
         assertFalse(search.canReach(pos(1, 5, 0)), "On the top of the wall");
         assertFalse(search.canReach(FEET), "In the closed room");
         assertTrue(search.canReach(pos(-3, 1, 0)), "On the ground near the wall");
+    }
+
+    /**
+     * A room with walls of 2 blocks and a step of 1 block out of the room. The builder goes into the room over the top
+     * of the wall: the step, the top of the wall, then a drop into the room. With an opening in the wall, the search
+     * finds the clear way through the opening. With no step and no opening, there is no way.
+     */
+    @Test
+    void aClearWayComesBeforeAWayOverAWall() {
+        Map<BuildPos, BuildBlock> blocks = ring(2, 2, STONE);
+        Set<BuildPos> wallTops = new HashSet<>(ring(2, 2, STONE).keySet());
+        wallTops.removeIf(pos -> pos.y() != 2);
+        assertEquals(WalkSearch.Way.NONE, search(blocks, wallTops).way(FEET), "No step and no opening");
+
+        BuildPos step = pos(3, 1, 0);
+        blocks.put(step, STONE);
+        WalkSearch search = search(blocks, wallTops);
+        assertEquals(WalkSearch.Way.OVER_WALL, search.way(FEET), "Only the way over the wall");
+        assertEquals(WalkSearch.Way.OVER_WALL, search.way(FEET), "The closed area of the clear ways stays");
+        assertTrue(search.canReach(FEET));
+
+        BuildPos opening = pos(-2, 1, 0);
+        blocks.put(opening, BuildBlock.AIR);
+        blocks.put(opening.above(), BuildBlock.AIR);
+        wallTops.remove(opening.above());
+        search.blockChanged(opening);
+        search.blockChanged(opening.above());
+        assertEquals(WalkSearch.Way.CLEAR, search.way(FEET), "The way through the opening after the change");
+    }
+
+    /** Stone at y = 0 and below, air above, the given blocks, and the given tops of new walls. */
+    private static WalkSearch search(Map<BuildPos, BuildBlock> blocks, Set<BuildPos> wallTops) {
+        return new WalkSearch(pos -> blocks.getOrDefault(pos, pos.y() <= 0 ? STONE : BuildBlock.AIR).walk(),
+                pos -> false, wallTops::contains, ZONE, -10, 10);
     }
 }
