@@ -281,11 +281,19 @@ public final class BlockKinds {
     private static BuildBlock build(BlockState state, BlockKind kind, Optional<Side> support, boolean supportRequired,
             Optional<BuildPos> partner, boolean primary, Optional<String> data) {
         FluidState fluid = state.getFluidState();
-        boolean floor = state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.UP);
+        boolean floor = isFloor(state);
         boolean passable = fluid.isEmpty()
                 && state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).isEmpty();
         return new BuildBlock(serialize(state), kind, support, supportRequired, partner, primary, Optional.empty(),
                 data, floor, passable, walk(state));
+    }
+
+    /**
+     * True if a builder can stand on a block: the top face of the block is sturdy. This is {@link BuildBlock#floor}
+     * of the blocks of a plan.
+     */
+    static boolean isFloor(BlockState state) {
+        return state.isFaceSturdy(EmptyBlockGetter.INSTANCE, BlockPos.ZERO, Direction.UP);
     }
 
     /**

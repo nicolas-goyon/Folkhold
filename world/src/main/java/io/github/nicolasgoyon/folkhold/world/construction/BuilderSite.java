@@ -30,6 +30,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -44,6 +45,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -64,6 +66,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -99,8 +102,9 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *   <li>The sites of one village come one after the other: the builders work only on the oldest site.</li>
  *   <li>The fences can go in any order: each builder takes the fence nearest to it.</li>
  *   <li>A block of the plan does not go into an entity. The entity moves out after some time.</li>
- *   <li>The site keeps its template, its position, its phase, its fences and its scaffolding. After a load, the site
- *       makes a new plan from the blocks of the level: the blocks in place give no steps.</li>
+ *   <li>The site keeps its template, its position, its phase, its fences, its scaffolding and the positions of the
+ *       blocks of its plans (see {@link #isWallTop}). After a load, the site makes a new plan from the blocks of the
+ *       level: the blocks in place give no steps.</li>
  *   <li>The builders take the materials of the blocks of the plan from the stock of the village (see
  *       {@link SiteMaterials}). The fences and the scaffolding use no materials. A removed block drops no item.</li>
  *   <li>A repair site (see {@link VillageRepairs}) builds only some positions of the structure pieces of its village:
@@ -258,6 +262,13 @@ public final class BuilderSite {
     @Nullable
     private WalkSearch ways;
     private long waysTime;
+    /**
+     * The positions where a step of a plan of the site places a block or a fluid, with the other part of a block of
+     * two parts. Empty before the first plan of the site. A new plan after a load adds its positions: the positions of
+     * the plans before it stay. The site keeps them. A builder does not stand on the top of a new wall (see
+     * {@link #isWallTop}).
+     */
+    private Set<BlockPos> planBlocks = Set.of();
 
     BuilderSite(int id, ResourceLocation template, BlockPos origin, Rotation rotation, Mirror mirror, BlockPos heart,
             @Nullable UUID operator) {
@@ -823,9 +834,28 @@ public final class BuilderSite {
                     GhostPlacement.settings(rotation, mirror));
         }
         Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), reach);
+        Set<BlockPos> placed = new HashSet<>(planBlocks);
+        placed.addAll(placedPositions(plan.steps()));
+        planBlocks = Set.copyOf(placed);
+        dirty = true;
         FolkholdWorld.LOGGER.debug("Builder site {}: plan of {} steps with {} warnings", id, plan.steps().size(),
                 plan.warnings().size());
         setSteps(plan.steps(), true, new ConstructionRun(level, plan, 1));
+    }
+
+    /**
+     * The positions where the steps of a plan place a block or a fluid, with the other part of a block of two parts:
+     * the blocks that the plan put (see {@link ConstructionPlanner}).
+     */
+    private static Set<BlockPos> placedPositions(List<Step> steps) {
+        Set<BlockPos> positions = new HashSet<>();
+        for (Step step : steps) {
+            if (step.type() == StepType.PLACE || step.type() == StepType.ADD_FLUID) {
+                positions.add(BlockKinds.toBlockPos(step.pos()));
+                step.partner().ifPresent(partner -> positions.add(BlockKinds.toBlockPos(partner)));
+            }
+        }
+        return Set.copyOf(positions);
     }
 
     /**
@@ -1089,7 +1119,8 @@ public final class BuilderSite {
 
     /**
      * True if a builder can stand at a position for a step. The position is free (see {@link #isStandFree}) and not in
-     * the blocks of the step. The block of the step is in the reach zone.
+     * the blocks of the step. The block of the step is in the reach zone. The block below is not the top of a new wall
+     * (see {@link #isWallTop}).
      */
     boolean isStandFor(ServerLevel level, BlockPos feet, int index) {
         if (!reach.contains(BlockKinds.toBuildPos(feet), BlockKinds.toBuildPos(reachTarget(level, index)))) {
@@ -1099,7 +1130,53 @@ public final class BuilderSite {
         if (busy.contains(feet) || busy.contains(feet.above()) || busy.contains(feet.below())) {
             return false;
         }
-        return isStandFree(level, feet);
+        return isStandFree(level, feet) && !isWallTop(level, feet.below());
+    }
+
+    /**
+     * True if a block is the top of a new wall: a builder does not stand on it, and walks on it only when no other way
+     * is near (see {@link BuilderNavigation}). The rule and its inputs are the rule and the inputs of the plan for a
+     * floor (see {@link ConstructionPlanner}): a block that a step of the plan places (see {@link #planBlocks}), and
+     * a floor with a sturdy top face (see {@link #isPlanFloor}). The block is such a floor now. It is not on a floor
+     * that the plan did not place, and it is not in a square of 2 × 2 floor blocks. Examples: the top of a wall of 1
+     * block, the top of a pillar of the plan. The floor of a house on the ground and the floor of an upper storey are
+     * not the top of a wall.
+     *
+     * @param level the blocks of the level, or the blocks of a search of a path
+     * @param block the position of the block
+     */
+    public boolean isWallTop(BlockGetter level, BlockPos block) {
+        Set<BlockPos> blocks = planBlocks;
+        if (!blocks.contains(block) || !isPlanFloor(level, block)) {
+            return false;
+        }
+        BlockPos below = block.below();
+        if (!blocks.contains(below) && isPlanFloor(level, below)) {
+            return false;
+        }
+        return !inWideFloor(level, block);
+    }
+
+    /**
+     * True if a builder can stand on a block for the plan: the scaffolding, or a block with a sturdy top face (see
+     * {@link BlockKinds#isFloor}).
+     */
+    private static boolean isPlanFloor(BlockGetter level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return state.is(Blocks.SCAFFOLDING) || BlockKinds.isFloor(state);
+    }
+
+    /** True if a floor block is in a square of 2 × 2 floor blocks at the same height (see {@link #isPlanFloor}). */
+    private static boolean inWideFloor(BlockGetter level, BlockPos block) {
+        for (int dx = -1; dx <= 1; dx += 2) {
+            for (int dz = -1; dz <= 1; dz += 2) {
+                if (isPlanFloor(level, block.offset(dx, 0, 0)) && isPlanFloor(level, block.offset(0, 0, dz))
+                        && isPlanFloor(level, block.offset(dx, 0, dz))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -1493,7 +1570,7 @@ public final class BuilderSite {
     }
 
     /** The data of the site in the saved data of the level. */
-    CompoundTag save() {
+    public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
         tag.putInt("Id", id);
         tag.putString("Template", template.toString());
@@ -1511,6 +1588,7 @@ public final class BuilderSite {
         }
         tag.putLongArray("Fences", fences.stream().mapToLong(BlockPos::asLong).toArray());
         tag.putLongArray("Scaffolding", scaffolding.stream().mapToLong(BlockPos::asLong).toArray());
+        tag.putLongArray("PlanBlocks", planBlocks.stream().mapToLong(BlockPos::asLong).toArray());
         tag.put("Materials", materials.save());
         if (repairReference != null) {
             CompoundTag repair = repairReference.save();
@@ -1526,7 +1604,7 @@ public final class BuilderSite {
      * @param tag the data of the site
      * @return the site, or empty for data that is not valid
      */
-    static Optional<BuilderSite> load(CompoundTag tag) {
+    public static Optional<BuilderSite> load(CompoundTag tag) {
         ResourceLocation template = ResourceLocation.tryParse(tag.getString("Template"));
         Optional<Rotation> rotation = enumValue(Rotation.class, tag.getString("Rotation"));
         Optional<Mirror> mirror = enumValue(Mirror.class, tag.getString("Mirror"));
@@ -1559,6 +1637,8 @@ public final class BuilderSite {
         for (long pos : tag.getLongArray("Scaffolding")) {
             site.scaffolding.add(BlockPos.of(pos));
         }
+        site.planBlocks = Arrays.stream(tag.getLongArray("PlanBlocks")).mapToObj(BlockPos::of)
+                .collect(Collectors.toUnmodifiableSet());
         site.materials.load(tag.getCompound("Materials"));
         return Optional.of(site);
     }
