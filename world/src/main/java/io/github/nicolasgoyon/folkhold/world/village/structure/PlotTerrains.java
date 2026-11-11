@@ -2,16 +2,14 @@ package io.github.nicolasgoyon.folkhold.world.village.structure;
 
 import io.github.nicolasgoyon.folkhold.core.sim.village.PlotTerrain;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan;
+import io.github.nicolasgoyon.folkhold.world.level.TerrainColumns;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.NoiseColumn;
 import net.minecraft.world.level.block.Rotation;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 
@@ -62,33 +60,7 @@ public final class PlotTerrains {
         return columns.computeIfAbsent(BlockPos.asLong(x, 0, z), key -> {
             LevelHeightAccessor height = context.heightAccessor();
             NoiseColumn column = context.chunkGenerator().getBaseColumn(x, z, height, context.randomState());
-            return column(column, height.getMinBuildHeight(), height.getMaxBuildHeight());
+            return TerrainColumns.column(column, height.getMinBuildHeight(), height.getMaxBuildHeight());
         });
-    }
-
-    /**
-     * The column of the terrain from the blocks of a noise column.
-     *
-     * @param column the blocks of the column
-     * @param minY   the lowest Y of the column
-     * @param maxY   the Y above the highest block of the column
-     * @return the column, with a surface and a floor at {@code minY} when the column has no block
-     */
-    static PlotTerrain.Column column(NoiseColumn column, int minY, int maxY) {
-        int surface = minY;
-        boolean lava = false;
-        boolean found = false;
-        for (int y = maxY - 1; y >= minY; y--) {
-            BlockState block = column.getBlock(y);
-            if (!found && Heightmap.Types.WORLD_SURFACE_WG.isOpaque().test(block)) {
-                surface = y + 1;
-                lava = block.getFluidState().is(FluidTags.LAVA);
-                found = true;
-            }
-            if (Heightmap.Types.OCEAN_FLOOR_WG.isOpaque().test(block)) {
-                return new PlotTerrain.Column(surface, y + 1, lava);
-            }
-        }
-        return new PlotTerrain.Column(surface, minY, lava);
     }
 }

@@ -13,15 +13,16 @@ import java.util.List;
  * good terrain.
  *
  * <ul>
- *   <li>{@link Result#LAVA}: the top block of a point is lava.</li>
+ *   <li>{@link Result#LAVA}: the top block of a point is lava. This is rare in the Overworld: the lava of the noise is
+ *       in the aquifers under Y -54.</li>
  *   <li>{@link Result#DEEP_WATER}: the water of a point is deeper than {@link VillageSite#MAX_SHALLOW_DEPTH} blocks.
  *       Over shallow water, the buildings stand on stilts.</li>
  *   <li>{@link Result#STEEP}: the surfaces of 2 points have a difference of more than {@link #MAX_DROP} blocks. The
  *       terrain adaptation and the foundations of the structure accept the other slopes.</li>
  * </ul>
  *
- * <p>The noise of the terrain does not show the ravines and the lava lakes: the carvers and the features make them
- * after the structures. A building over them stands on its foundation.
+ * <p>The noise of the terrain does not show the ravines, the lava lakes and the lava pools: the carvers and the
+ * features make them after the structures. A building over them stands on its foundation.
  */
 public final class PlotTerrain {
     /** The distance between 2 points of the grid, in blocks. The noise of the vanilla terrain has cells of 4 blocks. */

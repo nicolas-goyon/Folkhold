@@ -6,9 +6,11 @@ import io.github.nicolasgoyon.folkhold.core.sim.group.RouteFinder;
 import io.github.nicolasgoyon.folkhold.core.sim.group.RouteGates;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementRegistry;
+import io.github.nicolasgoyon.folkhold.core.sim.village.PlotTerrain;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData.RouteEntry;
+import io.github.nicolasgoyon.folkhold.world.level.TerrainColumns;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import java.util.HashMap;
@@ -22,12 +24,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.NoiseColumn;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.RandomState;
@@ -740,23 +740,8 @@ public final class CaravanRoutes {
      * @return the column for the route search
      */
     static RouteFinder.Column column(NoiseColumn blocks, int minY, int maxY) {
-        Predicate<BlockState> surfaceBlock = Heightmap.Types.WORLD_SURFACE_WG.isOpaque();
-        Predicate<BlockState> floorBlock = Heightmap.Types.OCEAN_FLOOR_WG.isOpaque();
-        int surface = minY;
-        int floor = minY;
-        boolean surfaceFound = false;
-        for (int y = maxY - 1; y >= minY; y--) {
-            BlockState state = blocks.getBlock(y);
-            if (!surfaceFound && surfaceBlock.test(state)) {
-                surface = y + 1;
-                surfaceFound = true;
-            }
-            if (floorBlock.test(state)) {
-                floor = y + 1;
-                break;
-            }
-        }
-        return new RouteFinder.Column(floor - 1, surface - floor);
+        PlotTerrain.Column column = TerrainColumns.column(blocks, minY, maxY);
+        return new RouteFinder.Column(column.floor() - 1, column.depth());
     }
 
     private static synchronized ExecutorService worker() {

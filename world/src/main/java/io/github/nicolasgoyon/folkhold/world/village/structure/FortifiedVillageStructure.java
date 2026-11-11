@@ -345,6 +345,18 @@ public final class FortifiedVillageStructure extends Structure {
     }
 
     /**
+     * The check of the site at the start chunk of a context, with the plaza of the base variant, as the generation
+     * does it (see {@link VillageSite}). The tests use it to find a site with no layout.
+     *
+     * @param context the context of the generation
+     * @return the result, or empty if the start pool gives no plaza
+     */
+    public Optional<VillageSite.Result> site(GenerationContext context) {
+        restartRandom(context);
+        return plaza(context, base, false, Optional.empty()).map(start -> checkSite(context, start.center()));
+    }
+
+    /**
      * The size of the village at a start chunk: the size of the tier of its start level.
      *
      * @param worldSeed the seed of the world

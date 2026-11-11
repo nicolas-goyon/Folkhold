@@ -175,8 +175,10 @@ public final class VillageWall {
                 moveHouses(templates, village, arm, levels);
             }
             if (waterGates.contains(gate)) {
-                pier(layout, gate, gateLevels.get(gate), terrain::height, seaLevel, settings.pier(),
-                        range(context.chunkPos())).ifPresent(pieces::add);
+                Optional<PierPiece> pier = pier(layout, gate, gateLevels.get(gate), terrain::height, seaLevel,
+                        settings.pier(), range(context.chunkPos()));
+                // A water gate with no pier in the range is a land gate: it gets the flat terrain in front of it.
+                pier.ifPresentOrElse(pieces::add, () -> waterGates.remove(gate));
             }
         }
         pieces.addAll(terrain(layout, smooth, gateLevels, water, waterGates));
