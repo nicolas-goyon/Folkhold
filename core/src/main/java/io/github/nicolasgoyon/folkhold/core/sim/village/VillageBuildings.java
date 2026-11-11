@@ -147,6 +147,19 @@ public final class VillageBuildings {
     }
 
     /**
+     * The buildings of a level: the kind of each requirement of the level, in the order of the requirements. A kind
+     * of 2 requirements comes 2 times.
+     *
+     * @param requirements the requirements, in their order
+     * @param level        the level of the village
+     * @return the kinds
+     */
+    public static List<String> kinds(List<Requirement> requirements, int level) {
+        return requirements.stream().filter(requirement -> requirement.minLevel() <= level).map(Requirement::kind)
+                .toList();
+    }
+
+    /**
      * The kind of the first missing building of a village.
      *
      * @param requirements the requirements, in their order

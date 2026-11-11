@@ -61,9 +61,10 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
     public static final ResourceLocation ITEMS_FILE =
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "folkhold/items.json");
 
-    private static Map<String, Job> jobs = Map.of();
-    private static ItemCatalog catalog = ItemCatalog.EMPTY;
-    private static Map<String, ResourceLocation> professions = Map.of();
+    /** Volatile: the threads of the world generation read the jobs, the item values and the professions. */
+    private static volatile Map<String, Job> jobs = Map.of();
+    private static volatile ItemCatalog catalog = ItemCatalog.EMPTY;
+    private static volatile Map<String, ResourceLocation> professions = Map.of();
 
     public EconomyData() {
         super(new Gson(), JOBS_DIRECTORY);

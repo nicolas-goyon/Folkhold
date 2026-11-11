@@ -4,23 +4,29 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
 import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable;
+import io.github.nicolasgoyon.folkhold.core.sim.village.PlotUses;
 import io.github.nicolasgoyon.folkhold.core.sim.village.StreetStyle;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillageBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSite;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.faction.CultureMap;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBuildingTable;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -61,8 +67,11 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>The start level of the village comes from the world seed and the start chunk (see
  *       {@link Settlements#startLevel(long, ChunkPos)}). Its tier gives the size of the village (see
  *       {@link VillageSizes}): the plot target and the maximum radius of the plan (see {@link VillagePlan}).</li>
- *   <li>The street pieces and the buildings on the plots come from the plan (see {@link VillagePlanPieces}). The spare
- *       plots stay free.</li>
+ *   <li>The street pieces and the buildings on the plots come from the plan (see {@link VillagePlanPieces}). The
+ *       village has the buildings of its start level (see {@link VillageBuildingTable}) and the job posts of its start
+ *       level: one house-workshop for each job slot of the level, at most one for each job that the level and the
+ *       biome allow (see {@link Economies#eligibleJobs(Holder, int, String)}). The other plots get homes (see
+ *       {@link PlotUses}). The spare plots stay free.</li>
  *   <li>Then the structure adds the wall around all the pieces and around the space of each free plot (see
  *       {@link VillageWall}). The wall has towers, a gate on each axis of the start piece and the palisade. Paths go
  *       from the gates to the streets.</li>
@@ -184,7 +193,7 @@ public final class FortifiedVillageStructure extends Structure {
         }
         Start village = start.get();
         return Optional.of(new GenerationStub(village.center(), builder -> layout(context, village,
-                sizeAt(context.seed(), context.chunkPos())).pieces().forEach(builder::addPiece)));
+                Settlements.startLevel(context.seed(), context.chunkPos())).pieces().forEach(builder::addPiece)));
     }
 
     /**
@@ -257,6 +266,7 @@ public final class FortifiedVillageStructure extends Structure {
     /**
      * The layout of a village: all its pieces, without the placement of blocks.
      *
+     * @param level    the start level of the village
      * @param size     the size of the tier of the village
      * @param style    the style of the street pieces
      * @param plan     the plan of the streets and of the plots
@@ -266,13 +276,15 @@ public final class FortifiedVillageStructure extends Structure {
      * @param wall     the pieces of the wall
      * @param built    the number of plots with a building
      * @param free     the number of free plots
+     * @param posts    the job ids of the house-workshops, in the order of the posts
      * @param problems the pieces and the plots of the plan with no element of their pool: empty for valid pools
      */
-    public record Layout(VillageSize size, StreetStyle style, VillagePlan plan, BlockPos center,
+    public record Layout(int level, VillageSize size, StreetStyle style, VillagePlan plan, BlockPos center,
             List<PoolElementStructurePiece> village, List<BoundingBox> reserved, List<StructurePiece> wall, int built,
-            int free, List<String> problems) {
+            int free, List<String> posts, List<String> problems) {
         public Layout {
             village = List.copyOf(village);
+            posts = List.copyOf(posts);
             reserved = List.copyOf(reserved);
             wall = List.copyOf(wall);
             problems = List.copyOf(problems);
@@ -293,38 +305,39 @@ public final class FortifiedVillageStructure extends Structure {
      * @return the layout, or empty if the site does not accept a village
      */
     public Optional<Layout> layout(GenerationContext context) {
-        return start(context).map(start -> layout(context, start, sizeAt(context.seed(), context.chunkPos())));
+        return start(context).map(start -> layout(context, start,
+                Settlements.startLevel(context.seed(), context.chunkPos())));
     }
 
     /**
-     * The layout of a village of a variant and of a size at the start chunk of a context, with no check of the site.
-     * The tests and the commands use this method to make a village of a tier.
+     * The layout of a village of a variant and of a start level at the start chunk of a context, with no check of the
+     * site. The tests and the commands use this method to make a village of a level.
      *
      * @param context  the context of the generation
      * @param variant  the variant
      * @param maritime true for a maritime site: the palisade stands on the land side only
-     * @param size     the size of the tier
+     * @param level    the start level: its tier gives the size of the village
      * @return the layout, or empty if the start pool of the variant gives no plaza
      */
-    public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, VillageSize size) {
-        return layout(context, variant, maritime, size, Optional.empty());
+    public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, int level) {
+        return layout(context, variant, maritime, level, Optional.empty());
     }
 
     /**
-     * As {@link #layout(GenerationContext, Variant, boolean, VillageSize)}, with a given rotation of the plaza in place
-     * of the random rotation.
+     * As {@link #layout(GenerationContext, Variant, boolean, int)}, with a given rotation of the plaza in place of the
+     * random rotation.
      *
      * @param context  the context of the generation
      * @param variant  the variant
      * @param maritime true for a maritime site
-     * @param size     the size of the tier
+     * @param level    the start level
      * @param rotation the rotation of the plaza, or empty for the random rotation
      * @return the layout, or empty if the start pool of the variant gives no plaza
      */
-    public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, VillageSize size,
+    public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, int level,
             Optional<Rotation> rotation) {
         restartRandom(context);
-        return plaza(context, variant, maritime, rotation).map(start -> layout(context, start, size));
+        return plaza(context, variant, maritime, rotation).map(start -> layout(context, start, level));
     }
 
     /**
@@ -340,10 +353,17 @@ public final class FortifiedVillageStructure extends Structure {
 
     /**
      * The pieces of the plan, then the pieces of the wall around them. The wall also keeps the space of each free plot.
-     * A maritime village has the palisade on its land side only (see {@link VillageWall}).
+     * A maritime village has the palisade on its land side only (see {@link VillageWall}). The plan has a wide plot
+     * for each building of the level that needs one (see {@link PlotUses#withWide}).
      */
-    private Layout layout(GenerationContext context, Start start, VillageSize size) {
-        StreetStyle style = styleOf(start.variant());
+    private Layout layout(GenerationContext context, Start start, int level) {
+        VillageSize size = VillageSizes.forLevel(level);
+        VillagePlanPieces.Builder pieces = VillagePlanPieces.builder(context, start.plaza(), start.center(),
+                start.variant().homes(), VillageBuildingTable.get().stream().map(VillageBuildings.Requirement::kind)
+                        .collect(Collectors.toSet()));
+        List<PlotUses.Building> buildings = pieces.buildings(
+                VillageBuildings.kinds(VillageBuildingTable.get(), level), styleOf(start.variant()));
+        StreetStyle style = PlotUses.withWide(styleOf(start.variant()), buildings);
         int radius = Math.min(size.maxRadius(), maxDistanceFromCenter);
         VillageSize limited = new VillageSize(size.tier(), size.plots(), size.bedsPerPlot(), size.spareShare(), radius,
                 size.rings(), size.wall(), size.minTerritoryRadius());
@@ -351,18 +371,32 @@ public final class FortifiedVillageStructure extends Structure {
         long seed = VillagePlanPieces.seed(context.seed(), context.chunkPos());
         VillagePlan plan = VillagePlan.plan(limited, plotTarget(size), style, plazaSize,
                 VillagePlan.Start.around(plazaSize), FortifiedVillageStructure::goodTerrain, seed);
-        VillagePlanPieces.Result result = VillagePlanPieces.place(context, start.plaza(), start.center(),
-                start.variant().homes(), style, plan, RandomSource.create(seed));
+        VillagePlanPieces.Posts posts = posts(context, start.center(), level, seed);
+        int beds = Math.max(0, LevelTables.get().traits(level).maxPopulation() - VillageBeds.staff());
+        VillagePlanPieces.Result result = pieces.place(style, plan, PlotUses.assign(plan, buildings, posts.count()),
+                posts, beds, RandomSource.create(seed));
         List<StructurePiece> village = new ArrayList<>(result.pieces());
         List<StructurePiece> wall = VillageWall.add(context, village, result.reserved(), start.center(),
                 start.variant().wall(), start.maritime());
         if (!result.problems().isEmpty() || plan.missingPlots() > 0 || plan.missingHomes() > 0) {
-            FolkholdWorld.LOGGER.warn("The village of the tier {} in the start chunk {} has {} missing plots, {} missing"
-                    + " homes and these problems: {}", size.tier(), context.chunkPos(), plan.missingPlots(),
+            FolkholdWorld.LOGGER.warn("The village of the level {} in the start chunk {} has {} missing plots, {} missing"
+                    + " homes and these problems: {}", level, context.chunkPos(), plan.missingPlots(),
                     plan.missingHomes(), result.problems());
         }
-        return new Layout(size, style, plan, start.center(), result.pieces(), result.reserved(), wall,
-                result.built(), result.free(), result.problems());
+        return new Layout(level, size, style, plan, start.center(), result.pieces(), result.reserved(), wall,
+                result.built(), result.free(), result.posts(), result.problems());
+    }
+
+    /**
+     * The job posts of a village of a level: one for each job slot of the level, at most one for each job that the
+     * level and the biome at the middle of the plaza allow. The culture of the region changes the weights of the jobs.
+     */
+    private static VillagePlanPieces.Posts posts(GenerationContext context, BlockPos center, int level, long seed) {
+        CultureMap cultures = new CultureMap(context.seed(), context.biomeSource(), context.randomState().sampler());
+        List<Job> eligible = Economies.eligibleJobs(biomeAt(context, center), level,
+                cultures.cultureAt(center.getX(), center.getZ()));
+        int slots = LevelTables.get().traits(level).jobSlots();
+        return new VillagePlanPieces.Posts(eligible, Math.min(slots, eligible.size()), seed);
     }
 
     /**

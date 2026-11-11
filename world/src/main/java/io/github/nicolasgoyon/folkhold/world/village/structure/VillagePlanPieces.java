@@ -1,16 +1,31 @@
 package io.github.nicolasgoyon.folkhold.world.village.structure;
 
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobAssignment;
+import io.github.nicolasgoyon.folkhold.core.sim.village.PlotUses;
 import io.github.nicolasgoyon.folkhold.core.sim.village.StreetStyle;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillageBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Box;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Dir;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Piece;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Plot;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
+import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
+import io.github.nicolasgoyon.folkhold.world.village.TemplateSigns;
+import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
+import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
@@ -44,11 +59,20 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       {@code streets_side} for the start of a side street and {@code street_ends} for a street end. The pools are in
  *       the folder of the pool of the homes of the variant. The piece follows the terrain, as in a jigsaw
  *       structure.</li>
- *   <li>A plot gets a building of the pool of its role: {@code bank}, {@code jobs_food}, {@code jobs_start} or
- *       {@code houses} for a home (with the fallback pools). The building must fit the area of the plot in the plan.
- *       A home plot takes a home that fits the home of the style. A wide plot takes a home that fits the wide home and
- *       not the home of the style. A spare plot and the wide plot of the market ({@link #MARKET}) stay free: the wall
- *       keeps their space. Another plot with no building is a problem of the result.</li>
+ *   <li>Each plot gets the building of its use (see {@link PlotUses}): the bank (pool {@code bank}), a building of the
+ *       level (a piece of the pool {@code houses} with the building sign of the kind, or the piece of the pool
+ *       {@code market}), a house-workshop (a home of the pool {@code houses} with the job sign of the job, else the
+ *       piece {@code job_<id>} of the pool {@code jobs}) or a home (a piece of the pool {@code houses} with the
+ *       weights of the pool, see {@link Builder#home}). The building must fit the area of the plot in the plan. A plot
+ *       that is not wide takes a piece that fits the home of the style. A wide plot takes a piece that fits the wide
+ *       home and not the home of the style. A free plot stays free: the wall keeps its space. A plot with no building
+ *       for its use is a problem of the result.</li>
+ *   <li>The job posts come first, in the order of the posts: the plot of the first food job gets the first job. Then
+ *       come the bank and the buildings of the level, then the homes. The homes give the home beds of the maximum
+ *       population of the level: a home with no bed comes only on top of these beds.</li>
+ *   <li>The job of each post comes from {@link JobAssignment#next} with the jobs of the earlier posts, as the growth
+ *       chooses the job of a new post. A job with no piece in the variant, or with no piece that fits the plot, gives
+ *       its place to the next job: {@link VillageGrowth#WORKSHOP_JOBS} jobs at most.</li>
  *   <li>The junctions of the jigsaw connect the pieces: a plot with a building has a junction in front of its connector
  *       (see {@link VillagePlots#of}).</li>
  * </ul>
@@ -58,11 +82,11 @@ final class VillagePlanPieces {
     private static final BlockPos STREET_START = new BlockPos(StreetStyle.WIDTH / 2, 0, 0);
     /** The free plots keep their space from the connector of the plot to this number of blocks above it. */
     private static final int SPACE_HEIGHT = 8;
-    /** The wide home of the plot of the market: the pool {@code houses} has no market, and the plot stays free. */
-    static final String MARKET = "market";
-
-    private VillagePlanPieces() {
-    }
+    /** The name of the template of a building of a level: this text and the kind. */
+    private static final String BUILDING = "house_";
+    /** The name of the template of a house-workshop: this text and the path of the job id. */
+    private static final String JOB = "job_";
+    private static final String HOUSES = "houses";
 
     /**
      * The pieces of a plan.
@@ -71,30 +95,46 @@ final class VillagePlanPieces {
      * @param reserved the spaces of the free plots
      * @param built    the number of plots with a building
      * @param free     the number of free plots
+     * @param posts    the job ids of the house-workshops, in the order of the posts
      * @param problems the pieces and the plots of the plan with no element of their pool: empty for valid pools
      */
     record Result(List<PoolElementStructurePiece> pieces, List<BoundingBox> reserved, int built, int free,
-            List<String> problems) {
+            List<String> posts, List<String> problems) {
     }
 
     /**
-     * Makes the pieces of a plan.
+     * The job posts of a village.
+     *
+     * @param eligible the jobs that the level and the biome allow
+     * @param count    the number of posts
+     * @param seed     the seed of the jobs
+     */
+    record Posts(List<Job> eligible, int count, long seed) {
+        Posts {
+            eligible = List.copyOf(eligible);
+        }
+    }
+
+    private VillagePlanPieces() {
+    }
+
+    /**
+     * Makes the builder of the pieces of a village.
      *
      * @param context the context of the generation
      * @param plaza   the start piece
      * @param center  the middle of the plaza
      * @param homes   the pool of the homes of the variant: the other pools are in its folder
-     * @param style   the style of the plan
-     * @param plan    the plan
-     * @param random  the random of the choice of the buildings
-     * @return the pieces
+     * @param kinds   the kinds of the buildings of all the levels: a home has no building sign of these kinds
+     * @return the builder
      */
-    static Result place(Structure.GenerationContext context, PoolElementStructurePiece plaza, BlockPos center,
-            Holder<StructureTemplatePool> homes, StreetStyle style, VillagePlan plan, RandomSource random) {
-        return new VillagePlanPieces.Builder(context, plaza, center, homes).place(style, plan, random);
+    static Builder builder(Structure.GenerationContext context, PoolElementStructurePiece plaza, BlockPos center,
+            Holder<StructureTemplatePool> homes, Set<String> kinds) {
+        return new Builder(context, plaza, center, homes, kinds);
     }
 
-    private static final class Builder {
+    /** The builder of the pieces of a village. */
+    static final class Builder {
         private final Structure.GenerationContext context;
         private final StructureTemplateManager templates;
         private final PoolElementStructurePiece plaza;
@@ -103,12 +143,24 @@ final class VillagePlanPieces {
         private final ResourceLocation homes;
         private final List<StructureTemplatePool> homePools;
         private final Registry<StructureTemplatePool> pools;
+        private final Set<String> levelKinds;
+        private final Map<StructurePoolElement, String> names = new HashMap<>();
+        private final Map<StructurePoolElement, TemplateSigns> signs = new HashMap<>();
         private final List<PoolElementStructurePiece> pieces = new ArrayList<>();
         private final List<BoundingBox> reserved = new ArrayList<>();
+        private final List<String> postJobs = new ArrayList<>();
         private final List<String> problems = new ArrayList<>();
+        private List<Job> eligible = List.of();
+        private int postLimit;
+        /** The home beds that the village needs, and the home beds of the placed pieces. */
+        private int bedTarget;
+        private int beds;
+        /** The home plots that have no piece yet, the current plot included. */
+        private int homesLeft;
 
         Builder(Structure.GenerationContext context, PoolElementStructurePiece plaza, BlockPos center,
-                Holder<StructureTemplatePool> homes) {
+                Holder<StructureTemplatePool> homes, Set<String> levelKinds) {
+            this.levelKinds = Set.copyOf(levelKinds);
             this.context = context;
             this.templates = context.structureTemplateManager();
             this.plaza = plaza;
@@ -119,29 +171,120 @@ final class VillagePlanPieces {
             this.pools = context.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
         }
 
-        Result place(StreetStyle style, VillagePlan plan, RandomSource random) {
+        /**
+         * The buildings of a level, with the home of the style that holds the piece of each one. A kind with no piece in
+         * the variant, or with a piece that fits no home of the style, is a problem of the result.
+         *
+         * @param kinds the kinds of the buildings of the level, in their order
+         * @param style the style of the plan
+         * @return the buildings
+         */
+        List<PlotUses.Building> buildings(List<String> kinds, StreetStyle style) {
+            List<PlotUses.Building> buildings = new ArrayList<>();
+            for (String kind : kinds) {
+                Optional<Vec3i> size = candidates(kind, style).stream().findFirst()
+                        .map(element -> element.getSize(templates, Rotation.NONE));
+                Optional<StreetStyle.Home> home = size.flatMap(found -> Stream.concat(Stream.of(style.home()),
+                        style.wide().stream()).filter(candidate -> fits(found, candidate)).findFirst());
+                if (home.isEmpty()) {
+                    problems.add("no piece of the building " + kind + " that fits a plot");
+                } else {
+                    buildings.add(new PlotUses.Building(kind, home.get().name()));
+                }
+            }
+            return buildings;
+        }
+
+        /**
+         * Makes the pieces of a plan.
+         *
+         * @param style  the style of the plan
+         * @param plan   the plan
+         * @param uses   the uses of the plots of the plan
+         * @param posts  the job posts
+         * @param beds   the home beds that the village needs: the maximum population of the level minus the places of
+         *               the hall
+         * @param random the random of the choice of the buildings
+         * @return the pieces
+         */
+        Result place(StreetStyle style, VillagePlan plan, PlotUses.Result uses, Posts posts, int beds,
+                RandomSource random) {
+            uses.missing().forEach(kind -> problems.add("no plot for the building " + kind));
+            if (uses.posts() < posts.count()) {
+                problems.add("plots for " + uses.posts() + " job posts of " + posts.count());
+            }
             pieces.add(plaza);
             List<PoolElementStructurePiece> streets = new ArrayList<>();
             for (Piece piece : plan.pieces()) {
                 streets.add(street(piece, piece.parent() < 0 ? plaza : streets.get(piece.parent())));
             }
             streets.stream().filter(street -> street != null).forEach(pieces::add);
+            eligible = new ArrayList<>(posts.eligible());
+            postLimit = posts.count();
+            bedTarget = beds;
+            homesLeft = (int) uses.uses().stream().filter(use -> use.type() == PlotUses.Type.HOME).count();
             int built = 0;
             int free = 0;
-            for (Plot plot : plan.plots()) {
+            for (int i : order(uses)) {
+                Plot plot = plan.plots().get(i);
+                PlotUses.Use use = uses.uses().get(i);
                 PoolElementStructurePiece street = streets.get(plot.piece());
                 Optional<VillagePlots.Plot> connector = street == null ? Optional.empty() : plotOf(street, plot);
                 if (connector.isEmpty()) {
                     problems.add("no plot connector at " + plot.x() + " " + plot.z());
                     continue;
                 }
-                if (building(style, plot, street, connector.get(), random)) {
+                Site site = new Site(sizeTest(style, plot), street, connector.get(),
+                        area(plot.area(), connector.get().connector().getY()));
+                boolean placed = switch (use.type()) {
+                    case FREE -> false;
+                    case BANK -> build(site, shuffled("bank", random), "the bank");
+                    case BUILDING -> build(site, candidates(use.kind(), style), "the building " + use.kind());
+                    case POST -> (postJobs.size() < postLimit && post(site, posts.seed(), random)) || home(site, random);
+                    case HOME -> home(site, random);
+                };
+                if (use.type() == PlotUses.Type.HOME) {
+                    homesLeft--;
+                }
+                if (placed) {
                     built++;
                 } else {
                     free++;
+                    List<BoundingBox> space = new ArrayList<>(List.of(site.area()));
+                    VillagePlots.space(templates, homePools, site.connector()).ifPresent(space::add);
+                    reserved.add(BoundingBox.encapsulatingBoxes(space).orElseThrow());
                 }
             }
-            return new Result(pieces, reserved, built, free, problems);
+            return new Result(pieces, reserved, built, free, postJobs, problems);
+        }
+
+        /**
+         * The order of the placement of the plots: the job posts in the order of the posts (the plot of the first food
+         * job first), then the other plots with a building, then the homes, in the order of the plan.
+         */
+        private static List<Integer> order(PlotUses.Result uses) {
+            List<Integer> order = new ArrayList<>();
+            for (int i = 0; i < uses.uses().size(); i++) {
+                order.add(i);
+            }
+            order.sort(Comparator.comparingInt((Integer i) -> switch (uses.uses().get(i).type()) {
+                case POST -> 0;
+                case BANK, BUILDING -> 1;
+                case HOME, FREE -> 2;
+            }).thenComparingInt(i -> uses.uses().get(i).post()));
+            return order;
+        }
+
+        /**
+         * A plot of the plan in the world.
+         *
+         * @param fits      true for the size of a piece that fits the plot
+         * @param street    the street piece of the plot
+         * @param connector the connector of the plot
+         * @param area      the box of the area of the plot
+         */
+        private record Site(Predicate<Vec3i> fits, PoolElementStructurePiece street, VillagePlots.Plot connector,
+                BoundingBox area) {
         }
 
         /** The piece of a street, connected to the piece before it. Null if its pool has no element of its length. */
@@ -155,11 +298,9 @@ final class VillagePlanPieces {
                 case SIDE -> "streets_side";
                 case END -> "street_ends";
             };
-            Optional<StructurePoolElement> element = pool(name).flatMap(pool -> pool.getShuffledTemplates(
-                    RandomSource.create(0L)).stream()
-                    .filter(candidate -> candidate != EmptyPoolElement.INSTANCE)
+            Optional<StructurePoolElement> element = elements(name).stream()
                     .filter(candidate -> candidate.getSize(templates, Rotation.NONE).getZ() == piece.length())
-                    .findFirst());
+                    .findFirst();
             if (element.isEmpty() || parent == null) {
                 problems.add("no " + piece.kind() + " of length " + piece.length() + " in " + name);
                 return null;
@@ -192,66 +333,164 @@ final class VillagePlanPieces {
         }
 
         /**
-         * Places the building of a plot, or keeps the space of a free plot.
+         * Places a house-workshop on a plot: the job comes from {@link JobAssignment#next} with the jobs of the earlier
+         * posts. A job with no piece that fits the plot leaves the eligible jobs.
          *
-         * @return true if the plot has a building
+         * @return true if the plot has a house-workshop
          */
-        private boolean building(StreetStyle style, Plot plot, PoolElementStructurePiece street,
-                VillagePlots.Plot connector, RandomSource random) {
-            BoundingBox area = area(plot.area(), connector.connector().getY());
-            Predicate<Vec3i> fits = switch (plot.role()) {
-                case HOME -> plot.wide()
-                        ? size -> fits(size, plot.homes().get(1)) && !fits(size, style.home())
-                        : size -> fits(size, style.home());
-                case BANK, JOBS_FOOD, JOBS_START -> size -> true;
-            };
-            String name = switch (plot.role()) {
-                case HOME -> "houses";
-                case BANK -> "bank";
-                case JOBS_FOOD -> "jobs_food";
-                case JOBS_START -> "jobs_start";
-            };
-            int ground = height(connector.connector());
-            Optional<StructureTemplatePool> pool = plot.spare() ? Optional.empty() : pool(name);
-            for (int depth = 0; pool.isPresent() && depth < 4; depth++) {
-                for (StructurePoolElement element : pool.get().getShuffledTemplates(random)) {
-                    if (element == EmptyPoolElement.INSTANCE || !fits.test(element.getSize(templates, Rotation.NONE))) {
-                        continue;
-                    }
-                    Optional<VillagePlots.Placement> placement = VillagePlots.place(templates, element, connector,
-                            ground);
-                    if (placement.isPresent() && inside(placement.get().box(), area)) {
-                        add(street, connector, element, placement.get(), ground);
-                        return true;
-                    }
+        private boolean post(Site site, long seed, RandomSource random) {
+            for (int i = 0; i < VillageGrowth.WORKSHOP_JOBS; i++) {
+                Optional<String> job = JobAssignment.next(postJobs, eligible, EconomyData.catalog(), Merchants::trades,
+                        JobAssignment.postSeed(seed, postJobs.size()));
+                if (job.isEmpty()) {
+                    break;
                 }
-                pool = Optional.of(pool.get().getFallback().value());
+                ResourceLocation id = ResourceLocation.tryParse(job.get());
+                // A home of the pool of the houses with the job sign of the job comes first: the fishing hut of the
+                // maritime villages is the house-workshop of the fisher.
+                List<StructurePoolElement> workshops = new ArrayList<>(shuffled(HOUSES, random).stream()
+                        .filter(element -> isHome(element) && signs(element).jobs().equals(List.of(job.get())))
+                        .toList());
+                if (id != null) {
+                    shuffled(VillagePlots.JOBS, random).stream()
+                            .filter(element -> name(element).equals(JOB + id.getPath())).forEach(workshops::add);
+                }
+                if (place(site, workshops).isPresent()) {
+                    postJobs.add(job.get());
+                    return true;
+                }
+                eligible.removeIf(candidate -> candidate.id().equals(job.get()));
             }
-            if (!plot.spare() && !(plot.wide() && plot.homes().get(1).name().equals(MARKET))) {
-                problems.add("no building of " + name + " for the plot " + connector.connector());
-            }
-            List<BoundingBox> space = new ArrayList<>(List.of(area));
-            VillagePlots.space(templates, homePools, connector).ifPresent(space::add);
-            reserved.add(BoundingBox.encapsulatingBoxes(space).orElseThrow());
+            problems.add("no house-workshop for the plot " + site.connector().connector());
             return false;
         }
 
-        /** Adds a building on a plot, with the junctions of a jigsaw connection. */
-        private void add(PoolElementStructurePiece street, VillagePlots.Plot plot, StructurePoolElement element,
-                VillagePlots.Placement placement, int ground) {
-            PoolElementStructurePiece building = new PoolElementStructurePiece(templates, element, placement.origin(),
-                    street.getGroundLevelDelta(), placement.rotation(), placement.box(),
-                    LiquidSettings.APPLY_WATERLOGGING);
-            BlockPos front = plot.front();
-            street.addJunction(new JigsawJunction(front.getX(), ground, front.getZ(), 0,
-                    StructureTemplatePool.Projection.RIGID));
-            building.addJunction(new JigsawJunction(plot.connector().getX(), ground, plot.connector().getZ(), 0,
-                    StructureTemplatePool.Projection.TERRAIN_MATCHING));
-            pieces.add(building);
+        /**
+         * Places the first element of a list that fits a plot.
+         *
+         * @return true if the plot has a building
+         */
+        private boolean build(Site site, List<StructurePoolElement> elements, String building) {
+            if (place(site, elements).isPresent()) {
+                return true;
+            }
+            problems.add("no piece of " + building + " for the plot " + site.connector().connector());
+            return false;
         }
 
-        private Optional<StructureTemplatePool> pool(String name) {
-            return pools.getOptional(ResourceKey.create(Registries.TEMPLATE_POOL, VillagePlots.sibling(homes, name)));
+        /**
+         * Places a home: an element of the pool of the houses, with the weights of the pool. A piece with a building
+         * sign of a level kind is not a home. A piece with a job sign is a job post: it comes only while the village
+         * has fewer posts than {@link Posts#count()}, with a job that the level and the biome allow. A piece with no bed
+         * (for example the forge) comes only when the home plots that stay give the home beds that the village needs
+         * (see {@link PlotUses#needsBeds}).
+         *
+         * @return true if the plot has a building
+         */
+        private boolean home(Site site, RandomSource random) {
+            Set<String> ids = eligible.stream().map(Job::id).collect(Collectors.toSet());
+            List<StructurePoolElement> pool = shuffled(HOUSES, random).stream().filter(this::isHome).toList();
+            int most = pool.stream().mapToInt(element -> signs(element).beds()).max().orElse(0);
+            boolean needsBeds = PlotUses.needsBeds(bedTarget - beds, homesLeft, most);
+            List<StructurePoolElement> homes = pool.stream()
+                    .filter(element -> !needsBeds || signs(element).beds() > 0)
+                    .filter(element -> signs(element).jobs().isEmpty() || (postJobs.size() < postLimit
+                            && ids.containsAll(signs(element).jobs())))
+                    .toList();
+            Optional<StructurePoolElement> placed = place(site, homes);
+            placed.ifPresent(element -> postJobs.addAll(signs(element).jobs()));
+            if (placed.isEmpty()) {
+                problems.add("no piece of a home for the plot " + site.connector().connector());
+            }
+            return placed.isPresent();
+        }
+
+        /** True if an element of the pool of the houses has no building sign of a level kind. */
+        private boolean isHome(StructurePoolElement element) {
+            return signs(element).kinds().keySet().stream().noneMatch(levelKinds::contains);
+        }
+
+        /**
+         * Places the first element of a list that fits a plot, with the junctions of a jigsaw connection.
+         *
+         * @return the placed element, or empty if no element fits the plot
+         */
+        private Optional<StructurePoolElement> place(Site site, List<StructurePoolElement> elements) {
+            int ground = height(site.connector().connector());
+            for (StructurePoolElement element : elements) {
+                if (!site.fits().test(element.getSize(templates, Rotation.NONE))) {
+                    continue;
+                }
+                Optional<VillagePlots.Placement> placement = VillagePlots.place(templates, element, site.connector(),
+                        ground);
+                if (placement.isEmpty() || !inside(placement.get().box(), site.area())) {
+                    continue;
+                }
+                PoolElementStructurePiece building = new PoolElementStructurePiece(templates, element,
+                        placement.get().origin(), site.street().getGroundLevelDelta(), placement.get().rotation(),
+                        placement.get().box(), LiquidSettings.APPLY_WATERLOGGING);
+                BlockPos front = site.connector().front();
+                BlockPos connector = site.connector().connector();
+                site.street().addJunction(new JigsawJunction(front.getX(), ground, front.getZ(), 0,
+                        StructureTemplatePool.Projection.RIGID));
+                building.addJunction(new JigsawJunction(connector.getX(), ground, connector.getZ(), 0,
+                        StructureTemplatePool.Projection.TERRAIN_MATCHING));
+                pieces.add(building);
+                beds += signs(element).beds();
+                return Optional.of(element);
+            }
+            return Optional.empty();
+        }
+
+        /** The test of the size of a piece on a plot: the home of the style, or the wide home and not the home. */
+        private static Predicate<Vec3i> sizeTest(StreetStyle style, Plot plot) {
+            return plot.wide() ? size -> fits(size, plot.homes().get(1)) && !fits(size, style.home())
+                    : size -> fits(size, style.home());
+        }
+
+        /**
+         * The pieces of a building of a level, in the order of preference: the pieces of the pool of the market, else
+         * the pieces of the pool of the houses with the building sign of the kind and no job sign. A piece that fits
+         * the home of the style comes first, then a piece with another name than {@code house_<kind>}: the maritime
+         * storehouse is the smokehouse.
+         */
+        private List<StructurePoolElement> candidates(String kind, StreetStyle style) {
+            if (kind.equals(VillageBuildings.MARKET)) {
+                return elements(VillageBuildings.MARKET);
+            }
+            return elements(HOUSES).stream().distinct()
+                    .filter(element -> signs(element).kinds().containsKey(kind) && signs(element).jobs().isEmpty())
+                    .sorted(Comparator.comparing((StructurePoolElement element) -> !fits(element.getSize(templates,
+                            Rotation.NONE), style.home()))
+                            .thenComparing(element -> name(element).equals(BUILDING + kind))
+                            .thenComparing(this::name))
+                    .toList();
+        }
+
+        /** The signs of the template of an element, as the scan of the heart reads them. */
+        private TemplateSigns signs(StructurePoolElement element) {
+            return signs.computeIfAbsent(element, key -> VillageReference.templateOf(context.registryAccess(), key)
+                    .flatMap(id -> templates.get(id).map(template -> TemplateSigns.of(id, template)))
+                    .orElse(TemplateSigns.NONE));
+        }
+
+        /** The elements of a pool of the variant, with no empty element, in a fixed order. */
+        private List<StructurePoolElement> elements(String name) {
+            return shuffled(name, RandomSource.create(0L));
+        }
+
+        /** The elements of a pool of the variant, with no empty element, in a random order. */
+        private List<StructurePoolElement> shuffled(String name, RandomSource random) {
+            return pools.getOptional(ResourceKey.create(Registries.TEMPLATE_POOL, VillagePlots.sibling(homes, name)))
+                    .map(pool -> pool.getShuffledTemplates(random).stream()
+                            .filter(element -> element != EmptyPoolElement.INSTANCE).toList())
+                    .orElse(List.of());
+        }
+
+        /** The name of the template of an element: the last part of its path, or an empty text. */
+        private String name(StructurePoolElement element) {
+            return names.computeIfAbsent(element, key -> VillageReference.templateOf(context.registryAccess(), key)
+                    .map(id -> id.getPath().substring(id.getPath().lastIndexOf('/') + 1)).orElse(""));
         }
 
         /** A position of the plan in the world, at Y 0. */
