@@ -70,7 +70,7 @@ public final class VillagePlanGameTests {
     private static final String BARRACKS = "barracks";
     private static final String FORGE = "forge";
     /** The kind of the building sign of the homes and of the house-workshops. */
-    private static final String HOME = "house";
+    static final String HOME = "house";
     /** The rotations of the plaza, one for each level in turn. */
     private static final List<Rotation> ROTATIONS = List.of(Rotation.NONE, Rotation.CLOCKWISE_90,
             Rotation.CLOCKWISE_180, Rotation.COUNTERCLOCKWISE_90);
@@ -268,8 +268,8 @@ public final class VillagePlanGameTests {
      *   <li>the home beds and the places of the hall hold the maximum population of the level.</li>
      * </ul>
      */
-    private static void checkLevel(ServerLevel level, ChunkGenerator generator, FortifiedVillageStructure.Layout layout,
-            String name, List<String> problems) {
+    static void checkLevel(ServerLevel level, ChunkGenerator generator,
+            FortifiedVillageStructure.Layout layout, String name, List<String> problems) {
         List<VillageBuildings.Requirement> requirements = VillageBuildingTable.get();
         Map<String, Integer> signs = signs(level, layout);
         for (VillageBuildings.Requirement requirement : requirements) {
@@ -344,7 +344,7 @@ public final class VillagePlanGameTests {
     }
 
     /** The number of building signs of each kind in the templates of the pieces of a village, as the scan counts. */
-    private static Map<String, Integer> signs(ServerLevel level, FortifiedVillageStructure.Layout layout) {
+    static Map<String, Integer> signs(ServerLevel level, FortifiedVillageStructure.Layout layout) {
         Map<String, Integer> counts = new HashMap<>();
         templateSigns(level, layout).forEach(signs -> signs.kinds()
                 .forEach((kind, count) -> counts.merge(kind, count, Integer::sum)));
@@ -357,7 +357,7 @@ public final class VillagePlanGameTests {
     }
 
     /** The home beds of the pieces of a village. */
-    private static int homeBeds(ServerLevel level, FortifiedVillageStructure.Layout layout) {
+    static int homeBeds(ServerLevel level, FortifiedVillageStructure.Layout layout) {
         return templateSigns(level, layout).stream().mapToInt(TemplateSigns::beds).sum();
     }
 
