@@ -196,7 +196,7 @@ class WallLayoutTest {
 
     /**
      * The gates of each ring are on the axes of the arms: the same positions as the gates of the inner wall, also when
-     * a gate of the inner wall moved away from a corner. A side with no inner gate has no gate in the ring.
+     * a gate that {@code plan} moves away from a corner. A side with no inner gate has no gate in the ring.
      */
     @Test
     void ringGatesContinueTheArms() {
@@ -230,7 +230,8 @@ class WallLayoutTest {
 
     /**
      * For many villages, each ring has no gap and obeys the tower rules. A ring does not touch the ring inside it: its
-     * line is one band from the inner line, and its towers stay outside the inner outline.
+     * line is one band from the inner line. The towers and the stairs of the ring and of the wall inside it stay out of
+     * the corridors of the arms, between an inner gate and the gate of the ring.
      */
     @Test
     void nestedRingsDoNotOverlap() {
@@ -253,12 +254,15 @@ class WallLayoutTest {
                 assertEquals(before.grow(band), ring.outline());
                 assertClosed(ring);
                 assertTowerRules(ring, spacing);
-                Box near = before.grow(band - WallLayout.TOWER);
-                for (Tower tower : ring.towers()) {
-                    Box box = ring.towerBox(tower);
-                    assertFalse(box.minX() <= near.maxX() && box.maxX() >= near.minX() && box.minZ() <= near.maxZ()
-                            && box.maxZ() >= near.minZ(), tower + " stays " + (band - WallLayout.TOWER)
-                            + " blocks or more from " + before);
+                for (Gate gate : ring.gates()) {
+                    Box corridor = corridor(gate, before, ring.outline());
+                    for (WallLayout wall : List.of(walls.get(k - 1), ring)) {
+                        for (Tower tower : wall.towers()) {
+                            assertFalse(intersects(wall.towerBox(tower), corridor), tower + " is in " + corridor);
+                            assertFalse(intersects(stairBox(wall, tower), corridor),
+                                    "The stair of " + tower + " is in " + corridor);
+                        }
+                    }
                 }
             }
         }
@@ -278,8 +282,7 @@ class WallLayoutTest {
             SideLine line = lines.get(i);
             assertEquals(lines.get((i + 1) % lines.size()).start(), line.end());
             assertEquals(ring.cell(line.side(), 0), line.start());
-            assertEquals(ring.towers().stream().filter(tower -> tower.side() == line.side()).map(Tower::along)
-                    .toList(), line.towers());
+            assertEquals(List.of(0, 38, 77), line.towers(), line.side().name());
         }
         assertEquals(121, lines.get(0).length());
         assertEquals(OptionalInt.of(60), lines.get(0).gate());
@@ -320,6 +323,36 @@ class WallLayoutTest {
                 assertEquals(new Box(-half - 3 * band, -half - 3 * band, half + 3 * band, half + 3 * band), outer);
             }
         }
+    }
+
+    /**
+     * The corridor of the street of an arm: the blocks between the line of the inner wall and the line of the ring, on
+     * the width of the gate and its clearances.
+     */
+    private static Box corridor(Gate gate, Box inner, Box ring) {
+        int half = WallLayout.GATE / 2 + WallLayout.GATE_CLEARANCE;
+        int c = gate.center();
+        return switch (gate.side()) {
+            case NORTH -> new Box(c - half, ring.minZ(), c + half, inner.minZ());
+            case SOUTH -> new Box(c - half, inner.maxZ(), c + half, ring.maxZ());
+            case EAST -> new Box(inner.maxX(), c - half, ring.maxX(), c + half);
+            case WEST -> new Box(ring.minX(), c - half, inner.minX(), c + half);
+        };
+    }
+
+    /** The box of the stair of a tower: {@link WallLayout#STAIR} blocks along the side after the tower, inside. */
+    private static Box stairBox(WallLayout wall, Tower tower) {
+        Side side = tower.side();
+        Cell start = wall.cell(side, tower.along() + WallLayout.TOWER);
+        Cell end = wall.cell(side, tower.along() + WallLayout.TOWER + WallLayout.STAIR - 1);
+        int insideX = start.x() + side.insideX() * (WallLayout.TOWER - 1);
+        int insideZ = start.z() + side.insideZ() * (WallLayout.TOWER - 1);
+        return new Box(Math.min(Math.min(start.x(), end.x()), insideX), Math.min(Math.min(start.z(), end.z()), insideZ),
+                Math.max(Math.max(start.x(), end.x()), insideX), Math.max(Math.max(start.z(), end.z()), insideZ));
+    }
+
+    private static boolean intersects(Box a, Box b) {
+        return a.minX() <= b.maxX() && a.maxX() >= b.minX() && a.minZ() <= b.maxZ() && a.maxZ() >= b.minZ();
     }
 
     private static List<Gate> gatesAtTheMiddle(int x, int z) {

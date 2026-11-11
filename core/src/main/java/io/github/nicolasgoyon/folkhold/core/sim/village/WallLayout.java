@@ -178,7 +178,10 @@ public final class WallLayout {
      * @param start  the first block of the side: the corner at the start of the side
      * @param end    the last block of the side: the corner at the start of the next side
      * @param length the number of blocks of the side, the 2 corners included
-     * @param towers the distances from the start of the side to the first block of each tower of the side, in order
+     * @param towers the distances from the start of the side to the first block of each tower of the side, in order.
+     *               The corner tower at the start of the side is the first tower (distance 0). The last
+     *               {@link #TOWER} blocks of the side are under the corner tower of the next side: this tower is not
+     *               in the list
      * @param gate   the distance from the start of the side to the middle of the gate, if the side has a gate
      */
     public record SideLine(Side side, Cell start, Cell end, int length, List<Integer> towers, OptionalInt gate) {
