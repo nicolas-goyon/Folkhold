@@ -2,33 +2,27 @@ package io.github.nicolasgoyon.folkhold.world.village.structure;
 
 import io.github.nicolasgoyon.folkhold.core.sim.village.PlotTerrain;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan;
-import io.github.nicolasgoyon.folkhold.world.level.TerrainColumns;
-import java.util.HashMap;
-import java.util.Map;
+import io.github.nicolasgoyon.folkhold.world.level.TerrainCache;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.LevelHeightAccessor;
-import net.minecraft.world.level.NoiseColumn;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
-import net.minecraft.world.level.levelgen.structure.Structure;
 
 /**
- * The terrain of the plots of a village before the generation of the chunks (see {@link PlotTerrain}). The chunk
- * generator calculates each column from the noise of the terrain: one calculation for each point of the grid, kept
- * for the other plots.
+ * The terrain of the plots of a village before the generation of the chunks (see {@link PlotTerrain}). The columns
+ * come from the terrain cache of the layout (see {@link TerrainCache}): the plots share the grid columns with the wall
+ * and the streets.
  */
 public final class PlotTerrains {
-    private final Structure.GenerationContext context;
-    private final Map<Long, PlotTerrain.Column> columns = new HashMap<>();
+    private final TerrainCache terrain;
 
     /**
-     * Makes the terrain of a context.
+     * Makes the terrain of the plots of a layout.
      *
-     * @param context the context of the generation
+     * @param terrain the terrain cache of the layout
      */
-    public PlotTerrains(Structure.GenerationContext context) {
-        this.context = context;
+    public PlotTerrains(TerrainCache terrain) {
+        this.terrain = terrain;
     }
 
     /**
@@ -38,7 +32,7 @@ public final class PlotTerrains {
      * @return the result
      */
     public PlotTerrain.Result check(BoundingBox box) {
-        return PlotTerrain.check(box.minX(), box.minZ(), box.maxX(), box.maxZ(), this::column);
+        return PlotTerrain.check(box.minX(), box.minZ(), box.maxX(), box.maxZ(), terrain::column);
     }
 
     /**
@@ -54,13 +48,5 @@ public final class PlotTerrains {
             BlockPos second = center.atY(0).offset(new BlockPos(box.maxX(), 0, box.maxZ()).rotate(rotation));
             return check(BoundingBox.fromCorners(first, second)) == PlotTerrain.Result.GOOD;
         };
-    }
-
-    private PlotTerrain.Column column(int x, int z) {
-        return columns.computeIfAbsent(BlockPos.asLong(x, 0, z), key -> {
-            LevelHeightAccessor height = context.heightAccessor();
-            NoiseColumn column = context.chunkGenerator().getBaseColumn(x, z, height, context.randomState());
-            return TerrainColumns.column(column, height.getMinBuildHeight(), height.getMaxBuildHeight());
-        });
     }
 }

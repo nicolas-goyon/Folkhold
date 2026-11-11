@@ -15,6 +15,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.faction.CultureMap;
+import io.github.nicolasgoyon.folkhold.world.level.TerrainCache;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
@@ -40,8 +41,6 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Rotation;
-import net.minecraft.world.level.chunk.ChunkGenerator;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -209,12 +208,13 @@ public final class FortifiedVillageStructure extends Structure {
         // variant. The two placements start with the same random. Thus the plaza of a variant has the same rotation and
         // the same middle (the plazas have the same size), and the village has the same layout in these variants.
         restartRandom(context);
-        Optional<Start> start = plaza(context, base, false, Optional.empty());
+        TerrainCache terrain = TerrainCache.of(context);
+        Optional<Start> start = plaza(context, terrain, base, false, Optional.empty());
         if (start.isEmpty()) {
             return Optional.empty();
         }
         BlockPos middle = start.get().center();
-        VillageSite.Result site = checkSite(context, middle);
+        VillageSite.Result site = checkSite(terrain, middle, context.chunkGenerator().getSeaLevel());
         if (site != VillageSite.Result.ACCEPTED && site != VillageSite.Result.MARITIME) {
             return Optional.empty();
         }
@@ -226,16 +226,17 @@ public final class FortifiedVillageStructure extends Structure {
             return start;
         }
         restartRandom(context);
-        return plaza(context, variant, maritime, Optional.empty());
+        return plaza(context, terrain, variant, maritime, Optional.empty());
     }
 
     /**
      * The plaza of a variant at the start chunk, from the random of the context: the random rotation, then the random
      * element of the start pool. The plaza goes on the surface of the terrain at its middle. A given rotation takes the
-     * place of the random rotation: the random gives the same element of the start pool.
+     * place of the random rotation: the random gives the same element of the start pool. The plaza keeps the terrain
+     * cache for its layout.
      */
-    private static Optional<Start> plaza(GenerationContext context, Variant variant, boolean maritime,
-            Optional<Rotation> turn) {
+    private static Optional<Start> plaza(GenerationContext context, TerrainCache terrain, Variant variant,
+            boolean maritime, Optional<Rotation> turn) {
         StructureTemplateManager templates = context.structureTemplateManager();
         ChunkPos chunk = context.chunkPos();
         Rotation rotation = turn.orElse(Rotation.getRandom(context.random()));
@@ -250,10 +251,9 @@ public final class FortifiedVillageStructure extends Structure {
         BoundingBox box = plaza.getBoundingBox();
         int x = (box.minX() + box.maxX()) / 2;
         int z = (box.minZ() + box.maxZ()) / 2;
-        int ground = context.chunkGenerator().getFirstFreeHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG,
-                context.heightAccessor(), context.randomState());
+        int ground = terrain.point(x, z).surface();
         plaza.move(0, ground - (box.minY() + plaza.getGroundLevelDelta()), 0);
-        return Optional.of(new Start(plaza, new BlockPos(x, ground, z), variant, maritime));
+        return Optional.of(new Start(plaza, new BlockPos(x, ground, z), variant, maritime, terrain));
     }
 
     /**
@@ -263,8 +263,10 @@ public final class FortifiedVillageStructure extends Structure {
      * @param center   the middle of the plaza, on the surface of the terrain
      * @param variant  the variant
      * @param maritime true for a maritime site
+     * @param terrain  the terrain cache of the site check and of the layout
      */
-    private record Start(PoolElementStructurePiece plaza, BlockPos center, Variant variant, boolean maritime) {
+    private record Start(PoolElementStructurePiece plaza, BlockPos center, Variant variant, boolean maritime,
+            TerrainCache terrain) {
     }
 
     /**
@@ -340,8 +342,25 @@ public final class FortifiedVillageStructure extends Structure {
      */
     public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, int level,
             Optional<Rotation> rotation) {
+        return layout(context, variant, maritime, level, rotation, TerrainCache.of(context));
+    }
+
+    /**
+     * As {@link #layout(GenerationContext, Variant, boolean, int, Optional)}, with a given terrain cache. The tests
+     * compare the layouts of the two modes of the cache (see {@link TerrainCache#direct}).
+     *
+     * @param context  the context of the generation
+     * @param variant  the variant
+     * @param maritime true for a maritime site
+     * @param level    the start level
+     * @param rotation the rotation of the plaza, or empty for the random rotation
+     * @param terrain  a new terrain cache of the generator of the context, for this layout only
+     * @return the layout, or empty if the start pool of the variant gives no plaza
+     */
+    public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, int level,
+            Optional<Rotation> rotation, TerrainCache terrain) {
         restartRandom(context);
-        return plaza(context, variant, maritime, rotation).map(start -> layout(context, start, level));
+        return plaza(context, terrain, variant, maritime, rotation).map(start -> layout(context, start, level));
     }
 
     /**
@@ -353,7 +372,9 @@ public final class FortifiedVillageStructure extends Structure {
      */
     public Optional<VillageSite.Result> site(GenerationContext context) {
         restartRandom(context);
-        return plaza(context, base, false, Optional.empty()).map(start -> checkSite(context, start.center()));
+        TerrainCache terrain = TerrainCache.of(context);
+        return plaza(context, terrain, base, false, Optional.empty())
+                .map(start -> checkSite(terrain, start.center(), context.chunkGenerator().getSeaLevel()));
     }
 
     /**
@@ -374,9 +395,9 @@ public final class FortifiedVillageStructure extends Structure {
      */
     private Layout layout(GenerationContext context, Start start, int level) {
         VillageSize size = VillageSizes.forLevel(level);
-        VillagePlanPieces.Builder pieces = VillagePlanPieces.builder(context, start.plaza(), start.center(),
-                start.variant().homes(), VillageBuildingTable.get().stream().map(VillageBuildings.Requirement::kind)
-                        .collect(Collectors.toSet()));
+        VillagePlanPieces.Builder pieces = VillagePlanPieces.builder(context, start.terrain(), start.plaza(),
+                start.center(), start.variant().homes(), VillageBuildingTable.get().stream()
+                        .map(VillageBuildings.Requirement::kind).collect(Collectors.toSet()));
         List<PlotUses.Building> buildings = pieces.buildings(
                 VillageBuildings.kinds(VillageBuildingTable.get(), level), styleOf(start.variant()));
         StreetStyle style = PlotUses.withWide(styleOf(start.variant()), buildings);
@@ -387,14 +408,14 @@ public final class FortifiedVillageStructure extends Structure {
         long seed = VillagePlanPieces.seed(context.seed(), context.chunkPos());
         VillagePlan plan = VillagePlan.plan(limited, plotTarget(size), style, plazaSize,
                 VillagePlan.Start.around(plazaSize),
-                new PlotTerrains(context).plan(start.center(), start.plaza().getRotation()), seed);
+                new PlotTerrains(start.terrain()).plan(start.center(), start.plaza().getRotation()), seed);
         VillagePlanPieces.Posts posts = posts(context, start.center(), level, seed);
         int beds = Math.max(0, LevelTables.get().traits(level).maxPopulation() - VillageBeds.staff());
         VillagePlanPieces.Result result = pieces.place(style, plan, PlotUses.assign(plan, buildings, posts.count()),
                 posts, beds, RandomSource.create(seed));
         List<StructurePiece> village = new ArrayList<>(result.pieces());
-        List<StructurePiece> wall = VillageWall.add(context, village, result.reserved(), start.center(),
-                start.variant().wall(), start.maritime());
+        List<StructurePiece> wall = VillageWall.add(context, start.terrain(), village, result.reserved(),
+                start.center(), start.variant().wall(), start.maritime());
         if (!result.problems().isEmpty() || plan.missingPlots() > 0 || plan.missingHomes() > 0) {
             FolkholdWorld.LOGGER.warn("The village of the level {} in the start chunk {} has {} missing plots, {} missing"
                     + " homes and these problems: {}", level, context.chunkPos(), plan.missingPlots(),
@@ -537,21 +558,18 @@ public final class FortifiedVillageStructure extends Structure {
     /**
      * Checks the terrain around the middle of the start piece, before the generation of the chunks (see
      * {@link VillageSite}). The structure check of the game and the discovery of the settlements call this method
-     * on the server thread: it reads few heights.
+     * on the server thread: it reads few columns, one at a time ({@link TerrainCache#point}). The layout reads them
+     * again from the same cache.
      *
-     * @param context the context of the generation
-     * @param middle  the middle of the start piece, on the surface of the terrain
+     * @param terrain  the terrain cache of the start
+     * @param middle   the middle of the start piece, on the surface of the terrain
+     * @param seaLevel the sea level of the chunk generator
      * @return the result of the check
      */
-    static VillageSite.Result checkSite(GenerationContext context, BlockPos middle) {
-        ChunkGenerator generator = context.chunkGenerator();
-        int floor = generator.getBaseHeight(middle.getX(), middle.getZ(), Heightmap.Types.OCEAN_FLOOR_WG,
-                context.heightAccessor(), context.randomState());
-        return VillageSite.check(middle.getY(), floor, generator.getSeaLevel(),
-                (dx, dz) -> generator.getBaseHeight(middle.getX() + dx, middle.getZ() + dz,
-                        Heightmap.Types.WORLD_SURFACE_WG, context.heightAccessor(), context.randomState()),
-                (dx, dz) -> generator.getBaseHeight(middle.getX() + dx, middle.getZ() + dz,
-                        Heightmap.Types.OCEAN_FLOOR_WG, context.heightAccessor(), context.randomState()));
+    static VillageSite.Result checkSite(TerrainCache terrain, BlockPos middle, int seaLevel) {
+        return VillageSite.check(middle.getY(), terrain.point(middle.getX(), middle.getZ()).floor(), seaLevel,
+                (dx, dz) -> terrain.point(middle.getX() + dx, middle.getZ() + dz).surface(),
+                (dx, dz) -> terrain.point(middle.getX() + dx, middle.getZ() + dz).floor());
     }
 
     /**

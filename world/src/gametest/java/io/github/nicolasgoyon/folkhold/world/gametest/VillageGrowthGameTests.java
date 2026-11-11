@@ -14,6 +14,7 @@ import io.github.nicolasgoyon.folkhold.world.construction.GhostPlacement;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
+import io.github.nicolasgoyon.folkhold.world.level.TerrainCache;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
@@ -389,7 +390,7 @@ public final class VillageGrowthGameTests {
         List<BoundingBox> reserved = FortifiedVillageStructure.reservedSpaces(level.registryAccess(), templates,
                 poolHolder(pools, SUNREACH + "homes"), village);
         List<StructurePiece> pieces = new ArrayList<>(village);
-        pieces.addAll(VillageWall.add(context, village, reserved,
+        pieces.addAll(VillageWall.add(context, TerrainCache.of(context), village, reserved,
                 origin.offset(PLAZA_SIZE / 2, 0, PLAZA_SIZE / 2), sunreachWall(structure), false));
         List<String> problems = new ArrayList<>();
         int workshops = grow(level, pieces, problems);
