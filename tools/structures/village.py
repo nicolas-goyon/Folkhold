@@ -804,9 +804,16 @@ def street_end():
 
 # The pieces of the planned streets. The frontage of a style is the width of its widest home along the street, and its
 # depth is the depth of its deepest home: 9 and 9 for the pieces of all the cultures and the maritime pieces, 13 and 13
-# for Sunreach, 17 and 17 for Valeholm (see PIECES and STYLES). A home on a plot of a street segment goes past the end
-# of the segment by at most PLOT_MARGIN blocks (a home of 13 blocks on a segment of 13 blocks, a side long house on a
-# Norse segment).
+# for Sunreach, 17 and 17 for Valeholm (see PIECES and STYLES). The ends of a crossroad and the start of a side street
+# have PLOT_MARGIN blocks with no home. The homes on the plots of a street segment go past its ends:
+# - A home of 13 blocks (Sunreach) on the plot z = 8 of a segment of 13 blocks covers z = 2..14: 2 blocks past the end.
+# - A side long house (17 blocks) on a Norse segment of 21 blocks: on the plot z = 6, it covers z = -2..14, 2 blocks
+#   before the start; on the plot z = 16, it covers z = 8..24, 4 blocks past the end.
+# Thus the plan of the village obeys these rules for the Norse segments:
+# - No side long house on the plot z = 16 of a segment with a piece after it.
+# - A side long house on the plot z = 6 of a segment and a home on the plot z = 16 of the same segment overlap: the
+#   segment uses only one of the 2 plots on that side. A side long house on the plot z = 6 also goes into the piece
+#   before the segment: that piece has no home in its last 2 blocks.
 PLOT_MARGIN = 2
 
 
@@ -843,7 +850,8 @@ def street_cross(frontage):
 
 def street_side(depth):
     """The start of a side street, from a side of a crossroad: depth + PLOT_MARGIN blocks with no plot. The homes of
-    the crossroad (depth blocks deep) are on its 2 sides. The connector at the end targets the pool streets_next."""
+    the crossroad (depth blocks deep) are on its 2 sides. The connector at the end targets the pool streets_next. A
+    lamp post is at the end, on the east edge."""
     rng = random.Random(18)
     length = depth + PLOT_MARGIN
     t = Template(STREET_WIDTH, 4, length)
