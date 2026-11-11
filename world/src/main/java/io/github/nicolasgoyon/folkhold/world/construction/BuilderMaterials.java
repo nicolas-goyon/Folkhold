@@ -13,13 +13,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import javax.annotation.Nullable;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.Clearable;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -30,6 +34,9 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 /**
@@ -48,6 +55,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *       makes them.</li>
  *   <li>With the setting {@link WorldConfig#CONSTRUCTION_FREE_MATERIALS}, or with no economy, all the blocks are
  *       free.</li>
+ *   <li>The village keeps the blocks that the builders remove, as items of the economy (see
+ *       {@link #removedItems}).</li>
  * </ul>
  *
  * <p>The costs are calculated once for the recipes and the economy of the server.
@@ -65,6 +74,8 @@ public final class BuilderMaterials {
     @Nullable
     private static ItemCatalog costsCatalog;
     private static final Map<Item, Material> MATERIALS = new HashMap<>();
+    /** The costs of the drops of the removed blocks, by item: empty for an item with no cost. */
+    private static final Map<Item, Optional<Map<String, Double>>> DROP_COSTS = new HashMap<>();
     /** The prices of the settings for the materials in {@link #MATERIALS}: the valuable price and the rare price. */
     private static double materialsValuable = Double.NaN;
     private static double materialsRare = Double.NaN;
@@ -105,6 +116,7 @@ public final class BuilderMaterials {
         costsRecipes = null;
         costsCatalog = null;
         MATERIALS.clear();
+        DROP_COSTS.clear();
     }
 
     /** True if the builders use no materials: the setting, or no economy. */
@@ -147,6 +159,52 @@ public final class BuilderMaterials {
     }
 
     /**
+     * The items of the economy that the village keeps from the blocks that the builders remove.
+     *
+     * <ul>
+     *   <li>The drops of a block come from its loot table, with no tool: no silk touch, no shears and no fortune.
+     *       Examples: stone drops cobblestone, a grass block drops dirt, leaves drop a sapling or sticks sometimes.
+     *       The method empties a container first: its items do not come with the drops.</li>
+     *   <li>Each drop gives its cost in items of the economy (see {@link MaterialCosts}): an item of the economy
+     *       gives itself, and 1 oak stairs gives 1.5 oak planks. Thus a block that the builders remove and place
+     *       again usually gives no gain: the removal gives the cost of the placement. A block with a count in its
+     *       state (a double slab, candles, sea pickles) drops more items than the placement of its item costs. It can
+     *       give a small gain, one time for each site.</li>
+     *   <li>A drop with no cost is lost, for example calcite or a block of another mod with no recipe: the stock
+     *       counts only the items of the economy.</li>
+     *   <li>Scaffolding and the blocks of the tag {@link #FREE} give nothing: they use no materials.</li>
+     *   <li>When the builders use no materials ({@link #areFree}), the removed blocks give nothing.</li>
+     *   <li>The costs of the drops are kept for each item until the next change of the recipes or of the
+     *       economy.</li>
+     * </ul>
+     *
+     * @param level     the level
+     * @param positions the positions of the blocks, before the removal: one block, or the two parts of a block
+     * @return the quantity of each item of the economy, by item id
+     */
+    static Map<String, Double> removedItems(ServerLevel level, List<BlockPos> positions) {
+        if (areFree()) {
+            return Map.of();
+        }
+        MaterialCosts current = costs(level.getServer());
+        Map<String, Double> items = new TreeMap<>();
+        for (BlockPos pos : positions) {
+            BlockState state = level.getBlockState(pos);
+            if (state.isAir() || state.is(Blocks.SCAFFOLDING) || state.is(FREE)) {
+                continue;
+            }
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            Clearable.tryClear(blockEntity);
+            for (ItemStack drop : Block.getDrops(state, level, pos, blockEntity)) {
+                DROP_COSTS.computeIfAbsent(drop.getItem(), key -> current.cost(ItemIds.id(key)))
+                        .ifPresent(cost -> cost.forEach((item, quantity) ->
+                                items.merge(item, quantity * drop.getCount(), Double::sum)));
+            }
+        }
+        return items;
+    }
+
+    /**
      * The costs of the server. The method makes them again after a reload of the recipes or of the economy.
      *
      * @param server the server
@@ -162,6 +220,7 @@ public final class BuilderMaterials {
             costsRecipes = recipes;
             costsCatalog = catalog;
             MATERIALS.clear();
+            DROP_COSTS.clear();
         }
         return current;
     }
