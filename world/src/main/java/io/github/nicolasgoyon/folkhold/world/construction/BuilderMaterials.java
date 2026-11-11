@@ -116,7 +116,7 @@ public final class BuilderMaterials {
         costsRecipes = null;
         costsCatalog = null;
         MATERIALS.clear();
-            DROP_COSTS.clear();
+        DROP_COSTS.clear();
     }
 
     /** True if the builders use no materials: the setting, or no economy. */

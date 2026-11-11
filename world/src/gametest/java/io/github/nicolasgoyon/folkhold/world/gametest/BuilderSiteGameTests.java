@@ -1183,7 +1183,8 @@ public final class BuilderSiteGameTests {
     /**
      * The builders remove the blocks on the ground of a wall, and the village keeps them in its stock as items of the
      * economy, with the vanilla drops: stone gives cobblestone, a grass block gives dirt, a log gives its log. Oak
-     * stairs give 1.5 oak planks: 1 plank goes into the stock at once, and the half plank serves the next block.
+     * stairs give 1.5 oak planks: 1 plank goes into the stock at once, and the half plank stays with the site and is
+     * lost at the end of the site.
      */
     @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_removed", skyAccess = true)
     public static void buildersKeepTheBlocksThatTheyRemove(GameTestHelper helper) {
