@@ -54,6 +54,8 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
  *       guards of the caravan attack the player, and the escort of the player on this caravan fails.</li>
  *   <li>A mule of a caravan does not carry a player. To open its chest, the player uses the secondary action (sneak
  *       and click).</li>
+ *   <li><b>Trade during the stay</b>: after the arrival, the merchant sells the goods of the stock of the destination
+ *       that no worker sells (see {@link CaravanStays}). The reputation rules of the destination village apply.</li>
  * </ul>
  */
 public final class CaravanInteractions {
@@ -82,6 +84,9 @@ public final class CaravanInteractions {
         Entity target = event.getTarget();
         Optional<MobileGroup> group = groupOf(level.getServer(), target);
         if (group.isEmpty()) {
+            if (target instanceof CaravanMerchant merchant) {
+                stayInteract(event, player, merchant);
+            }
             return;
         }
         if (target instanceof CaravanMerchant merchant) {
@@ -107,13 +112,56 @@ public final class CaravanInteractions {
         }
     }
 
+    /** The destination settlement of a merchant during its stay, if the settlement is active. */
+    private static Optional<Settlement> staySettlement(MinecraftServer server, CaravanMerchant merchant) {
+        String id = merchant.staySettlement();
+        return id == null ? Optional.empty()
+                : SettlementData.get(server).registry().byId(id).filter(Settlement::isActive);
+    }
+
+    /** A player interacts with a merchant during its stay: the offers come from the stock of the destination. */
+    private static void stayInteract(PlayerInteractEvent.EntityInteract event, ServerPlayer player,
+            CaravanMerchant merchant) {
+        MinecraftServer server = player.getServer();
+        Optional<Settlement> settlement = staySettlement(server, merchant);
+        if (settlement.isEmpty()) {
+            merchant.setOffers(new MerchantOffers());
+            return;
+        }
+        ReputationTier tier = Reputations.effective(server, player, settlement.get().factionId(),
+                settlement.get().id()).map(ReputationTier::of).orElse(ReputationTier.NEUTRAL);
+        if (tier.isHostile()) {
+            player.displayClientMessage(Component.translatable("message.folkhold_world.merchant_refuses",
+                    merchant.getDisplayName()), true);
+            merchant.playSound(SoundEvents.VILLAGER_NO, 1.0F, 1.0F);
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            event.setCanceled(true);
+            return;
+        }
+        merchant.setOffers(CaravanStays.offers(settlement.get(), tier));
+    }
+
     /**
      * A trade with a caravan merchant removes the items from the cargo and fills the treasury. A trade that the
-     * cargo cannot pay is canceled. After the trade, the open screen shows what the cargo can pay now.
+     * cargo cannot pay is canceled. After the trade, the open screen shows what the cargo can pay now. During the
+     * stay, the trade changes the stock and the treasury of the destination.
      */
     public static void onTrade(TradeWithVillagerEvent event) {
         if (!(event.getAbstractVillager() instanceof CaravanMerchant merchant)
                 || !(merchant.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (merchant.staySettlement() != null) {
+            Optional<Settlement> settlement = staySettlement(level.getServer(), merchant);
+            boolean paid = settlement.isPresent()
+                    && Merchants.applyTrade(level.getServer(), settlement.get(), event.getMerchantOffer());
+            if (!paid && event.getEntity() instanceof ServerPlayer player) {
+                Merchants.cancel(player, event.getMerchantOffer());
+            }
+            settlement.ifPresent(found -> {
+                Map<String, Integer> surplus = CaravanStays.surplus(found);
+                Merchants.syncOffers(merchant, id -> surplus.getOrDefault(id, 0), 0L);
+            });
             return;
         }
         groupOf(level.getServer(), merchant).ifPresent(group -> {

@@ -14,7 +14,7 @@ RUN apt-get update \
 
 # PixVox makes the blocks of tools/pixvox. It installs numpy and Pillow, which the other scripts of tools/ use. The
 # version is the version of tools/pixvox/requirements.txt and of the CI.
-ARG PIXVOX_VERSION=v0.1.0
+ARG PIXVOX_VERSION=v0.4.0
 RUN pip3 install --no-cache-dir --break-system-packages \
     "pixvox @ git+https://github.com/nicolas-goyon/PixVox@${PIXVOX_VERSION}"
 

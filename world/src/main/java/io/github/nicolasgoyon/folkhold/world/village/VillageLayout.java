@@ -7,7 +7,7 @@ import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
 import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
-import io.github.nicolasgoyon.folkhold.core.sim.economy.JobBuildings;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import java.util.ArrayList;
@@ -18,16 +18,24 @@ import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.AbstractBannerBlock;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.BellBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -51,10 +59,13 @@ import net.neoforged.neoforge.registries.DeferredBlock;
  *       {@link VillageBeds}).</li>
  *   <li><b>buildings</b>: the number of building signs of each kind. The growth builds the missing buildings of the
  *       level (see {@link VillageGrowth}).</li>
- *   <li><b>job buildings</b>: the number of job signs of each job id (see {@link JobBuildings}). A job sign with no
- *       job does not count. A building sign of a kind in {@link #BUILDING_JOBS} also counts as a building of its job:
- *       the count of the job is the larger of its job signs and these building signs. Thus a forge with no job sign is
- *       a building of the blacksmith, and a forge with the 2 signs counts once.</li>
+ *   <li><b>job signs</b>: the position and the job id of each job sign, in the scan order. A job sign with no job is
+ *       not in the list. The heart finds the home of each job sign: the job posts (see {@link JobPosts} and
+ *       {@link VillageBeds#posts}).</li>
+ *   <li><b>markets</b>: the market signs of the market squares: a building sign of the kind {@code market} with the
+ *       market post behind it (a block of the tag {@link #MARKET_POSTS}). The scan does not count a market sign with
+ *       no market post, for example the sign of the fish market of a maritime village: this sign is not in
+ *       {@link #markets()} and not in the count of the kind {@code market} of {@link #buildings()}.</li>
  * </ul>
  *
  * <p>The scan area is the area of the village structure (see {@link VillageReference#area()}), larger by
@@ -74,12 +85,10 @@ public final class VillageLayout {
     /** The scan area is larger than the area of the village structure by this number of blocks on each side. */
     static final int AREA_MARGIN = 1;
     /** Version of the scan. Increase it when the scan finds new kinds of positions. */
-    static final int VERSION = 11;
-    /**
-     * The kinds of building signs that also name a job: the job id of each kind. Each forge is a building of the
-     * blacksmith, also a forge with no job sign.
-     */
-    static final Map<String, String> BUILDING_JOBS = Map.of("forge", FolkholdWorld.MOD_ID + ":blacksmith");
+    static final int VERSION = 14;
+    /** The blocks of a market post: the market sign of a market square stands in front of one. */
+    public static final TagKey<Block> MARKET_POSTS = TagKey.create(Registries.BLOCK,
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "market_posts"));
     /** Number of horizontal directions of the view score. */
     public static final int VIEW_DIRECTIONS = 16;
     /** A post with a lower view score is not valid: no archer goes there. */
@@ -100,8 +109,22 @@ public final class VillageLayout {
     private final List<BlockPos> bells = new ArrayList<>();
     private final List<BlockPos> questBoards = new ArrayList<>();
     private final List<BlockPos> beds = new ArrayList<>();
+    private final List<BlockPos> markets = new ArrayList<>();
     private final Map<String, Integer> buildings = new HashMap<>();
-    private final Map<String, Integer> jobBuildings = new HashMap<>();
+    private final List<JobSign> jobSigns = new ArrayList<>();
+
+    /**
+     * A job sign of the village.
+     *
+     * @param pos   the position of the sign
+     * @param jobId the job id of the sign, for example {@code folkhold_world:farmer}, or an empty text for a sign
+     *              with no job
+     */
+    public record JobSign(BlockPos pos, String jobId) {
+        public JobSign {
+            pos = pos.immutable();
+        }
+    }
 
     public boolean isScanned() {
         return scanned;
@@ -200,14 +223,62 @@ public final class VillageLayout {
         return Collections.unmodifiableList(beds);
     }
 
+    /** The market signs of the market squares, in the scan order. */
+    public List<BlockPos> markets() {
+        return Collections.unmodifiableList(markets);
+    }
+
+    /**
+     * Checks a market sign: the sign of a market square has the market post behind it.
+     *
+     * @param level the level
+     * @param pos   the position of the market sign
+     * @param state the state of the market sign
+     * @return true if the block behind the sign is in the tag {@link #MARKET_POSTS}
+     */
+    public static boolean isMarket(BlockGetter level, BlockPos pos, BlockState state) {
+        Direction back = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
+        return level.getBlockState(pos.relative(back)).is(MARKET_POSTS);
+    }
+
+    /**
+     * True if the market sign at a position is broken: the block is not a market sign any more, or the block behind it
+     * is not a market post (see {@link #isMarket}). A sign or a post in a chunk that is not ready is not broken.
+     *
+     * @param level the level
+     * @param pos   the position of the market sign of the scan
+     * @return true for a broken market
+     */
+    public static boolean isMarketBroken(ServerLevel level, BlockPos pos) {
+        if (!ReadyChunks.isReady(level, pos)) {
+            return false;
+        }
+        BlockState state = level.getBlockState(pos);
+        if (!state.is(ModBlocks.BUILDING_SIGNS.get(BuildingSignKind.MARKET).get())) {
+            return true;
+        }
+        BlockPos post = pos.relative(state.getValue(HorizontalDirectionalBlock.FACING).getOpposite());
+        return ReadyChunks.isReady(level, post) && !isMarket(level, pos, state);
+    }
+
     /** The number of building signs of each kind, for example {@code forge}. */
     public Map<String, Integer> buildings() {
         return Collections.unmodifiableMap(buildings);
     }
 
-    /** The number of job signs of each job id, for example {@code folkhold_world:blacksmith}. */
-    public Map<String, Integer> jobBuildings() {
-        return Collections.unmodifiableMap(jobBuildings);
+    /** The job signs, in the scan order. A sign with no job has an empty job id. */
+    public List<JobSign> jobSigns() {
+        return Collections.unmodifiableList(jobSigns);
+    }
+
+    /**
+     * Changes the job of a job sign of the scan, after the heart writes a new job on the sign.
+     *
+     * @param pos   the position of the sign
+     * @param jobId the new job id
+     */
+    public void setJob(BlockPos pos, String jobId) {
+        jobSigns.replaceAll(sign -> sign.pos().equals(pos) ? new JobSign(pos, jobId) : sign);
     }
 
     /**
@@ -290,8 +361,9 @@ public final class VillageLayout {
         bells.clear();
         questBoards.clear();
         beds.clear();
+        markets.clear();
         buildings.clear();
-        jobBuildings.clear();
+        jobSigns.clear();
         BlockPos min = new BlockPos(area.minX(), area.minY(), area.minZ());
         BlockPos max = new BlockPos(area.maxX(), area.maxY(), area.maxZ());
         for (BlockPos pos : BlockPos.betweenClosed(min, max)) {
@@ -314,26 +386,24 @@ public final class VillageLayout {
                 beds.add(pos.immutable());
             } else if (state.getBlock() instanceof JobSignBlock) {
                 if (level.getBlockEntity(pos) instanceof JobSignBlockEntity sign) {
-                    String job = JobBuildings.jobId(sign.job(), FolkholdWorld.MOD_ID);
-                    if (!job.isEmpty()) {
-                        jobBuildings.merge(job, 1, Integer::sum);
-                    }
+                    jobSigns.add(new JobSign(pos, JobPosts.jobId(sign.job(), FolkholdWorld.MOD_ID)));
                 }
             } else if (state.getBlock() instanceof BuildingSignBlock) {
                 for (Map.Entry<BuildingSignKind, DeferredBlock<BuildingSignBlock>> sign
                         : ModBlocks.BUILDING_SIGNS.entrySet()) {
-                    if (state.is(sign.getValue().get())) {
-                        buildings.merge(sign.getKey().serializedName(), 1, Integer::sum);
+                    if (!state.is(sign.getValue().get())) {
+                        continue;
                     }
+                    if (sign.getKey() == BuildingSignKind.MARKET) {
+                        if (!isMarket(level, pos, state)) {
+                            continue;
+                        }
+                        markets.add(pos.immutable());
+                    }
+                    buildings.merge(sign.getKey().serializedName(), 1, Integer::sum);
                 }
             }
         }
-        BUILDING_JOBS.forEach((kind, job) -> {
-            int signs = buildings.getOrDefault(kind, 0);
-            if (signs > 0) {
-                jobBuildings.merge(job, signs, Math::max);
-            }
-        });
         for (BlockPos post : posts) {
             views.add(viewScore(level, post));
         }
@@ -354,12 +424,18 @@ public final class VillageLayout {
         tag.put("Bells", savePositions(bells));
         tag.put("QuestBoards", savePositions(questBoards));
         tag.put("Beds", savePositions(beds));
+        tag.put("Markets", savePositions(markets));
         CompoundTag kinds = new CompoundTag();
         buildings.forEach(kinds::putInt);
         tag.put("Buildings", kinds);
-        CompoundTag jobs = new CompoundTag();
-        jobBuildings.forEach(jobs::putInt);
-        tag.put("JobBuildings", jobs);
+        ListTag signs = new ListTag();
+        for (JobSign sign : jobSigns) {
+            CompoundTag signTag = new CompoundTag();
+            signTag.put("Pos", NbtUtils.writeBlockPos(sign.pos()));
+            signTag.putString("Job", sign.jobId());
+            signs.add(signTag);
+        }
+        tag.put("JobSigns", signs);
         return tag;
     }
 
@@ -377,15 +453,18 @@ public final class VillageLayout {
         loadPositions(tag, "Bells", bells);
         loadPositions(tag, "QuestBoards", questBoards);
         loadPositions(tag, "Beds", beds);
+        loadPositions(tag, "Markets", markets);
         buildings.clear();
         CompoundTag kinds = tag.getCompound("Buildings");
         for (String kind : kinds.getAllKeys()) {
             buildings.put(kind, kinds.getInt(kind));
         }
-        jobBuildings.clear();
-        CompoundTag jobs = tag.getCompound("JobBuildings");
-        for (String job : jobs.getAllKeys()) {
-            jobBuildings.put(job, jobs.getInt(job));
+        jobSigns.clear();
+        ListTag signs = tag.getList("JobSigns", Tag.TAG_COMPOUND);
+        for (int i = 0; i < signs.size(); i++) {
+            CompoundTag signTag = signs.getCompound(i);
+            NbtUtils.readBlockPos(signTag, "Pos")
+                    .ifPresent(pos -> jobSigns.add(new JobSign(pos, signTag.getString("Job"))));
         }
     }
 

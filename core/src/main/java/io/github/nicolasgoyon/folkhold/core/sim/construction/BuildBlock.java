@@ -125,4 +125,19 @@ public record BuildBlock(String state, BlockKind kind, Optional<Side> support, b
     public boolean sameBlock(BuildBlock other) {
         return state.equals(other.state) && data.equals(other.data);
     }
+
+    /**
+     * True if the two blocks are the same block with the same data, and only the properties of their states can be
+     * different. Example: two oak stairs with a different facing. The construction changes the properties of such a
+     * block with no removal.
+     */
+    public boolean sameBlockOtherState(BuildBlock other) {
+        return blockId(state).equals(blockId(other.state)) && data.equals(other.data);
+    }
+
+    /** The block of a state text: the text before the properties. */
+    private static String blockId(String state) {
+        int properties = state.indexOf('[');
+        return properties < 0 ? state : state.substring(0, properties);
+    }
 }

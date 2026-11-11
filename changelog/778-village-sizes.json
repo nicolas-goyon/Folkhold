@@ -1,0 +1,5 @@
+{
+  "category": "changed",
+  "en_us": "By default, villages take no new plot at runtime (setting construction.growth). A village and its settlement get the same start level, from the world seed and the village place. A data file gives the village size of each tier. A level table with a start chance in the capital tier is rejected.",
+  "fr_fr": "Par défaut, les villages ne prennent pas de nouvelle parcelle en jeu (réglage construction.growth). Village et établissement ont le même niveau de départ, selon la graine et le lieu. Un fichier donne la taille des villages par palier. Une table de niveaux avec un départ en capitale est refusée."
+}

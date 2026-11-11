@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.settlement;
 
 import io.github.nicolasgoyon.folkhold.core.sim.economy.EconomyState;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementRegistry;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
@@ -38,10 +39,13 @@ public final class SettlementData extends SavedData {
     /**
      * The version of the saved format. {@code load} reads the tag of an earlier version (a tag with no version is
      * version 0) and the data saves with the current version. A tag of a later version loads with a warning.
-     * Version 2 adds the counts of the job buildings ({@code JobBuildings}). A settlement with no counts has unknown
-     * counts: all its jobs are active until the next scan of its heart.
+     * Version 3 adds the job posts ({@code JobPosts}, see {@link JobPosts}) and the mark {@code LegacyJobs}. A
+     * settlement with no posts has unknown posts: it has the job slots of its level until the next scan of its heart.
+     * A settlement of format version 2 or lower with an initialized economy is a legacy village: it gets the mark.
      */
-    static final int VERSION = 2;
+    static final int VERSION = 3;
+    /** The first format version with the job posts. A save of a lower version has no list of posts. */
+    static final int POSTS_VERSION = 3;
 
     private final SettlementRegistry registry = new SettlementRegistry();
     private final Set<Long> checkedRegions = new HashSet<>();
@@ -190,11 +194,20 @@ public final class SettlementData extends SavedData {
                 entry.putIntArray("Gates", gates);
             }
             entry.putInt("Beds", settlement.beds());
-            settlement.jobBuildings().ifPresent(counts -> {
-                CompoundTag jobs = new CompoundTag();
-                counts.forEach(jobs::putInt);
-                entry.put("JobBuildings", jobs);
+            settlement.jobPosts().ifPresent(posts -> {
+                ListTag jobPosts = new ListTag();
+                for (JobPosts.Post post : posts) {
+                    CompoundTag postTag = new CompoundTag();
+                    postTag.putString("Job", post.jobId());
+                    postTag.putIntArray("Sign", new int[] {post.x(), post.y(), post.z()});
+                    postTag.putInt("Beds", post.homeBeds());
+                    jobPosts.add(postTag);
+                }
+                entry.put("JobPosts", jobPosts);
             });
+            if (settlement.legacyJobs()) {
+                entry.putBoolean("LegacyJobs", true);
+            }
             if (settlement.lastFallPenalty() != Settlement.NO_FALL_PENALTY) {
                 entry.putLong("LastFallPenalty", settlement.lastFallPenalty());
             }
@@ -246,15 +259,15 @@ public final class SettlementData extends SavedData {
             }
             settlement.setGates(loadedGates);
             settlement.setBeds(entry.contains("Beds") ? entry.getInt("Beds") : VillagePlaces.UNKNOWN);
-            if (entry.contains("JobBuildings", Tag.TAG_COMPOUND)) {
-                CompoundTag jobs = entry.getCompound("JobBuildings");
-                Map<String, Integer> counts = new HashMap<>();
-                jobs.getAllKeys().forEach(job -> counts.put(job, jobs.getInt(job)));
-                settlement.setJobBuildings(Optional.of(counts));
+            boolean hasPosts = entry.contains("JobPosts", Tag.TAG_LIST);
+            if (hasPosts) {
+                settlement.setJobPosts(Optional.of(loadPosts(entry.getList("JobPosts", Tag.TAG_COMPOUND))));
             }
             settlement.setLastFallPenalty(entry.contains("LastFallPenalty") ? entry.getLong("LastFallPenalty")
                     : Settlement.NO_FALL_PENALTY);
             loadEconomy(settlement.economy(), entry.getCompound("Economy"));
+            settlement.setLegacyJobs(entry.getBoolean("LegacyJobs")
+                    || (version < POSTS_VERSION && !hasPosts && settlement.economy().isInitialized()));
             if (data.registry.byId(settlement.id()).isEmpty()) {
                 data.registry.add(settlement);
             }
@@ -285,6 +298,20 @@ public final class SettlementData extends SavedData {
         tag.putDouble("JobsWorking", economy.jobsWorking());
         tag.putInt("Cycles", economy.cycles());
         return tag;
+    }
+
+    /** Reads the job posts of a settlement. A post with no sign position or no job is skipped. */
+    private static List<JobPosts.Post> loadPosts(ListTag list) {
+        List<JobPosts.Post> posts = new ArrayList<>();
+        for (int i = 0; i < list.size(); i++) {
+            CompoundTag postTag = list.getCompound(i);
+            int[] sign = postTag.getIntArray("Sign");
+            String job = postTag.getString("Job");
+            if (sign.length == 3 && !job.isEmpty()) {
+                posts.add(new JobPosts.Post(job, sign[0], sign[1], sign[2], Math.max(1, postTag.getInt("Beds"))));
+            }
+        }
+        return posts;
     }
 
     private static void loadEconomy(EconomyState economy, CompoundTag tag) {

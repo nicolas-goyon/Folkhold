@@ -82,7 +82,7 @@ public final class FortifiedVillageGameTests {
     private static final int CANDIDATES = 8;
     private static final String TOWER = "tower";
     private static final String GATE = "gate";
-    /** The templates of the plots: the houses and the bank. */
+    /** The templates of the plots: the houses and the bank. The house-workshops ({@code job_<id>}) also have plots. */
     private static final Set<String> HOUSES = Set.of("house_cottage", "house_barracks", "house_forge",
             "house_storehouse", "bank");
     /** The walk on the ground falls this number of blocks at most. */
@@ -403,7 +403,8 @@ public final class FortifiedVillageGameTests {
 
     /**
      * The plots of the generated villages: a plot with a house has a junction, a free plot has none. The wall keeps
-     * the space of a home on each free plot: the space is inside the area of the village, and has no palisade.
+     * the space of a new home on each free plot (see {@link FortifiedVillageStructure#reservedSpaces}): the space is
+     * inside the area of the village, and has no palisade.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_plots")
     public static void wallKeepsTheSpaceOfTheFreePlots(GameTestHelper helper) {
@@ -420,19 +421,21 @@ public final class FortifiedVillageGameTests {
             helper.assertTrue(start.isValid(), "The village must start in " + chunk);
             VillageReference reference = VillageReference.of(level, start.getPieces()).orElseThrow();
             BoundingBox area = reference.area().orElseThrow();
-            StructureTemplatePool homes = ((FortifiedVillageStructure) structure)
-                    .variantOf(level, start.getPieces()).homes().value();
-            long houses = reference.pieces().stream().filter(piece -> HOUSES.contains(name(piece.template())))
-                    .count();
+            long houses = reference.pieces().stream().map(piece -> name(piece.template()))
+                    .filter(name -> HOUSES.contains(name) || name.startsWith("job_")).count();
             long built = reference.plots().stream().filter(VillagePlots.Plot::built).count();
             helper.assertTrue(built == houses, "Each house must have its plot: " + houses + " houses, " + built
                     + " built plots in " + chunk);
-            for (VillagePlots.Plot plot : reference.plots()) {
-                if (plot.built()) {
-                    continue;
-                }
+            // The spaces of the free plots, with the method of the generation.
+            List<BoundingBox> spaces = FortifiedVillageStructure.reservedSpaces(level.registryAccess(),
+                    level.getStructureManager(),
+                    ((FortifiedVillageStructure) structure).variantOf(level, start.getPieces()).homes(),
+                    start.getPieces());
+            long freePlots = reference.plots().stream().filter(plot -> !plot.built()).count();
+            helper.assertTrue(spaces.size() == freePlots, "Each free plot must have a space: " + freePlots
+                    + " free plots, " + spaces.size() + " spaces in " + chunk);
+            for (BoundingBox space : spaces) {
                 free++;
-                BoundingBox space = VillagePlots.space(level.getStructureManager(), homes, plot).orElseThrow();
                 helper.assertTrue(space.minX() > area.minX() && space.maxX() < area.maxX()
                         && space.minZ() > area.minZ() && space.maxZ() < area.maxZ(),
                         "The space of a free plot must be inside the palisade: " + space + " in " + area);

@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -61,6 +60,8 @@ public final class MerchantGameTests {
     private static final String FISHER = "folkhold_world:fisher";
     /** The test job of the GameTest data: it needs its building and shows the weaponsmith profession. */
     private static final String TEST_SMITH = "folkhold_world:test_smith";
+    /** A day time in the market phase of the default schedule. */
+    private static final long MARKET_TIME = 6000;
     /** The tests call the checks of the heart this number of times to create all the villagers. */
     private static final int FILL_CHECKS = 30;
 
@@ -416,14 +417,23 @@ public final class MerchantGameTests {
         reputation.get(player.getUUID()).setVillage(village.settlement().id(), 0);
         List<VillagerProfession> professions = List.of(ModProfessions.BAKER.get(), ModProfessions.INHABITANT.get(),
                 VillagerProfession.FARMER, ModProfessions.MERCHANT.get());
-        List<Boolean> canceled = professions.stream().map(profession -> {
-            Villager villager = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(), profession);
-            PlayerInteractEvent.EntityInteract event =
-                    new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, villager);
-            NeoForge.EVENT_BUS.post(event);
-            villager.discard();
-            return event.isCanceled();
-        }).toList();
+        // The workers trade only during the market hours. The test sets a time of the market and the old time again
+        // in the same tick: the other tests of the batch do not see the change.
+        long oldTime = helper.getLevel().getDayTime();
+        helper.getLevel().setDayTime(MARKET_TIME);
+        List<Boolean> canceled;
+        try {
+            canceled = professions.stream().map(profession -> {
+                Villager villager = VillageFolk.spawn(helper.getLevel(), village.heart().getBlockPos(), profession);
+                PlayerInteractEvent.EntityInteract event =
+                        new PlayerInteractEvent.EntityInteract(player, InteractionHand.MAIN_HAND, villager);
+                NeoForge.EVENT_BUS.post(event);
+                villager.discard();
+                return event.isCanceled();
+            }).toList();
+        } finally {
+            helper.getLevel().setDayTime(oldTime);
+        }
 
         helper.getLevel().getServer().getPlayerList().remove(player);
         helper.assertTrue(canceled.equals(List.of(false, true, true, true)),
@@ -480,7 +490,7 @@ public final class MerchantGameTests {
     }
 
     /**
-     * The worker of a job with no building offers nothing. A villager with the merchant profession offers nothing. A
+     * The worker of a job with no active post offers nothing. A villager with the merchant profession offers nothing. A
      * village with no active job gets no prosperity share for the jobs.
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "worker_inactive")
@@ -494,15 +504,15 @@ public final class MerchantGameTests {
         boolean unknownEmpty = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
                 VillagerProfession.WEAPONSMITH).isEmpty();
         double activeProsperity = Economies.prosperity(server, village.settlement());
-        village.settlement().setJobBuildings(Optional.of(Map.of()));
+        village.settlement().setJobPosts(Optional.of(List.of()));
         double inactiveProsperity = Economies.prosperity(server, village.settlement());
         MerchantOffers inactive = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
                 VillagerProfession.WEAPONSMITH);
         MerchantOffers merchant = Merchants.offers(server, village.settlement(), ReputationTier.NEUTRAL,
                 ModProfessions.MERCHANT.get());
-        village.settlement().setJobBuildings(Optional.empty());
+        village.settlement().setJobPosts(Optional.empty());
 
-        helper.assertTrue(!unknownEmpty, "With unknown building counts, the smith must sell its swords");
+        helper.assertTrue(!unknownEmpty, "With unknown posts, the smith must sell its swords");
         helper.assertTrue(inactive.isEmpty(), "The smith of an inactive job must offer nothing");
         helper.assertTrue(merchant.isEmpty(), "A villager with the merchant profession must offer nothing");
         helper.assertTrue(Math.abs(activeProsperity - inactiveProsperity - 0.3) < 1e-9,

@@ -9,11 +9,14 @@ Output:
 The icon of a map decoration is 8 x 8 pixels, as the icons of the game. The icon of a village waypoint is the flame of
 the village heart: a gold rhombus with a light center and a dark outline. The other pixels stay transparent.
 
-Requires Pillow.
+Requires Pillow and PixVox (tools/pixvox/requirements.txt). The PNG file is not written when its pixels do not
+change (png_file.write_png).
 """
 import os
 
 from PIL import Image
+
+from png_file import write_png
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "world", "src", "main", "resources", "assets",
                    "folkhold_world", "textures", "map", "decorations", "village.png")
@@ -41,8 +44,10 @@ def village():
 
 def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    village().save(OUT)
-    print("Wrote", os.path.relpath(OUT))
+    if write_png(OUT, village()):
+        print("Wrote", os.path.relpath(OUT))
+    else:
+        print("Same pixels, not written:", os.path.relpath(OUT))
 
 
 if __name__ == "__main__":

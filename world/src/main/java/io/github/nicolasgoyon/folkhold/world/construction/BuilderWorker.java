@@ -33,9 +33,9 @@ import net.minecraft.world.phys.Vec3;
  *       the step is in its reach zone: the position to stand of the plan, or a free position near the block with a
  *       way from the ground (see {@link BuilderSite#standFor}). With no such position, the builder waits near the
  *       bottom of the column of the position of the plan, or near the block.</li>
- *   <li>The builder does not walk through the scaffolding (see {@link BuilderNavigation}). For a position on a
- *       scaffolding column, the builder walks to the bottom of the column and climbs it. To go to another position, it
- *       goes down the column first.</li>
+ *   <li>The builder does not walk through the scaffolding, and does not walk on the top of a new wall (see
+ *       {@link BuilderNavigation}). For a position on a scaffolding column, the builder walks to the bottom of the
+ *       column and climbs it. To go to another position, it goes down the column first.</li>
  *   <li>At the position, the builder looks at the block. When the stock of the village has the materials of the
  *       step, the builder plays the animation of a placement, then the step applies.</li>
  *   <li>A builder takes the next step of the site when no builder claimed it, or when the builder is in position
@@ -171,6 +171,7 @@ final class BuilderWorker {
      */
     void tick(ServerLevel level, BuilderSite site, Villager villager, @Nullable Entity watched) {
         BuilderNavigation.equip(villager);
+        BuilderNavigation.site(villager, site);
         stateTicks++;
         if (state == State.CLIMB) {
             climb(villager);
@@ -474,6 +475,8 @@ final class BuilderWorker {
             }
             teleported = true;
             BuilderSite.teleport(villager, stand);
+            // The brain must not walk back to the old walk target, for example to the bottom of the column.
+            stay(villager);
             // The builder gets some ticks to land at its position before it works from where it is. The walk makes no
             // progress after the move.
             stuckTicks = MOVE_TIMEOUT - LANDING_TICKS;
@@ -616,10 +619,13 @@ final class BuilderWorker {
         }
     }
 
-    /** The villager stops where it is. */
+    /**
+     * The villager stops where it is: no walk target, no path, no walk input and no jump (see
+     * {@link BuilderSite#stopMoving}).
+     */
     private static void stay(Villager villager) {
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        villager.getNavigation().stop();
+        BuilderSite.stopMoving(villager);
     }
 
     /**

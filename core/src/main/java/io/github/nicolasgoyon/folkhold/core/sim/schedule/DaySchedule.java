@@ -1,6 +1,9 @@
 package io.github.nicolasgoyon.folkhold.core.sim.schedule;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.TreeMap;
 
 /**
  * The daily schedule of the workers of a village, and the market day. The values are times of the day in ticks
@@ -173,6 +176,47 @@ public record DaySchedule(int workStart, int marketStart, int marketEnd, int hom
         int delay = stepDelay(step);
         return new Bounds(wrap(delay), wrap(workStart + delay), wrap(marketStart + delay), wrap(marketEnd + delay),
                 wrap(homeStart + delay), wrap(sleepStart + delay));
+    }
+
+    /**
+     * The phase changes of the workers of a step, in the order of the time of the day. A brain schedule can use this
+     * list directly.
+     *
+     * <ul>
+     *   <li>The list is sorted by time. The delay of the step can move a bound past the end of the day: this bound
+     *       goes to the start of the list.</li>
+     *   <li>Two bounds at the same time make an empty phase. The list keeps only the later phase of the day at this
+     *       time.</li>
+     *   <li>From 0 to the first change, the phase is the phase of the last change of the list.</li>
+     * </ul>
+     *
+     * @param step the step, from 0 to {@link #WORKER_STEPS} - 1
+     * @return the phase changes, 1 to 6 items
+     */
+    public List<Transition> transitions(int step) {
+        Bounds bounds = bounds(step);
+        int[] times = {bounds.homeStartMorning(), bounds.workStart(), bounds.marketStart(), bounds.marketEnd(),
+            bounds.homeStart(), bounds.sleepStart()};
+        DayPhase[] phases = {DayPhase.HOME, DayPhase.WORK, DayPhase.MARKET, DayPhase.WORK, DayPhase.HOME,
+            DayPhase.SLEEP};
+        // Put each phase at its time. The phases are in the order of the day, so a later phase replaces an earlier
+        // phase at the same time. Two bounds of different days cannot have the same time.
+        TreeMap<Integer, DayPhase> changes = new TreeMap<>();
+        for (int i = 0; i < times.length; i++) {
+            changes.put(times[i], phases[i]);
+        }
+        List<Transition> result = new ArrayList<>(changes.size());
+        changes.forEach((time, phase) -> result.add(new Transition(time, phase)));
+        return List.copyOf(result);
+    }
+
+    /**
+     * One phase change of a worker.
+     *
+     * @param time  the time of the day, from 0 to 23999
+     * @param phase the phase that starts at this time
+     */
+    public record Transition(int time, DayPhase phase) {
     }
 
     /**

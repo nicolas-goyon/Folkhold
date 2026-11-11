@@ -1,0 +1,5 @@
+{
+  "category": "fixed",
+  "en_us": "Faction units answer an attacker after they give up a chase, when the unit and the attacker are both in the chase area. An attacker outside the chase area does not pull a unit away from its post.",
+  "fr_fr": "Les unités de faction répondent à un attaquant après l'abandon d'une poursuite, quand l'unité et l'attaquant sont tous les deux dans la zone de poursuite. Un attaquant hors de la zone de poursuite n'éloigne pas une unité de son poste."
+}

@@ -109,6 +109,19 @@ public final class VillageRepairData extends SavedData {
     }
 
     /**
+     * The box of a construction site of a village that holds a position.
+     *
+     * @param heart the position of the village heart
+     * @param pos   the position
+     * @return the first box that holds the position, or empty
+     */
+    public Optional<BoundingBox> constructionAt(BlockPos heart, BlockPos pos) {
+        return constructions.getOrDefault(heart.asLong(), List.of()).stream()
+                .filter(box -> box.isInside(pos))
+                .findFirst();
+    }
+
+    /**
      * The surface blocks of the streets of a village.
      *
      * @param heart the position of the village heart

@@ -1,0 +1,122 @@
+{
+  "fallback": "folkhold_world:village/birch/houses",
+  "elements": [
+    {
+      "weight": 60,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_farmer",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 10,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_gardener",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 8,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_forager",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 45,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_baker",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 10,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_rancher",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 15,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_lumberjack",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 20,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_lumberjack_birch",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 6,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_sawyer",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 15,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_miner",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 8,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_digger",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 30,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_mason",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 24,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_carpenter",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    },
+    {
+      "weight": 8,
+      "element": {
+        "element_type": "minecraft:single_pool_element",
+        "location": "folkhold_world:village/birch/job_shepherd",
+        "projection": "rigid",
+        "processors": "folkhold_world:village/birch/foundation"
+      }
+    }
+  ]
+}

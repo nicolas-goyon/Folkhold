@@ -14,12 +14,10 @@ import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -45,16 +43,15 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  *   "min_level": 1,
  *   "weight": 10,
  *   "biomes": ["#minecraft:is_taiga", "minecraft:plains"],
- *   "profession": "minecraft:farmer",
- *   "building": true
+ *   "profession": "minecraft:farmer"
  * }
  * </pre>
  * {@code inputs}, {@code chance} (1), {@code min_level} (1), {@code weight} (10), {@code biomes} (all biomes),
- * {@code profession} and {@code building} (false) are optional. {@code profession} is the villager profession that
+ * and {@code profession} are optional. {@code profession} is the villager profession that
  * shows the job: an inhabitant with this job has this profession (see
  * {@link io.github.nicolasgoyon.folkhold.world.village.VillageFolk}). With no profession, the inhabitant has the
- * inhabitant profession. With {@code "building": true}, the job works only when the village has the building of the
- * job (see {@link Economies#activeJobIds}). An input with a chance below 1 is a tool: the job needs it and
+ * inhabitant profession. A job works in a scanned village only at an active job post (see
+ * {@link Economies#activeJobIds}). An input with a chance below 1 is a tool: the job needs it and
  * uses it up sometimes. Items format: {@code {"minecraft:bread": {"price": 1.0, "food": 5, "target": 32}, ...}}.
  *
  * <p>A file that is not valid is ignored, with an error in the log.
@@ -67,7 +64,6 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
     private static Map<String, Job> jobs = Map.of();
     private static ItemCatalog catalog = ItemCatalog.EMPTY;
     private static Map<String, ResourceLocation> professions = Map.of();
-    private static Set<String> buildingJobs = Set.of();
 
     public EconomyData() {
         super(new Gson(), JOBS_DIRECTORY);
@@ -97,16 +93,6 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
         return Optional.ofNullable(professions.get(jobId));
     }
 
-    /**
-     * True if the job file sets {@code "building": true}: the job needs its building.
-     *
-     * @param jobId the job id
-     * @return true if the job needs its building
-     */
-    public static boolean hasBuilding(String jobId) {
-        return buildingJobs.contains(jobId);
-    }
-
     /** True if the data packs give at least one job. */
     public static boolean isActive() {
         return !jobs.isEmpty();
@@ -116,7 +102,6 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
     protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager manager, ProfilerFiller profiler) {
         Map<String, Job> loaded = new LinkedHashMap<>();
         Map<String, ResourceLocation> loadedProfessions = new LinkedHashMap<>();
-        Set<String> loadedBuildingJobs = new HashSet<>();
         for (Map.Entry<ResourceLocation, JsonElement> entry : files.entrySet()) {
             String id = entry.getKey().toString();
             try {
@@ -125,16 +110,12 @@ public final class EconomyData extends SimpleJsonResourceReloadListener {
                 if (json.has("profession")) {
                     loadedProfessions.put(id, ResourceLocation.parse(GsonHelper.getAsString(json, "profession")));
                 }
-                if (GsonHelper.getAsBoolean(json, "building", false)) {
-                    loadedBuildingJobs.add(id);
-                }
             } catch (RuntimeException e) {
                 FolkholdWorld.LOGGER.error("The job {} is not valid", id, e);
             }
         }
         jobs = Collections.unmodifiableMap(loaded);
         professions = Collections.unmodifiableMap(loadedProfessions);
-        buildingJobs = Set.copyOf(loadedBuildingJobs);
         catalog = loadCatalog(manager);
         FolkholdWorld.LOGGER.info("Loaded {} jobs and {} item values", jobs.size(), catalog.all().size());
     }
