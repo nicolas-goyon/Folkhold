@@ -22,14 +22,13 @@ them. The jigsaw connectors give the positions of the plots and the pools of the
   posts. 4 jigsaw connectors for the streets: the street to the north has the plot of the bank.
 - street.nbt, street_bank.nbt, street_jobs.nbt, street_end.nbt: the parts of a street. The paths follow the terrain. A
   segment has a plot on each side, and a connector for the end of the street. The end has a lamp post on each edge.
-  The street to the south (street_jobs) has the plots of the first house-workshops (see first_jobs).
+  The plan places the first house-workshops on the plots of the first piece of the street to the south (street_jobs).
 - street_next.nbt, street_cross.nbt, street_side.nbt: the pieces of the planned streets, in the pools
   village/streets_next and village/streets_side (see street_cross). The connectors of the other pieces do not target
   these pools.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
 - bank.nbt: the village bank. Its walls and its chests resist explosions.
 - job_<id>.nbt: the building of a job (see JOBS), in the pool village/jobs. Each building has the job sign of its job.
-  The pools village/jobs_food and village/jobs_start have the first house-workshops of the generation.
 - market.nbt: the market square, in the pool village/market. It takes the plot of one house, and it has the market
   sign in front of the market post (see market).
 - tower.nbt: a tower of the palisade, with the stair along the palisade. The outside of the template is to the west
@@ -81,9 +80,6 @@ NEXT_STREETS_POOL = f"{NS}:village/streets_next"
 SIDE_STREETS_POOL = f"{NS}:village/streets_side"
 FIRST_STREETS_POOL = f"{NS}:village/streets_first"
 JOB_STREETS_POOL = f"{NS}:village/streets_jobs"
-# The pools of the first house-workshops of a village (see first_jobs).
-FOOD_JOBS_POOL = f"{NS}:village/jobs_food"
-START_JOBS_POOL = f"{NS}:village/jobs_start"
 BANK_STREETS_POOL = f"{NS}:village/streets_bank"
 # The village heart gives the banner of the faction to each banner of the village.
 BANNER = "minecraft:white_banner"
@@ -762,13 +758,13 @@ def street_path(t, rng, length):
             t.set(x, 0, z, path_block(rng))
 
 
-def street(bank=False, jobs=False, next_street=False):
+def street(bank=False, next_street=False):
     """A segment of street along z, with a plot on each side and a connector for the end of the street.
 
     The segment follows the terrain (projection terrain_matching). The segment to the north has the plot of the bank
-    on its west side. With jobs, the segment has the plots of the first house-workshops: the pool jobs_food on the
-    west side and the pool jobs_start on the east side. With next_street, the connector at the end of the segment
-    targets the pool streets_next: the street continues (see street_cross).
+    on its west side. The other plots target the pool of the houses: the plan chooses the building of each plot (see
+    VillagePlanPieces). With next_street, the connector at the end of the segment targets the pool streets_next: the
+    street continues (see street_cross).
     """
     rng = random.Random(12 if bank else 13)
     t = Template(STREET_WIDTH, 4, STREET_LENGTH)
@@ -779,10 +775,9 @@ def street(bank=False, jobs=False, next_street=False):
              NEXT_STREETS_POOL if next_street else STREET_ENDS_POOL, "minecraft:dirt_path")
     # The plots are near the end of the segment: the houses of 2 streets side by side do not touch.
     plot_z = STREET_LENGTH - 1 - HOUSE_HALF_WIDTH
-    west = BANK_POOL if bank else FOOD_JOBS_POOL if jobs else HOUSE_POOL
+    west = BANK_POOL if bank else HOUSE_POOL
     t.jigsaw(0, 1, plot_z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air")
-    t.jigsaw(STREET_WIDTH - 1, 1, plot_z, "east_up", PLOT, HOUSE_FRONT, START_JOBS_POOL if jobs else HOUSE_POOL,
-             "minecraft:air")
+    t.jigsaw(STREET_WIDTH - 1, 1, plot_z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
     # A lamp post at the far end, on the east edge.
     lamp_post(t, STREET_WIDTH - 1, STREET_LENGTH - 1)
     return t
@@ -1447,12 +1442,11 @@ def norse_storehouse_side():
     return t
 
 
-def norse_street(bank=False, jobs=False, next_street=False):
+def norse_street(bank=False, next_street=False):
     """A Norse street along z: a segment of NORSE_STREET_LENGTH blocks with 2 plots on each side (NORSE_PLOTS), for
-    the long houses. The segment to the north has the plot of the bank on its west side, near the plaza. With jobs,
-    the segment has the plots of the first house-workshops: near the plaza, the pool jobs_food on the west side and the
-    pool jobs_start on the east side; far from the plaza, the pool jobs_start on the west side. With next_street, the
-    connector at the end of the segment targets the pool streets_next (see street_cross)."""
+    the long houses. The segment to the north has the plot of the bank on its west side, near the plaza. The other
+    plots target the pool of the houses: the plan chooses the building of each plot (see VillagePlanPieces). With
+    next_street, the connector at the end of the segment targets the pool streets_next (see street_cross)."""
     rng = random.Random(32 if bank else 33)
     t = Template(STREET_WIDTH, 4, NORSE_STREET_LENGTH)
     street_path(t, rng, NORSE_STREET_LENGTH)
@@ -1460,17 +1454,10 @@ def norse_street(bank=False, jobs=False, next_street=False):
     t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
     t.jigsaw(mid, 0, NORSE_STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET,
              NEXT_STREETS_POOL if next_street else STREET_ENDS_POOL, "minecraft:dirt_path")
-    # The jigsaw fills the plots of the house-workshops first (selection priority): a side long house on the other
-    # plot of the street does not take their space.
     for i, z in enumerate(NORSE_PLOTS):
-        if jobs:
-            west, east = (FOOD_JOBS_POOL, START_JOBS_POOL) if i == 0 else (START_JOBS_POOL, HOUSE_POOL)
-        else:
-            west, east = BANK_POOL if bank and i == 0 else HOUSE_POOL, HOUSE_POOL
-        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air",
-                 selection_priority=int(jobs and west != HOUSE_POOL))
-        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, east, "minecraft:air",
-                 selection_priority=int(jobs and east != HOUSE_POOL))
+        west = BANK_POOL if bank and i == 0 else HOUSE_POOL
+        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air")
+        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
     lamp_post(t, STREET_WIDTH - 1, NORSE_PLOTS[0] + 5)
     lamp_post(t, 0, NORSE_STREET_LENGTH - 1)
     return t
@@ -3660,7 +3647,7 @@ PIECES = {
     "plaza": plaza,
     "street": street,
     "street_bank": lambda: street(bank=True),
-    "street_jobs": lambda: street(jobs=True),
+    "street_jobs": street,
     "street_end": street_end,
     "street_next": lambda: street(next_street=True),
     "street_cross": lambda: street_cross(W),
@@ -3683,7 +3670,7 @@ STYLES = {
     "valeholm": {
         "street": norse_street,
         "street_bank": lambda: norse_street(bank=True),
-        "street_jobs": lambda: norse_street(jobs=True),
+        "street_jobs": norse_street,
         "street_next": lambda: norse_street(next_street=True),
         "street_cross": lambda: street_cross(SL),
         "street_side": lambda: street_side(LD),
@@ -3736,77 +3723,6 @@ STYLE_HOUSES = {
     "sunreach": [(3, "house_cottage"), (2, "house_cottage_courtyard"), (2, "house_barracks"), (1, "house_forge"),
                  (2, "house_storehouse")],
 }
-
-# ---------------------------------------------------------------- first house-workshops
-
-# The job files and the item values of the economy.
-JOB_FILES = os.path.join(ROOT, "main", "resources", "data", "folkhold_world", "folkhold", "jobs")
-ITEM_FILE = os.path.join(ROOT, "main", "resources", "data", "folkhold_world", "folkhold", "items.json")
-# The jobs of the food family (see the table of the jobs in docs/design.md). One output of each job is food.
-FOOD_JOBS = ("farmer", "gardener", "gardener_jungle", "baker", "pastry_cook", "rancher", "butcher", "fisher",
-             "beekeeper")
-# The culture of the pieces of all the cultures: the culture with no style in STYLES. Its multipliers give the weights
-# of the first house-workshops of these pieces. The maritime pieces are for all the cultures: no multiplier.
-COMMON_CULTURE = "ashmark"
-# The biomes of the vanilla biome tags in the job files (Minecraft 1.21.1).
-BIOME_TAGS = {
-    "#minecraft:is_taiga": ["minecraft:taiga", "minecraft:snowy_taiga", "minecraft:old_growth_pine_taiga",
-                            "minecraft:old_growth_spruce_taiga"],
-    "#minecraft:is_jungle": ["minecraft:jungle", "minecraft:sparse_jungle", "minecraft:bamboo_jungle"],
-    "#minecraft:is_savanna": ["minecraft:savanna", "minecraft:savanna_plateau", "minecraft:windswept_savanna"],
-    "#minecraft:is_ocean": ["minecraft:deep_frozen_ocean", "minecraft:deep_cold_ocean", "minecraft:deep_ocean",
-                            "minecraft:deep_lukewarm_ocean", "minecraft:frozen_ocean", "minecraft:ocean",
-                            "minecraft:cold_ocean", "minecraft:lukewarm_ocean", "minecraft:warm_ocean"],
-    "#minecraft:is_beach": ["minecraft:beach", "minecraft:snowy_beach"],
-    "#minecraft:is_river": ["minecraft:river", "minecraft:frozen_river"],
-}
-
-
-@functools.cache
-def job_files():
-    """The job files of the economy, by job id (the name of the file)."""
-    jobs = {}
-    for name in sorted(os.listdir(JOB_FILES)):
-        with open(os.path.join(JOB_FILES, name), encoding="utf-8") as f:
-            jobs[name.removesuffix(".json")] = json.load(f)
-    with open(ITEM_FILE, encoding="utf-8") as f:
-        items = json.load(f)
-    for job in FOOD_JOBS:
-        food = [out["item"] for out in jobs[job]["outputs"] if items.get(out["item"], {}).get("food", 0) > 0]
-        assert food, f"The food job {job} makes no food"
-    return jobs
-
-
-def job_biomes(job):
-    """The biomes of a job file, with the biomes of its tags, or None for all the biomes."""
-    entries = job_files()[job].get("biomes")
-    if not entries:
-        return None
-    return {biome for entry in entries for biome in (BIOME_TAGS[entry] if entry.startswith("#") else [entry])}
-
-
-def first_jobs(v, food):
-    """The first house-workshops of a variant, with their weights: the pieces of the pools jobs_food (food) and
-    jobs_start.
-
-    The jigsaw does not know the level of the settlement: a job goes into the pools only with a minimum level of 1. A
-    job also needs a profession (a worker of the job trades) and a biome list with all the biomes of the variant: the
-    job is valid in each village of the variant. The weight is the weight of the job file times the multiplier of the
-    culture of the variant.
-    """
-    culture = None if v.maritime else v.culture or COMMON_CULTURE
-    result = []
-    for job in JOBS:
-        data = job_files()[job]
-        biomes = job_biomes(job)
-        if data["min_level"] != 1 or "profession" not in data or (food and job not in FOOD_JOBS):
-            continue
-        if biomes is not None and not set(v.biomes) <= biomes:
-            continue
-        result.append((data["weight"] * data.get("cultures", {}).get(culture, 1), f"job_{job}"))
-    assert result, f"No first house-workshop in {v.path('')}"
-    return result
-
 
 # The pieces of the GameTests.
 TEST_PIECES = {
@@ -3988,8 +3904,6 @@ def pools(v):
         "homes": pool([(1, house("house_cottage"))]),
         "bank": pool([(1, house("bank"))]),
         "jobs": pool([(1, house(f"job_{job}")) for job in JOBS]),
-        "jobs_food": pool([(weight, house(piece)) for weight, piece in first_jobs(v, True)], v.id("jobs_start")),
-        "jobs_start": pool([(weight, house(piece)) for weight, piece in first_jobs(v, False)], v.id("houses")),
         "market": pool([(1, house("market"))]),
         "streets_first": pool([(1, street("street"))], v.id("street_ends")),
         "streets_jobs": pool([(1, street("street_jobs"))], v.id("street_ends")),
