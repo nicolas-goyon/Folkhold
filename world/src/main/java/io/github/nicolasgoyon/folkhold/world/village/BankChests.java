@@ -37,6 +37,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.Containers;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
@@ -47,6 +48,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -101,7 +103,7 @@ public final class BankChests {
 
     @Nullable
     private static VillageHeartBlockEntity heartOf(ServerLevel level, BlockPos pos) {
-        return VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get())
+        return VillageHearts.findAt(level, pos)
                 .map(level::getBlockEntity)
                 .filter(VillageHeartBlockEntity.class::isInstance)
                 .map(VillageHeartBlockEntity.class::cast)
@@ -525,14 +527,17 @@ public final class BankChests {
     }
 
     /**
-     * The bank chests in the village radius around a position, in the ready chunks (see {@link ReadyChunks}), sorted
-     * by position.
+     * The bank chests of the village of a heart, in the ready chunks (see {@link ReadyChunks}), sorted by position. A
+     * chest is a chest of the village when it is in the village radius around the heart, or when the village of its
+     * position is the village of the heart (see {@link VillageHearts#findAt}). The search covers the area of the
+     * village (see {@link VillageHearts#area}).
      */
     static List<BankChestBlockEntity> chestsNear(ServerLevel level, BlockPos center) {
         int radius = WorldConfig.VILLAGE_RADIUS.get();
+        AABB area = VillageHearts.area(level, center);
         List<BankChestBlockEntity> chests = new ArrayList<>();
-        for (int chunkX = (center.getX() - radius) >> 4; chunkX <= (center.getX() + radius) >> 4; chunkX++) {
-            for (int chunkZ = (center.getZ() - radius) >> 4; chunkZ <= (center.getZ() + radius) >> 4; chunkZ++) {
+        for (int chunkX = Mth.floor(area.minX) >> 4; chunkX <= Mth.floor(area.maxX) >> 4; chunkX++) {
+            for (int chunkZ = Mth.floor(area.minZ) >> 4; chunkZ <= Mth.floor(area.maxZ) >> 4; chunkZ++) {
                 LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
                 if (chunk == null) {
                     continue;
@@ -540,9 +545,9 @@ public final class BankChests {
                 for (BlockEntity entity : chunk.getBlockEntities().values()) {
                     BlockPos pos = entity.getBlockPos();
                     if (entity instanceof BankChestBlockEntity chest
-                            && Math.abs(pos.getX() - center.getX()) <= radius
-                            && Math.abs(pos.getZ() - center.getZ()) <= radius
-                            && Math.abs(pos.getY() - center.getY()) <= VERTICAL_RANGE) {
+                            && Math.abs(pos.getY() - center.getY()) <= VERTICAL_RANGE
+                            && (inRadius(pos, center, radius)
+                                    || VillageHearts.findAt(level, pos).filter(center::equals).isPresent())) {
                         chests.add(chest);
                     }
                 }
@@ -550,6 +555,11 @@ public final class BankChests {
         }
         chests.sort(Comparator.comparing(BlockEntity::getBlockPos));
         return chests;
+    }
+
+    /** True if a position is in the square of the village radius around a center, on the horizontal plane. */
+    private static boolean inRadius(BlockPos pos, BlockPos center, int radius) {
+        return Math.abs(pos.getX() - center.getX()) <= radius && Math.abs(pos.getZ() - center.getZ()) <= radius;
     }
 
     /** A player breaks a bank chest: a pillage. */

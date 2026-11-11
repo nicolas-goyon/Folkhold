@@ -115,7 +115,7 @@ public final class QuestBoards {
 
     /** The active settlement of the village near a position, if a village heart is near. */
     public static Optional<Settlement> villageAt(ServerLevel level, BlockPos pos) {
-        return VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get())
+        return VillageHearts.findAt(level, pos)
                 .map(level::getBlockEntity)
                 .filter(VillageHeartBlockEntity.class::isInstance)
                 .map(VillageHeartBlockEntity.class::cast)
@@ -154,16 +154,29 @@ public final class QuestBoards {
     }
 
     /**
-     * True if the player can use the quest screen of a village: the player is in the village radius (plus the
-     * reach of a click), and the village is not hostile to the player.
+     * True if the player can use the quest screen of a village: the player is in the village and the village is not
+     * hostile to the player. The player is in the village when the village of the position of the player is this
+     * village (see {@link VillageHearts#findAt}), or when the player is in the village radius plus the reach of a
+     * click (for example when the heart is not loaded).
      */
     public static boolean canAct(ServerPlayer player, Settlement village) {
-        double radius = WorldConfig.VILLAGE_RADIUS.get() + ACTION_MARGIN;
-        if (village.distanceSquared(player.getBlockX(), player.getBlockZ()) > radius * radius) {
+        if (!inVillage(player, village)) {
             return false;
         }
         return !Reputations.effective(player.server, player, village.factionId(), village.id())
                 .map(ReputationTier::of).map(ReputationTier::isHostile).orElse(false);
+    }
+
+    /** True if the player is in the area of the village, or in the village radius plus the reach of a click. */
+    private static boolean inVillage(ServerPlayer player, Settlement village) {
+        if (village.hasHeart() && VillageHearts.findAt(player.serverLevel(), player.blockPosition())
+                .filter(heart -> heart.getX() == village.x() && heart.getY() == village.heartY()
+                        && heart.getZ() == village.z())
+                .isPresent()) {
+            return true;
+        }
+        double radius = WorldConfig.VILLAGE_RADIUS.get() + ACTION_MARGIN;
+        return village.distanceSquared(player.getBlockX(), player.getBlockZ()) <= radius * radius;
     }
 
     /** A click on a captain opens the quest screen of its village. */

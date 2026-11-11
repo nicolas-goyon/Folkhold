@@ -187,7 +187,7 @@ public final class VillageDetachments {
      */
     public static boolean isVanillaVillage(ServerLevel level, BlockPos bell) {
         int radius = WorldConfig.VILLAGE_RADIUS.get();
-        if (VillageHearts.findNearest(level, bell, radius).isPresent()) {
+        if (VillageHearts.findAt(level, bell).isPresent()) {
             return false;
         }
         long radiusSquared = (long) radius * radius;

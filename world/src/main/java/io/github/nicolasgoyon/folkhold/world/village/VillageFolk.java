@@ -81,7 +81,7 @@ public final class VillageFolk {
 
     /** The loaded villagers of a village with a profession. */
     public static List<Villager> of(ServerLevel level, BlockPos heartPos, VillagerProfession profession) {
-        return level.getEntitiesOfClass(Villager.class, VillageHearts.area(heartPos),
+        return level.getEntitiesOfClass(Villager.class, VillageHearts.area(level, heartPos),
                 villager -> villager.getVillagerData().getProfession() == profession
                         && villager.getPersistentData().getLong(Merchants.VILLAGE_TAG) == heartPos.asLong()
                         && isVillageFolk(villager));
@@ -89,7 +89,7 @@ public final class VillageFolk {
 
     /** The loaded inhabitants of a village: all its villagers. */
     public static List<Villager> inhabitants(ServerLevel level, BlockPos heartPos) {
-        return level.getEntitiesOfClass(Villager.class, VillageHearts.area(heartPos),
+        return level.getEntitiesOfClass(Villager.class, VillageHearts.area(level, heartPos),
                 villager -> villager.getPersistentData().getLong(Merchants.VILLAGE_TAG) == heartPos.asLong()
                         && isVillageFolk(villager));
     }

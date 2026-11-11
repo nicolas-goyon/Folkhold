@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
+import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -88,6 +89,24 @@ public final class TerritoryGameTests {
                     .equals(hamlet.factionId()), "The territory must belong to the faction of the hamlet");
             helper.assertTrue(Territories.settlementAt(server, outside).isEmpty(),
                     "The territory must stop near " + reach + " blocks: " + outside);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The claim radius of each level is never smaller than the minimum territory radius of its tier, and the territory
+     * contains the village structure of the tier: the corner of the box of the structure (the maximum radius times
+     * √2) and a margin of one chunk, because a claimed chunk has its center in the disc.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "territory_tier")
+    public static void claimRadiusKeepsTheMinimumOfTheTier(GameTestHelper helper) {
+        for (int level = 1; level <= LevelTables.get().maxLevel(); level++) {
+            int minimum = VillageSizes.forLevel(level).minTerritoryRadius();
+            double corner = VillageSizes.forLevel(level).maxRadius() * Math.sqrt(2.0) + 16.0;
+            int radius = SettlementData.claimRadius(level);
+            helper.assertTrue(radius >= minimum && radius * 16 >= corner, "The claim radius of the level " + level
+                    + " is " + radius + " chunks: the minimum of the tier is " + minimum + " chunks, the corner of the "
+                    + "structure with its margin is at " + corner + " blocks");
         }
         helper.succeed();
     }

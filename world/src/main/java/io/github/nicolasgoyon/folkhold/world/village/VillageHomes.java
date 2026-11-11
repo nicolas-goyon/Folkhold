@@ -111,7 +111,7 @@ public final class VillageHomes {
         }
         // The holder of the bed of an other villager loses its memory only. The claim of the owner releases the
         // ticket of the bed before it takes it.
-        for (Villager villager : level.getEntitiesOfClass(Villager.class, VillageHearts.area(heart))) {
+        for (Villager villager : level.getEntitiesOfClass(Villager.class, VillageHearts.area(level, heart))) {
             home(level, villager).filter(owners::containsKey).filter(bed -> owners.get(bed) != villager)
                     .ifPresent(bed -> villager.getBrain().eraseMemory(MemoryModuleType.HOME));
         }

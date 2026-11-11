@@ -193,7 +193,7 @@ public final class Merchants {
                 return heart;
             }
         }
-        return VillageHearts.findNearest(level, villager.blockPosition(), WorldConfig.VILLAGE_RADIUS.get())
+        return VillageHearts.findAt(level, villager.blockPosition())
                 .map(level::getBlockEntity)
                 .filter(VillageHeartBlockEntity.class::isInstance)
                 .map(VillageHeartBlockEntity.class::cast)

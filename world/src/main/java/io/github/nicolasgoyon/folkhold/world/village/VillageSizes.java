@@ -60,8 +60,19 @@ public final class VillageSizes extends SimplePreparableReloadListener<VillageSi
      */
     public static VillageSize forLevel(int level) {
         String tier = LevelTables.get().tier(level).id();
-        return current.size(tier).or(() -> VillageSizeTable.DEFAULT.size(tier))
-                .orElseThrow(() -> new IllegalStateException("No village size for the tier " + tier));
+        return find(level).orElseThrow(() -> new IllegalStateException("No village size for the tier " + tier));
+    }
+
+    /**
+     * The village size of a level, as {@link #forLevel(int)}, or empty when the current table and
+     * {@link VillageSizeTable#DEFAULT} have no size for the tier of the level (for example a tier of a data pack).
+     *
+     * @param level the level
+     * @return the size, or empty
+     */
+    public static Optional<VillageSize> find(int level) {
+        String tier = LevelTables.get().tier(level).id();
+        return current.size(tier).or(() -> VillageSizeTable.DEFAULT.size(tier));
     }
 
     /**

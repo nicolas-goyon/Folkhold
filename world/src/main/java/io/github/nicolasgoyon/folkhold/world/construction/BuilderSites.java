@@ -1,6 +1,5 @@
 package io.github.nicolasgoyon.folkhold.world.construction;
 
-import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import java.util.HashSet;
@@ -27,8 +26,8 @@ public final class BuilderSites {
     }
 
     /**
-     * The village of the builders of a structure: the nearest loaded village heart. The heart is at the village radius
-     * from the center of the structure, or nearer (see {@link WorldConfig#VILLAGE_RADIUS}).
+     * The village of the builders of a structure: the village of the center of the structure (see
+     * {@link VillageHearts#findAt}).
      *
      * @param level the level
      * @param box   the box of the structure
@@ -36,7 +35,7 @@ public final class BuilderSites {
      */
     public static Optional<BlockPos> villageFor(ServerLevel level, BoundingBox box) {
         BlockPos center = new BlockPos((box.minX() + box.maxX()) / 2, box.minY(), (box.minZ() + box.maxZ()) / 2);
-        return VillageHearts.findNearest(level, center, WorldConfig.VILLAGE_RADIUS.get());
+        return VillageHearts.findAt(level, center);
     }
 
     /**

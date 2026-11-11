@@ -8,8 +8,10 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -100,15 +102,14 @@ public final class SettlementData extends SavedData {
     }
 
     /**
-     * The territory chunks that the active settlements claim. The claim radius comes from the level, and it is never
-     * smaller than {@link TerritoryClaims#minimumRadius} of the village radius ({@link WorldConfig#VILLAGE_RADIUS}).
+     * The territory chunks that the active settlements claim, with the claim radius of the level of each settlement
+     * (see {@link #claimRadius(int)}).
      */
     public TerritoryClaims claims() {
-        int minimumRadius = TerritoryClaims.minimumRadius(WorldConfig.VILLAGE_RADIUS.get());
         List<Claimant> current = new ArrayList<>();
         for (Settlement settlement : registry.all()) {
             if (settlement.isActive()) {
-                int radius = Math.max(minimumRadius, LevelTables.get().traits(settlement.level()).claimRadius());
+                int radius = claimRadius(settlement.level());
                 current.add(new Claimant(settlement.id(), settlement.x(), settlement.z(), settlement.level(),
                         radius));
             }
@@ -118,6 +119,25 @@ public final class SettlementData extends SavedData {
             claimants = current;
         }
         return claims;
+    }
+
+    /**
+     * The claim radius of a settlement of a level, in chunks: the largest of these radii.
+     * <ul>
+     *   <li>The claim radius of the level ({@code claim_radius} in the level table).</li>
+     *   <li>The minimum territory radius of the tier of the level ({@code min_territory_radius} in the village sizes,
+     *       see {@link VillageSizes#find}). It contains the maximum radius of the village structure of the tier. A tier
+     *       with no village size (for example a tier of a data pack) has no minimum.</li>
+     *   <li>{@link TerritoryClaims#minimumRadius} of the village radius ({@link WorldConfig#VILLAGE_RADIUS}).</li>
+     * </ul>
+     *
+     * @param level the level of the settlement
+     * @return the radius in chunks
+     */
+    public static int claimRadius(int level) {
+        int tierMinimum = VillageSizes.find(level).map(VillageSize::minTerritoryRadius).orElse(0);
+        return Math.max(Math.max(TerritoryClaims.minimumRadius(WorldConfig.VILLAGE_RADIUS.get()), tierMinimum),
+                LevelTables.get().traits(level).claimRadius());
     }
 
     /** The settlements that claim chunks now: the claimants of {@link #claims()}. */
