@@ -37,7 +37,8 @@ public final class VillageBuildingTable extends SimplePreparableReloadListener<L
     public static final ResourceLocation FILE =
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "folkhold/village_buildings.json");
 
-    private static List<Requirement> current = List.of();
+    /** Volatile: the threads of the world generation read the requirements. */
+    private static volatile List<Requirement> current = List.of();
 
     /** The current requirements, in their order. */
     public static List<Requirement> get() {

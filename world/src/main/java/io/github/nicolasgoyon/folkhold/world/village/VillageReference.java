@@ -17,6 +17,7 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderGetter;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.IntArrayTag;
@@ -274,6 +275,17 @@ public record VillageReference(List<Piece> pieces, List<Palisade> palisades, Opt
      */
     public static Optional<ResourceLocation> templateOf(ServerLevel level, StructurePoolElement element) {
         return templateOf(RegistryOps.create(NbtOps.INSTANCE, level.registryAccess()), element);
+    }
+
+    /**
+     * The id of the template of a pool element. The world generation can use this method: it reads no level.
+     *
+     * @param registries the registries
+     * @param element    the pool element
+     * @return the id, or empty for an element with no single template
+     */
+    public static Optional<ResourceLocation> templateOf(RegistryAccess registries, StructurePoolElement element) {
+        return templateOf(RegistryOps.create(NbtOps.INSTANCE, registries), element);
     }
 
     /** The id of the template of a pool element, from the saved form of the element. */

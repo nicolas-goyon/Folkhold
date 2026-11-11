@@ -170,6 +170,26 @@ public final class Economies {
         return result;
     }
 
+    /**
+     * The jobs that a village of a level can have in a biome: minimum level and biome. The world generation uses this
+     * method: it reads no saved data.
+     *
+     * @param biome   the biome of the village
+     * @param level   the level of the village
+     * @param culture the id of the culture that changes the weights of the jobs (see {@link Job#forCulture}), or null
+     * @return the jobs
+     */
+    public static List<Job> eligibleJobs(Holder<Biome> biome, int level, @Nullable String culture) {
+        String biomeId = biome.unwrapKey().map(key -> key.location().toString()).orElse("");
+        List<Job> result = new ArrayList<>();
+        for (Job job : EconomyData.jobs().values()) {
+            if (job.minLevel() <= level && matchesBiome(job, biomeId, Optional.of(biome))) {
+                result.add(job.forCulture(culture));
+            }
+        }
+        return result;
+    }
+
     /** The jobs of a settlement, in its order. A job id with no definition is skipped. */
     public static List<Job> jobs(Settlement settlement) {
         List<Job> result = new ArrayList<>();
@@ -283,7 +303,7 @@ public final class Economies {
         return result;
     }
 
-    private static boolean matchesBiome(Job job, String biomeId, Optional<Holder.Reference<Biome>> biome) {
+    private static boolean matchesBiome(Job job, String biomeId, Optional<? extends Holder<Biome>> biome) {
         if (job.biomes().isEmpty()) {
             return true;
         }

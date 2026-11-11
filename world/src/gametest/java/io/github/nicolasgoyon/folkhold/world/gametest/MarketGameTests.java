@@ -143,8 +143,8 @@ public final class MarketGameTests {
      *
      * <ul>
      *   <li>A style with a wide plot for the market in its plan (the base, Sunreach and maritime styles, see
-     *       {@code StreetStyle#wide()}): each village has a free plot with a space that holds the market, and on this
-     *       plot the market touches no piece of the village.</li>
+     *       {@code StreetStyle#wide()}): each village has its market (from the level of the market), or a free plot
+     *       with a space that holds the market, and on this plot the market touches no piece of the village.</li>
      *   <li>The other styles (Valeholm: the market fits the plot of a long house): on each plot, the market touches a
      *       piece of the village only if a home on the plot also touches it. Thus the growth can put the market on each
      *       free plot where it can put a home.</li>
@@ -205,7 +205,8 @@ public final class MarketGameTests {
                         }
                     }
                 }
-                if (wide && marketPlots == 0) {
+                boolean generated = layout.get().village().stream().anyMatch(piece -> piece.getElement() == market);
+                if (wide && marketPlots == 0 && !generated) {
                     problems.add("the village " + style + " in " + chunk + " has no free plot for its market");
                 }
             }

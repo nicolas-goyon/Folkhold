@@ -1,26 +1,40 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignBlock;
+import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
+import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
+import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
+import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillageBuildings;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan;
-import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBuildingTable;
+import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
-import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import io.github.nicolasgoyon.folkhold.world.village.structure.PalisadePiece;
 import io.github.nicolasgoyon.folkhold.world.village.structure.VillagePathPiece;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
+import net.minecraft.core.QuartPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -28,13 +42,17 @@ import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.neoforged.neoforge.registries.DeferredBlock;
 
 /**
- * In-game tests for the villages from the plan of their tier: for each tier and style, the layout of a village (see
- * {@link FortifiedVillageStructure#layout(Structure.GenerationContext, FortifiedVillageStructure.Variant, boolean,
- * VillageSize)}) is valid. The tests place no block: they read the heights of the terrain from the chunk generator.
+ * In-game tests for the villages from the plan of their tier: for each start level and style, the layout of a village
+ * (see {@link FortifiedVillageStructure#layout(Structure.GenerationContext, FortifiedVillageStructure.Variant, boolean,
+ * int)}) is valid and has the buildings and the job posts of its level. The tests place no block: they read the heights
+ * of the terrain from the chunk generator, and the signs from the templates of the pieces.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -48,6 +66,11 @@ public final class VillagePlanGameTests {
     /** The name of the template of a gate. */
     private static final String GATE = "/gate";
     /** The rotations of the plaza, one for each tier in turn. */
+    private static final String MARKET = VillageBuildings.MARKET;
+    private static final String STOREHOUSE = "storehouse";
+    private static final String BARRACKS = "barracks";
+    /** The kind of the building sign of the homes and of the house-workshops. */
+    private static final String HOME = "house";
     private static final List<Rotation> ROTATIONS = List.of(Rotation.NONE, Rotation.CLOCKWISE_90,
             Rotation.CLOCKWISE_180, Rotation.COUNTERCLOCKWISE_90);
 
@@ -89,12 +112,14 @@ public final class VillagePlanGameTests {
     }
 
     /**
-     * A village of each tier of a style is valid:
+     * A village of each start level of a style is valid:
      *
      * <ul>
      *   <li>the plan has all its plots and homes, and each piece and plot of the plan has an element of its pool;</li>
      *   <li>each plot of the plan has a building or is free, the free plots are the spare plots and the plot of the
- *       market, and each free plot keeps its space;</li>
+     *       market under the level of the market, and each free plot keeps its space;</li>
+     *   <li>the village has the buildings of its level and the job posts of its level (see {@link #checkLevel});</li>
+     *   <li>the same seed gives the same village (the top level of each tier);</li>
      *   <li>the pieces of the plan stay in the maximum distance from the middle, and all the pieces stay in the range of
      *       chunks of the game;</li>
      *   <li>the wall has 4 gates and 4 arms;</li>
@@ -113,26 +138,37 @@ public final class VillagePlanGameTests {
         FortifiedVillageStructure.Variant variant = variantOf.apply(structure);
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         List<String> problems = new ArrayList<>();
-        List<VillageSize> sizes = List.copyOf(VillageSizes.get().sizes());
-        for (int i = 0; i < sizes.size(); i++) {
-            VillageSize size = sizes.get(i);
+        LevelTable levels = LevelTables.get();
+        for (int i = 0; i < levels.maxLevel(); i++) {
+            int start = i + 1;
             ChunkPos chunk = new ChunkPos(FIRST_CHUNK + i * STEP, FIRST_CHUNK + row * STEP);
             Structure.GenerationContext context = new Structure.GenerationContext(level.registryAccess(), generator,
                     generator.getBiomeSource(), level.getChunkSource().randomState(), level.getStructureManager(),
                     level.getSeed(), chunk, level, biome -> true);
             long time = System.nanoTime();
-            // Each rotation of the plaza: 5 tiers turn the plaza 4 times at least.
+            // Each rotation of the plaza: the levels turn the plaza 4 times at least.
             Rotation rotation = ROTATIONS.get(i % ROTATIONS.size());
-            FortifiedVillageStructure.Layout layout = structure.layout(context, variant, variant.maritime(), size,
+            FortifiedVillageStructure.Layout layout = structure.layout(context, variant, variant.maritime(), start,
                     Optional.of(rotation)).orElseThrow();
             time = System.nanoTime() - time;
-            String name = size.tier() + " " + layout.style().name() + " " + rotation;
+            String name = "level " + start + " " + layout.size().tier() + " " + layout.style().name() + " "
+                    + rotation;
             check(level, structure, chunk, layout, name, problems);
+            checkLevel(level, generator, layout, name, problems);
+            boolean top = levels.tiers().stream().anyMatch(tier -> tier.maxLevel() == start);
+            if (top && !same(layout, structure.layout(context, variant, variant.maritime(), start,
+                    Optional.of(rotation)).orElseThrow())) {
+                problems.add(name + ": the same seed gives an other village");
+            }
             VillagePlan plan = layout.plan();
+            Map<String, Integer> signs = signs(level, layout);
             FolkholdWorld.LOGGER.info("Village plan {}: {} street pieces, {} plots, {} buildings, {} free plots, "
-                    + "{} wall pieces, radius {}, {} ms", name, layout.village().size() - 1 - layout.built(),
-                    plan.plots().size(), layout.built(), layout.free(), layout.wall().size(),
-                    Math.round(plan.radius()), time / 1_000_000);
+                    + "{} wall pieces, radius {}, {} ms, market {}, storehouses {}, barracks {}, posts {}, homes {}",
+                    name, layout.village().size() - 1 - layout.built(), plan.plots().size(), layout.built(),
+                    layout.free(), layout.wall().size(), Math.round(plan.radius()), time / 1_000_000,
+                    signs.getOrDefault(MARKET, 0), signs.getOrDefault(STOREHOUSE, 0),
+                    signs.getOrDefault(BARRACKS, 0), layout.posts().size(),
+                    signs.getOrDefault(HOME, 0) - layout.posts().size());
         }
         helper.assertTrue(problems.isEmpty(), "Problems of the villages: " + problems);
         helper.succeed();
@@ -150,7 +186,7 @@ public final class VillagePlanGameTests {
                 .filter(piece -> piece.getElement().getProjection() == StructureTemplatePool.Projection.RIGID)
                 .count();
         if (layout.built() + layout.free() != plan.plots().size() || buildings != layout.built()
-                || layout.reserved().size() != layout.free() || layout.free() != expectedFree(plan)) {
+                || layout.reserved().size() != layout.free() || layout.free() != expectedFree(layout)) {
             problems.add(name + ": " + layout.built() + " buildings (" + buildings + " pieces) and " + layout.free()
                     + " free plots (" + layout.reserved().size() + " spaces) for " + plan.plots().size() + " plots");
         }
@@ -198,10 +234,98 @@ public final class VillagePlanGameTests {
         }
     }
 
-    /** The free plots of a plan: the spare plots and the wide plot of the market. */
-    private static long expectedFree(VillagePlan plan) {
-        return plan.plots().stream().filter(plot -> plot.spare()
-                || (plot.wide() && plot.homes().get(1).name().equals("market"))).count();
+    /** The free plots of a layout: the spare plots, and the wide plot of the market with no market. */
+    private static long expectedFree(FortifiedVillageStructure.Layout layout) {
+        boolean market = VillageBuildings.kinds(VillageBuildingTable.get(), layout.level()).contains(MARKET);
+        return layout.plan().plots().stream().filter(plot -> plot.spare()
+                || (!market && plot.wide() && plot.homes().get(1).name().equals(MARKET))).count();
+    }
+
+    /**
+     * A village has the buildings and the job posts of its level, as the scan of the heart sees them (the signs of the
+     * templates of its pieces):
+     *
+     * <ul>
+     *   <li>the number of building signs of each kind of the requirements is the number of requirements of the level
+     *       with this kind: the growth has no building step;</li>
+     *   <li>the number of job posts (job signs) is the job slots of the level, or the number of jobs that the level and
+     *       the biome allow when it is smaller;</li>
+     *   <li>each post has a job that the level and the biome allow, a post has a food job and a post trades: the growth
+     *       has no first post step;</li>
+     *   <li>the job signs are the posts of the layout.</li>
+     * </ul>
+     */
+    private static void checkLevel(ServerLevel level, ChunkGenerator generator, FortifiedVillageStructure.Layout layout,
+            String name, List<String> problems) {
+        List<VillageBuildings.Requirement> requirements = VillageBuildingTable.get();
+        Map<String, Integer> signs = signs(level, layout);
+        for (VillageBuildings.Requirement requirement : requirements) {
+            long needed = VillageBuildings.kinds(requirements, layout.level()).stream()
+                    .filter(requirement.kind()::equals).count();
+            if (signs.getOrDefault(requirement.kind(), 0) != needed) {
+                problems.add(name + ": " + signs.getOrDefault(requirement.kind(), 0) + " " + requirement.kind()
+                        + " of " + needed);
+            }
+        }
+        if (VillageBuildings.missing(requirements, layout.level(), signs).isPresent()) {
+            problems.add(name + ": a building of the level is missing: " + signs);
+        }
+        BlockPos center = layout.center();
+        Holder<Biome> biome = generator.getBiomeSource().getNoiseBiome(QuartPos.fromBlock(center.getX()),
+                QuartPos.fromBlock(center.getY()), QuartPos.fromBlock(center.getZ()),
+                level.getChunkSource().randomState().sampler());
+        List<String> eligible = Economies.eligibleJobs(biome, layout.level(), null).stream().map(Job::id).toList();
+        int expected = Math.min(LevelTables.get().traits(layout.level()).jobSlots(), eligible.size());
+        List<String> posts = jobSigns(level, layout);
+        if (posts.size() != expected || !eligible.containsAll(posts)
+                || VillageGrowth.needsFirstPost(posts)
+                || !posts.stream().sorted().toList().equals(layout.posts().stream().sorted().toList())) {
+            problems.add(name + ": the job posts " + posts + " (layout " + layout.posts() + ") are not " + expected
+                    + " posts of " + eligible + " with food and trade");
+        }
+    }
+
+    /** True if 2 layouts have the same pieces at the same positions and the same posts. */
+    private static boolean same(FortifiedVillageStructure.Layout first, FortifiedVillageStructure.Layout second) {
+        Function<FortifiedVillageStructure.Layout, List<String>> pieces = layout -> layout.pieces().stream()
+                .map(piece -> piece.getBoundingBox() + " " + piece.getRotation()).toList();
+        return pieces.apply(first).equals(pieces.apply(second)) && first.posts().equals(second.posts());
+    }
+
+    /** The number of building signs of each kind in the templates of the pieces of a village, as the scan counts. */
+    private static Map<String, Integer> signs(ServerLevel level, FortifiedVillageStructure.Layout layout) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (StructureTemplate template : templates(level, layout)) {
+            for (Map.Entry<BuildingSignKind, DeferredBlock<BuildingSignBlock>> sign
+                    : ModBlocks.BUILDING_SIGNS.entrySet()) {
+                int count = template.filterBlocks(BlockPos.ZERO, new StructurePlaceSettings(), sign.getValue().get())
+                        .size();
+                if (count > 0) {
+                    counts.merge(sign.getKey().serializedName(), count, Integer::sum);
+                }
+            }
+        }
+        return counts;
+    }
+
+    /** The job ids of the job signs in the templates of the pieces of a village. */
+    private static List<String> jobSigns(ServerLevel level, FortifiedVillageStructure.Layout layout) {
+        List<String> jobs = new ArrayList<>();
+        for (StructureTemplate template : templates(level, layout)) {
+            for (StructureTemplate.StructureBlockInfo sign : template.filterBlocks(BlockPos.ZERO,
+                    new StructurePlaceSettings(), ModBlocks.JOB_SIGN.get())) {
+                jobs.add(FolkholdWorld.MOD_ID + ":" + sign.nbt().getString(JobSignBlockEntity.JOB));
+            }
+        }
+        return jobs;
+    }
+
+    /** The templates of the pieces of a village, one for each piece. */
+    private static List<StructureTemplate> templates(ServerLevel level, FortifiedVillageStructure.Layout layout) {
+        return layout.village().stream()
+                .flatMap(piece -> VillageReference.templateOf(level, piece.getElement()).stream())
+                .flatMap(id -> level.getStructureManager().get(id).stream())
+                .toList();
     }
 
     /** True if 2 boxes overlap on the horizontal plane. */
