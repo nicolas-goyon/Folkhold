@@ -33,6 +33,62 @@
     "minecraft:kelp_plant",
     "minecraft:cobweb",
     "minecraft:snow",
-    "minecraft:powder_snow"
+    "minecraft:powder_snow",
+    {
+      "id": "#immersive_weathering:leaf_piles",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:azalea_flower_pile",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:weeds",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:frosty_grass",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:frosty_fern",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:frost",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:icicle",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:soot",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:sand_layer_block",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:red_sand_layer_block",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:ivy",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:moss",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:hanging_roots_wall",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:dune_grass",
+      "required": false
+    }
   ]
 }

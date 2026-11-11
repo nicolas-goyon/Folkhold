@@ -1,0 +1,334 @@
+{
+  "groups": [
+    {
+      "name": "soil",
+      "blocks": [
+        "#folkhold_world:construction/repair_soil",
+        "trmt:eroded_grass_block",
+        "trmt:eroded_dirt",
+        "trmt:eroded_coarse_dirt",
+        "immersive_weathering:rooted_grass_block",
+        "dynamictrees:rooty_dirt",
+        "dynamictrees:rooty_grass_block",
+        "dynamictrees:rooty_coarse_dirt",
+        "dynamictrees:rooty_podzol",
+        "dynamictrees:rooty_rooted_dirt",
+        "dynamictrees:rooty_mycelium"
+      ]
+    },
+    {
+      "name": "sand",
+      "blocks": [
+        "minecraft:sand",
+        "trmt:eroded_sand",
+        "dynamictrees:rooty_sand"
+      ]
+    },
+    {
+      "name": "water",
+      "blocks": [
+        "minecraft:water",
+        "#minecraft:ice",
+        "immersive_weathering:thin_ice"
+      ]
+    },
+    {
+      "name": "cauldron",
+      "blocks": [
+        "minecraft:cauldron",
+        "minecraft:water_cauldron",
+        "minecraft:powder_snow_cauldron"
+      ]
+    },
+    {
+      "name": "melon_stem",
+      "blocks": [
+        "minecraft:melon_stem",
+        "minecraft:attached_melon_stem"
+      ]
+    },
+    {
+      "name": "pumpkin_stem",
+      "blocks": [
+        "minecraft:pumpkin_stem",
+        "minecraft:attached_pumpkin_stem"
+      ]
+    },
+    {
+      "name": "short_grass",
+      "blocks": [
+        "minecraft:short_grass",
+        "immersive_weathering:frosty_grass"
+      ]
+    },
+    {
+      "name": "fern",
+      "blocks": [
+        "minecraft:fern",
+        "immersive_weathering:frosty_fern"
+      ]
+    },
+    {
+      "name": "glass",
+      "blocks": [
+        "minecraft:glass",
+        "immersive_weathering:frosty_glass"
+      ]
+    },
+    {
+      "name": "glass_pane",
+      "blocks": [
+        "minecraft:glass_pane",
+        "immersive_weathering:frosty_glass_pane"
+      ]
+    },
+    {
+      "name": "stone",
+      "blocks": [
+        "minecraft:stone",
+        "immersive_weathering:mossy_stone",
+        "immersive_weathering:snowy_stone",
+        "immersive_weathering:sandy_stone"
+      ]
+    },
+    {
+      "name": "stone_slab",
+      "blocks": [
+        "minecraft:stone_slab",
+        "immersive_weathering:mossy_stone_slab",
+        "immersive_weathering:snowy_stone_slab",
+        "immersive_weathering:sandy_stone_slab"
+      ]
+    },
+    {
+      "name": "stone_stairs",
+      "blocks": [
+        "minecraft:stone_stairs",
+        "immersive_weathering:mossy_stone_stairs",
+        "immersive_weathering:snowy_stone_stairs",
+        "immersive_weathering:sandy_stone_stairs"
+      ]
+    },
+    {
+      "name": "stone_wall",
+      "blocks": [
+        "immersive_weathering:stone_wall",
+        "immersive_weathering:mossy_stone_wall",
+        "immersive_weathering:snowy_stone_wall",
+        "immersive_weathering:sandy_stone_wall"
+      ]
+    },
+    {
+      "name": "cobblestone",
+      "blocks": [
+        "minecraft:cobblestone",
+        "minecraft:mossy_cobblestone",
+        "immersive_weathering:snowy_cobblestone",
+        "immersive_weathering:sandy_cobblestone"
+      ]
+    },
+    {
+      "name": "cobblestone_slab",
+      "blocks": [
+        "minecraft:cobblestone_slab",
+        "minecraft:mossy_cobblestone_slab",
+        "immersive_weathering:snowy_cobblestone_slab",
+        "immersive_weathering:sandy_cobblestone_slab"
+      ]
+    },
+    {
+      "name": "cobblestone_stairs",
+      "blocks": [
+        "minecraft:cobblestone_stairs",
+        "minecraft:mossy_cobblestone_stairs",
+        "immersive_weathering:snowy_cobblestone_stairs",
+        "immersive_weathering:sandy_cobblestone_stairs"
+      ]
+    },
+    {
+      "name": "cobblestone_wall",
+      "blocks": [
+        "minecraft:cobblestone_wall",
+        "minecraft:mossy_cobblestone_wall",
+        "immersive_weathering:snowy_cobblestone_wall",
+        "immersive_weathering:sandy_cobblestone_wall"
+      ]
+    },
+    {
+      "name": "stone_bricks",
+      "blocks": [
+        "minecraft:stone_bricks",
+        "minecraft:mossy_stone_bricks",
+        "minecraft:cracked_stone_bricks",
+        "immersive_weathering:snowy_stone_bricks",
+        "immersive_weathering:sandy_stone_bricks"
+      ]
+    },
+    {
+      "name": "stone_brick_slab",
+      "blocks": [
+        "minecraft:stone_brick_slab",
+        "minecraft:mossy_stone_brick_slab",
+        "immersive_weathering:cracked_stone_brick_slab",
+        "immersive_weathering:snowy_stone_brick_slab",
+        "immersive_weathering:sandy_stone_brick_slab"
+      ]
+    },
+    {
+      "name": "stone_brick_stairs",
+      "blocks": [
+        "minecraft:stone_brick_stairs",
+        "minecraft:mossy_stone_brick_stairs",
+        "immersive_weathering:cracked_stone_brick_stairs",
+        "immersive_weathering:snowy_stone_brick_stairs",
+        "immersive_weathering:sandy_stone_brick_stairs"
+      ]
+    },
+    {
+      "name": "stone_brick_wall",
+      "blocks": [
+        "minecraft:stone_brick_wall",
+        "minecraft:mossy_stone_brick_wall",
+        "immersive_weathering:cracked_stone_brick_wall",
+        "immersive_weathering:snowy_stone_brick_wall",
+        "immersive_weathering:sandy_stone_brick_wall"
+      ]
+    },
+    {
+      "name": "chiseled_stone_bricks",
+      "blocks": [
+        "minecraft:chiseled_stone_bricks",
+        "immersive_weathering:mossy_chiseled_stone_bricks",
+        "immersive_weathering:snowy_chiseled_stone_bricks",
+        "immersive_weathering:sandy_chiseled_stone_bricks"
+      ]
+    },
+    {
+      "name": "bricks",
+      "blocks": [
+        "minecraft:bricks",
+        "immersive_weathering:mossy_bricks",
+        "immersive_weathering:cracked_bricks"
+      ]
+    },
+    {
+      "name": "brick_slab",
+      "blocks": [
+        "minecraft:brick_slab",
+        "immersive_weathering:mossy_brick_slab",
+        "immersive_weathering:cracked_brick_slab"
+      ]
+    },
+    {
+      "name": "brick_stairs",
+      "blocks": [
+        "minecraft:brick_stairs",
+        "immersive_weathering:mossy_brick_stairs",
+        "immersive_weathering:cracked_brick_stairs"
+      ]
+    },
+    {
+      "name": "brick_wall",
+      "blocks": [
+        "minecraft:brick_wall",
+        "immersive_weathering:mossy_brick_wall",
+        "immersive_weathering:cracked_brick_wall"
+      ]
+    },
+    {
+      "name": "deepslate_bricks",
+      "blocks": [
+        "minecraft:deepslate_bricks",
+        "minecraft:cracked_deepslate_bricks"
+      ]
+    },
+    {
+      "name": "deepslate_tiles",
+      "blocks": [
+        "minecraft:deepslate_tiles",
+        "minecraft:cracked_deepslate_tiles"
+      ]
+    },
+    {
+      "name": "deepslate_brick_slab",
+      "blocks": [
+        "minecraft:deepslate_brick_slab",
+        "immersive_weathering:cracked_deepslate_brick_slab"
+      ]
+    },
+    {
+      "name": "deepslate_brick_stairs",
+      "blocks": [
+        "minecraft:deepslate_brick_stairs",
+        "immersive_weathering:cracked_deepslate_brick_stairs"
+      ]
+    },
+    {
+      "name": "deepslate_brick_wall",
+      "blocks": [
+        "minecraft:deepslate_brick_wall",
+        "immersive_weathering:cracked_deepslate_brick_wall"
+      ]
+    },
+    {
+      "name": "deepslate_tile_slab",
+      "blocks": [
+        "minecraft:deepslate_tile_slab",
+        "immersive_weathering:cracked_deepslate_tile_slab"
+      ]
+    },
+    {
+      "name": "deepslate_tile_stairs",
+      "blocks": [
+        "minecraft:deepslate_tile_stairs",
+        "immersive_weathering:cracked_deepslate_tile_stairs"
+      ]
+    },
+    {
+      "name": "deepslate_tile_wall",
+      "blocks": [
+        "minecraft:deepslate_tile_wall",
+        "immersive_weathering:cracked_deepslate_tile_wall"
+      ]
+    },
+    {
+      "name": "iron_bars",
+      "blocks": [
+        "minecraft:iron_bars",
+        "immersive_weathering:exposed_iron_bars",
+        "immersive_weathering:weathered_iron_bars",
+        "immersive_weathering:rusted_iron_bars",
+        "immersive_weathering:waxed_iron_bars",
+        "immersive_weathering:waxed_exposed_iron_bars",
+        "immersive_weathering:waxed_weathered_iron_bars",
+        "immersive_weathering:waxed_rusted_iron_bars"
+      ]
+    },
+    {
+      "name": "iron_door",
+      "blocks": [
+        "minecraft:iron_door",
+        "immersive_weathering:exposed_iron_door",
+        "immersive_weathering:weathered_iron_door",
+        "immersive_weathering:rusted_iron_door",
+        "immersive_weathering:waxed_iron_door",
+        "immersive_weathering:waxed_exposed_iron_door",
+        "immersive_weathering:waxed_weathered_iron_door",
+        "immersive_weathering:waxed_rusted_iron_door"
+      ]
+    },
+    {
+      "name": "iron_trapdoor",
+      "blocks": [
+        "minecraft:iron_trapdoor",
+        "immersive_weathering:exposed_iron_trapdoor",
+        "immersive_weathering:weathered_iron_trapdoor",
+        "immersive_weathering:rusted_iron_trapdoor",
+        "immersive_weathering:waxed_iron_trapdoor",
+        "immersive_weathering:waxed_exposed_iron_trapdoor",
+        "immersive_weathering:waxed_weathered_iron_trapdoor",
+        "immersive_weathering:waxed_rusted_iron_trapdoor"
+      ]
+    }
+  ]
+}
