@@ -3713,8 +3713,11 @@ MARITIME = {
     "house_fish_market": fish_market,
     "house_smokehouse": smokehouse,
 }
+# The pieces of the pool "houses" of the maritime villages, with their weights: the buildings of the fishing port
+# (MARITIME) and the houses of HOUSES. Each piece of MARITIME and of HOUSES is in this pool, thus each template that the
+# script writes for a maritime variant is in a pool (VillageTemplateGameTests.eachVillageTemplateIsInAPool).
 MARITIME_HOUSES = [(3, "house_fishing_hut"), (1, "house_fish_market"), (1, "house_smokehouse"),
-                   (2, "house_cottage"), (1, "house_barracks"), (1, "house_storehouse")]
+                   (2, "house_cottage"), (1, "house_barracks"), (1, "house_forge"), (1, "house_storehouse")]
 # The blocks of Immersive Weathering in the maritime pieces, when the mod is present (see OptionalReplaceProcessor).
 WEATHERED = {
     "minecraft:stone": "immersive_weathering:mossy_stone",

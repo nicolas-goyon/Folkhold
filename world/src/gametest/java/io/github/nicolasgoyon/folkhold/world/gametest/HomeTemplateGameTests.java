@@ -25,10 +25,10 @@ public final class HomeTemplateGameTests {
     /** The pools of the homes in the folder of a style and a variant. */
     private static final List<String> HOME_POOLS = List.of("homes", "houses");
     /**
-     * The number of home pieces: 4 homes of all the cultures, 6 Valeholm homes, 5 Sunreach homes and 6 maritime
+     * The number of home pieces: 4 homes of all the cultures, 6 Valeholm homes, 5 Sunreach homes and 7 maritime
      * homes, in each of the 6 variants.
      */
-    static final int HOME_PIECES = (4 + 6 + 5 + 6) * 6;
+    static final int HOME_PIECES = (4 + 6 + 5 + 7) * 6;
 
     private HomeTemplateGameTests() {
     }
