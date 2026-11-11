@@ -1,0 +1,5 @@
+{
+  "category": "fixed",
+  "en_us": "Builders no longer add extra scaffolding or report a block as out of reach when a way to it exists, after other blocks of the construction change.",
+  "fr_fr": "Les bâtisseurs n'ajoutent plus d'échafaudage inutile et ne signalent plus un bloc comme hors d'atteinte quand un chemin y mène, après la pose d'autres blocs de la construction."
+}

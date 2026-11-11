@@ -9,8 +9,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 class WalkSearchTest {
@@ -20,6 +23,10 @@ class WalkSearchTest {
     private static final WalkSearch.Zone ZONE = new WalkSearch.Zone(-3, 3, -3, 3, 1);
     /** A builder stands here, on the ground. */
     private static final BuildPos FEET = pos(0, 1, 0);
+    /** The feet of a builder on the ledge of {@link #stairsToTheLedge}. */
+    private static final BuildPos LEDGE = new BuildPos(0, 4, 0);
+    /** The step of {@link #stairsToTheLedge} that the stairs do not have. */
+    private static final BuildPos MISSING_STEP = new BuildPos(-2, 2, 0);
 
     private static BuildPos pos(int x, int y, int z) {
         return new BuildPos(x, y, z);
@@ -233,6 +240,148 @@ class WalkSearchTest {
         search.blockChanged(opening);
         search.blockChanged(opening.above());
         assertEquals(WalkSearch.Way.CLEAR, search.way(FEET), "The way through the opening after the change");
+    }
+
+    /**
+     * Stairs from the ground to a ledge, 3 blocks above the ground, with no block at {@link #MISSING_STEP}: no way goes
+     * to the ledge.
+     */
+    private static Map<BuildPos, BuildBlock> stairsToTheLedge() {
+        Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+        blocks.put(pos(-3, 1, 0), STONE);
+        blocks.put(pos(-2, 1, 0), STONE);
+        for (int y = 1; y <= 3; y++) {
+            blocks.put(pos(-1, y, 0), STONE);
+            blocks.put(pos(0, y, 0), STONE);
+        }
+        return blocks;
+    }
+
+    /** A column of stone from y = 1 to the given height. */
+    private static void pillar(Map<BuildPos, BuildBlock> blocks, int x, int z, int height) {
+        for (int y = 1; y <= height; y++) {
+            blocks.put(pos(x, y, z), STONE);
+        }
+    }
+
+    /**
+     * A closed area can depend on an other closed area: its search does not go into the other area. When a change
+     * opens the other area, the area that depends on it also opens, also far from the change.
+     *
+     * <p>A shaft next to the ledge: the only way into the shaft is a drop from the ledge. The first search closes the
+     * ledge. The second search closes the shaft, with no visit of the ledge. The new step opens a way to the ledge,
+     * 3 blocks from the shaft. The shaft has a way after the change, as for a new search.
+     */
+    @Test
+    void aChangeOpensTheAreasThatDependOnTheOpenArea() {
+        Map<BuildPos, BuildBlock> blocks = stairsToTheLedge();
+        BuildPos shaft = pos(1, 2, 0);
+        blocks.put(shaft.below(), STONE);
+        pillar(blocks, 2, 0, 3);
+        pillar(blocks, 1, -1, 3);
+        pillar(blocks, 1, 1, 3);
+        WalkSearch search = search(blocks);
+        assertEquals(WalkSearch.Way.NONE, search.way(LEDGE));
+        assertEquals(WalkSearch.Way.NONE, search.way(shaft));
+
+        blocks.put(MISSING_STEP, STONE);
+        search.blockChanged(MISSING_STEP);
+        assertEquals(WalkSearch.Way.CLEAR, search(blocks).way(shaft), "A new search");
+        assertEquals(WalkSearch.Way.CLEAR, search.way(shaft), "The search after the change");
+    }
+
+    /**
+     * The search of the bottom of a column does not close a position with a move from the bottom. The builder goes
+     * into the bottom of the column only with a walk or a jump, but it can go to the position with a drop into the
+     * bottom.
+     *
+     * <p>A pit of 2 positions next to the ledge, with high walls: the bottom of the column and a position next to it.
+     * The only way into the pit is a drop from the ledge into the bottom of the column.
+     */
+    @Test
+    void theBottomOfAColumnDoesNotCloseAPositionAfterIt() {
+        Map<BuildPos, BuildBlock> blocks = stairsToTheLedge();
+        blocks.put(MISSING_STEP, STONE);
+        BuildPos bottom = pos(1, 2, 0);
+        BuildPos next = pos(1, 2, 1);
+        blocks.put(bottom.below(), STONE);
+        blocks.put(next.below(), STONE);
+        pillar(blocks, 2, 0, 5);
+        pillar(blocks, 1, -1, 5);
+        pillar(blocks, 0, 1, 5);
+        pillar(blocks, 2, 1, 5);
+        pillar(blocks, 1, 2, 5);
+        WalkSearch search = search(blocks);
+        assertEquals(WalkSearch.Way.NONE, search.climbWay(bottom), "No walk and no jump into the bottom");
+        assertEquals(WalkSearch.Way.CLEAR, search(blocks).way(next), "A new search");
+        assertEquals(WalkSearch.Way.CLEAR, search.way(next), "The search after the search of the column");
+    }
+
+    /**
+     * A search keeps its closed areas for many changes. After each random change, the search gives the same way as a
+     * new search on the blocks now, for random positions, also for the bottom of a column. The changes add stone of
+     * the plan, scaffolding and air. The seed is fixed: the test always does the same changes.
+     */
+    @Test
+    void aSearchAfterChangesFindsTheWayOfANewSearch() {
+        Random random = new Random(765);
+        int queries = 0;
+        for (int round = 0; round < 250; round++) {
+            Map<BuildPos, BuildBlock> blocks = new HashMap<>();
+            Set<BuildPos> placed = new HashSet<>();
+            Set<BuildPos> scaffolding = new HashSet<>();
+            int size = 4 + random.nextInt(3);
+            int height = 3 + random.nextInt(4);
+            int count = 20 + random.nextInt(80);
+            for (int i = 0; i < count; i++) {
+                BuildPos pos = randomPos(random, size, height);
+                blocks.put(pos, STONE);
+                if (random.nextBoolean()) {
+                    placed.add(pos);
+                }
+            }
+            Function<BuildPos, BuildBlock> block = pos -> blocks.getOrDefault(pos,
+                    pos.y() <= 0 ? STONE : BuildBlock.AIR);
+            Function<BuildPos, Walk> walk = pos -> scaffolding.contains(pos) ? Walk.ON : block.apply(pos).walk();
+            Predicate<BuildPos> wallTop = pos -> ConstructionPlanner.isWallTop(pos, placed::contains,
+                    floor -> scaffolding.contains(floor) || block.apply(floor).floor());
+            List<BuildPos> target = List.of(pos(3 - size, 1, 3 - size), pos(size - 3, height, size - 3));
+            Supplier<WalkSearch> newSearch = () -> WalkSearch.around(target, Reach.DEFAULT, walk,
+                    scaffolding::contains, wallTop);
+            WalkSearch search = newSearch.get();
+            for (int change = 0; change < 40; change++) {
+                for (int query = 0; query < 6; query++) {
+                    BuildPos feet = randomPos(random, size, height + 1);
+                    boolean column = random.nextInt(4) == 0;
+                    WalkSearch fresh = newSearch.get();
+                    WalkSearch.Way expected = column ? fresh.climbWay(feet) : fresh.way(feet);
+                    WalkSearch.Way way = column ? search.climbWay(feet) : search.way(feet);
+                    queries++;
+                    assertEquals(expected, way, "Round " + round + ", change " + change + ", "
+                            + (column ? "bottom of a column " : "feet ") + feet);
+                }
+                BuildPos pos = randomPos(random, size, height);
+                int kind = random.nextInt(6);
+                if (kind <= 1) {
+                    blocks.put(pos, BuildBlock.AIR);
+                    scaffolding.remove(pos);
+                } else if (kind == 2) {
+                    blocks.remove(pos);
+                    scaffolding.add(pos);
+                } else {
+                    scaffolding.remove(pos);
+                    blocks.put(pos, STONE);
+                    placed.add(pos);
+                }
+                search.blockChanged(pos);
+            }
+        }
+        assertEquals(250 * 40 * 6, queries);
+    }
+
+    private static BuildPos randomPos(Random random, int size, int height) {
+        return pos(random.nextInt(2 * size + 1) - size, 1 + random.nextInt(height),
+                random.nextInt(2 * size + 1) - size);
     }
 
     /** Stone at y = 0 and below, air above, the given blocks, and the given tops of new walls. */
