@@ -77,6 +77,8 @@ public final class PlotTerrainGameTests {
     private static final int FINE_STEP = 2;
     /** The environment variable that adds the village, city and capital tiers to the measure of the tiers. */
     static final String MEASURE_VARIABLE = "FOLKHOLD_VILLAGE_MEASURE";
+    /** The tiers of the measure with no environment variable {@link #MEASURE_VARIABLE}. */
+    private static final List<String> DEFAULT_TIERS = List.of("hamlet", "town");
     /** The smallest and the largest share of the spare plots, from the plots that the village needs. */
     private static final double MIN_SPARE_SHARE = 0.10;
     private static final double MAX_SPARE_SHARE = 0.20;
@@ -176,8 +178,8 @@ public final class PlotTerrainGameTests {
      * <ul>
      *   <li>A village has all its plots and homes, no layout problem, no home on bad terrain (see
      *       {@link Measure#check}), the buildings, the job posts and the home beds of its level (see
-     *       {@link VillagePlanGameTests#checkLevel}), and 10 to 20 % spare plots. The free market plot under the level
-     *       5 is not a spare plot.</li>
+     *       {@link VillagePlanGameTests#checkLevel}), and 10 to 20 % spare plots. The free market plot below level 5 is
+     *       not a spare plot.</li>
      *   <li>The log has a line {@code Village measure |} for each village: a row of the table of the measure.</li>
      * </ul>
      */
@@ -199,7 +201,7 @@ public final class PlotTerrainGameTests {
         List<String> problems = new ArrayList<>();
         List<Tier> tiers = LevelTables.get().tiers();
         if (System.getenv(MEASURE_VARIABLE) == null) {
-            tiers = List.of(tiers.get(0), tiers.get(2));
+            tiers = tiers.stream().filter(tier -> DEFAULT_TIERS.contains(tier.id())).toList();
         }
         for (Tier tier : tiers) {
             long time = System.nanoTime();
@@ -217,7 +219,7 @@ public final class PlotTerrainGameTests {
                 problems.add(name + ": " + spare + " spare plots for " + plan.plots().size() + " plots");
             }
             Map<String, Integer> signs = VillagePlanGameTests.signs(level, layout);
-            FolkholdWorld.LOGGER.info("Village measure | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} {} {} "
+            FolkholdWorld.LOGGER.info("Village measure | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} / {} / {} "
                     + "| {} | {} | {} | {} |", tier.id(), style.name(), tier.maxLevel(), plan.plots().size(),
                     layout.free(), spare, signs.getOrDefault(VillagePlanGameTests.HOME, 0) - layout.posts().size(),
                     VillagePlanGameTests.homeBeds(level, layout),
