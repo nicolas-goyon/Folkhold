@@ -15,6 +15,8 @@ import java.util.SplittableRandom;
  *   <li>The levels go from 1 to {@link #maxLevel()}. Each level has its {@link LevelTraits}.</li>
  *   <li>The tiers cover all levels, with no gap and no overlap.</li>
  *   <li>The start level is a random level from the start chances. The same seed gives the same level.</li>
+ *   <li>With 2 tiers or more, no start chance is in the last tier (the capital): only growth or a command gives
+ *       these levels.</li>
  * </ul>
  */
 public final class LevelTable {
@@ -32,6 +34,9 @@ public final class LevelTable {
             }
         }
     }
+
+    /** The salt of the seed of a start level (see {@link #startSeed}). */
+    private static final long START_SALT = 0x6F6C_6B68_6F6C_6431L;
 
     public static final LevelTable DEFAULT = defaultTable();
 
@@ -63,10 +68,16 @@ public final class LevelTable {
         if (next != levels.size() + 1) {
             throw new IllegalArgumentException("The tiers must end at the level " + levels.size());
         }
+        Tier last = tiers.get(tiers.size() - 1);
         int weight = 0;
         for (StartChance chance : startChances) {
             if (chance.maxLevel() > levels.size()) {
                 throw new IllegalArgumentException("Start chance above the last level: " + chance);
+            }
+            if (tiers.size() > 1 && chance.maxLevel() >= last.minLevel()) {
+                throw new IllegalArgumentException("Start chance in the last tier " + last.id()
+                        + ": only growth gives the levels " + last.minLevel() + " to " + last.maxLevel() + ": "
+                        + chance);
             }
             weight += chance.weight();
         }
@@ -121,6 +132,32 @@ public final class LevelTable {
             roll -= chance.weight();
         }
         throw new IllegalStateException("No start chance for the roll");
+    }
+
+    /**
+     * The start level of a village structure. The same world seed and the same start chunk give the same level, thus
+     * the structure and the settlement get the same level, also before the settlement exists.
+     *
+     * @param worldSeed the seed of the world
+     * @param chunkX    the chunk X of the structure start
+     * @param chunkZ    the chunk Z of the structure start
+     * @return the start level
+     */
+    public int startLevel(long worldSeed, int chunkX, int chunkZ) {
+        return startLevel(startSeed(worldSeed, chunkX, chunkZ));
+    }
+
+    /**
+     * The seed of the start level of a village structure, from the world seed and the start chunk.
+     *
+     * @param worldSeed the seed of the world
+     * @param chunkX    the chunk X of the structure start
+     * @param chunkZ    the chunk Z of the structure start
+     * @return the seed
+     */
+    public static long startSeed(long worldSeed, int chunkX, int chunkZ) {
+        // Two large odd numbers separate the chunks. The salt separates this seed from the other seeds of the chunk.
+        return worldSeed ^ START_SALT ^ (chunkX * 341_873_128_712L + chunkZ * 132_897_987_541L);
     }
 
     private static LevelTable defaultTable() {

@@ -1,0 +1,5 @@
+{
+  "category": "changed",
+  "en_us": "The villages do not grow at runtime by default (server setting construction.growth). A village structure and its settlement get the same start level, from the world seed and the place of the village. A data file gives the size of the villages of each tier.",
+  "fr_fr": "Par défaut, les villages ne s'agrandissent pas en jeu (réglage serveur construction.growth). Une structure de village et son établissement ont le même niveau de départ, selon la graine du monde et l'emplacement du village. Un fichier de données donne la taille des villages de chaque palier."
+}

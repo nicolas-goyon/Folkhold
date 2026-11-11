@@ -987,9 +987,10 @@ public final class WorldConfig {
         CONSTRUCTION_GROWTH = builder
                 .comment("True: the builders of a village build a new home on a free plot of its streets when the",
                         "village needs places: its population is more than the places of its beds and of its hall.",
-                        "The village looks for a free plot after the check of the repairs.")
+                        "The village looks for a free plot after the check of the repairs.",
+                        "False (default): the villages build no new home and no new building of the level.")
                 .translation(KEY_PREFIX + "constructionGrowth")
-                .define("growth", true);
+                .define("growth", false);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

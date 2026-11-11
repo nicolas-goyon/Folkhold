@@ -7,6 +7,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.economy.JobPosts;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.GhostPlacement;
@@ -558,6 +559,8 @@ public final class VillageGrowthGameTests {
     private static Village village(GameTestHelper helper, ResourceLocation homes, boolean farm,
             List<VillagePlots.Plot> plots, int level, int population, boolean legacy) {
         ServerLevel serverLevel = helper.getLevel();
+        // The growth of the villages is off by default: the tests of the growth turn it on.
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_GROWTH, true);
         TestSupport.buildFloor(helper, SIZE);
         List<VillageReference.Piece> pieces = new ArrayList<>();
         List<BoundingBox> boxes = new ArrayList<>();

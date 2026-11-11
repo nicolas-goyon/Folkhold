@@ -438,6 +438,8 @@ public final class MarketGrowthGameTests {
     /** As {@link #village(GameTestHelper, List)}, for an arena of a size. */
     private static VillageHeartBlockEntity village(GameTestHelper helper, int size, List<VillagePlots.Plot> plots) {
         ServerLevel level = helper.getLevel();
+        // The growth of the villages is off by default: the tests of the growth turn it on.
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_GROWTH, true);
         TestSupport.buildFloor(helper, size);
         // The house-workshop of the farmer: the village has its food post that trades, so a new home comes after
         // the market (see VillageGrowth).
