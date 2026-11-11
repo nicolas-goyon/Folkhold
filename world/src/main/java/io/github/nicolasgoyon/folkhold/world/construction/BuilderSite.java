@@ -533,15 +533,16 @@ public final class BuilderSite {
             if (current.isApplied(i)) {
                 continue;
             }
-            BuilderMaterials.Material material = materialOf(level, i);
-            switch (material.kind()) {
-                case RARE -> {
-                    quantities.merge(material.item(), 1.0, Double::sum);
-                    rarePrices.put(material.item(), material.price());
-                }
-                case COMMON -> material.cost().forEach((item, quantity) -> quantities.merge(item, quantity,
-                        Double::sum));
-                case FREE -> {
+            for (BuilderMaterials.Material material : materialsOf(level, i)) {
+                switch (material.kind()) {
+                    case RARE -> {
+                        quantities.merge(material.item(), 1.0, Double::sum);
+                        rarePrices.put(material.item(), material.price());
+                    }
+                    case COMMON -> material.cost().forEach((item, quantity) -> quantities.merge(item, quantity,
+                            Double::sum));
+                    case FREE -> {
+                    }
                 }
             }
         }
@@ -561,22 +562,25 @@ public final class BuilderSite {
         return needs;
     }
 
-    /** The material of a step: the block of a placement of the plan. The other steps use no materials. */
-    private BuilderMaterials.Material materialOf(ServerLevel level, int index) {
+    /**
+     * The materials of a step: the items of the block state of a placement of the plan (see
+     * {@link BuilderMaterials#placement}). The other steps use no materials.
+     */
+    private List<BuilderMaterials.Material> materialsOf(ServerLevel level, int index) {
         Step step = stepAt(index);
         ConstructionRun plan = run;
         if (phase != Phase.BUILD || step.type() != StepType.PLACE || plan == null
                 || (isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get())) {
-            return BuilderMaterials.Material.NONE;
+            return List.of();
         }
-        return plan.state(step.state())
-                .map(state -> BuilderMaterials.of(level.getServer(), state.getBlock().asItem()))
-                .orElse(BuilderMaterials.Material.NONE);
+        BlockPos pos = BlockKinds.toBlockPos(step.pos());
+        return plan.state(step.state()).map(state -> BuilderMaterials.placement(level, pos, state))
+                .orElse(List.of());
     }
 
     /** True if the stock of the village has the materials of a step (see {@link SiteMaterials}). */
     boolean hasMaterials(ServerLevel level, int index) {
-        return materials.has(materialOf(level, index), settlement, level.getGameTime());
+        return materials.has(materialsOf(level, index), settlement, level.getGameTime());
     }
 
     /** The items that the builders wait for now, by item id. */
@@ -1392,7 +1396,7 @@ public final class BuilderSite {
                     current.markApplied(index);
                     return Applied.APPLIED;
                 }
-                if (!materials.take(materialOf(level, index), settlement, level.getServer(), level.getGameTime())) {
+                if (!materials.take(materialsOf(level, index), settlement, level.getServer(), level.getGameTime())) {
                     return Applied.WAITING;
                 }
                 dirty = true;
@@ -1433,26 +1437,32 @@ public final class BuilderSite {
 
     /**
      * The items of the economy that the village keeps from the block of a step, before the step applies (see
-     * {@link BuilderMaterials#removedItems}). Only a removal step gives items. The fences and the scaffolding of the
-     * site give nothing. A village with no economy and a repair with free materials keep nothing. A removal also gives
-     * nothing when the block that the plan places at this position uses no materials, for example a flower pot with a
-     * plant (its block has no item): else a block that a player changes again and again (an empty flower pot) gives
-     * items from nothing at each repair.
+     * {@link BuilderMaterials#removedItems}). Only a removal step gives items. The contents of a removed container go
+     * into the stock, or fall in the level.
+     *
+     * <ul>
+     *   <li>The fences and the scaffolding of the site give nothing.</li>
+     *   <li>A village with no economy and a repair with free materials keep nothing: all the contents fall.</li>
+     *   <li>A removal also keeps nothing when the placement of the plan at this position uses no materials: a block
+     *       of the tag {@link BuilderMaterials#FREE}, or a block with no item and no stable drops. Else a block that
+     *       changes again and again at such a position gives items from nothing at each repair, because the
+     *       placement costs nothing. The other placements cost the items that the removal of the same block gives
+     *       (see {@link BuilderMaterials#itemsOf}), for example a flower pot and a plant.</li>
+     * </ul>
      */
     private Map<String, Double> removedItems(ServerLevel level, Step step, BlockPos pos) {
-        if (step.type() != StepType.REMOVE || settlement == null || fences.contains(pos) || scaffolding.contains(pos)
-                || (isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get())) {
+        if (step.type() != StepType.REMOVE) {
             return Map.of();
         }
         Integer placement = placements.get(pos);
-        if (placement != null && materialOf(level, placement).kind() == BuilderMaterials.Kind.FREE) {
-            return Map.of();
-        }
+        boolean keep = settlement != null && !fences.contains(pos) && !scaffolding.contains(pos)
+                && !(isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get())
+                && (placement == null || !materialsOf(level, placement).isEmpty());
         Block block = level.getBlockState(pos).getBlock();
         List<BlockPos> positions = new ArrayList<>(List.of(pos));
         step.partner().map(BlockKinds::toBlockPos).filter(other -> level.getBlockState(other).is(block))
                 .ifPresent(positions::add);
-        return BuilderMaterials.removedItems(level, positions);
+        return BuilderMaterials.removedItems(level, positions, keep);
     }
 
     /** Puts a fence at a position that is still free. The fence connects to the fences next to it. */

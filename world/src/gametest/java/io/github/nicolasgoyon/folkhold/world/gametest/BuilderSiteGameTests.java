@@ -44,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
@@ -62,16 +63,24 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CandleBlock;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.SeaPickleBlock;
+import net.minecraft.world.level.block.SlabBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -1239,17 +1248,121 @@ public final class BuilderSiteGameTests {
     }
 
     /**
-     * The plan replaces an empty flower pot with a flower pot with a plant. The pot with a plant uses no materials
-     * (its block has no item), thus the removal of the empty pot gives nothing: the stock stays empty.
+     * A template of blocks in a row along x from a position, with air above the row up to {@code height}. The method
+     * puts the states in the level, saves the template, and makes the level empty again.
      */
-    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_free_target", skyAccess = true)
-    public static void removalForAFreeBlockGivesNothing(GameTestHelper helper) {
+    private static ResourceLocation stateTemplate(GameTestHelper helper, String name, BlockPos from, int height,
+            List<BlockState> states) {
+        ServerLevel level = helper.getLevel();
+        BlockPos to = from.offset(states.size() - 1, height, 0);
+        for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
+            helper.setBlock(pos, Blocks.AIR);
+        }
+        for (int i = 0; i < states.size(); i++) {
+            helper.setBlock(from.offset(i, 0, 0), states.get(i));
+        }
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "test/" + name);
+        level.getStructureManager().getOrCreate(id).fillFromWorld(level, helper.absolutePos(from),
+                to.subtract(from).offset(1, 1, 1), false, null);
+        for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
+            helper.setBlock(pos, Blocks.AIR);
+        }
+        return id;
+    }
+
+    /** The sum of the costs of materials, in items of the economy. */
+    private static Map<String, Double> costOf(List<BuilderMaterials.Material> materials) {
+        Map<String, Double> cost = new TreeMap<>();
+        materials.forEach(material -> material.cost().forEach((item, quantity) -> cost.merge(item, quantity,
+                Double::sum)));
+        return cost;
+    }
+
+    /** True if two quantities of items are equal. */
+    private static boolean sameQuantities(Map<String, Double> first, Map<String, Double> second) {
+        Set<String> items = new HashSet<>(first.keySet());
+        items.addAll(second.keySet());
+        return items.stream().allMatch(item -> Math.abs(first.getOrDefault(item, 0.0)
+                - second.getOrDefault(item, 0.0)) < 1.0E-6);
+    }
+
+    /**
+     * The items of a block state come from its loot table with no tool: a double slab has 2 slabs, {@code candles=4}
+     * has 4 candles, a pot with a poppy has a pot and a poppy, a cake with a candle has a cake and a candle. A block
+     * with another drop has its item. On the same block, a placement costs only the items that the block in place
+     * does not have. The removal of a block gives the cost of its placement: no gain.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 200, batch = "builder_materials_states", skyAccess = true)
+    public static void placementCostsTheItemsOfTheState(GameTestHelper helper) {
         EconomyVillage village = economyVillage(helper);
         ServerLevel level = helper.getLevel();
-        BlockPos pot = new BlockPos(16, 1, 16);
-        ResourceLocation id = template(helper, "builder_potted_poppy", pot, pot, Blocks.POTTED_POPPY);
-        helper.setBlock(pot, Blocks.FLOWER_POT);
-        BlockPos origin = helper.absolutePos(pot);
+        BlockPos relative = new BlockPos(16, 1, 16);
+        BlockPos pos = helper.absolutePos(relative);
+        BlockState doubleSlab = Blocks.OAK_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.DOUBLE);
+        BlockState candles = Blocks.CANDLE.defaultBlockState().setValue(CandleBlock.CANDLES, 4);
+        BlockState pickles = Blocks.SEA_PICKLE.defaultBlockState().setValue(SeaPickleBlock.PICKLES, 3);
+        Map<BlockState, Map<Item, Integer>> expected = Map.of(doubleSlab, Map.of(Items.OAK_SLAB, 2),
+                candles, Map.of(Items.CANDLE, 4), pickles, Map.of(Items.SEA_PICKLE, 3),
+                Blocks.POTTED_POPPY.defaultBlockState(), Map.of(Items.FLOWER_POT, 1, Items.POPPY, 1),
+                Blocks.CANDLE_CAKE.defaultBlockState(), Map.of(Items.CAKE, 1, Items.CANDLE, 1),
+                Blocks.STONE.defaultBlockState(), Map.of(Items.STONE, 1));
+        List<String> wrong = new ArrayList<>();
+        expected.forEach((state, items) -> {
+            Map<Item, Integer> found = BuilderMaterials.itemsOf(level, pos, state);
+            if (!found.equals(items)) {
+                wrong.add(state + ": " + found);
+            }
+        });
+        helper.setBlock(relative, Blocks.AIR);
+        int doubleSlabMaterials = BuilderMaterials.placement(level, pos, doubleSlab).size();
+        Map<String, Double> placed = new TreeMap<>();
+        Map<String, Double> removed = new TreeMap<>();
+        for (BlockState state : List.of(doubleSlab, candles, Blocks.POTTED_POPPY.defaultBlockState())) {
+            helper.setBlock(relative, Blocks.AIR);
+            costOf(BuilderMaterials.placement(level, pos, state)).forEach((item, quantity) -> placed.merge(item,
+                    quantity, Double::sum));
+            helper.setBlock(relative, state);
+            BuilderMaterials.removedItems(level, List.of(pos), true).forEach((item, quantity) -> removed.merge(item,
+                    quantity, Double::sum));
+        }
+        helper.setBlock(relative, Blocks.OAK_SLAB);
+        int onBottomSlab = BuilderMaterials.placement(level, pos, doubleSlab).size();
+        helper.setBlock(relative, Blocks.CANDLE);
+        int onOneCandle = BuilderMaterials.placement(level, pos, candles).size();
+        helper.setBlock(relative, Blocks.OAK_STAIRS);
+        int turnedStairs = BuilderMaterials.placement(level, pos,
+                Blocks.OAK_STAIRS.defaultBlockState().setValue(StairBlock.FACING, Direction.EAST)).size();
+        cleanUp(helper, village.builders(), relative, relative);
+        helper.assertTrue(wrong.isEmpty(), "The items of the states must come from their drops: " + wrong);
+        helper.assertTrue(doubleSlabMaterials == 2, "A double slab must cost 2 slabs: " + doubleSlabMaterials);
+        helper.assertTrue(onBottomSlab == 1, "A bottom slab must need 1 slab more: " + onBottomSlab);
+        helper.assertTrue(onOneCandle == 3, "1 candle must need 3 candles more: " + onOneCandle);
+        helper.assertTrue(turnedStairs == 0, "Stairs that turn must cost nothing: " + turnedStairs);
+        helper.assertTrue(!placed.isEmpty() && sameQuantities(placed, removed),
+                "The removal must give the cost of the placement: " + removed + " instead of " + placed);
+        helper.succeed();
+    }
+
+    /**
+     * The plan puts a poppy in an empty flower pot of the level, and a pot with a poppy where the level has air. The
+     * placements take a pot and a poppy from the stock, and the removal of the empty pot gives a pot: the stock is
+     * empty at the end. The plan also puts a bell, a free block, in the place of stone: this placement costs
+     * nothing, thus the removal of the stone gives nothing.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_potted", skyAccess = true)
+    public static void pottedPlantCostsAPotAndAPlant(GameTestHelper helper) {
+        EconomyVillage village = economyVillage(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(15, 1, 16);
+        BlockState potted = Blocks.POTTED_POPPY.defaultBlockState();
+        ResourceLocation id = stateTemplate(helper, "builder_potted_poppy", from, 1,
+                List.of(potted, potted, Blocks.BELL.defaultBlockState()));
+        helper.setBlock(from, Blocks.FLOWER_POT);
+        helper.setBlock(from.east(2), Blocks.STONE);
+        BlockPos origin = helper.absolutePos(from);
+        village.stock().set("minecraft:poppy", 2);
+        BuilderMaterials.of(level.getServer(), Items.FLOWER_POT).cost().forEach((item, quantity) ->
+                village.stock().set(item, (int) Math.ceil(quantity - 1.0E-6)));
 
         BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
                 helper.absolutePos(HEART), null);
@@ -1257,11 +1370,101 @@ public final class BuilderSiteGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
                         + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
                 .thenExecute(() -> {
-                    BlockState placed = helper.getBlockState(pot);
+                    List<BlockState> placed = List.of(helper.getBlockState(from), helper.getBlockState(from.east()),
+                            helper.getBlockState(from.east(2)));
                     Map<String, Integer> stock = Map.copyOf(village.stock().asMap());
-                    cleanUp(helper, village.builders(), pot, pot);
-                    helper.assertTrue(placed.is(Blocks.POTTED_POPPY), "The pot must have its plant: " + placed);
-                    helper.assertTrue(stock.isEmpty(), "The removal for a free block must give nothing: " + stock);
+                    cleanUp(helper, village.builders(), from, from.offset(2, 1, 0));
+                    helper.assertTrue(placed.get(0).is(Blocks.POTTED_POPPY) && placed.get(1).is(Blocks.POTTED_POPPY)
+                            && placed.get(2).is(Blocks.BELL), "The pots and the bell must be in place: " + placed);
+                    helper.assertTrue(stock.isEmpty(), "The pots must take a pot and a poppy each, and the stone "
+                            + "must give nothing: " + stock);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A double slab costs 2 slabs, and its removal gives 2 slabs. Candles on 1 candle cost the candles that the level
+     * does not have. The stock gives 2 oak planks for 2 double oak slabs, and 3 candles for {@code candles=4} on 1
+     * candle. The removal of a double spruce slab gives 1 spruce plank.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_counts", skyAccess = true)
+    public static void doubleSlabsAndCandlesCostTheirItems(GameTestHelper helper) {
+        EconomyVillage village = economyVillage(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(15, 1, 16);
+        BlockState doubleSlab = Blocks.OAK_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.DOUBLE);
+        BlockState candles = Blocks.CANDLE.defaultBlockState().setValue(CandleBlock.CANDLES, 4);
+        ResourceLocation id = stateTemplate(helper, "builder_counts", from, 1, List.of(doubleSlab, candles,
+                doubleSlab));
+        helper.setBlock(from.east(), Blocks.CANDLE);
+        helper.setBlock(from.east(2), Blocks.SPRUCE_SLAB.defaultBlockState().setValue(SlabBlock.TYPE,
+                SlabType.DOUBLE));
+        BlockPos origin = helper.absolutePos(from);
+        village.stock().set(PLANKS, 2);
+        Map<String, Double> candle = BuilderMaterials.of(level.getServer(), Items.CANDLE).cost();
+        candle.forEach((item, quantity) -> village.stock().set(item, (int) Math.ceil(3 * quantity - 1.0E-6)));
+
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
+                helper.absolutePos(HEART), null);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockState> placed = List.of(helper.getBlockState(from), helper.getBlockState(from.east()),
+                            helper.getBlockState(from.east(2)));
+                    Map<String, Integer> stock = Map.copyOf(village.stock().asMap());
+                    cleanUp(helper, village.builders(), from, from.offset(2, 1, 0));
+                    helper.assertTrue(placed.equals(List.of(doubleSlab, candles, doubleSlab)),
+                            "The slabs and the candles must be in place: " + placed);
+                    helper.assertTrue(stock.equals(Map.of("minecraft:spruce_planks", 1)), "The double slabs must "
+                            + "cost 2 slabs, the candles 3 candles, and the spruce slabs give 1 plank: " + stock);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The builders remove a chest of the village with items in it. The chest and the items with a cost go into the
+     * stock: 10 cobblestone, and 4 oak planks from 3 oak stairs (the last half plank is lost). A music disc has no
+     * cost and a damaged sword has changed data: they fall on the ground.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_chest", skyAccess = true)
+    public static void removedChestGivesItsContents(GameTestHelper helper) {
+        EconomyVillage village = economyVillage(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(16, 1, 16);
+        BlockPos chestPos = from.above();
+        ResourceLocation id = stateTemplate(helper, "builder_chest", from, 1,
+                List.of(Blocks.OAK_PLANKS.defaultBlockState()));
+        helper.setBlock(chestPos, Blocks.CHEST);
+        ChestBlockEntity chest = helper.getBlockEntity(chestPos);
+        ItemStack sword = new ItemStack(Items.IRON_SWORD);
+        sword.setDamageValue(10);
+        chest.setItem(0, new ItemStack(Items.COBBLESTONE, 10));
+        chest.setItem(1, new ItemStack(Items.OAK_STAIRS, 3));
+        chest.setItem(2, new ItemStack(Items.MUSIC_DISC_CAT));
+        chest.setItem(3, sword);
+        BlockPos origin = helper.absolutePos(from);
+        village.stock().set(PLANKS, 1);
+
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
+                helper.absolutePos(HEART), null);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    BlockState left = helper.getBlockState(chestPos);
+                    Map<String, Integer> stock = Map.copyOf(village.stock().asMap());
+                    List<Item> dropped = helper.getEntities(EntityType.ITEM, chestPos, 4.0).stream()
+                            .map(entity -> entity.getItem().getItem()).toList();
+                    helper.getEntities(EntityType.ITEM, chestPos, 4.0).forEach(Entity::discard);
+                    cleanUp(helper, village.builders(), from, chestPos);
+                    helper.assertTrue(left.isAir(), "The builders must remove the chest: " + left);
+                    Map<String, Integer> expected = Map.of("minecraft:chest", 1, "minecraft:cobblestone", 10,
+                            PLANKS, 4);
+                    helper.assertTrue(stock.equals(expected), "The stock must keep the chest and its items: " + stock
+                            + " instead of " + expected);
+                    helper.assertTrue(dropped.size() == 2 && dropped.containsAll(List.of(Items.MUSIC_DISC_CAT,
+                            Items.IRON_SWORD)), "The disc and the sword must fall on the ground: " + dropped);
                 })
                 .thenSucceed();
     }
