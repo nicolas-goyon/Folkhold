@@ -15,35 +15,46 @@ import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.neoforged.neoforge.registries.DeferredBlock;
 
 /**
- * The signs of a structure template, as the scan of the heart reads them (see {@link VillageLayout}): the building
- * signs of each kind and the jobs of the job signs. The world generation can use this class: it reads no level.
+ * The signs and the home beds of a structure template, as the scan of the heart reads them (see {@link VillageLayout}
+ * and {@link VillageBeds}): the building signs of each kind, the jobs of the job signs and the beds. The world
+ * generation can use this class: it reads no level.
  *
  * <p>A market sign counts only with a market post behind it ({@link VillageLayout#MARKET_POSTS}): the sign of the
- * fish market of a maritime village does not count.
+ * fish market of a maritime village does not count. The beds of a garrison building (a template name that ends with
+ * {@link VillageBeds#GARRISON_SUFFIX}) are not home beds: they give no place.
  *
  * @param kinds the number of building signs of each kind, for example {@code storehouse}
  * @param jobs  the job ids of the job signs, for example {@code folkhold_world:fisher}
+ * @param beds  the number of home beds: the head part of each bed, 0 in a garrison building
  */
-public record TemplateSigns(Map<String, Integer> kinds, List<String> jobs) {
+public record TemplateSigns(Map<String, Integer> kinds, List<String> jobs, int beds) {
+    /** The signs of a template that the game does not find. */
+    public static final TemplateSigns NONE = new TemplateSigns(Map.of(), List.of(), 0);
+
     public TemplateSigns {
         kinds = Map.copyOf(kinds);
         jobs = List.copyOf(jobs);
     }
 
     /**
-     * Reads the signs of a template.
+     * Reads the signs and the home beds of a template.
      *
+     * @param id       the id of the template
      * @param template the template
      * @return the signs
      */
-    public static TemplateSigns of(StructureTemplate template) {
+    public static TemplateSigns of(ResourceLocation id, StructureTemplate template) {
         StructurePlaceSettings settings = new StructurePlaceSettings();
         Set<BlockPos> posts = new HashSet<>();
         for (Holder<Block> post : BuiltInRegistries.BLOCK.getTagOrEmpty(VillageLayout.MARKET_POSTS)) {
@@ -66,6 +77,15 @@ public record TemplateSigns(Map<String, Integer> kinds, List<String> jobs) {
             jobs.add(JobPosts.jobId(info.nbt() == null ? "" : info.nbt().getString(JobSignBlockEntity.JOB),
                     FolkholdWorld.MOD_ID));
         }
-        return new TemplateSigns(kinds, jobs);
+        int beds = 0;
+        if (!id.getPath().endsWith(VillageBeds.GARRISON_SUFFIX)) {
+            for (Holder<Block> bed : BuiltInRegistries.BLOCK.getTagOrEmpty(BlockTags.BEDS)) {
+                if (bed.value() instanceof BedBlock block) {
+                    beds += (int) template.filterBlocks(BlockPos.ZERO, settings, block).stream()
+                            .filter(info -> info.state().getValue(BedBlock.PART) == BedPart.HEAD).count();
+                }
+            }
+        }
+        return new TemplateSigns(kinds, jobs, beds);
     }
 }

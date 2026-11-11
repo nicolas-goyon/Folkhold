@@ -372,8 +372,9 @@ public final class FortifiedVillageStructure extends Structure {
         VillagePlan plan = VillagePlan.plan(limited, plotTarget(size), style, plazaSize,
                 VillagePlan.Start.around(plazaSize), FortifiedVillageStructure::goodTerrain, seed);
         VillagePlanPieces.Posts posts = posts(context, start.center(), level, seed);
+        int beds = Math.max(0, LevelTables.get().traits(level).maxPopulation() - VillageBeds.staff());
         VillagePlanPieces.Result result = pieces.place(style, plan, PlotUses.assign(plan, buildings, posts.count()),
-                posts, RandomSource.create(seed));
+                posts, beds, RandomSource.create(seed));
         List<StructurePiece> village = new ArrayList<>(result.pieces());
         List<StructurePiece> wall = VillageWall.add(context, village, result.reserved(), start.center(),
                 start.variant().wall(), start.maritime());

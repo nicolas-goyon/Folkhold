@@ -79,10 +79,9 @@ public final class FirstJobsGameTests {
 
     /**
      * Each generated village of a style has the job posts of its start level (house-workshops and homes with a job
-     * sign): one for
-     * each job slot of the level, at most one for each job that the level and the biome allow. One of them is the
-     * house-workshop of a food job. Each job sign of a house-workshop names a job of the level that trades. The jobs
-     * are the posts of the layout of the village.
+     * sign): one for each job slot of the level, at most one for each job that the level and the biome allow. One of
+     * them is the house-workshop of a food job. Each job sign names a job of the level that trades. The jobs are the
+     * posts of the layout of the village.
      *
      * @param folder the folder of the pieces of the style
      * @param row    the row of the candidate chunks of the style
@@ -180,8 +179,9 @@ public final class FirstJobsGameTests {
         return start.getPieces().stream().filter(PoolElementStructurePiece.class::isInstance)
                 .map(piece -> ((PoolElementStructurePiece) piece).getElement())
                 .flatMap(element -> VillageReference.templateOf(level, element).stream())
-                .flatMap(id -> level.getStructureManager().get(id).stream())
-                .flatMap(template -> TemplateSigns.of(template).jobs().stream())
+                .flatMap(id -> level.getStructureManager().get(id).map(template -> TemplateSigns.of(id, template))
+                        .stream())
+                .flatMap(signs -> signs.jobs().stream())
                 .toList();
     }
 

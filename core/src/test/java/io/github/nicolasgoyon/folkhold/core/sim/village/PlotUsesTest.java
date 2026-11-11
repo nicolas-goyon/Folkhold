@@ -108,6 +108,29 @@ class PlotUsesTest {
         assertEquals(StreetStyle.BASE, PlotUses.withWide(StreetStyle.BASE, buildings(StreetStyle.BASE, 20, true)));
     }
 
+    /**
+     * A village that puts a home with no bed on each plot where {@link PlotUses#needsBeds} allows it still gets the
+     * beds that it needs: the bed homes are the fewest homes that give the beds.
+     */
+    @Test
+    void homesGiveTheBedsThatTheVillageNeeds() {
+        for (int plots = 0; plots <= 30; plots++) {
+            for (int need = 0; need <= plots * 3; need++) {
+                int beds = 0;
+                int bedHomes = 0;
+                for (int left = plots; left > 0; left--) {
+                    if (PlotUses.needsBeds(need - beds, left, 3)) {
+                        beds += 3;
+                        bedHomes++;
+                    }
+                }
+                assertTrue(beds >= need, plots + " plots, " + need + " beds");
+                assertEquals((need + 2) / 3, bedHomes, plots + " plots, " + need + " beds");
+            }
+        }
+        assertTrue(!PlotUses.needsBeds(0, 1, 3) && PlotUses.needsBeds(1, 1, 3) && !PlotUses.needsBeds(3, 2, 3));
+    }
+
     /** With too few plots, the posts take the free plots and the result gives the missing buildings. */
     @Test
     void missingPlotsAreInTheResult() {

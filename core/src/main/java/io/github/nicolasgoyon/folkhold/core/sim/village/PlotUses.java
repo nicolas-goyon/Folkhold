@@ -152,6 +152,19 @@ public final class PlotUses {
         return new Result(Arrays.asList(uses), missing, placed);
     }
 
+    /**
+     * True if the next home must have beds: with a home with no bed on the plot, the home plots that stay cannot give
+     * the beds that the village needs.
+     *
+     * @param need       the home beds that the village needs and does not have
+     * @param homesLeft  the home plots with no piece, the next plot included
+     * @param mostBeds   the largest number of beds of a home of the pool
+     * @return true if the next home must have beds
+     */
+    public static boolean needsBeds(int need, int homesLeft, int mostBeds) {
+        return need > 0 && need > (long) (homesLeft - 1) * mostBeds;
+    }
+
     /** True if a plot holds a building: a wide plot of its wide home, or a plot that is not wide for the home. */
     private static boolean holds(Plot plot, Building building) {
         return plot.wide() ? plot.homes().get(1).name().equals(building.home())

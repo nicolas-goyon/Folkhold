@@ -60,12 +60,16 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       the folder of the pool of the homes of the variant. The piece follows the terrain, as in a jigsaw
  *       structure.</li>
  *   <li>Each plot gets the building of its use (see {@link PlotUses}): the bank (pool {@code bank}), a building of the
- *       level (the piece {@code house_<kind>} of the pool {@code houses}, or the piece of the pool {@code market}), a
- *       house-workshop (the piece {@code job_<id>} of the pool {@code jobs}) or a home (a piece of the pool
- *       {@code houses} with the weights of the pool, see {@link Builder#home}). The building must fit the area of the plot in the plan. A plot that is not wide takes a
- *       piece that fits the home of the style. A wide plot takes a piece that fits the wide home and not the home of
- *       the style. A free plot stays free: the wall keeps its space. A plot with no building for its use is a problem
- *       of the result.</li>
+ *       level (a piece of the pool {@code houses} with the building sign of the kind, or the piece of the pool
+ *       {@code market}), a house-workshop (a home of the pool {@code houses} with the job sign of the job, else the
+ *       piece {@code job_<id>} of the pool {@code jobs}) or a home (a piece of the pool {@code houses} with the
+ *       weights of the pool, see {@link Builder#home}). The building must fit the area of the plot in the plan. A plot
+ *       that is not wide takes a piece that fits the home of the style. A wide plot takes a piece that fits the wide
+ *       home and not the home of the style. A free plot stays free: the wall keeps its space. A plot with no building
+ *       for its use is a problem of the result.</li>
+ *   <li>The job posts come first, in the order of the posts: the plot of the first food job gets the first job. Then
+ *       come the bank and the buildings of the level, then the homes. The homes give the home beds of the maximum
+ *       population of the level: a home with no bed comes only on top of these beds.</li>
  *   <li>The job of each post comes from {@link JobAssignment#next} with the jobs of the earlier posts, as the growth
  *       chooses the job of a new post. A job with no piece in the variant, or with no piece that fits the plot, gives
  *       its place to the next job: {@link VillageGrowth#WORKSHOP_JOBS} jobs at most.</li>
@@ -148,6 +152,11 @@ final class VillagePlanPieces {
         private final List<String> problems = new ArrayList<>();
         private List<Job> eligible = List.of();
         private int postLimit;
+        /** The home beds that the village needs, and the home beds of the placed pieces. */
+        private int bedTarget;
+        private int beds;
+        /** The home plots that have no piece yet, the current plot included. */
+        private int homesLeft;
 
         Builder(Structure.GenerationContext context, PoolElementStructurePiece plaza, BlockPos center,
                 Holder<StructureTemplatePool> homes, Set<String> levelKinds) {
@@ -193,10 +202,13 @@ final class VillagePlanPieces {
          * @param plan   the plan
          * @param uses   the uses of the plots of the plan
          * @param posts  the job posts
+         * @param beds   the home beds that the village needs: the maximum population of the level minus the places of
+         *               the hall
          * @param random the random of the choice of the buildings
          * @return the pieces
          */
-        Result place(StreetStyle style, VillagePlan plan, PlotUses.Result uses, Posts posts, RandomSource random) {
+        Result place(StreetStyle style, VillagePlan plan, PlotUses.Result uses, Posts posts, int beds,
+                RandomSource random) {
             uses.missing().forEach(kind -> problems.add("no plot for the building " + kind));
             if (uses.posts() < posts.count()) {
                 problems.add("plots for " + uses.posts() + " job posts of " + posts.count());
@@ -209,9 +221,11 @@ final class VillagePlanPieces {
             streets.stream().filter(street -> street != null).forEach(pieces::add);
             eligible = new ArrayList<>(posts.eligible());
             postLimit = posts.count();
+            bedTarget = beds;
+            homesLeft = (int) uses.uses().stream().filter(use -> use.type() == PlotUses.Type.HOME).count();
             int built = 0;
             int free = 0;
-            for (int i = 0; i < plan.plots().size(); i++) {
+            for (int i : order(uses)) {
                 Plot plot = plan.plots().get(i);
                 PlotUses.Use use = uses.uses().get(i);
                 PoolElementStructurePiece street = streets.get(plot.piece());
@@ -229,6 +243,9 @@ final class VillagePlanPieces {
                     case POST -> (postJobs.size() < postLimit && post(site, posts.seed(), random)) || home(site, random);
                     case HOME -> home(site, random);
                 };
+                if (use.type() == PlotUses.Type.HOME) {
+                    homesLeft--;
+                }
                 if (placed) {
                     built++;
                 } else {
@@ -239,6 +256,23 @@ final class VillagePlanPieces {
                 }
             }
             return new Result(pieces, reserved, built, free, postJobs, problems);
+        }
+
+        /**
+         * The order of the placement of the plots: the job posts in the order of the posts (the plot of the first food
+         * job first), then the other plots with a building, then the homes, in the order of the plan.
+         */
+        private static List<Integer> order(PlotUses.Result uses) {
+            List<Integer> order = new ArrayList<>();
+            for (int i = 0; i < uses.uses().size(); i++) {
+                order.add(i);
+            }
+            order.sort(Comparator.comparingInt((Integer i) -> switch (uses.uses().get(i).type()) {
+                case POST -> 0;
+                case BANK, BUILDING -> 1;
+                case HOME, FREE -> 2;
+            }).thenComparingInt(i -> uses.uses().get(i).post()));
+            return order;
         }
 
         /**
@@ -347,13 +381,19 @@ final class VillagePlanPieces {
         /**
          * Places a home: an element of the pool of the houses, with the weights of the pool. A piece with a building
          * sign of a level kind is not a home. A piece with a job sign is a job post: it comes only while the village
-         * has fewer posts than {@link Posts#count()}, with a job that the level and the biome allow.
+         * has fewer posts than {@link Posts#count()}, with a job that the level and the biome allow. A piece with no bed
+         * (for example the forge) comes only when the home plots that stay give the home beds that the village needs
+         * (see {@link PlotUses#needsBeds}).
          *
          * @return true if the plot has a building
          */
         private boolean home(Site site, RandomSource random) {
             Set<String> ids = eligible.stream().map(Job::id).collect(Collectors.toSet());
-            List<StructurePoolElement> homes = shuffled(HOUSES, random).stream().filter(this::isHome)
+            List<StructurePoolElement> pool = shuffled(HOUSES, random).stream().filter(this::isHome).toList();
+            int most = pool.stream().mapToInt(element -> signs(element).beds()).max().orElse(0);
+            boolean needsBeds = PlotUses.needsBeds(bedTarget - beds, homesLeft, most);
+            List<StructurePoolElement> homes = pool.stream()
+                    .filter(element -> !needsBeds || signs(element).beds() > 0)
                     .filter(element -> signs(element).jobs().isEmpty() || (postJobs.size() < postLimit
                             && ids.containsAll(signs(element).jobs())))
                     .toList();
@@ -396,6 +436,7 @@ final class VillagePlanPieces {
                 building.addJunction(new JigsawJunction(connector.getX(), ground, connector.getZ(), 0,
                         StructureTemplatePool.Projection.TERRAIN_MATCHING));
                 pieces.add(building);
+                beds += signs(element).beds();
                 return Optional.of(element);
             }
             return Optional.empty();
@@ -429,8 +470,8 @@ final class VillagePlanPieces {
         /** The signs of the template of an element, as the scan of the heart reads them. */
         private TemplateSigns signs(StructurePoolElement element) {
             return signs.computeIfAbsent(element, key -> VillageReference.templateOf(context.registryAccess(), key)
-                    .flatMap(templates::get).map(TemplateSigns::of)
-                    .orElse(new TemplateSigns(Map.of(), List.of())));
+                    .flatMap(id -> templates.get(id).map(template -> TemplateSigns.of(id, template)))
+                    .orElse(TemplateSigns.NONE));
         }
 
         /** The elements of a pool of the variant, with no empty element, in a fixed order. */
