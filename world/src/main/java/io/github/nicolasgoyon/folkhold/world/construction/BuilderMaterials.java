@@ -183,18 +183,21 @@ public final class BuilderMaterials {
      * items that the new state has more than the block in place. Example: a bottom slab that becomes a double slab
      * costs 1 slab, and a change of the direction of stairs costs nothing.
      *
-     * @param level the level
-     * @param pos   the position of the block
-     * @param state the state that the builders place
+     * <p>A repair does not change some properties that carry items, for example {@code candles} and {@code bites}
+     * (see {@code RepairRules.IGNORED}): a repair of such a state gives no step.
+     *
+     * @param level   the level
+     * @param pos     the position of the block
+     * @param state   the state that the builders place
+     * @param current the block at the position before the placement: air for the absolute cost of the state
      * @return the materials, one for each item: empty for a block that uses no materials
      */
-    public static List<Material> placement(ServerLevel level, BlockPos pos, BlockState state) {
+    public static List<Material> placement(ServerLevel level, BlockPos pos, BlockState state, BlockState current) {
         if (state.isAir() || areFree() || state.is(FREE)) {
             return List.of();
         }
         costs(level.getServer());
         Map<Item, Integer> items = new LinkedHashMap<>(itemsOf(level, pos, state));
-        BlockState current = level.getBlockState(pos);
         if (current.is(state.getBlock())) {
             itemsOf(level, pos, current).forEach((item, count) -> items.computeIfPresent(item,
                     (key, needed) -> needed > count ? needed - count : null));
@@ -209,6 +212,33 @@ public final class BuilderMaterials {
             }
         });
         return materials;
+    }
+
+    /**
+     * The items of the economy that the village keeps from a change of state of the same block, when the new state
+     * has fewer items than the block in place. Example: a double slab that becomes a bottom slab gives 1 slab. This is
+     * the opposite of the cost of a placement on the same block (see {@link #placement}).
+     *
+     * @param level the level
+     * @param pos   the position of the block
+     * @param state the state that the builders place
+     * @return the quantity of each item of the economy, by item id: empty for another block
+     */
+    public static Map<String, Double> surplus(ServerLevel level, BlockPos pos, BlockState state) {
+        BlockState current = level.getBlockState(pos);
+        if (areFree() || !current.is(state.getBlock()) || current.is(FREE)) {
+            return Map.of();
+        }
+        MaterialCosts costs = costs(level.getServer());
+        Map<Item, Integer> target = itemsOf(level, pos, state);
+        Map<String, Double> items = new TreeMap<>();
+        itemsOf(level, pos, current).forEach((item, count) -> {
+            int extra = count - target.getOrDefault(item, 0);
+            if (extra > 0) {
+                addCost(items, costs, new ItemStack(item, extra));
+            }
+        });
+        return items;
     }
 
     /**
@@ -271,7 +301,39 @@ public final class BuilderMaterials {
                 return Optional.empty();
             }
         }
+        // A rare drop can miss the seeds, and then the drops look stable. This affects only a block with no item, or
+        // a block with only its item as drops: else the block costs its item.
         return Optional.ofNullable(first);
+    }
+
+    /**
+     * The items that the village keeps from blocks that the builders remove.
+     *
+     * @param items    the quantity of each item of the economy from the drops, by item id
+     * @param contents the items of the containers that can go into the stock (see {@link Content})
+     */
+    public record Removal(Map<String, Double> items, List<Content> contents) {
+        /** A removal that gives nothing. */
+        public static final Removal NONE = new Removal(Map.of(), List.of());
+
+        public Removal {
+            items = Map.copyOf(items);
+            contents = List.copyOf(contents);
+        }
+    }
+
+    /**
+     * An item of a removed container that can go into the stock: it has a cost and no changed data.
+     *
+     * @param pos   the position of the container: the item falls there when the stock has no space for it
+     * @param stack the item
+     * @param cost  the cost of one item, in items of the economy
+     */
+    public record Content(BlockPos pos, ItemStack stack, Map<String, Double> cost) {
+        public Content {
+            stack = stack.copy();
+            cost = Map.copyOf(cost);
+        }
     }
 
     /**
@@ -291,10 +353,12 @@ public final class BuilderMaterials {
      *       counts only the items of the economy.</li>
      *   <li>The contents of a container (a chest, a barrel, a furnace, a shulker box, a decorated pot, a jukebox, the
      *       book of a lectern, the items on a campfire) go out before the drops. An item with a cost and with no
-     *       changed data gives its cost, as a drop. The other items fall in the level at the position of the block,
-     *       for example a music disc, an enchanted book or a damaged tool: a player can take them. Such an item has
-     *       no price in the economy, and the caravans must not sell it. A container with loot that is not made yet
-     *       has no contents.</li>
+     *       changed data is a {@link Content}: it can go into the stock. The other items fall in the level at the
+     *       position of the block, for example a music disc, an enchanted book, a damaged tool or a shulker box with
+     *       items: a player can take them. Such an item has no price in the economy, and the caravans must not sell
+     *       it.</li>
+     *   <li>A container with loot that is not made yet has no contents: the method removes its loot table, thus the
+     *       loot never comes.</li>
      *   <li>Scaffolding and the blocks of the tag {@link #FREE} give nothing: they use no materials.</li>
      *   <li>When the village keeps nothing ({@code keep} false, or {@link #areFree}), the drops give nothing and all
      *       the contents fall in the level.</li>
@@ -305,11 +369,12 @@ public final class BuilderMaterials {
      * @param level     the level
      * @param positions the positions of the blocks, before the removal: one block, or the two parts of a block
      * @param keep      true if the village keeps the drops and the contents
-     * @return the quantity of each item of the economy, by item id
+     * @return the items of the drops, and the contents that can go into the stock
      */
-    public static Map<String, Double> removedItems(ServerLevel level, List<BlockPos> positions, boolean keep) {
+    public static Removal removedItems(ServerLevel level, List<BlockPos> positions, boolean keep) {
         @Nullable MaterialCosts current = keep && !areFree() ? costs(level.getServer()) : null;
         Map<String, Double> items = new TreeMap<>();
+        List<Content> kept = new ArrayList<>();
         for (BlockPos pos : positions) {
             BlockState state = level.getBlockState(pos);
             if (state.isAir() || state.is(Blocks.SCAFFOLDING) || state.is(FREE)) {
@@ -319,8 +384,13 @@ public final class BuilderMaterials {
             List<ItemStack> contents = contents(blockEntity);
             Clearable.tryClear(blockEntity);
             for (ItemStack content : contents) {
-                if (current == null || !content.getComponentsPatch().isEmpty() || !addCost(items, current, content)) {
-                    Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, content);
+                Optional<Map<String, Double>> cost = current == null || !content.getComponentsPatch().isEmpty()
+                        ? Optional.empty() : DROP_COSTS.computeIfAbsent(content.getItem(),
+                                key -> current.cost(ItemIds.id(key)));
+                if (cost.isPresent()) {
+                    kept.add(new Content(pos.immutable(), content, cost.get()));
+                } else {
+                    drop(level, pos, content);
                 }
             }
             if (current == null) {
@@ -333,25 +403,30 @@ public final class BuilderMaterials {
                 addCost(items, current, new ItemStack(Items.CAKE));
             }
         }
-        return items;
+        return new Removal(items, kept);
     }
 
-    /** Adds the cost of a stack to the items. Gives false for an item with no cost. */
-    private static boolean addCost(Map<String, Double> items, MaterialCosts current, ItemStack stack) {
-        Optional<Map<String, Double>> cost = DROP_COSTS.computeIfAbsent(stack.getItem(),
-                key -> current.cost(ItemIds.id(key)));
-        cost.ifPresent(found -> found.forEach((item, quantity) ->
-                items.merge(item, quantity * stack.getCount(), Double::sum)));
-        return cost.isPresent();
+    /** Drops an item in the level at the center of a position: a player can take it. */
+    public static void drop(ServerLevel level, BlockPos pos, ItemStack stack) {
+        Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, stack);
+    }
+
+    /** Adds the cost of a stack to the items. An item with no cost adds nothing. */
+    private static void addCost(Map<String, Double> items, MaterialCosts current, ItemStack stack) {
+        DROP_COSTS.computeIfAbsent(stack.getItem(), key -> current.cost(ItemIds.id(key)))
+                .ifPresent(found -> found.forEach((item, quantity) ->
+                        items.merge(item, quantity * stack.getCount(), Double::sum)));
     }
 
     /**
      * The contents of a block entity: the items of a container, the book of a lectern, the items on a campfire. A
-     * container with loot that is not made yet has no contents: the method does not make the loot.
+     * container with loot that is not made yet has no contents: the method removes its loot table.
      */
     private static List<ItemStack> contents(@Nullable BlockEntity blockEntity) {
         List<ItemStack> contents = new ArrayList<>();
         if (blockEntity instanceof RandomizableContainer loot && loot.getLootTable() != null) {
+            // Else the block makes its loot and drops it when it goes (see Containers#dropContentsOnDestroy).
+            loot.setLootTable(null);
             return contents;
         }
         if (blockEntity instanceof Container container) {

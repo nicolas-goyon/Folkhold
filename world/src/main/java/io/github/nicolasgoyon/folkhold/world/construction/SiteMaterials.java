@@ -14,6 +14,7 @@ import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestSystem;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -219,6 +220,52 @@ final class SiteMaterials {
         });
         buffer.values().removeIf(quantity -> quantity < EPSILON);
         SettlementData.get(server).setDirty();
+    }
+
+    /**
+     * Keeps the items of removed containers that can go into the stock (see {@link BuilderMaterials#removedItems}),
+     * as with {@link #keep}. The stock takes the items of a stack only up to its stock capacity: the method counts the
+     * stock and the parts of items of the site before each stack. The other items of the stack do not go into the
+     * stock: the caller drops them in the level.
+     *
+     * @param contents   the items of the containers
+     * @param settlement the village, or null: a village with no economy keeps nothing
+     * @param server     the server: the method marks the settlements as changed
+     * @return the items that do not go into the stock
+     */
+    List<BuilderMaterials.Content> keepContents(List<BuilderMaterials.Content> contents,
+            @Nullable Settlement settlement, MinecraftServer server) {
+        if (contents.isEmpty() || settlement == null) {
+            return contents;
+        }
+        int capacity = LevelTables.get().traits(settlement.level()).stockCapacity();
+        Stock stock = settlement.economy().stock();
+        List<BuilderMaterials.Content> rest = new ArrayList<>();
+        for (BuilderMaterials.Content content : contents) {
+            int count = content.stack().getCount();
+            int fits = count;
+            while (fits > 0 && !fits(content.cost(), fits, stock, capacity)) {
+                fits--;
+            }
+            if (fits > 0) {
+                Map<String, Double> items = new TreeMap<>();
+                int kept = fits;
+                content.cost().forEach((item, quantity) -> items.put(item, quantity * kept));
+                keep(items, settlement, server);
+            }
+            if (fits < count) {
+                rest.add(new BuilderMaterials.Content(content.pos(), content.stack().copyWithCount(count - fits),
+                        content.cost()));
+            }
+        }
+        return rest;
+    }
+
+    /** True if the stock has space for the cost of a number of items, with the parts of items of the site. */
+    private boolean fits(Map<String, Double> cost, int count, Stock stock, int capacity) {
+        return cost.entrySet().stream().allMatch(entry -> stock.count(entry.getKey())
+                + (int) Math.floor(buffer.getOrDefault(entry.getKey(), 0.0) + entry.getValue() * count + EPSILON)
+                <= capacity);
     }
 
     /**
