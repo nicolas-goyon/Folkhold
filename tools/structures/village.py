@@ -232,7 +232,10 @@ def roof_stairs(dx, dz, low, high):
 
 
 def tower_roof(t, tx, tz):
-    """Pyramid roof of dark oak on the corner posts of a tower: a ring of 5 x 5, a ring of 3 x 3 and a slab."""
+    """Pyramid roof of dark oak on the corner posts of a tower: a ring of 5 x 5, then a ring of 3 x 3 around a slab.
+
+    The slab is in the middle of the top ring, not above it: a builder on a scaffolding in the tower reaches it.
+    """
     for ring in range(2):
         y = POST_TOP_Y + 1 + ring
         low, high = ring, TOWER - 1 - ring
@@ -242,7 +245,8 @@ def tower_roof(t, tx, tz):
                     t.set(tx + dx, y, tz + dz, *roof_stairs(dx, dz, low, high))
                 else:
                     t.set(tx + dx, y, tz + dz, "minecraft:air")
-    t.set(tx + 2, POST_TOP_Y + 3, tz + 2, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+    t.set(tx + 2, POST_TOP_Y + 2, tz + 2, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+    t.set(tx + 2, POST_TOP_Y + 3, tz + 2, "minecraft:air")
 
 
 # The number of stairs from the ground of the compound to the platform of a tower.
