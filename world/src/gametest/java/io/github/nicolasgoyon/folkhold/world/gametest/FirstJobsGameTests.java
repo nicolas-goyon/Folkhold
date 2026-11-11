@@ -1,13 +1,12 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
-import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
-import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Job;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.economy.Economies;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.TemplateSigns;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import java.util.ArrayList;
@@ -31,12 +30,9 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
-import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
-import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
-import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -82,7 +78,8 @@ public final class FirstJobsGameTests {
     }
 
     /**
-     * Each generated village of a style has the house-workshops ({@code job_<id>} pieces) of its start level: one for
+     * Each generated village of a style has the job posts of its start level (house-workshops and homes with a job
+     * sign): one for
      * each job slot of the level, at most one for each job that the level and the biome allow. One of them is the
      * house-workshop of a food job. Each job sign of a house-workshop names a job of the level that trades. The jobs
      * are the posts of the layout of the village.
@@ -175,25 +172,17 @@ public final class FirstJobsGameTests {
         helper.succeed();
     }
 
-    /** The job ids of the job signs of the house-workshops ({@code job_<id>} pieces) of a village. */
+    /**
+     * The job ids of the job signs of a village, as the scan of the heart reads them: the house-workshops
+     * ({@code job_<id>} pieces) and the homes with a job sign (the fishing hut of the maritime villages).
+     */
     private static List<String> workshopJobs(ServerLevel level, StructureStart start) {
-        List<String> jobs = new ArrayList<>();
-        for (StructurePiece piece : start.getPieces()) {
-            if (!(piece instanceof PoolElementStructurePiece pool)) {
-                continue;
-            }
-            Optional<StructureTemplate> template = VillageReference.templateOf(level, pool.getElement())
-                    .filter(id -> id.getPath().substring(id.getPath().lastIndexOf('/') + 1).startsWith("job_"))
-                    .flatMap(level.getStructureManager()::get);
-            if (template.isEmpty()) {
-                continue;
-            }
-            for (StructureTemplate.StructureBlockInfo sign : template.get().filterBlocks(BlockPos.ZERO,
-                    new StructurePlaceSettings(), ModBlocks.JOB_SIGN.get())) {
-                jobs.add(FolkholdWorld.MOD_ID + ":" + sign.nbt().getString(JobSignBlockEntity.JOB));
-            }
-        }
-        return jobs;
+        return start.getPieces().stream().filter(PoolElementStructurePiece.class::isInstance)
+                .map(piece -> ((PoolElementStructurePiece) piece).getElement())
+                .flatMap(element -> VillageReference.templateOf(level, element).stream())
+                .flatMap(id -> level.getStructureManager().get(id).stream())
+                .flatMap(template -> TemplateSigns.of(template).jobs().stream())
+                .toList();
     }
 
     /** True if the workers of a job trade: the job file has a profession. */

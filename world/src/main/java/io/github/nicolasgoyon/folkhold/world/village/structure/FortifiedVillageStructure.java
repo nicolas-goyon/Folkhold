@@ -26,6 +26,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -358,7 +359,8 @@ public final class FortifiedVillageStructure extends Structure {
     private Layout layout(GenerationContext context, Start start, int level) {
         VillageSize size = VillageSizes.forLevel(level);
         VillagePlanPieces.Builder pieces = VillagePlanPieces.builder(context, start.plaza(), start.center(),
-                start.variant().homes());
+                start.variant().homes(), VillageBuildingTable.get().stream().map(VillageBuildings.Requirement::kind)
+                        .collect(Collectors.toSet()));
         List<PlotUses.Building> buildings = pieces.buildings(
                 VillageBuildings.kinds(VillageBuildingTable.get(), level), styleOf(start.variant()));
         StreetStyle style = PlotUses.withWide(styleOf(start.variant()), buildings);
