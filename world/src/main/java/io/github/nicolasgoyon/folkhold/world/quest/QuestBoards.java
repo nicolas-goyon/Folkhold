@@ -115,7 +115,7 @@ public final class QuestBoards {
 
     /** The active settlement of the village near a position, if a village heart is near. */
     public static Optional<Settlement> villageAt(ServerLevel level, BlockPos pos) {
-        return VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get())
+        return VillageHearts.findAt(level, pos)
                 .map(level::getBlockEntity)
                 .filter(VillageHeartBlockEntity.class::isInstance)
                 .map(VillageHeartBlockEntity.class::cast)

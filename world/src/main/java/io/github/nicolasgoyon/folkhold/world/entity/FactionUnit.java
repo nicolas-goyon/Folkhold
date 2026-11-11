@@ -739,7 +739,7 @@ public abstract class FactionUnit extends PathfinderMob implements GeoEntity {
             setHomePos(blockPosition());
         }
         if (villagePos == null) {
-            VillageHearts.findNearest(level.getLevel(), blockPosition(), WorldConfig.VILLAGE_RADIUS.get())
+            VillageHearts.findAt(level.getLevel(), blockPosition())
                     .ifPresent(this::setVillagePos);
         }
         if (factionId == null) {

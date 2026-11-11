@@ -101,7 +101,7 @@ public final class BankChests {
 
     @Nullable
     private static VillageHeartBlockEntity heartOf(ServerLevel level, BlockPos pos) {
-        return VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get())
+        return VillageHearts.findAt(level, pos)
                 .map(level::getBlockEntity)
                 .filter(VillageHeartBlockEntity.class::isInstance)
                 .map(VillageHeartBlockEntity.class::cast)

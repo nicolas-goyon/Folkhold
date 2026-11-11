@@ -1,7 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
-import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.level.ReadyChunks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -53,7 +52,7 @@ public final class VanillaGolems {
      * @return true if the villagers at this position must not call a vanilla iron golem
      */
     public static boolean hasFactionGolems(Level level, BlockPos pos) {
-        return VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get())
+        return VillageHearts.findAt(level, pos)
                 .filter(heartPos -> ReadyChunks.isReady(level, heartPos))
                 .map(level::getBlockEntity)
                 .filter(VillageHeartBlockEntity.class::isInstance)

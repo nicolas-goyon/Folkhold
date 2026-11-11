@@ -29,6 +29,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModEntities;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.settlement.SimulationProfiler;
 import io.github.nicolasgoyon.folkhold.world.village.AlertState;
 import io.github.nicolasgoyon.folkhold.world.village.Garrison;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
@@ -109,6 +110,8 @@ public class VillageHeartBlockEntity extends BlockEntity {
     private static final int ROTATION_INTERVAL = 400;
     /** The heart checks the end of the alert once each second. */
     private static final int CHECK_INTERVAL = 20;
+    /** The name of the search of the units in the simulation profiler (see {@link #getUnits()}). */
+    public static final String UNITS_PROFILER_NAME = "village units (area search)";
 
     private UUID villageId = UUID.randomUUID();
     private AlertState alertState = AlertState.CALM;
@@ -474,13 +477,19 @@ public class VillageHeartBlockEntity extends BlockEntity {
         }
     }
 
-    /** The loaded units of this village: units in the village radius that are linked to this heart. */
+    /**
+     * The loaded units of this village: units in the area of the village that are linked to this heart. The
+     * simulation profiler records the time of the search ({@link #UNITS_PROFILER_NAME}).
+     */
     public List<FactionUnit> getUnits() {
         if (level == null) {
             return List.of();
         }
-        return level.getEntitiesOfClass(FactionUnit.class, VillageHearts.area(worldPosition),
+        long start = System.nanoTime();
+        List<FactionUnit> units = level.getEntitiesOfClass(FactionUnit.class, VillageHearts.area(level, worldPosition),
                 unit -> worldPosition.equals(unit.getVillagePos()));
+        SimulationProfiler.record(UNITS_PROFILER_NAME, System.nanoTime() - start);
+        return units;
     }
 
     public Garrison getGarrison() {
@@ -769,7 +778,7 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (level == null) {
             return List.of();
         }
-        return level.getEntitiesOfClass(VillageCat.class, VillageHearts.area(worldPosition),
+        return level.getEntitiesOfClass(VillageCat.class, VillageHearts.area(level, worldPosition),
                 cat -> worldPosition.equals(cat.getVillagePos()));
     }
 
@@ -996,6 +1005,10 @@ public class VillageHeartBlockEntity extends BlockEntity {
         repairReference = reference;
         repairReferenceSearched = true;
         tradePlaceCache = null;
+        if (level != null) {
+            VillageHearts.register(level, worldPosition,
+                    Optional.ofNullable(reference).flatMap(VillageReference::area));
+        }
     }
 
     /** True if the last check of the growth found no free plot for the market (see {@link VillageMarket.State}). */
@@ -1357,9 +1370,13 @@ public class VillageHeartBlockEntity extends BlockEntity {
         if (time % CHECK_INTERVAL != 0) {
             return;
         }
-        // The registration in onLoad can happen before the level is ready. Register again: it costs nothing.
-        VillageHearts.register(level, pos);
-        if (!(level instanceof ServerLevel areaLevel) || !VillageLayout.isAreaReady(level, heart.scanArea(areaLevel))) {
+        if (!(level instanceof ServerLevel areaLevel)) {
+            return;
+        }
+        // The registration in onLoad can happen before the level is ready, and the heart finds its structure after
+        // the load. Register again with the structure area: it costs nothing.
+        VillageHearts.register(level, pos, heart.repairReference(areaLevel).flatMap(VillageReference::area));
+        if (!VillageLayout.isAreaReady(level, heart.scanArea(areaLevel))) {
             return;
         }
         if (!heart.cleared || !heart.snowCleared) {

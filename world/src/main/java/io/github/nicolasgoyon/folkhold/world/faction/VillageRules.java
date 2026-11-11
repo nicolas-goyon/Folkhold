@@ -3,7 +3,6 @@ package io.github.nicolasgoyon.folkhold.world.faction;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.reputation.ReputationTier;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
-import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -47,8 +46,7 @@ public final class VillageRules {
         if (player.isCreative() || player.isSpectator()) {
             return;
         }
-        Optional<VillageHeartBlockEntity> heart = VillageHearts
-                .findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get())
+        Optional<VillageHeartBlockEntity> heart = VillageHearts.findAt(level, pos)
                 .map(level::getBlockEntity)
                 .filter(VillageHeartBlockEntity.class::isInstance)
                 .map(VillageHeartBlockEntity.class::cast)

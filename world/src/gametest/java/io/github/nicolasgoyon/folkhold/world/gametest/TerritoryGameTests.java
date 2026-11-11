@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Territories;
+import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -55,8 +56,7 @@ public final class TerritoryGameTests {
 
     /** The claim radius of a settlement in blocks. */
     private static int reach(int level) {
-        int minimum = TerritoryClaims.minimumRadius(WorldConfig.VILLAGE_RADIUS.get());
-        return Math.max(minimum, LevelTables.get().traits(level).claimRadius()) * 16;
+        return SettlementData.claimRadius(level) * 16;
     }
 
     /** The block at a distance from a settlement, in a direction. */
@@ -88,6 +88,23 @@ public final class TerritoryGameTests {
                     .equals(hamlet.factionId()), "The territory must belong to the faction of the hamlet");
             helper.assertTrue(Territories.settlementAt(server, outside).isEmpty(),
                     "The territory must stop near " + reach + " blocks: " + outside);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The claim radius of each level is never smaller than the minimum territory radius of its tier, and the territory
+     * contains the village structure of the tier.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "territory_tier")
+    public static void claimRadiusKeepsTheMinimumOfTheTier(GameTestHelper helper) {
+        for (int level = 1; level <= LevelTables.get().maxLevel(); level++) {
+            int minimum = VillageSizes.forLevel(level).minTerritoryRadius();
+            int structure = VillageSizes.forLevel(level).maxRadius();
+            int radius = SettlementData.claimRadius(level);
+            helper.assertTrue(radius >= minimum && radius * 16 >= structure, "The claim radius of the level " + level
+                    + " is " + radius + " chunks: the minimum of the tier is " + minimum + " chunks, the structure "
+                    + structure + " blocks");
         }
         helper.succeed();
     }

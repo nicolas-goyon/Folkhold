@@ -42,7 +42,7 @@ public final class ReputationEvents {
         } else if (victim instanceof VillageCat cat) {
             applyToCat(player, cat, WorldConfig.REPUTATION_KILL_CAT.get());
         } else if (victim instanceof Enemy && victim.level() instanceof ServerLevel level) {
-            VillageHearts.findNearest(level, victim.blockPosition(), WorldConfig.VILLAGE_RADIUS.get())
+            VillageHearts.findAt(level, victim.blockPosition())
                     .map(pos -> level.getBlockEntity(pos))
                     .filter(VillageHeartBlockEntity.class::isInstance)
                     .map(VillageHeartBlockEntity.class::cast)

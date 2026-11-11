@@ -236,7 +236,7 @@ public final class VillageRepairs {
             return;
         }
         BlockPos pos = event.getPos();
-        Optional<BlockPos> heart = VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get());
+        Optional<BlockPos> heart = VillageHearts.findAt(level, pos);
         if (heart.isEmpty()) {
             return;
         }
@@ -257,7 +257,7 @@ public final class VillageRepairs {
             return;
         }
         BlockPos pos = event.getPos();
-        VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get()).ifPresent(heart -> {
+        VillageHearts.findAt(level, pos).ifPresent(heart -> {
             VillageRepairData data = VillageRepairData.get(level);
             data.removePlayerBlock(heart, pos);
             BlockKinds.describe(pos, event.getState(), Optional.empty()).partner().map(BlockKinds::toBlockPos)

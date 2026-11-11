@@ -222,7 +222,7 @@ public final class VillageBeds {
         if (!(state.getBlock() instanceof BedBlock) && !(state.getBlock() instanceof JobSignBlock)) {
             return;
         }
-        VillageHearts.findNearest(level, pos, WorldConfig.VILLAGE_RADIUS.get())
+        VillageHearts.findAt(level, pos)
                 .filter(heart -> ReadyChunks.isReady(level, heart))
                 .ifPresent(heart -> {
                     if (level.getBlockEntity(heart) instanceof VillageHeartBlockEntity village
