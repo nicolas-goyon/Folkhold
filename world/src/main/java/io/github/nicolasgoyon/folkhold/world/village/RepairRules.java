@@ -34,6 +34,9 @@ import net.minecraft.world.level.block.state.properties.Property;
  *       properties.</li>
  *   <li>The color of a banner: the village heart gives the color of the faction to the banners.</li>
  *   <li>A brazier in the place of a campfire.</li>
+ *   <li>The properties that the data file {@link RepairEquivalents} names: the properties that another mod adds to
+ *       the vanilla blocks and changes, for example {@code weathering} of Immersive Weathering.</li>
+ *   <li>A missing wild plant: grass, ferns, flowers (tag {@link #WILD_PLANTS}).</li>
  *   <li>The blocks that the weather and the plants add on an empty position: snow, grass, flowers, trees (tag
  *       {@link #NATURAL}).</li>
  *   <li>The technical blocks of the structures: jigsaw blocks, structure blocks.</li>
@@ -45,6 +48,11 @@ import net.minecraft.world.level.block.state.properties.Property;
 public final class RepairRules {
     /** The blocks that the weather and the plants add on an empty position. A repair does not remove them. */
     public static final TagKey<Block> NATURAL = tag("construction/repair_natural");
+    /**
+     * The wild plants: grass, ferns, flowers. The weather, the animals, the players and other mods remove them (for
+     * example the walk of a player with The Roads More Travelled). A missing wild plant of a template is not damage.
+     */
+    public static final TagKey<Block> WILD_PLANTS = tag("construction/repair_wild_plants");
     /** The blocks of the soil. The group {@code soil} of {@link RepairEquivalents} contains this tag. */
     public static final TagKey<Block> SOIL = tag("construction/repair_soil");
 
@@ -81,30 +89,45 @@ public final class RepairRules {
      * @return true if the block is damaged
      */
     public static boolean isDamaged(BlockState actual, BlockState expected) {
+        return isDamaged(actual, expected, RepairEquivalents.get());
+    }
+
+    /**
+     * True if a block of a village is damaged, with the given groups of equivalent blocks.
+     *
+     * @param actual      the block of the level
+     * @param expected    the reference block
+     * @param equivalents the groups of equivalent blocks and the ignored properties
+     * @return true if the block is damaged
+     */
+    public static boolean isDamaged(BlockState actual, BlockState expected, RepairEquivalents.Groups equivalents) {
         if (actual == expected || isTechnical(actual)) {
             return false;
         }
         if (expected.isAir()) {
             return !actual.isAir() && !actual.is(NATURAL);
         }
+        if (expected.is(WILD_PLANTS) && (actual.isAir() || actual.is(NATURAL))) {
+            return false;
+        }
         if (isSameFamily(actual, expected)) {
             return false;
         }
-        if (actual.getBlock() != expected.getBlock()
-                && !RepairEquivalents.get().areEquivalent(actual, expected)) {
+        if (actual.getBlock() != expected.getBlock() && !equivalents.areEquivalent(actual, expected)) {
             return true;
         }
-        return hasOtherValues(actual, expected);
+        return hasOtherValues(actual, expected, equivalents.ignoredProperties());
     }
 
     /**
      * True if a property of the reference block has another value in the block of the level. The check uses only the
-     * properties that the two blocks have and that the comparison does not ignore.
+     * properties that the two blocks have and that the comparison does not ignore: the properties of {@link #IGNORED}
+     * and the property names of the data file {@link RepairEquivalents}.
      */
-    private static boolean hasOtherValues(BlockState actual, BlockState expected) {
+    private static boolean hasOtherValues(BlockState actual, BlockState expected, Set<String> ignoredNames) {
         for (Property<?> property : expected.getProperties()) {
-            if (!IGNORED.contains(property) && actual.hasProperty(property)
-                    && !expected.getValue(property).equals(actual.getValue(property))) {
+            if (!IGNORED.contains(property) && !ignoredNames.contains(property.getName())
+                    && actual.hasProperty(property) && !expected.getValue(property).equals(actual.getValue(property))) {
                 return true;
             }
         }

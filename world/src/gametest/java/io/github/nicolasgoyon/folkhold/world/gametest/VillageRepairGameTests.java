@@ -239,7 +239,8 @@ public final class VillageRepairGameTests {
         RepairEquivalents.Groups groups = RepairEquivalents.parse(JsonParser.parseString("""
                 {"groups": [{"name": "test", "blocks": ["minecraft:stone", "no_such_mod:mossy_stone",
                                                           "#no_such_mod:stones", "minecraft:andesite"]},
-                            {"name": "empty", "blocks": ["no_such_mod:block"]}]}
+                            {"name": "empty", "blocks": ["no_such_mod:block"]}],
+                 "ignored_properties": ["facing"]}
                 """).getAsJsonObject());
         helper.assertTrue(groups.groups().size() == 2, "The file must keep the 2 groups: " + groups);
         helper.assertTrue(groups.skipped().equals(List.of(ResourceLocation.parse("no_such_mod:mossy_stone"),
@@ -249,11 +250,39 @@ public final class VillageRepairGameTests {
                 "Andesite and stone must stay in one group");
         helper.assertFalse(groups.areEquivalent(Blocks.DIORITE.defaultBlockState(), Blocks.STONE.defaultBlockState()),
                 "Diorite is in no group");
+        BlockState stairs = Blocks.COBBLESTONE_STAIRS.defaultBlockState().setValue(StairBlock.FACING, Direction.EAST);
+        BlockState turned = stairs.setValue(StairBlock.FACING, Direction.WEST);
+        helper.assertFalse(RepairRules.isDamaged(turned, stairs, groups),
+                "A property that the file ignores must not give damage: " + groups.ignoredProperties());
+        helper.assertTrue(RepairRules.isDamaged(turned, stairs, RepairEquivalents.Groups.EMPTY),
+                "With no ignored property, stairs with another facing are damaged");
+        helper.assertTrue(RepairEquivalents.get().ignoredProperties().contains("weathering"),
+                "The shipped file must ignore the property weathering of Immersive Weathering");
         List<ResourceLocation> known = RepairEquivalents.get().skipped().stream()
                 .filter(id -> id.getNamespace().equals(ResourceLocation.DEFAULT_NAMESPACE)
                         || id.getNamespace().startsWith("folkhold"))
                 .toList();
         helper.assertTrue(known.isEmpty(), "The shipped file must name only known blocks of Minecraft: " + known);
+        helper.succeed();
+    }
+
+    /**
+     * A missing wild plant of a template (grass, fern, flower) is not damage: the weather, the animals, the players and
+     * other mods remove them. A missing log of a building stays damage.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_rules")
+    public static void repairRulesAcceptAMissingWildPlant(GameTestHelper helper) {
+        BlockState air = Blocks.AIR.defaultBlockState();
+        assertDamaged(helper, false, air, Blocks.SHORT_GRASS.defaultBlockState(), "no short grass");
+        assertDamaged(helper, false, air, Blocks.TALL_GRASS.defaultBlockState(), "no tall grass");
+        assertDamaged(helper, false, air, Blocks.FERN.defaultBlockState(), "no fern");
+        assertDamaged(helper, false, air, Blocks.POPPY.defaultBlockState(), "no poppy");
+        assertDamaged(helper, false, Blocks.SNOW.defaultBlockState(), Blocks.DANDELION.defaultBlockState(),
+                "snow in the place of a dandelion");
+        assertDamaged(helper, true, Blocks.COBBLESTONE.defaultBlockState(), Blocks.SHORT_GRASS.defaultBlockState(),
+                "cobblestone in the place of short grass");
+        assertDamaged(helper, true, air, Blocks.OAK_LOG.defaultBlockState(), "no oak log");
+        assertDamaged(helper, true, air, Blocks.WHEAT.defaultBlockState(), "no wheat");
         helper.succeed();
     }
 

@@ -330,5 +330,8 @@
         "immersive_weathering:waxed_rusted_iron_trapdoor"
       ]
     }
+  ],
+  "ignored_properties": [
+    "weathering"
   ]
 }

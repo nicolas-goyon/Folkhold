@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -7,8 +8,12 @@ import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -34,11 +39,14 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  * <pre>
  * {"groups": [{"name": "cobblestone", "blocks": ["minecraft:cobblestone", "minecraft:mossy_cobblestone",
  *                                                "immersive_weathering:snowy_cobblestone"]},
- *             {"name": "soil", "blocks": ["#folkhold_world:construction/repair_soil", "trmt:eroded_grass_block"]}]}
+ *             {"name": "soil", "blocks": ["#folkhold_world:construction/repair_soil", "trmt:eroded_grass_block"]}],
+ *  "ignored_properties": ["weathering"]}
  * </pre>
  * An entry is a block id, or a block tag with the prefix {@code #}. The file skips a block id that is not in the block
  * registry (for example a block of a mod that is not loaded) and writes it to the debug log. A tag that no data pack
- * gives is empty. If the file is missing or not valid, the mod logs the error and uses no group.
+ * gives is empty. {@code ignored_properties} (optional) gives the names of the block state properties that the
+ * comparison of the repairs ignores, in addition to the properties of {@link RepairRules}: the properties that another
+ * mod adds to the vanilla blocks and changes. If the file is missing or not valid, the mod logs the error and uses no group.
  */
 public final class RepairEquivalents extends SimplePreparableReloadListener<RepairEquivalents.Groups> {
     public static final ResourceLocation FILE =
@@ -100,7 +108,7 @@ public final class RepairEquivalents extends SimplePreparableReloadListener<Repa
     }
 
     /**
-     * Reads the groups of equivalent blocks.
+     * Reads the groups of equivalent blocks and the ignored properties.
      *
      * @param json the content of the file
      * @return the groups
@@ -131,7 +139,11 @@ public final class RepairEquivalents extends SimplePreparableReloadListener<Repa
             }
             groups.add(new Group(name, Set.copyOf(blocks), List.copyOf(tags)));
         }
-        return new Groups(List.copyOf(groups), List.copyOf(skipped));
+        Set<String> ignored = new LinkedHashSet<>();
+        for (JsonElement element : GsonHelper.getAsJsonArray(json, "ignored_properties", new JsonArray())) {
+            ignored.add(GsonHelper.convertToString(element, "ignored_properties"));
+        }
+        return new Groups(groups, skipped, ignored);
     }
 
     /**
@@ -142,21 +154,61 @@ public final class RepairEquivalents extends SimplePreparableReloadListener<Repa
      * @param tags   the block tags of the group
      */
     public record Group(String name, Set<Block> blocks, List<TagKey<Block>> tags) {
-        /** True if a block state is in the group. */
-        public boolean contains(BlockState state) {
-            return blocks.contains(state.getBlock()) || tags.stream().anyMatch(state::is);
-        }
     }
 
-    /**
-     * The groups of the file.
-     *
-     * @param groups  the groups
-     * @param skipped the block ids of the file that are not in the block registry
-     */
-    public record Groups(List<Group> groups, List<ResourceLocation> skipped) {
-        /** No group. */
-        public static final Groups EMPTY = new Groups(List.of(), List.of());
+    /** The groups of a block tag, by index. */
+    private record TagGroups(TagKey<Block> tag, BitSet groups) {
+    }
+
+    /** The groups of the file, with an index from each block and each tag to its groups. */
+    public static final class Groups {
+        /** No group and no ignored property. */
+        public static final Groups EMPTY = new Groups(List.of(), List.of(), Set.of());
+
+        private final List<Group> groups;
+        private final List<ResourceLocation> skipped;
+        private final Set<String> ignoredProperties;
+        private final Map<Block, BitSet> blockGroups = new HashMap<>();
+        private final List<TagGroups> tagGroups = new ArrayList<>();
+
+        /**
+         * Makes the groups and their index.
+         *
+         * @param groups            the groups
+         * @param skipped           the block ids of the file that are not in the block registry
+         * @param ignoredProperties the names of the properties that the comparison of the repairs ignores
+         */
+        public Groups(List<Group> groups, List<ResourceLocation> skipped, Set<String> ignoredProperties) {
+            this.groups = List.copyOf(groups);
+            this.skipped = List.copyOf(skipped);
+            this.ignoredProperties = Set.copyOf(ignoredProperties);
+            Map<TagKey<Block>, BitSet> tags = new LinkedHashMap<>();
+            for (int index = 0; index < this.groups.size(); index++) {
+                Group group = this.groups.get(index);
+                for (Block block : group.blocks()) {
+                    blockGroups.computeIfAbsent(block, key -> new BitSet()).set(index);
+                }
+                for (TagKey<Block> tag : group.tags()) {
+                    tags.computeIfAbsent(tag, key -> new BitSet()).set(index);
+                }
+            }
+            tags.forEach((tag, bits) -> tagGroups.add(new TagGroups(tag, bits)));
+        }
+
+        /** The groups. */
+        public List<Group> groups() {
+            return groups;
+        }
+
+        /** The block ids of the file that are not in the block registry. */
+        public List<ResourceLocation> skipped() {
+            return skipped;
+        }
+
+        /** The names of the properties that the comparison of the repairs ignores. */
+        public Set<String> ignoredProperties() {
+            return ignoredProperties;
+        }
 
         /**
          * True if two blocks are in one group.
@@ -166,12 +218,33 @@ public final class RepairEquivalents extends SimplePreparableReloadListener<Repa
          * @return true if a group contains the two blocks
          */
         public boolean areEquivalent(BlockState actual, BlockState expected) {
-            for (Group group : groups) {
-                if (group.contains(actual) && group.contains(expected)) {
-                    return true;
+            BitSet actualGroups = groupsOf(actual);
+            if (actualGroups == null) {
+                return false;
+            }
+            BitSet expectedGroups = groupsOf(expected);
+            return expectedGroups != null && actualGroups.intersects(expectedGroups);
+        }
+
+        /** The indexes of the groups of a block, or null when no group contains it. */
+        private BitSet groupsOf(BlockState state) {
+            BitSet direct = blockGroups.get(state.getBlock());
+            BitSet result = direct;
+            for (TagGroups entry : tagGroups) {
+                if (state.is(entry.tag())) {
+                    if (result == direct) {
+                        result = direct == null ? new BitSet() : (BitSet) direct.clone();
+                    }
+                    result.or(entry.groups());
                 }
             }
-            return false;
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Groups[groups=" + groups + ", skipped=" + skipped + ", ignoredProperties=" + ignoredProperties
+                    + "]";
         }
     }
 }
