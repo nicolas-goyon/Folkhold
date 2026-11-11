@@ -243,6 +243,8 @@ public final class BuilderSite {
     private final Set<BlockPos> scaffolding = new LinkedHashSet<>();
     /** The index of the placement step of each position of the steps, with the other part of a block of two parts. */
     private Map<BlockPos, Integer> placements = Map.of();
+    /** The index of the removal step of each position of the steps, with the other part of a block of two parts. */
+    private Map<BlockPos, Integer> removals = Map.of();
 
     @Nullable
     private BoundingBox box;
@@ -533,15 +535,16 @@ public final class BuilderSite {
             if (current.isApplied(i)) {
                 continue;
             }
-            BuilderMaterials.Material material = materialOf(level, i);
-            switch (material.kind()) {
-                case RARE -> {
-                    quantities.merge(material.item(), 1.0, Double::sum);
-                    rarePrices.put(material.item(), material.price());
-                }
-                case COMMON -> material.cost().forEach((item, quantity) -> quantities.merge(item, quantity,
-                        Double::sum));
-                case FREE -> {
+            for (BuilderMaterials.Material material : materialsOf(level, i, false)) {
+                switch (material.kind()) {
+                    case RARE -> {
+                        quantities.merge(material.item(), 1.0, Double::sum);
+                        rarePrices.put(material.item(), material.price());
+                    }
+                    case COMMON -> material.cost().forEach((item, quantity) -> quantities.merge(item, quantity,
+                            Double::sum));
+                    case FREE -> {
+                    }
                 }
             }
         }
@@ -561,22 +564,42 @@ public final class BuilderSite {
         return needs;
     }
 
-    /** The material of a step: the block of a placement of the plan. The other steps use no materials. */
-    private BuilderMaterials.Material materialOf(ServerLevel level, int index) {
+    /**
+     * The materials of a step: the items of the block state of a placement of the plan (see
+     * {@link BuilderMaterials#placement}). The other steps use no materials. The block in place counts only when no
+     * removal step of the plan removes it before the placement: else the placement goes on air.
+     *
+     * @param level    the level
+     * @param index    the index of the step
+     * @param absolute true for the cost of the state on air, with no block in place
+     */
+    private List<BuilderMaterials.Material> materialsOf(ServerLevel level, int index, boolean absolute) {
         Step step = stepAt(index);
         ConstructionRun plan = run;
         if (phase != Phase.BUILD || step.type() != StepType.PLACE || plan == null
                 || (isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get())) {
-            return BuilderMaterials.Material.NONE;
+            return List.of();
         }
-        return plan.state(step.state())
-                .map(state -> BuilderMaterials.of(level.getServer(), state.getBlock().asItem()))
-                .orElse(BuilderMaterials.Material.NONE);
+        BlockPos pos = BlockKinds.toBlockPos(step.pos());
+        Integer removal = removals.get(pos);
+        boolean removed = absolute || (removal != null && removal < index && !schedule().isApplied(removal));
+        BlockState current = removed ? Blocks.AIR.defaultBlockState() : level.getBlockState(pos);
+        return plan.state(step.state()).map(state -> BuilderMaterials.placement(level, pos, state, current))
+                .orElse(List.of());
+    }
+
+    /**
+     * True if the village keeps the items of a change at a position: a village with an economy, out of the fences and
+     * the scaffolding of the site, and not a repair with free materials.
+     */
+    private boolean keepsItems(BlockPos pos) {
+        return settlement != null && !fences.contains(pos) && !scaffolding.contains(pos)
+                && !(isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get());
     }
 
     /** True if the stock of the village has the materials of a step (see {@link SiteMaterials}). */
     boolean hasMaterials(ServerLevel level, int index) {
-        return materials.has(materialOf(level, index), settlement, level.getGameTime());
+        return materials.has(materialsOf(level, index, false), settlement, level.getGameTime());
     }
 
     /** The items that the builders wait for now, by item id. */
@@ -948,15 +971,19 @@ public final class BuilderSite {
         run = newRun;
         schedule = new SiteSchedule<>(steps.size(), ordered);
         Map<BlockPos, Integer> found = new HashMap<>();
+        Map<BlockPos, Integer> removed = new HashMap<>();
         for (int i = 0; i < steps.size(); i++) {
             Step step = steps.get(i);
-            if (step.type() == StepType.PLACE) {
-                found.put(BlockKinds.toBlockPos(step.pos()), i);
+            Map<BlockPos, Integer> target = step.type() == StepType.PLACE ? found
+                    : step.type() == StepType.REMOVE ? removed : null;
+            if (target != null) {
+                target.put(BlockKinds.toBlockPos(step.pos()), i);
                 int index = i;
-                step.partner().ifPresent(partner -> found.put(BlockKinds.toBlockPos(partner), index));
+                step.partner().ifPresent(partner -> target.put(BlockKinds.toBlockPos(partner), index));
             }
         }
         placements = Map.copyOf(found);
+        removals = Map.copyOf(removed);
     }
 
     /**
@@ -979,6 +1006,7 @@ public final class BuilderSite {
         run = null;
         schedule = null;
         placements = Map.of();
+        removals = Map.of();
         ways = null;
         dirty = true;
         return true;
@@ -1392,13 +1420,20 @@ public final class BuilderSite {
                     current.markApplied(index);
                     return Applied.APPLIED;
                 }
-                if (!materials.take(materialOf(level, index), settlement, level.getServer(), level.getGameTime())) {
+                if (!materials.take(materialsOf(level, index, false), settlement, level.getServer(), level.getGameTime())) {
                     return Applied.WAITING;
                 }
                 dirty = true;
-                Map<String, Double> removed = removedItems(level, step, pos);
+                BuilderMaterials.Removal removed = removedItems(level, step, pos);
+                Map<String, Double> surplus = step.type() == StepType.PLACE && keepsItems(pos)
+                        ? plan.state(step.state()).map(state -> BuilderMaterials.surplus(level, pos, state))
+                                .orElse(Map.of())
+                        : Map.of();
                 plan.applyNext();
-                materials.keep(removed, settlement, level.getServer());
+                materials.keepContents(removed.contents(), settlement, level.getServer())
+                        .forEach(content -> BuilderMaterials.drop(level, content.pos(), content.stack()));
+                materials.keep(removed.items(), settlement, level.getServer());
+                materials.keep(surplus, settlement, level.getServer());
                 if (step.type() == StepType.PLACE_SCAFFOLDING) {
                     dirty |= scaffolding.add(pos);
                 } else if (step.type() == StepType.REMOVE_SCAFFOLDING) {
@@ -1433,26 +1468,32 @@ public final class BuilderSite {
 
     /**
      * The items of the economy that the village keeps from the block of a step, before the step applies (see
-     * {@link BuilderMaterials#removedItems}). Only a removal step gives items. The fences and the scaffolding of the
-     * site give nothing. A village with no economy and a repair with free materials keep nothing. A removal also gives
-     * nothing when the block that the plan places at this position uses no materials, for example a flower pot with a
-     * plant (its block has no item): else a block that a player changes again and again (an empty flower pot) gives
-     * items from nothing at each repair.
+     * {@link BuilderMaterials#removedItems}). Only a removal step gives items. The contents of a removed container go
+     * into the stock, or fall in the level.
+     *
+     * <ul>
+     *   <li>The fences and the scaffolding of the site give nothing.</li>
+     *   <li>A village with no economy and a repair with free materials keep nothing: all the contents fall.</li>
+     *   <li>A removal also keeps nothing when the block of the plan at this position uses no materials on air: a
+     *       block of the tag {@link BuilderMaterials#FREE}, or a block with no item and no stable drops. Else a block
+     *       that changes again and again at such a position gives items from nothing at each repair, because the
+     *       placement costs nothing. The other placements cost the items that the removal of the same block gives
+     *       (see {@link BuilderMaterials#itemsOf}), for example a flower pot and a plant. The test uses the cost on
+     *       air: the plan can remove a block that is equal to its target and place it again, for example a torch on
+     *       a removed support or a sign with other text.</li>
+     * </ul>
      */
-    private Map<String, Double> removedItems(ServerLevel level, Step step, BlockPos pos) {
-        if (step.type() != StepType.REMOVE || settlement == null || fences.contains(pos) || scaffolding.contains(pos)
-                || (isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get())) {
-            return Map.of();
+    private BuilderMaterials.Removal removedItems(ServerLevel level, Step step, BlockPos pos) {
+        if (step.type() != StepType.REMOVE) {
+            return BuilderMaterials.Removal.NONE;
         }
         Integer placement = placements.get(pos);
-        if (placement != null && materialOf(level, placement).kind() == BuilderMaterials.Kind.FREE) {
-            return Map.of();
-        }
+        boolean keep = keepsItems(pos) && (placement == null || !materialsOf(level, placement, true).isEmpty());
         Block block = level.getBlockState(pos).getBlock();
         List<BlockPos> positions = new ArrayList<>(List.of(pos));
         step.partner().map(BlockKinds::toBlockPos).filter(other -> level.getBlockState(other).is(block))
                 .ifPresent(positions::add);
-        return BuilderMaterials.removedItems(level, positions);
+        return BuilderMaterials.removedItems(level, positions, keep);
     }
 
     /** Puts a fence at a position that is still free. The fence connects to the fences next to it. */

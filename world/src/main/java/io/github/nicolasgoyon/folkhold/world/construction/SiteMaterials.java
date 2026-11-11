@@ -14,6 +14,7 @@ import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestSystem;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -86,41 +87,55 @@ final class SiteMaterials {
         return Map.copyOf(buffer);
     }
 
+    /** The sum of the costs of the common materials of a block, in items of the economy. */
+    private static Map<String, Double> cost(List<Material> materials) {
+        Map<String, Double> cost = new LinkedHashMap<>();
+        materials.stream().filter(material -> material.kind() == Kind.COMMON)
+                .forEach(material -> material.cost().forEach((item, quantity) -> cost.merge(item, quantity,
+                        Double::sum)));
+        return cost;
+    }
+
     /**
-     * The whole items that a block needs from the stock. For a common block, these are the parts of items that the
-     * site does not have. For a rare block, this is the block itself.
+     * The whole items that a block needs from the stock. For the common materials, these are the parts of items that
+     * the site does not have. For a rare material, this is the item itself.
      */
-    private Map<String, Integer> units(Material material) {
+    private Map<String, Integer> units(List<Material> materials) {
         Map<String, Integer> units = new LinkedHashMap<>();
-        if (material.kind() == Kind.RARE) {
-            units.put(material.item(), 1);
-        } else if (material.kind() == Kind.COMMON) {
-            material.cost().forEach((item, quantity) -> {
-                double lacking = quantity - buffer.getOrDefault(item, 0.0);
-                if (lacking > EPSILON) {
-                    units.put(item, (int) Math.ceil(lacking - EPSILON));
-                }
-            });
-        }
+        materials.stream().filter(material -> material.kind() == Kind.RARE)
+                .forEach(material -> units.merge(material.item(), 1, Integer::sum));
+        commonUnits(cost(materials)).forEach((item, count) -> units.merge(item, count, Integer::sum));
+        return units;
+    }
+
+    /** The whole items that a cost needs from the stock: the parts of items that the site does not have. */
+    private Map<String, Integer> commonUnits(Map<String, Double> cost) {
+        Map<String, Integer> units = new LinkedHashMap<>();
+        cost.forEach((item, quantity) -> {
+            double lacking = quantity - buffer.getOrDefault(item, 0.0);
+            if (lacking > EPSILON) {
+                units.put(item, (int) Math.ceil(lacking - EPSILON));
+            }
+        });
         return units;
     }
 
     /**
-     * True if the stock of the village has the materials of a block. A free block, or a village with no economy,
-     * needs no materials.
+     * True if the stock of the village has the materials of a block. A block with no materials, or a village with no
+     * economy, needs no materials.
      *
-     * @param material   the material of the block
+     * @param materials  the materials of the block: one material for each item (see {@link BuilderMaterials#placement})
      * @param settlement the village, or null
      * @param now        the game time
      * @return true if the builders can make the block now
      */
-    boolean has(Material material, @Nullable Settlement settlement, long now) {
-        if (material.kind() == Kind.FREE || settlement == null) {
+    boolean has(List<Material> materials, @Nullable Settlement settlement, long now) {
+        if (materials.isEmpty() || settlement == null) {
             return true;
         }
         Stock stock = settlement.economy().stock();
         boolean all = true;
-        for (Map.Entry<String, Integer> entry : units(material).entrySet()) {
+        for (Map.Entry<String, Integer> entry : units(materials).entrySet()) {
             if (stock.count(entry.getKey()) < entry.getValue()) {
                 missing.add(entry.getKey());
                 waitingSince.putIfAbsent(entry.getKey(), now);
@@ -134,30 +149,29 @@ final class SiteMaterials {
      * Takes the materials of a block from the stock of the village. When the stock does not have all the materials,
      * nothing changes.
      *
-     * @param material   the material of the block
+     * @param materials  the materials of the block: one material for each item
      * @param settlement the village, or null
      * @param server     the server: the method marks the settlements as changed
      * @param now        the game time
      * @return true if the builders took the materials
      */
-    boolean take(Material material, @Nullable Settlement settlement, MinecraftServer server, long now) {
-        if (!has(material, settlement, now)) {
+    boolean take(List<Material> materials, @Nullable Settlement settlement, MinecraftServer server, long now) {
+        if (!has(materials, settlement, now)) {
             return false;
         }
-        if (material.kind() == Kind.FREE || settlement == null) {
+        if (materials.isEmpty() || settlement == null) {
             return true;
         }
         Stock stock = settlement.economy().stock();
-        Map<String, Integer> units = units(material);
+        Map<String, Integer> units = units(materials);
         units.forEach((item, count) -> {
             stock.remove(item, count);
             waitingSince.remove(item);
         });
-        if (material.kind() == Kind.COMMON) {
-            units.forEach((item, count) -> buffer.merge(item, (double) count, Double::sum));
-            material.cost().forEach((item, quantity) -> buffer.merge(item, -quantity, Double::sum));
-            buffer.values().removeIf(quantity -> quantity < EPSILON);
-        }
+        Map<String, Double> cost = cost(materials);
+        Map<String, Integer> common = commonUnits(cost);
+        cost.forEach((item, quantity) -> buffer.merge(item, common.getOrDefault(item, 0) - quantity, Double::sum));
+        buffer.values().removeIf(quantity -> quantity < EPSILON);
         SettlementData.get(server).setDirty();
         return true;
     }
@@ -206,6 +220,52 @@ final class SiteMaterials {
         });
         buffer.values().removeIf(quantity -> quantity < EPSILON);
         SettlementData.get(server).setDirty();
+    }
+
+    /**
+     * Keeps the items of removed containers that can go into the stock (see {@link BuilderMaterials#removedItems}),
+     * as with {@link #keep}. The stock takes the items of a stack only up to its stock capacity: the method counts the
+     * stock and the parts of items of the site before each stack. The other items of the stack do not go into the
+     * stock: the caller drops them in the level.
+     *
+     * @param contents   the items of the containers
+     * @param settlement the village, or null: a village with no economy keeps nothing
+     * @param server     the server: the method marks the settlements as changed
+     * @return the items that do not go into the stock
+     */
+    List<BuilderMaterials.Content> keepContents(List<BuilderMaterials.Content> contents,
+            @Nullable Settlement settlement, MinecraftServer server) {
+        if (contents.isEmpty() || settlement == null) {
+            return contents;
+        }
+        int capacity = LevelTables.get().traits(settlement.level()).stockCapacity();
+        Stock stock = settlement.economy().stock();
+        List<BuilderMaterials.Content> rest = new ArrayList<>();
+        for (BuilderMaterials.Content content : contents) {
+            int count = content.stack().getCount();
+            int fits = count;
+            while (fits > 0 && !fits(content.cost(), fits, stock, capacity)) {
+                fits--;
+            }
+            if (fits > 0) {
+                Map<String, Double> items = new TreeMap<>();
+                int kept = fits;
+                content.cost().forEach((item, quantity) -> items.put(item, quantity * kept));
+                keep(items, settlement, server);
+            }
+            if (fits < count) {
+                rest.add(new BuilderMaterials.Content(content.pos(), content.stack().copyWithCount(count - fits),
+                        content.cost()));
+            }
+        }
+        return rest;
+    }
+
+    /** True if the stock has space for the cost of a number of items, with the parts of items of the site. */
+    private boolean fits(Map<String, Double> cost, int count, Stock stock, int capacity) {
+        return cost.entrySet().stream().allMatch(entry -> stock.count(entry.getKey())
+                + (int) Math.floor(buffer.getOrDefault(entry.getKey(), 0.0) + entry.getValue() * count + EPSILON)
+                <= capacity);
     }
 
     /**

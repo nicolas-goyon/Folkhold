@@ -1,5 +1,5 @@
 {
   "category": "new",
-  "en_us": "The builders keep the blocks that they break on a construction site or during a repair: the village gets the drops of these blocks in its stock.",
-  "fr_fr": "Les bâtisseurs gardent les blocs qu'ils cassent sur un chantier ou pendant une réparation : le village reçoit les objets de ces blocs dans son stock."
+  "en_us": "The builders keep the blocks that they break on a construction site or during a repair: the village gets their drops and the items of their containers in its stock. A block costs the items of its state: a double slab costs 2 slabs, a pot with a plant costs a pot and a plant.",
+  "fr_fr": "Les bâtisseurs gardent les blocs qu'ils cassent sur un chantier ou pendant une réparation : le village reçoit leurs objets et le contenu de leurs conteneurs dans son stock. Un bloc coûte les objets de son état : une double dalle coûte 2 dalles, un pot avec une plante coûte un pot et une plante."
 }
