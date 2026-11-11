@@ -88,7 +88,7 @@ public final class MarketGrowthGameTests {
     public static void buildersBuildTheMarket(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BuilderSites.stop(level);
-        WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(1);
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_BUILDER_TICKS, 1);
         VillageHeartBlockEntity heart = village(helper, HUGE, List.of(
                 new VillagePlots.Plot(helper.absolutePos(CONNECTOR), Direction.EAST, HOUSE_FRONT, false),
                 new VillagePlots.Plot(helper.absolutePos(SECOND_CONNECTOR), Direction.EAST, HOUSE_FRONT, false)));
@@ -102,9 +102,7 @@ public final class MarketGrowthGameTests {
         settlement.setProgress(5, 0);
         settlement.economy().setPopulation(20);
         // The construction is longer than a day: the test stops the cycle of the day, else the builders stop at night.
-        GameRules.BooleanValue daylight = level.getGameRules().getRule(GameRules.RULE_DAYLIGHT);
-        boolean cycle = daylight.get();
-        daylight.set(false, level.getServer());
+        TestSupport.setGameRuleForTest(helper, GameRules.RULE_DAYLIGHT, false);
         level.setDayTime(TestSupport.NOON);
 
         Optional<BuilderSite> site = VillageGrowth.check(level, heart);
@@ -137,8 +135,6 @@ public final class MarketGrowthGameTests {
                             : Optional.of(sites.get(0));
                     BlockPos nextOrigin = next.map(BuilderSite::origin).orElse(null);
                     BuilderSites.stop(level);
-                    daylight.set(cycle, level.getServer());
-                    WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
                     VillageRepairData.get(level).forget(heartPos);
                     cleanUp(level, heart);
                     level.setBlock(heartPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
@@ -324,8 +320,8 @@ public final class MarketGrowthGameTests {
         heart.ensureGarrison(level.getGameTime());
         helper.assertTrue(heart.getLayout().markets().size() == 1, "The heart must find the market sign: "
                 + heart.getLayout().markets());
-        // The village helper turns the growth on, and its listener sets the value back at the end of the test.
-        WorldConfig.CONSTRUCTION_GROWTH.set(false);
+        // The village helper turns the growth on. The listener of its first change sets the value back at the end.
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_GROWTH, false);
         level.setBlock(heart.getLayout().markets().get(0), Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
 
         Optional<BuilderSite> again = VillageGrowth.check(level, heart);

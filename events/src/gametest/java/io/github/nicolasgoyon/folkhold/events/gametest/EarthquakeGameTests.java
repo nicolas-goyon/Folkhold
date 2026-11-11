@@ -65,7 +65,8 @@ public final class EarthquakeGameTests {
      */
     private static void prepare(GameTestHelper helper, int sizeX, int sizeZ) {
         Earthquakes.stop(helper.getLevel());
-        EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.set(EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.getDefault());
+        EventTestSupport.setConfigForTest(helper, EventsConfig.EARTHQUAKE_RESISTANT_CHANCE,
+                EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.getDefault());
         EventTestSupport.stoneFloor(helper, sizeX, sizeZ);
     }
 
@@ -254,7 +255,7 @@ public final class EarthquakeGameTests {
     public static void cracksDoNotCutWallsAndPlatforms(GameTestHelper helper) {
         prepare(helper, 40, 32);
         grassFloor(helper);
-        EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.set(0.0);
+        EventTestSupport.setConfigForTest(helper, EventsConfig.EARTHQUAKE_RESISTANT_CHANCE, 0.0);
         List<BlockPos> stone = new ArrayList<>();
         for (int x = 2; x < 38; x++) {
             for (int y = 1; y <= 3; y++) {
@@ -275,7 +276,6 @@ public final class EarthquakeGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(earthquake.isDone(), "The earthquake must end"))
                 .thenIdle(LANDING_TICKS)
                 .thenExecute(() -> {
-                    EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.set(EventsConfig.EARTHQUAKE_RESISTANT_CHANCE.getDefault());
                     // Air in the floor: a crack. A grass block below the stone can become dirt.
                     int holes = 0;
                     for (int x = 0; x < 40; x++) {

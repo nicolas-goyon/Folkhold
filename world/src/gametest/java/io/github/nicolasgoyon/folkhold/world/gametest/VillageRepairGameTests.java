@@ -432,7 +432,7 @@ public final class VillageRepairGameTests {
         ServerLevel level = helper.getLevel();
         BlockPos heartPos = heart.getBlockPos();
         BuilderSites.stop(level);
-        WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(1);
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_BUILDER_TICKS, 1);
         VillageHearts.register(level, heartPos);
         helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
         BlockPos origin = templateOrigin(helper, heartPos);
@@ -508,7 +508,6 @@ public final class VillageRepairGameTests {
                     builders.forEach(Entity::discard);
                     // A heart of this template near a later test can take the bank chests of that test.
                     level.setBlock(heartPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
-                    WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
                 })
                 .thenSucceed();
     }
@@ -526,7 +525,7 @@ public final class VillageRepairGameTests {
         MinecraftServer server = level.getServer();
         BlockPos heartPos = heart.getBlockPos();
         BuilderSites.stop(level);
-        WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(1);
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_BUILDER_TICKS, 1);
         VillageHearts.register(level, heartPos);
         helper.assertTrue(heart.getLayout().scan(level, heartPos), "The heart must scan the village");
         heart.ensureSettlement();
@@ -586,7 +585,6 @@ public final class VillageRepairGameTests {
                     int cobblestone = settlement.economy().stock().count(COBBLESTONE);
                     builders.forEach(Entity::discard);
                     level.setBlock(heartPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
-                    WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
                     helper.assertFalse(offered, "The repair must withdraw its offers when the stock has the items");
                     helper.assertTrue(log.is(BlockTags.LOGS), "The repair must replace the stone: " + log);
                     helper.assertTrue(cobblestone == 1, "The village must keep the cobblestone of the removed stone: "

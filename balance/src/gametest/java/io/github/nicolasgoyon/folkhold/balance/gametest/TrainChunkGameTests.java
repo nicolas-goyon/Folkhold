@@ -35,10 +35,14 @@ public final class TrainChunkGameTests {
     private TrainChunkGameTests() {
     }
 
-    /** Sets the config values of the chunk loading to their defaults. */
-    static void resetOptions() {
-        BalanceConfig.TRAIN_LOAD_CHUNKS.set(false);
-        BalanceConfig.TRAIN_MAX_LOADING.set(BalanceConfig.TRAIN_MAX_LOADING.getDefault());
+    /**
+     * Sets the config values of the chunk loading to their defaults for the test. When the test ends, also after a
+     * failure, the values that they had before the test come back.
+     */
+    static void resetOptions(GameTestHelper helper) {
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_LOAD_CHUNKS, false);
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_MAX_LOADING,
+                BalanceConfig.TRAIN_MAX_LOADING.getDefault());
     }
 
     /**
@@ -47,8 +51,8 @@ public final class TrainChunkGameTests {
      */
     @GameTest(template = "express", timeoutTicks = 400, batch = "balance_rails_chunks_move")
     public static void runningLocomotiveThatCannotMoveGivesNoTickets(GameTestHelper helper) {
-        resetOptions();
-        BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
+        resetOptions(helper);
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_LOAD_CHUNKS, true);
         brakeTrack(helper);
         List<AbstractMinecart> train = LocomotiveGameTests.train(helper, ModEntities.FURNACE_LOCOMOTIVE.get(), 2.5,
                 LINE_Z, 0, false);
@@ -71,7 +75,7 @@ public final class TrainChunkGameTests {
                             "The locomotive does not run or has no fuel");
                     helper.assertTrue(locomotive.position().distanceTo(stop.get(0)) < 1.0E-3,
                             "The locomotive moves after its stop");
-                    resetOptions();
+                    resetOptions(helper);
                     LocomotiveGameTests.clear(helper, train);
                 })
                 .thenSucceed();
@@ -83,8 +87,8 @@ public final class TrainChunkGameTests {
      */
     @GameTest(template = "express", timeoutTicks = 400, batch = "balance_rails_chunks_fuel")
     public static void locomotiveThatGivesTicketsBurnsFuelAtItsMaximumSpeed(GameTestHelper helper) {
-        resetOptions();
-        BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
+        resetOptions(helper);
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_LOAD_CHUNKS, true);
         brakeTrack(helper);
         List<AbstractMinecart> train = LocomotiveGameTests.train(helper, ModEntities.FURNACE_LOCOMOTIVE.get(), 2.5,
                 LINE_Z, 0, false);
@@ -110,7 +114,7 @@ public final class TrainChunkGameTests {
                 .thenIdle(2)
                 .thenExecute(() -> {
                     helper.assertTrue(!TrainChunks.isLoading(locomotive), "The locomotive with no fuel gives tickets");
-                    resetOptions();
+                    resetOptions(helper);
                     LocomotiveGameTests.clear(helper, train);
                 })
                 .thenSucceed();
@@ -143,9 +147,9 @@ public final class TrainChunkGameTests {
      */
     @GameTest(template = "express", timeoutTicks = 400, batch = "balance_rails_chunks_limit")
     public static void onlyMaxLoadingTrainsLocomotivesLoadChunks(GameTestHelper helper) {
-        resetOptions();
-        BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
-        BalanceConfig.TRAIN_MAX_LOADING.set(2);
+        resetOptions(helper);
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_LOAD_CHUNKS, true);
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_MAX_LOADING, 2);
         TrainGameTests.floor(helper, SIZE, SIZE);
         List<List<AbstractMinecart>> trains = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
@@ -176,7 +180,7 @@ public final class TrainChunkGameTests {
                     helper.assertTrue(!TrainChunks.isLoading(waiting.get(1)), "The stopped locomotive gives tickets");
                     helper.assertTrue(locomotives.stream().filter(TrainChunks::isLoading).count() == 2,
                             "More than 2 locomotives give tickets");
-                    resetOptions();
+                    resetOptions(helper);
                     trains.forEach(train -> LocomotiveGameTests.clear(helper, train));
                 })
                 .thenSucceed();

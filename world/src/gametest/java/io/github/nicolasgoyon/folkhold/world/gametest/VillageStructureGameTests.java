@@ -305,8 +305,7 @@ public final class VillageStructureGameTests {
      */
     @GameTest(template = "village/center", timeoutTicks = 1200, batch = "village_archer_walk")
     public static void archerWalksToANewTower(GameTestHelper helper) {
-        int rotationSeconds = WorldConfig.ARCHER_ROTATION_SECONDS.get();
-        WorldConfig.ARCHER_ROTATION_SECONDS.set(0);
+        TestSupport.setConfigForTest(helper, WorldConfig.ARCHER_ROTATION_SECONDS, 0);
         VillageHeartBlockEntity heart = TestSupport.findHeart(helper);
         heart.ensureGarrison(helper.getLevel().getGameTime());
         List<ArcherEntity> archers = heart.getUnits().stream()
@@ -358,7 +357,6 @@ public final class VillageStructureGameTests {
         });
         helper.succeedWhen(() -> {
             if (seen[1]) {
-                WorldConfig.ARCHER_ROTATION_SECONDS.set(rotationSeconds);
                 helper.fail("The archer must walk, not move directly to the post" + jump[0]);
             }
             BlockPos post = archer.getPostPos();
@@ -367,7 +365,6 @@ public final class VillageStructureGameTests {
                     "The archer must arrive at the new post " + post.toShortString() + " ("
                             + String.join(" | ", history) + ")");
             helper.assertTrue(seen[0], "The archer must walk on the ground of the compound");
-            WorldConfig.ARCHER_ROTATION_SECONDS.set(rotationSeconds);
             archer.discard();
         });
     }

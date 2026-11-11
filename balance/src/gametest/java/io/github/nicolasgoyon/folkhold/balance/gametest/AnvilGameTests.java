@@ -349,29 +349,25 @@ public final class AnvilGameTests {
      */
     @GameTest(template = "bench", batch = "balance_anvil_vanilla")
     public static void disabledRulesGiveTheVanillaAnvil(GameTestHelper helper) {
-        BalanceConfig.ANVIL_ENABLED.set(false);
-        try {
-            ServerPlayer player = player(helper, 30);
-            AnvilMenu menu = anvil(helper, player);
-            menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
-            menu.getSlot(1).set(book(helper, Enchantments.UNBREAKING, 3));
-            // Vanilla: max(1, 2 / 2) × 3 = 3 levels.
-            assertCost(helper, menu, 3);
-            ItemStack result = take(helper, menu, player);
-            helper.assertTrue(result.getOrDefault(DataComponents.REPAIR_COST, 0) == 1, "The result has no penalty");
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.ANVIL_ENABLED, false);
+        ServerPlayer player = player(helper, 30);
+        AnvilMenu menu = anvil(helper, player);
+        menu.getSlot(0).set(new ItemStack(Items.DIAMOND_PICKAXE));
+        menu.getSlot(1).set(book(helper, Enchantments.UNBREAKING, 3));
+        // Vanilla: max(1, 2 / 2) × 3 = 3 levels.
+        assertCost(helper, menu, 3);
+        ItemStack result = take(helper, menu, player);
+        helper.assertTrue(result.getOrDefault(DataComponents.REPAIR_COST, 0) == 1, "The result has no penalty");
 
-            menu.getSlot(0).set(enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.EFFICIENCY, 5));
-            menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 10));
-            // Vanilla: the level stays at V, max(1, 1 / 2) × 5 = 5 levels.
-            assertCost(helper, menu, 5);
-            helper.assertTrue(level(helper, menu.getSlot(AnvilMenu.RESULT_SLOT).getItem(), Enchantments.EFFICIENCY) == 5,
-                    "The vanilla anvil goes above the max level");
-            String name = Enchantment.getFullname(enchantment(helper, Enchantments.EFFICIENCY), 20).getString();
-            helper.assertTrue(name.endsWith("enchantment.level.20"), "The name is " + name);
-            remove(helper, player);
-        } finally {
-            BalanceConfig.ANVIL_ENABLED.set(true);
-        }
+        menu.getSlot(0).set(enchanted(helper, Items.DIAMOND_PICKAXE, Enchantments.EFFICIENCY, 5));
+        menu.getSlot(1).set(book(helper, Enchantments.EFFICIENCY, 10));
+        // Vanilla: the level stays at V, max(1, 1 / 2) × 5 = 5 levels.
+        assertCost(helper, menu, 5);
+        helper.assertTrue(level(helper, menu.getSlot(AnvilMenu.RESULT_SLOT).getItem(), Enchantments.EFFICIENCY) == 5,
+                "The vanilla anvil goes above the max level");
+        String name = Enchantment.getFullname(enchantment(helper, Enchantments.EFFICIENCY), 20).getString();
+        helper.assertTrue(name.endsWith("enchantment.level.20"), "The name is " + name);
+        remove(helper, player);
         helper.succeed();
     }
 

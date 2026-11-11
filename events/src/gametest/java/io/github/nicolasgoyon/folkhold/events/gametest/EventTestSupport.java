@@ -1,21 +1,34 @@
 package io.github.nicolasgoyon.folkhold.events.gametest;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.gametest.framework.GameTestInfo;
+import net.minecraft.gametest.framework.GameTestListener;
+import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 /** Tools that the GameTests of the events share. */
 final class EventTestSupport {
     /** Time for the last falling or flying blocks to land, in ticks. */
     static final int LANDING_TICKS = 60;
+    /**
+     * The settings (config values and game rules) that each running test changed, for {@link #restoreAtTestEnd}. The
+     * GameTests run on the server thread only.
+     */
+    private static final Map<GameTestInfo, Set<Object>> CHANGED_SETTINGS = new WeakHashMap<>();
 
     private EventTestSupport() {
     }
@@ -76,6 +89,69 @@ final class EventTestSupport {
     /** The time of the last complete tick of the server, in nanoseconds. */
     static long lastTickNanos(MinecraftServer server) {
         return server.getTickTimesNanos()[(server.getTickCount() - 1) % 100];
+    }
+
+    /**
+     * Sets a config value for one test. When the test ends (pass, failure or timeout), a listener sets the value that
+     * the config had before the first change of the test: the next tests see this value also after a failure. Only
+     * the first change of a value in a test adds a listener, so a test can change the same value more than one time.
+     *
+     * @see "TestSupport.setConfigForTest in the GameTests of the world module: the same restore of a config value"
+     */
+    static <T> void setConfigForTest(GameTestHelper helper, ModConfigSpec.ConfigValue<T> value, T newValue) {
+        T old = value.get();
+        restoreAtTestEnd(helper, value, () -> value.set(old));
+        value.set(newValue);
+    }
+
+    /**
+     * Sets a boolean game rule for one test. When the test ends (pass, failure or timeout), a listener sets the value
+     * that the rule had before the first change of the test, as {@link #setConfigForTest}. The game rule applies to the
+     * full level: a test that uses this method goes in its own batch.
+     */
+    static void setGameRuleForTest(GameTestHelper helper, GameRules.Key<GameRules.BooleanValue> key,
+            boolean newValue) {
+        MinecraftServer server = helper.getLevel().getServer();
+        GameRules.BooleanValue rule = helper.getLevel().getGameRules().getRule(key);
+        boolean old = rule.get();
+        restoreAtTestEnd(helper, key, () -> rule.set(old, server));
+        rule.set(newValue, server);
+    }
+
+    /**
+     * Runs the restore of a setting when the test ends, only for the first change of this setting in the test. The
+     * listeners of a test run in their order: a second listener for the same setting would set the value of the
+     * first change again.
+     */
+    private static void restoreAtTestEnd(GameTestHelper helper, Object setting, Runnable restore) {
+        Set<Object> changed = CHANGED_SETTINGS.computeIfAbsent(helper.testInfo, info -> new HashSet<>());
+        if (!changed.add(setting)) {
+            return;
+        }
+        helper.testInfo.addListener(new GameTestListener() {
+            @Override
+            public void testStructureLoaded(GameTestInfo info) {
+            }
+
+            @Override
+            public void testPassed(GameTestInfo info, GameTestRunner runner) {
+                restoreSetting();
+            }
+
+            @Override
+            public void testFailed(GameTestInfo info, GameTestRunner runner) {
+                restoreSetting();
+            }
+
+            @Override
+            public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
+            }
+
+            private void restoreSetting() {
+                restore.run();
+                CHANGED_SETTINGS.remove(helper.testInfo);
+            }
+        });
     }
 
     /** The tick times of the server in a period. */
