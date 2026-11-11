@@ -10,10 +10,12 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Cell;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Gate;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Segment;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Side;
+import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.SideLine;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Tower;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Random;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -170,6 +172,154 @@ class WallLayoutTest {
         assertThrows(IllegalArgumentException.class,
                 () -> WallLayout.plan(pieces, MARGIN, WallLayout.MIN_TOWER_SPACING - 1, List.of()));
         assertThrows(IllegalArgumentException.class, () -> new Box(1, 0, 0, 0));
+    }
+
+    /**
+     * A ring is the inner outline with the band on each side. Its sides are 2 bands longer than the inner sides, thus the
+     * ring of the smallest wall has the smallest side of a ring. The ring has no gap and obeys the tower rules.
+     */
+    @Test
+    void ringIsTheInnerOutlineWithTheBand() {
+        WallLayout inner = WallLayout.plan(List.of(new Box(0, 0, 4, 4)), MARGIN, SPACING, gatesAtTheMiddle(2, 2));
+
+        for (int band = WallLayout.MIN_BAND; band <= WallLayout.MAX_BAND; band++) {
+            WallLayout ring = WallLayout.ring(inner, band);
+
+            assertEquals(inner.outline().grow(band), ring.outline());
+            assertEquals(WallLayout.MIN_SIDE + 2 * band, ring.outline().width());
+            assertEquals(WallLayout.MIN_SIDE + 2 * band, ring.outline().depth());
+            assertEquals(SPACING, ring.towerSpacing());
+            assertClosed(ring);
+            assertTowerRules(ring, SPACING);
+        }
+    }
+
+    /**
+     * The gates of each ring are on the axes of the arms: the same positions as the gates of the inner wall, also when
+     * a gate of the inner wall moved away from a corner. A side with no inner gate has no gate in the ring.
+     */
+    @Test
+    void ringGatesContinueTheArms() {
+        WallLayout inner = WallLayout.plan(List.of(new Box(-30, -20, 34, 41)), MARGIN, SPACING,
+                List.of(new Gate(Side.NORTH, 3), new Gate(Side.EAST, -100), new Gate(Side.SOUTH, 3)));
+
+        List<WallLayout> walls = WallLayout.rings(inner, 3, 28);
+
+        for (WallLayout ring : walls) {
+            assertEquals(inner.gates(), ring.gates());
+            assertTrue(ring.gates().stream().noneMatch(gate -> gate.side() == Side.WEST), "No west gate");
+        }
+        assertEquals(new Gate(Side.EAST, inner.outline().minZ() + WallLayout.TOWER + WallLayout.STAIR
+                + WallLayout.GATE_CLEARANCE + WallLayout.GATE / 2), walls.get(3).gates().get(1));
+    }
+
+    /** The band of a ring is 24 to 32 blocks, and the number of rings is 0 or more. */
+    @Test
+    void ringBandLimits() {
+        WallLayout inner = WallLayout.plan(List.of(new Box(0, 0, 40, 40)), MARGIN, SPACING, gatesAtTheMiddle(20, 20));
+
+        WallLayout.ring(inner, WallLayout.MIN_BAND);
+        WallLayout.ring(inner, WallLayout.MAX_BAND);
+        IllegalArgumentException small = assertThrows(IllegalArgumentException.class,
+                () -> WallLayout.ring(inner, WallLayout.MIN_BAND - 1));
+        assertEquals("The band of a ring must be 24 to 32 blocks: 23", small.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> WallLayout.ring(inner, WallLayout.MAX_BAND + 1));
+        assertThrows(IllegalArgumentException.class, () -> WallLayout.rings(inner, -1, 28));
+        assertEquals(List.of(inner), WallLayout.rings(inner, 0, 28));
+    }
+
+    /**
+     * For many villages, each ring has no gap and obeys the tower rules. A ring does not touch the ring inside it: its
+     * line is one band from the inner line, and its towers stay outside the inner outline.
+     */
+    @Test
+    void nestedRingsDoNotOverlap() {
+        Random random = new Random(651);
+        for (int run = 0; run < 200; run++) {
+            int x = random.nextInt(120) - 60;
+            int z = random.nextInt(120) - 60;
+            Box pieces = new Box(x, z, x + random.nextInt(160), z + random.nextInt(160));
+            int spacing = WallLayout.MIN_TOWER_SPACING + random.nextInt(30);
+            int band = WallLayout.MIN_BAND + random.nextInt(WallLayout.MAX_BAND - WallLayout.MIN_BAND + 1);
+            WallLayout inner = WallLayout.plan(List.of(pieces), random.nextInt(8), spacing,
+                    gatesAtTheMiddle(x + random.nextInt(160), z + random.nextInt(160)));
+
+            List<WallLayout> walls = WallLayout.rings(inner, 3, band);
+
+            assertEquals(4, walls.size());
+            for (int k = 1; k < walls.size(); k++) {
+                WallLayout ring = walls.get(k);
+                Box before = walls.get(k - 1).outline();
+                assertEquals(before.grow(band), ring.outline());
+                assertClosed(ring);
+                assertTowerRules(ring, spacing);
+                Box near = before.grow(band - WallLayout.TOWER);
+                for (Tower tower : ring.towers()) {
+                    Box box = ring.towerBox(tower);
+                    assertFalse(box.minX() <= near.maxX() && box.maxX() >= near.minX() && box.minZ() <= near.maxZ()
+                            && box.maxZ() >= near.minZ(), tower + " stays " + (band - WallLayout.TOWER)
+                            + " blocks or more from " + before);
+                }
+            }
+        }
+    }
+
+    /** The sides as lines: clockwise, joined at the corners, with the towers and the gate of each side. */
+    @Test
+    void sidesAreJoinedLines() {
+        WallLayout inner = WallLayout.plan(List.of(new Box(-25, -25, 25, 25)), MARGIN, SPACING,
+                List.of(new Gate(Side.NORTH, 0), new Gate(Side.EAST, 0), new Gate(Side.SOUTH, 0)));
+        WallLayout ring = WallLayout.ring(inner, 30);
+
+        List<SideLine> lines = ring.sides();
+
+        assertEquals(List.of(Side.values()), lines.stream().map(SideLine::side).toList());
+        for (int i = 0; i < lines.size(); i++) {
+            SideLine line = lines.get(i);
+            assertEquals(lines.get((i + 1) % lines.size()).start(), line.end());
+            assertEquals(ring.cell(line.side(), 0), line.start());
+            assertEquals(ring.towers().stream().filter(tower -> tower.side() == line.side()).map(Tower::along)
+                    .toList(), line.towers());
+        }
+        assertEquals(121, lines.get(0).length());
+        assertEquals(OptionalInt.of(60), lines.get(0).gate());
+        assertEquals(OptionalInt.empty(), lines.get(3).gate());
+    }
+
+    /** The walls of a tier: the inner wall and the rings of the village size of the tier. */
+    @Test
+    void ringsOfATier() {
+        WallLayout inner = WallLayout.plan(List.of(new Box(-60, -60, 60, 60)), MARGIN, SPACING,
+                gatesAtTheMiddle(0, 0));
+        int[] expected = {0, 0, 1, 2, 3};
+        String[] tiers = {"hamlet", "village", "town", "city", "capital"};
+
+        for (int i = 0; i < tiers.length; i++) {
+            VillageSize size = VillageSizeTable.DEFAULT.size(tiers[i]).orElseThrow();
+
+            List<WallLayout> walls = WallLayout.rings(inner, size, 28);
+
+            assertEquals(expected[i] + 1, walls.size(), tiers[i]);
+            assertEquals(inner, walls.get(0));
+        }
+    }
+
+    /**
+     * The outer ring of a capital (3 rings) around cores of typical half sides. The half side of the outer ring is the
+     * half side of the core and 3 bands.
+     */
+    @Test
+    void capitalOuterRadius() {
+        VillageSize capital = VillageSizeTable.DEFAULT.size("capital").orElseThrow();
+        for (int half : new int[] {85, 105}) {
+            WallLayout inner = WallLayout.plan(List.of(new Box(-half + 5, -half + 5, half - 5, half - 5)), MARGIN,
+                    SPACING, gatesAtTheMiddle(0, 0));
+            for (int band : new int[] {WallLayout.MIN_BAND, 28, WallLayout.MAX_BAND}) {
+                Box outer = WallLayout.rings(inner, capital, band).get(3).outline();
+
+                assertEquals(new Box(-half - 3 * band, -half - 3 * band, half + 3 * band, half + 3 * band), outer);
+            }
+        }
     }
 
     private static List<Gate> gatesAtTheMiddle(int x, int z) {
