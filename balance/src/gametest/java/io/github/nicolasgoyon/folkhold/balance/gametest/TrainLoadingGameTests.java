@@ -217,7 +217,7 @@ public final class TrainLoadingGameTests {
                 .thenExecute(() -> {
                     double moved = carts.get(0).position().distanceTo(start.get(0));
                     helper.assertTrue(moved < 0.1, "Option off: the locomotive moves " + moved + " blocks");
-                    BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
+                    BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_LOAD_CHUNKS, true);
                     // The locomotive did not move yet, so it gives no tickets: a player comes near.
                     far.ticket(far.east, 2);
                 })
@@ -245,7 +245,7 @@ public final class TrainLoadingGameTests {
                     // The train is removed while it is loaded, so that it is not saved in the chunks. The tickets of
                     // the test stay until the end of the check: only the tickets of the train go away.
                     far.clearEntities(carts);
-                    BalanceConfig.TRAIN_LOAD_CHUNKS.set(false);
+                    BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_LOAD_CHUNKS, false);
                 })
                 .thenWaitUntil(withinTicks(helper, () -> helper.assertTrue(!isEntityTicking(far, ahead.get(0)),
                         "The chunk in front of the removed locomotive keeps its ticket")))
@@ -261,7 +261,7 @@ public final class TrainLoadingGameTests {
     @GameTest(template = "bench", timeoutTicks = CHUNK_TEST_TICKS, batch = "balance_rails_load_chunks_wall")
     public static void locomotiveAgainstAWallGivesNoTicketsAfterTheGracePeriod(GameTestHelper helper) {
         Far far = new Far(helper);
-        BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_LOAD_CHUNKS, true);
         far.ticket(far.west, 2);
         // The chunk of the wagon ticks until the locomotive is against the wall.
         far.ticket(far.east, 2);
@@ -494,8 +494,8 @@ public final class TrainLoadingGameTests {
         private final List<ChunkPos> preloaded = new ArrayList<>();
 
         Far(GameTestHelper helper) {
-            // A test that fails can leave the shared config values changed.
-            TrainChunkGameTests.resetOptions();
+            // The shared config values get their defaults for the test, and their old values when the test ends.
+            TrainChunkGameTests.resetOptions(helper);
             this.helper = helper;
             this.level = helper.getLevel();
             this.west = freeChunk(level, new ChunkPos(helper.absolutePos(BlockPos.ZERO).offset(FAR_OFFSET, 0, 0)));

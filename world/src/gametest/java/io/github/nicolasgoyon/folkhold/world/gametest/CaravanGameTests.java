@@ -379,25 +379,20 @@ public final class CaravanGameTests {
     @GameTest(template = "arena", timeoutTicks = 20, batch = "caravan_guard_health")
     public static void caravanGuardHasTheHealthOfAVillageGuard(GameTestHelper helper) {
         TestSupport.buildFloor(helper);
-        double multiplier = WorldConfig.HEALTH_MULTIPLIER.get();
-        WorldConfig.HEALTH_MULTIPLIER.set(2.0);
-        try {
-            Settlement origin = new Settlement(UUID.randomUUID().toString(), 0, 0, "test_faction", "Origin", 0, 0);
-            Settlement destination = new Settlement(UUID.randomUUID().toString(), 10, 0, "test_faction",
-                    "Destination", 160, 0);
-            Route route = new Route(List.of(new Route.Point(0, 0), new Route.Point(160, 0)));
-            MobileGroup caravan = Caravans.create(origin, destination, route, Map.of("minecraft:bread", 8), 10, 0);
-            GuardEntity villageGuard = TestSupport.spawnGuard(helper, START);
-            float caravanGuard = caravan.members().stream()
-                    .filter(member -> member.role() == MemberRole.GUARD)
-                    .findFirst().orElseThrow().health();
-            float village = villageGuard.getMaxHealth();
-            villageGuard.discard();
-            helper.assertTrue(caravanGuard == village, "A caravan guard must have the health of a village guard: "
-                    + caravanGuard + " and " + village);
-        } finally {
-            WorldConfig.HEALTH_MULTIPLIER.set(multiplier);
-        }
+        TestSupport.setConfigForTest(helper, WorldConfig.HEALTH_MULTIPLIER, 2.0);
+        Settlement origin = new Settlement(UUID.randomUUID().toString(), 0, 0, "test_faction", "Origin", 0, 0);
+        Settlement destination = new Settlement(UUID.randomUUID().toString(), 10, 0, "test_faction",
+                "Destination", 160, 0);
+        Route route = new Route(List.of(new Route.Point(0, 0), new Route.Point(160, 0)));
+        MobileGroup caravan = Caravans.create(origin, destination, route, Map.of("minecraft:bread", 8), 10, 0);
+        GuardEntity villageGuard = TestSupport.spawnGuard(helper, START);
+        float caravanGuard = caravan.members().stream()
+                .filter(member -> member.role() == MemberRole.GUARD)
+                .findFirst().orElseThrow().health();
+        float village = villageGuard.getMaxHealth();
+        villageGuard.discard();
+        helper.assertTrue(caravanGuard == village, "A caravan guard must have the health of a village guard: "
+                + caravanGuard + " and " + village);
         helper.succeed();
     }
 }

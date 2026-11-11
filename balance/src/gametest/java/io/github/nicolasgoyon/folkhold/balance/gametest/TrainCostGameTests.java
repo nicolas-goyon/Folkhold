@@ -58,16 +58,16 @@ public final class TrainCostGameTests {
 
     @GameTest(template = "express", timeoutTicks = 200, batch = "balance_rails_cost")
     public static void twentyTrainsOfSixteenMinecarts(GameTestHelper helper) {
-        TrainChunkGameTests.resetOptions();
+        TrainChunkGameTests.resetOptions(helper);
         measure(helper, false);
     }
 
     /** The same measure with the option {@code loadChunks}: each locomotive gives its chunk tickets each tick. */
     @GameTest(template = "express", timeoutTicks = 200, batch = "balance_rails_cost_chunks")
     public static void twentyTrainsOfSixteenMinecartsThatLoadChunks(GameTestHelper helper) {
-        TrainChunkGameTests.resetOptions();
-        BalanceConfig.TRAIN_LOAD_CHUNKS.set(true);
-        BalanceConfig.TRAIN_MAX_LOADING.set(TRAINS);
+        TrainChunkGameTests.resetOptions(helper);
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_LOAD_CHUNKS, true);
+        BalanceTestSupport.setConfigForTest(helper, BalanceConfig.TRAIN_MAX_LOADING, TRAINS);
         measure(helper, true);
     }
 
@@ -145,7 +145,7 @@ public final class TrainCostGameTests {
                     helper.assertTrue(pass + drive < FAIL_MS, "The code of the trains uses " + (pass + drive)
                             + " ms for each tick");
                     helper.assertTrue(loading == (loadChunks ? TRAINS : 0), loading + " locomotives give tickets");
-                    TrainChunkGameTests.resetOptions();
+                    TrainChunkGameTests.resetOptions(helper);
                     trains.forEach(train -> LocomotiveGameTests.clear(helper, train));
                 })
                 .thenSucceed();

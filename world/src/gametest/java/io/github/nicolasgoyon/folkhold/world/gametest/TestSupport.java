@@ -19,8 +19,12 @@ import io.github.nicolasgoyon.folkhold.world.settlement.SettlementLevels;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
@@ -97,6 +101,11 @@ final class TestSupport {
     static final int WORKER_TICKS = 2_000_000;
     /** The settlements of the earlier tests in this radius go into ruins, in blocks. */
     private static final long RETIRE_RADIUS = 4096;
+    /**
+     * The settings (config values and game rules) that each running test changed, for {@link #restoreAtTestEnd}. The
+     * GameTests run on the server thread only.
+     */
+    private static final Map<GameTestInfo, Set<Object>> CHANGED_SETTINGS = new WeakHashMap<>();
 
     private TestSupport() {
     }
@@ -474,62 +483,44 @@ final class TestSupport {
     }
 
     /**
-     * Sets a config value for one test. A listener sets the old value again when the test passes or fails: the next
-     * tests see the old value also after a failure. The method adds the listener before it sets the value.
+     * Sets a config value for one test. When the test ends (pass, failure or timeout), a listener sets the value that
+     * the config had before the first change of the test: the next tests see this value also after a failure. Only
+     * the first change of a value in a test adds a listener, so a test can change the same value more than one time.
      */
     static <T> void setConfigForTest(GameTestHelper helper, ModConfigSpec.ConfigValue<T> value, T newValue) {
         T old = value.get();
-        helper.testInfo.addListener(new GameTestListener() {
-            @Override
-            public void testStructureLoaded(GameTestInfo info) {
-            }
-
-            @Override
-            public void testPassed(GameTestInfo info, GameTestRunner runner) {
-                value.set(old);
-            }
-
-            @Override
-            public void testFailed(GameTestInfo info, GameTestRunner runner) {
-                value.set(old);
-            }
-
-            @Override
-            public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
-            }
-        });
+        restoreAtTestEnd(helper, value, () -> value.set(old));
         value.set(newValue);
     }
 
     /**
-     * Sets a boolean game rule for one test. A listener sets the old value again when the test ends, also after a
-     * failure. The game rule applies to the full level: a test that uses this method goes in its own batch.
+     * Sets a boolean game rule for one test. When the test ends (pass, failure or timeout), a listener sets the value
+     * that the rule had before the first change of the test, as {@link #setConfigForTest}. The game rule applies to the
+     * full level: a test that uses this method goes in its own batch.
      */
     static void setGameRuleForTest(GameTestHelper helper, GameRules.Key<GameRules.BooleanValue> key,
             boolean newValue) {
         MinecraftServer server = helper.getLevel().getServer();
         GameRules.BooleanValue rule = helper.getLevel().getGameRules().getRule(key);
         boolean old = rule.get();
-        helper.testInfo.addListener(new GameTestListener() {
-            @Override
-            public void testStructureLoaded(GameTestInfo info) {
-            }
-
-            @Override
-            public void testPassed(GameTestInfo info, GameTestRunner runner) {
-                rule.set(old, server);
-            }
-
-            @Override
-            public void testFailed(GameTestInfo info, GameTestRunner runner) {
-                rule.set(old, server);
-            }
-
-            @Override
-            public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
-            }
-        });
+        restoreAtTestEnd(helper, key, () -> rule.set(old, server));
         rule.set(newValue, server);
+    }
+
+    /**
+     * Runs the restore of a setting when the test ends, only for the first change of this setting in the test. The
+     * listeners of a test run in their order: a second listener for the same setting would set the value of the
+     * first change again.
+     */
+    private static void restoreAtTestEnd(GameTestHelper helper, Object setting, Runnable restore) {
+        Set<Object> changed = CHANGED_SETTINGS.computeIfAbsent(helper.testInfo, info -> new HashSet<>());
+        if (!changed.add(setting)) {
+            return;
+        }
+        atTestEnd(helper, () -> {
+            restore.run();
+            CHANGED_SETTINGS.remove(helper.testInfo);
+        });
     }
 
     private static void logOut(ServerPlayer player) {

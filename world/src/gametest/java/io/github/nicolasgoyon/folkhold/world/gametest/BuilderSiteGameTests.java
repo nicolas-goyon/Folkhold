@@ -178,7 +178,7 @@ public final class BuilderSiteGameTests {
         TestSupport.buildFloor(helper, arena);
         ServerLevel level = helper.getLevel();
         BuilderSites.stop(level);
-        WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(1);
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_BUILDER_TICKS, 1);
         helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
         BlockPos heart = helper.absolutePos(HEART);
         // A new heart registers at its first tick: the test registers it now for the search of the village.
@@ -241,7 +241,10 @@ public final class BuilderSiteGameTests {
                 "The update of the clients must have the job and the icon " + when + ": " + update);
     }
 
-    /** The end of a test: no site, no builders, no structure, the normal work time. */
+    /**
+     * The end of a test: no site, no builders, no structure. The listener of {@link #village} sets the normal work time
+     * again when the test ends.
+     */
     private static void cleanUp(GameTestHelper helper, List<Villager> builders, BlockPos from, BlockPos to) {
         ServerLevel level = helper.getLevel();
         BuilderSites.stop(level);
@@ -250,7 +253,6 @@ public final class BuilderSiteGameTests {
             helper.setBlock(pos, Blocks.AIR);
         }
         helper.setBlock(HEART, Blocks.AIR);
-        WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
     }
 
     /** The site of the test, at an origin. A failed earlier test can leave a site in a chunk that is not loaded. */
@@ -426,8 +428,8 @@ public final class BuilderSiteGameTests {
         TestSupport.buildFloor(helper, ARENA);
         ServerLevel level = helper.getLevel();
         BuilderSites.stop(level);
-        WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(1);
-        WorldConfig.CONSTRUCTION_CATCH_UP_STEPS.set(CATCH_UP_STEPS);
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_BUILDER_TICKS, 1);
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_CATCH_UP_STEPS, CATCH_UP_STEPS);
         BlockPos from = new BlockPos(14, 1, 16);
         BlockPos to = new BlockPos(17, 2, 16);
         ResourceLocation id = template(helper, "abstract_wall", from, to, Blocks.OAK_PLANKS);
@@ -491,9 +493,6 @@ public final class BuilderSiteGameTests {
                             Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL));
                     level.setBlock(heart[0], Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
                     chunks.forEach(chunk -> level.setChunkForced(chunk.x, chunk.z, false));
-                    WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
-                    WorldConfig.CONSTRUCTION_CATCH_UP_STEPS.set(
-                            WorldConfig.CONSTRUCTION_CATCH_UP_STEPS.getDefault());
                     helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
                     helper.assertTrue(largest[0] > 0 && largest[0] <= CATCH_UP_STEPS,
@@ -957,9 +956,7 @@ public final class BuilderSiteGameTests {
         BlockPos to = from.offset(box.getXSpan() - 1, box.getYSpan() - 1, box.getZSpan() - 1);
 
         // The construction is longer than a day: the test stops the cycle of the day, else the builders stop at night.
-        GameRules.BooleanValue daylight = level.getGameRules().getRule(GameRules.RULE_DAYLIGHT);
-        boolean cycle = daylight.get();
-        daylight.set(false, level.getServer());
+        TestSupport.setGameRuleForTest(helper, GameRules.RULE_DAYLIGHT, false);
 
         BuilderSite site = BuilderSites.start(level, COTTAGE, origin, Rotation.NONE, Mirror.NONE,
                 helper.absolutePos(HEART), null);
@@ -974,7 +971,6 @@ public final class BuilderSiteGameTests {
                 .thenExecute(() -> {
                     FolkholdWorld.LOGGER.debug("The builders build the cottage in {} ticks",
                             level.getGameTime() - start);
-                    daylight.set(cycle, level.getServer());
                     List<String> differences = differences(expected, ConstructionTargets.fromLevel(level,
                             new BlockPos(box.minX(), box.minY(), box.minZ()),
                             new BlockPos(box.maxX(), box.maxY(), box.maxZ())));
@@ -1704,7 +1700,7 @@ public final class BuilderSiteGameTests {
         ResourceLocation id = template(helper, "builder_wall_player", from, to, Blocks.OAK_PLANKS);
         // With a player near, the heart makes its garrison. The player is farther from the heart than this radius.
         int activation = WorldConfig.GARRISON_ACTIVATION_RADIUS.get();
-        WorldConfig.GARRISON_ACTIVATION_RADIUS.set(PLAYER_ACTIVATION_RADIUS);
+        TestSupport.setConfigForTest(helper, WorldConfig.GARRISON_ACTIVATION_RADIUS, PLAYER_ACTIVATION_RADIUS);
         ServerPlayer player = TestSupport.mockPlayer(helper);
         player.moveTo(Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(15, 1, 18))));
 
@@ -1716,7 +1712,8 @@ public final class BuilderSiteGameTests {
                     BuilderSite.Status status = site.status();
                     int applied = site.appliedSteps();
                     level.getServer().getPlayerList().remove(player);
-                    WorldConfig.GARRISON_ACTIVATION_RADIUS.set(activation);
+                    // The player is away: the next steps use the normal radius.
+                    TestSupport.setConfigForTest(helper, WorldConfig.GARRISON_ACTIVATION_RADIUS, activation);
                     helper.assertTrue(status == BuilderSite.Status.PLAYER,
                             "A player in the zone must stop the site: " + status);
                     helper.assertTrue(applied == 0 && site.fences().isEmpty(),

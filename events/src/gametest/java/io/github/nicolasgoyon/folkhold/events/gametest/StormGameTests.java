@@ -70,8 +70,10 @@ public final class StormGameTests {
      */
     private static void prepare(GameTestHelper helper, int sizeX, int sizeZ) {
         Storms.stop(helper.getLevel());
-        EventsConfig.STORM_WIND_PUSH.set(EventsConfig.STORM_WIND_PUSH.getDefault());
-        EventsConfig.MAX_ACTIVE_EVENTS.set(EventsConfig.MAX_ACTIVE_EVENTS.getDefault());
+        EventTestSupport.setConfigForTest(helper, EventsConfig.STORM_WIND_PUSH,
+                EventsConfig.STORM_WIND_PUSH.getDefault());
+        EventTestSupport.setConfigForTest(helper, EventsConfig.MAX_ACTIVE_EVENTS,
+                EventsConfig.MAX_ACTIVE_EVENTS.getDefault());
         EventTestSupport.stoneFloor(helper, sizeX, sizeZ);
     }
 
@@ -339,7 +341,7 @@ public final class StormGameTests {
     public static void flyingBlocksHurtAnimals(GameTestHelper helper) {
         prepare(helper, 16, 16);
         // No push: the wind does not move the sheep out of the path of the blocks.
-        EventsConfig.STORM_WIND_PUSH.set(0.0);
+        EventTestSupport.setConfigForTest(helper, EventsConfig.STORM_WIND_PUSH, 0.0);
         for (int y = 1; y <= 2; y++) {
             helper.setBlock(new BlockPos(6, y, 8), Blocks.OAK_PLANKS);
         }
@@ -351,7 +353,6 @@ public final class StormGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(!sheep.isAlive() || sheep.getHealth() < sheep.getMaxHealth(),
                         "A flying block must hurt the sheep"))
                 .thenExecute(() -> {
-                    EventsConfig.STORM_WIND_PUSH.set(EventsConfig.STORM_WIND_PUSH.getDefault());
                     sheep.discard();
                     EventTestSupport.removeDebris(helper);
                 })
@@ -397,15 +398,6 @@ public final class StormGameTests {
         }
     }
 
-    /** Sets the game rule {@code doWeatherCycle} and gives back its old value. */
-    private static boolean setWeatherCycle(GameTestHelper helper, boolean value) {
-        ServerLevel level = helper.getLevel();
-        GameRules.BooleanValue rule = level.getGameRules().getRule(GameRules.RULE_WEATHER_CYCLE);
-        boolean old = rule.get();
-        rule.set(value, level.getServer());
-        return old;
-    }
-
     /**
      * With the game rule {@code doWeatherCycle} false, the weather does not change by itself: the storm does not set
      * the weather, and the wind, the damage and the lightning stay.
@@ -415,7 +407,7 @@ public final class StormGameTests {
         prepare(helper, 16, 16);
         ServerLevel level = helper.getLevel();
         level.setWeatherParameters(12_000, 0, false, false);
-        boolean old = setWeatherCycle(helper, false);
+        EventTestSupport.setGameRuleForTest(helper, GameRules.RULE_WEATHER_CYCLE, false);
         Storm storm = start(helper, new BlockPos(8, 1, 8),
                 new StormSettings(6, 1.0, windAngle(helper), 10, 20, 4, 0, 0, true));
         boolean[] rain = {false};
@@ -424,7 +416,6 @@ public final class StormGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(storm.isDone(), "The storm must end"))
                 .thenExecute(() -> {
-                    setWeatherCycle(helper, old);
                     helper.assertTrue(!rain[0], "The storm must not set the weather with doWeatherCycle false");
                 })
                 .thenSucceed();
@@ -438,7 +429,7 @@ public final class StormGameTests {
     public static void clearWeatherEndsTheStorm(GameTestHelper helper) {
         prepare(helper, 16, 16);
         ServerLevel level = helper.getLevel();
-        boolean old = setWeatherCycle(helper, true);
+        EventTestSupport.setGameRuleForTest(helper, GameRules.RULE_WEATHER_CYCLE, true);
         Storm storm = start(helper, new BlockPos(8, 1, 8),
                 new StormSettings(6, 1.0, windAngle(helper), 0, 1000, 4, 0, 1000, true));
         int[] strikesAtClear = {-1};
@@ -452,7 +443,6 @@ public final class StormGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(storm.isDone(), "The storm must end with its rain"))
                 .thenIdle(20)
                 .thenExecute(() -> {
-                    setWeatherCycle(helper, old);
                     helper.assertTrue(storm.elapsedTicks() < 1000, "The storm must end before its planned end");
                     helper.assertTrue(storm.lightningStrikes() == strikesAtClear[0],
                             "No lightning must strike after the end of the rain");
@@ -466,7 +456,7 @@ public final class StormGameTests {
     public static void serverStopGivesBackTheWeather(GameTestHelper helper) {
         prepare(helper, 16, 16);
         ServerLevel level = helper.getLevel();
-        boolean old = setWeatherCycle(helper, true);
+        EventTestSupport.setGameRuleForTest(helper, GameRules.RULE_WEATHER_CYCLE, true);
         Storm storm = start(helper, new BlockPos(8, 1, 8),
                 new StormSettings(6, 1.0, windAngle(helper), 0, 1000, 4, 0, 0, true));
 
@@ -474,7 +464,6 @@ public final class StormGameTests {
                 .thenWaitUntil(() -> helper.assertTrue(level.getLevelData().isThundering(), "The thunder must start"))
                 .thenExecute(() -> {
                     Storms.onServerStopping(new ServerStoppingEvent(level.getServer()));
-                    setWeatherCycle(helper, old);
                     helper.assertTrue(storm.isDone() && Storms.active(level).isEmpty(), "The storm must stop");
                     helper.assertTrue(!level.getLevelData().isRaining() && !level.getLevelData().isThundering(),
                             "The weather must be clear after the stop");
@@ -506,7 +495,7 @@ public final class StormGameTests {
     public static void stormSetsTheWeather(GameTestHelper helper) {
         prepare(helper, 16, 16);
         ServerLevel level = helper.getLevel();
-        boolean old = setWeatherCycle(helper, true);
+        EventTestSupport.setGameRuleForTest(helper, GameRules.RULE_WEATHER_CYCLE, true);
         Storm storm = start(helper, new BlockPos(8, 1, 8), new StormSettings(6, 1.0, windAngle(helper), 20, 20, 4, 0, 0,
                 true));
         boolean[] rainBeforeWind = {false};
@@ -524,7 +513,6 @@ public final class StormGameTests {
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(storm.isDone(), "The storm must end"))
                 .thenExecute(() -> {
-                    setWeatherCycle(helper, old);
                     boolean clear = !level.getLevelData().isRaining() && !level.getLevelData().isThundering();
                     helper.assertTrue(rainBeforeWind[0], "The rain must start during the announce");
                     helper.assertTrue(thunderDuringWind[0], "The thunder must start with the wind");
@@ -562,14 +550,13 @@ public final class StormGameTests {
                 "folkhold storm start %d %d %d", pos.getX(), pos.getY(), pos.getZ()));
         List<Storm> notOperator = Storms.active(level);
         // The global cap: with a cap of 1 and an active earthquake, no storm starts.
-        EventsConfig.MAX_ACTIVE_EVENTS.set(1);
+        EventTestSupport.setConfigForTest(helper, EventsConfig.MAX_ACTIVE_EVENTS, 1);
         Earthquakes.start(level, pos, new EarthquakeSettings(4, 0.1, 400, 20, 8));
         server.getCommands().performPrefixedCommand(source, String.format(Locale.ROOT,
                 "folkhold storm start %d %d %d 8 0.5", pos.getX(), pos.getY(), pos.getZ()));
         List<Storm> overCap = Storms.active(level);
         Storms.stop(level);
         Earthquakes.stop(level);
-        EventsConfig.MAX_ACTIVE_EVENTS.set(EventsConfig.MAX_ACTIVE_EVENTS.getDefault());
 
         helper.assertTrue(started.size() == 1 && started.get(0).center().equals(pos)
                 && started.get(0).radius() == 8, "The command must start one storm at the position");
