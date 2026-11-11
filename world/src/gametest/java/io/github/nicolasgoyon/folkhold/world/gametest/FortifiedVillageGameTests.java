@@ -4,9 +4,11 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.StreetBlocks;
 import io.github.nicolasgoyon.folkhold.world.village.VillageClearing;
+import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
@@ -63,6 +65,7 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -93,6 +96,8 @@ public final class FortifiedVillageGameTests {
     private static final int SNOW_FIRST_CHUNK = FIRST_CHUNK + 40;
     /** The first candidate chunk on the Z axis of the village of an earlier save. */
     private static final int OLD_SAVE_FIRST_CHUNK = SNOW_FIRST_CHUNK + 40;
+    /** The first candidate chunk on the Z axis of the village of the area test. */
+    private static final int AREA_FIRST_CHUNK = OLD_SAVE_FIRST_CHUNK + 40;
     /** The powder snow goes this number of blocks around the box of the village: out of the band of the heart. */
     private static final int SNOW_MARGIN = VillageClearing.SNOW_BAND + 6;
     /** The depth of the powder snow on the terrain. */
@@ -398,6 +403,53 @@ public final class FortifiedVillageGameTests {
         level.setBlock(log, Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
         helper.assertTrue(VillageRepairs.damaged(level, heart, reference).contains(log),
                 "A missing log of the palisade must be damaged: " + log);
+        helper.succeed();
+    }
+
+    /**
+     * The area of a generated village follows its structure. The test puts the structure start and its references in
+     * the chunks of the village, as the world generation does. Then the heart registers as after a fresh load, with no
+     * known structure area. At once, a position at a corner of the wall, farther than the village radius, is in the
+     * village: the registry asks the heart for its structure (see {@link VillageHeartBlockEntity#repairReference}) and
+     * keeps the area. The area of the heart contains the corner.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_area")
+    public static void areaOfAGeneratedVillageFollowsItsStructure(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Village village = generate(helper, level, AREA_FIRST_CHUNK,
+                level.getChunkSource().getGenerator().getBiomeSource(), box -> {
+                });
+        Structure structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
+                .getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        ChunkPos startChunk = village.start().getChunkPos();
+        BoundingBox box = village.start().getBoundingBox();
+        level.getChunk(startChunk.x, startChunk.z).setStartForStructure(structure, village.start());
+        for (int x = box.minX() >> 4; x <= box.maxX() >> 4; x++) {
+            for (int z = box.minZ() >> 4; z <= box.maxZ() >> 4; z++) {
+                level.getChunk(x, z).addReferenceForStructure(structure, startChunk.toLong());
+            }
+        }
+        BlockPos heartPos = village.heart();
+        BoundingBox wall = VillageReference.of(level, village.start().getPieces()).orElseThrow().area().orElseThrow();
+        BlockPos corner = new BlockPos(wall.minX() + 1, heartPos.getY(), wall.minZ() + 1);
+        VillageHearts.register(level, heartPos);
+
+        Optional<BlockPos> found = VillageHearts.findAt(level, corner);
+        AABB area = VillageHearts.area(level, heartPos);
+        double distance = Math.sqrt(heartPos.distSqr(corner));
+        VillageHearts.unregister(level, heartPos);
+        for (int x = box.minX() >> 4; x <= box.maxX() >> 4; x++) {
+            for (int z = box.minZ() >> 4; z <= box.maxZ() >> 4; z++) {
+                level.getChunk(x, z).setAllReferences(Map.of());
+                level.getChunk(x, z).setAllStarts(Map.of());
+            }
+        }
+
+        helper.assertTrue(distance > WorldConfig.VILLAGE_RADIUS.get(),
+                "The corner of the wall must be farther than the village radius: " + distance);
+        helper.assertTrue(found.equals(Optional.of(heartPos)),
+                "The corner of the wall " + corner + " must be in the village " + heartPos + ": " + found);
+        helper.assertTrue(area.contains(corner.getCenter()), "The area " + area + " must contain " + corner);
         helper.succeed();
     }
 

@@ -8,6 +8,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.SettlementState;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims;
 import io.github.nicolasgoyon.folkhold.core.sim.territory.TerritoryClaims.Claimant;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlaces;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
@@ -125,8 +126,8 @@ public final class SettlementData extends SavedData {
      * <ul>
      *   <li>The claim radius of the level ({@code claim_radius} in the level table).</li>
      *   <li>The minimum territory radius of the tier of the level ({@code min_territory_radius} in the village sizes,
-     *       see {@link VillageSizes#forLevel}). It contains the maximum radius of the village structure of the
-     *       tier.</li>
+     *       see {@link VillageSizes#find}). It contains the maximum radius of the village structure of the tier. A tier
+     *       with no village size (for example a tier of a data pack) has no minimum.</li>
      *   <li>{@link TerritoryClaims#minimumRadius} of the village radius ({@link WorldConfig#VILLAGE_RADIUS}).</li>
      * </ul>
      *
@@ -134,8 +135,9 @@ public final class SettlementData extends SavedData {
      * @return the radius in chunks
      */
     public static int claimRadius(int level) {
-        return Math.max(Math.max(TerritoryClaims.minimumRadius(WorldConfig.VILLAGE_RADIUS.get()),
-                VillageSizes.forLevel(level).minTerritoryRadius()), LevelTables.get().traits(level).claimRadius());
+        int tierMinimum = VillageSizes.find(level).map(VillageSize::minTerritoryRadius).orElse(0);
+        return Math.max(Math.max(TerritoryClaims.minimumRadius(WorldConfig.VILLAGE_RADIUS.get()), tierMinimum),
+                LevelTables.get().traits(level).claimRadius());
     }
 
     /** The settlements that claim chunks now: the claimants of {@link #claims()}. */

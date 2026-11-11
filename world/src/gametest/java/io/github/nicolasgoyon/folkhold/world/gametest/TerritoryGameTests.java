@@ -56,7 +56,8 @@ public final class TerritoryGameTests {
 
     /** The claim radius of a settlement in blocks. */
     private static int reach(int level) {
-        return SettlementData.claimRadius(level) * 16;
+        int minimum = TerritoryClaims.minimumRadius(WorldConfig.VILLAGE_RADIUS.get());
+        return Math.max(minimum, LevelTables.get().traits(level).claimRadius()) * 16;
     }
 
     /** The block at a distance from a settlement, in a direction. */
@@ -94,17 +95,18 @@ public final class TerritoryGameTests {
 
     /**
      * The claim radius of each level is never smaller than the minimum territory radius of its tier, and the territory
-     * contains the village structure of the tier.
+     * contains the village structure of the tier: the corner of the box of the structure (the maximum radius times
+     * √2) and a margin of one chunk, because a claimed chunk has its center in the disc.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "territory_tier")
     public static void claimRadiusKeepsTheMinimumOfTheTier(GameTestHelper helper) {
         for (int level = 1; level <= LevelTables.get().maxLevel(); level++) {
             int minimum = VillageSizes.forLevel(level).minTerritoryRadius();
-            int structure = VillageSizes.forLevel(level).maxRadius();
+            double corner = VillageSizes.forLevel(level).maxRadius() * Math.sqrt(2.0) + 16.0;
             int radius = SettlementData.claimRadius(level);
-            helper.assertTrue(radius >= minimum && radius * 16 >= structure, "The claim radius of the level " + level
-                    + " is " + radius + " chunks: the minimum of the tier is " + minimum + " chunks, the structure "
-                    + structure + " blocks");
+            helper.assertTrue(radius >= minimum && radius * 16 >= corner, "The claim radius of the level " + level
+                    + " is " + radius + " chunks: the minimum of the tier is " + minimum + " chunks, the corner of the "
+                    + "structure with its margin is at " + corner + " blocks");
         }
         helper.succeed();
     }

@@ -77,6 +77,56 @@ public final class VillageAreaGameTests {
     }
 
     /**
+     * Two village areas overlap: a city heart with the area of its structure, and a second heart with no structure (for
+     * example a heart that a player places) at 100 blocks from it. A position in the two areas belongs to the nearest
+     * heart. A position in the area of the city only belongs to the city, also when the second heart is nearer.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "village_area_overlap")
+    public static void positionInTwoAreasBelongsToTheNearestHeart(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos city = helper.absolutePos(BlockPos.ZERO);
+        BlockPos second = city.offset(100, 0, 0);
+        VillageHearts.register(level, city, Optional.of(cityArea(city)));
+        VillageHearts.register(level, second, Optional.empty());
+        // 70 blocks from the city heart and 30 blocks from the second heart.
+        BlockPos both = city.offset(70, 0, 0);
+        // 85 blocks from the city heart and 72 blocks from the second heart: out of the village radius.
+        BlockPos cityOnly = city.offset(60, 0, 60);
+
+        Optional<BlockPos> bothOwner = VillageHearts.findAt(level, both);
+        Optional<BlockPos> cityOnlyOwner = VillageHearts.findAt(level, cityOnly);
+        VillageHearts.unregister(level, city);
+        VillageHearts.unregister(level, second);
+
+        helper.assertTrue(bothOwner.equals(Optional.of(second)),
+                "A position in the two areas must belong to the nearest heart " + second + ": " + bothOwner);
+        helper.assertTrue(cityOnlyOwner.equals(Optional.of(city)),
+                "A position in the area of the city only must belong to the city " + city + ": " + cityOnlyOwner);
+        helper.succeed();
+    }
+
+    /** When the heart is removed, its area goes out of the registry: the position at the edge is in no village. */
+    @GameTest(template = "arena_huge", timeoutTicks = 20, batch = "village_area_removal")
+    public static void removedHeartLosesItsArea(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        VillageHeartBlockEntity heart = placeHeart(helper);
+        BlockPos heartPos = heart.getBlockPos();
+        BlockPos edge = helper.absolutePos(EDGE);
+        heart.setRepairReference(new VillageReference(List.of(), List.of(), Optional.of(cityArea(heartPos))));
+        boolean before = VillageHearts.findAt(level, edge).isPresent();
+
+        helper.setBlock(HEART, Blocks.AIR);
+        boolean registered = VillageHearts.isRegistered(level, heartPos);
+        boolean after = VillageHearts.findAt(level, edge).isPresent();
+        VillageHearts.unregister(level, heartPos);
+
+        helper.assertTrue(before, "The edge must be in the village before the removal of the heart");
+        helper.assertFalse(registered, "The removed heart must not be in the registry");
+        helper.assertFalse(after, "The edge must be in no village after the removal of the heart");
+        helper.succeed();
+    }
+
+    /**
      * The cost of the search of the units in the area of a city and in the village radius: the test writes the mean
      * time of the two searches in the log (simulation profiler, {@link VillageHeartBlockEntity#UNITS_PROFILER_NAME}).
      */
