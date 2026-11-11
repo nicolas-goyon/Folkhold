@@ -12,6 +12,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Piece;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Plot;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.economy.Merchants;
+import io.github.nicolasgoyon.folkhold.world.level.TerrainCache;
 import io.github.nicolasgoyon.folkhold.world.village.TemplateSigns;
 import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
@@ -36,7 +37,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Rotation;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -122,20 +122,22 @@ final class VillagePlanPieces {
      * Makes the builder of the pieces of a village.
      *
      * @param context the context of the generation
+     * @param terrain the terrain cache of the layout
      * @param plaza   the start piece
      * @param center  the middle of the plaza
      * @param homes   the pool of the homes of the variant: the other pools are in its folder
      * @param kinds   the kinds of the buildings of all the levels: a home has no building sign of these kinds
      * @return the builder
      */
-    static Builder builder(Structure.GenerationContext context, PoolElementStructurePiece plaza, BlockPos center,
-            Holder<StructureTemplatePool> homes, Set<String> kinds) {
-        return new Builder(context, plaza, center, homes, kinds);
+    static Builder builder(Structure.GenerationContext context, TerrainCache terrain, PoolElementStructurePiece plaza,
+            BlockPos center, Holder<StructureTemplatePool> homes, Set<String> kinds) {
+        return new Builder(context, terrain, plaza, center, homes, kinds);
     }
 
     /** The builder of the pieces of a village. */
     static final class Builder {
         private final Structure.GenerationContext context;
+        private final TerrainCache terrain;
         private final StructureTemplateManager templates;
         private final PoolElementStructurePiece plaza;
         private final BlockPos center;
@@ -158,10 +160,11 @@ final class VillagePlanPieces {
         /** The home plots that have no piece yet, the current plot included. */
         private int homesLeft;
 
-        Builder(Structure.GenerationContext context, PoolElementStructurePiece plaza, BlockPos center,
-                Holder<StructureTemplatePool> homes, Set<String> levelKinds) {
+        Builder(Structure.GenerationContext context, TerrainCache terrain, PoolElementStructurePiece plaza,
+                BlockPos center, Holder<StructureTemplatePool> homes, Set<String> levelKinds) {
             this.levelKinds = Set.copyOf(levelKinds);
             this.context = context;
+            this.terrain = terrain;
             this.templates = context.structureTemplateManager();
             this.plaza = plaza;
             this.center = center;
@@ -520,10 +523,9 @@ final class VillagePlanPieces {
             return BoundingBox.fromCorners(first.atY(y - 1), second.atY(y + SPACE_HEIGHT));
         }
 
-        /** The Y of the first free block above the terrain, as the jigsaw reads it. */
+        /** The Y of the first free block above the terrain, as the jigsaw reads it, from the terrain cache. */
         private int height(BlockPos pos) {
-            return context.chunkGenerator().getFirstFreeHeight(pos.getX(), pos.getZ(),
-                    Heightmap.Types.WORLD_SURFACE_WG, context.heightAccessor(), context.randomState());
+            return terrain.surface(pos.getX(), pos.getZ());
         }
     }
 

@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Gate;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Segment;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Side;
 import io.github.nicolasgoyon.folkhold.core.sim.village.WallLayout.Tower;
+import io.github.nicolasgoyon.folkhold.world.level.TerrainCache;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots.Plot;
 import java.util.ArrayList;
@@ -27,7 +28,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Rotation;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -101,6 +101,7 @@ public final class VillageWall {
      * growth.
      *
      * @param context  the context of the generation
+     * @param heights  the terrain cache of the layout
      * @param village  the pieces of the pools
      * @param reserved the spaces for later buildings, for example the new homes of the free plots
      * @param center   the middle of the start piece
@@ -109,15 +110,16 @@ public final class VillageWall {
      *                 only (see {@link SeaWall})
      * @return the pieces of the wall
      */
-    public static List<StructurePiece> add(Structure.GenerationContext context, List<StructurePiece> village,
-            List<BoundingBox> reserved, BlockPos center, WallSettings settings, boolean maritime) {
+    public static List<StructurePiece> add(Structure.GenerationContext context, TerrainCache heights,
+            List<StructurePiece> village, List<BoundingBox> reserved, BlockPos center, WallSettings settings,
+            boolean maritime) {
         List<Box> boxes = village.stream().map(piece -> box(piece.getBoundingBox())).toList();
         List<Box> inside = new ArrayList<>(boxes);
         reserved.forEach(space -> inside.add(box(space)));
         List<Gate> gates = List.of(new Gate(Side.NORTH, center.getX()), new Gate(Side.EAST, center.getZ()),
                 new Gate(Side.SOUTH, center.getX()), new Gate(Side.WEST, center.getZ()));
         WallLayout layout = WallLayout.plan(inside, settings.margin(), settings.towerSpacing(), gates);
-        Terrain terrain = new Terrain(context);
+        Terrain terrain = new Terrain(heights);
         int seaLevel = context.chunkGenerator().getSeaLevel();
         int[] bases = bases(layout, terrain);
         boolean[] water = new boolean[layout.ringSize()];
@@ -652,31 +654,16 @@ public final class VillageWall {
     }
 
     /**
-     * The height of the terrain before the generation of the chunks: the Y of the top block. The chunk generator
-     * calculates the height of each column from the noise of the terrain, and this calculation takes time. Thus the
-     * structure reads the heights at the corners of a grid of {@link #CELL} blocks only, and interpolates between the
-     * corners (see {@link HeightGrid}). The noise of the vanilla terrain also has cells of 4 blocks: the interpolation
-     * stays near the height of the column.
+     * The height of the terrain before the generation of the chunks: the Y of the top block. The structure reads the
+     * heights at the corners of a grid of {@link TerrainCache#GRID} blocks only, and interpolates between the corners
+     * (see {@link HeightGrid}). The corners are grid columns of the terrain cache of the layout: one noise object for
+     * each chunk calculates them (see {@link TerrainCache}). The noise of the vanilla terrain also has cells of 4
+     * blocks: the interpolation stays near the height of the column.
      */
-    private static final class Terrain {
-        /** The distance between 2 corners of the grid, in blocks. */
-        private static final int CELL = 4;
-
-        private final Structure.GenerationContext context;
-        private final Map<Long, Integer> corners = new HashMap<>();
-
-        Terrain(Structure.GenerationContext context) {
-            this.context = context;
-        }
-
+    private record Terrain(TerrainCache heights) {
         int height(int x, int z) {
-            return HeightGrid.interpolate(x, z, CELL, this::corner);
-        }
-
-        private int corner(int x, int z) {
-            return corners.computeIfAbsent(BlockPos.asLong(x, 0, z),
-                    key -> context.chunkGenerator().getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG,
-                            context.heightAccessor(), context.randomState()) - 1);
+            return HeightGrid.interpolate(x, z, TerrainCache.GRID, (cornerX, cornerZ) -> heights.surface(cornerX,
+                    cornerZ) - 1);
         }
     }
 }

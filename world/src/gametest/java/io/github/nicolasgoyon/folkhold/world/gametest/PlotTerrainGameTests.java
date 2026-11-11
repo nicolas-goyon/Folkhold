@@ -6,6 +6,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSite;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.faction.CultureMap;
+import io.github.nicolasgoyon.folkhold.world.level.TerrainCache;
 import io.github.nicolasgoyon.folkhold.world.level.TerrainColumns;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
@@ -25,6 +26,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.ChunkPos;
@@ -38,6 +40,7 @@ import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -74,6 +77,10 @@ public final class PlotTerrainGameTests {
     private static final int FINE_STEP = 2;
     /** The start level of the forced capital. */
     private static final int CAPITAL_LEVEL = 20;
+    /** The highest start level of a hamlet. */
+    private static final int HAMLET_LEVEL = 4;
+    /** The highest start level of a town. */
+    private static final int TOWN_LEVEL = 12;
 
     private PlotTerrainGameTests() {
     }
@@ -165,6 +172,34 @@ public final class PlotTerrainGameTests {
         measure.end(helper, (site.isPresent() ? 1 : 0) + (coast.isPresent() ? 1 : 0), 2, problems);
     }
 
+    /**
+     * The layouts with one noise object for each chunk are the layouts with one read of the chunk generator for each
+     * column (see {@link TerrainCache#direct}): the same plan and the same pieces, for a hamlet and a town on land and
+     * for a maritime hamlet. The test logs the time of the two layouts.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "plot_terrain_cache")
+    public static void layoutsAreTheSameWithTheTerrainCache(GameTestHelper helper) {
+        Measure measure = new Measure(helper.getLevel());
+        FortifiedVillageStructure structure = measure.structure;
+        FortifiedVillageStructure.Variant land = new FortifiedVillageStructure.Variant(HolderSet.direct(),
+                structure.startPool(), structure.wall(), structure.homes(), Optional.empty());
+        FortifiedVillageStructure.Variant maritime = structure.variants().stream()
+                .filter(FortifiedVillageStructure.Variant::maritime).filter(variant -> variant.biomes().size() == 0)
+                .findFirst().orElseThrow();
+        Structure.GenerationContext site = IntStream.range(0, TRIES)
+                .mapToObj(i -> measure.context(new ChunkPos((i % ROW) * LAND_STEP, (i / ROW) * LAND_STEP)))
+                .filter(context -> structure.site(context).equals(Optional.of(VillageSite.Result.ACCEPTED)))
+                .findFirst().orElseThrow();
+        Structure.GenerationContext coast = IntStream.range(0, TRIES).mapToObj(measure::maritimeSite)
+                .flatMap(Optional::stream).findFirst().orElseThrow();
+        List<String> problems = new ArrayList<>();
+        measure.compare(site, land, false, HAMLET_LEVEL, problems);
+        measure.compare(site, land, false, TOWN_LEVEL, problems);
+        measure.compare(coast, maritime, true, HAMLET_LEVEL, problems);
+        helper.assertTrue(problems.isEmpty(), "Layouts with differences: " + problems);
+        helper.succeed();
+    }
+
     /** The noise terrain of the measure, and the counts of the villages. */
     private static final class Measure {
         private final ServerLevel level;
@@ -237,7 +272,7 @@ public final class PlotTerrainGameTests {
                         + " missing homes");
             }
             layout.problems().forEach(problem -> problems.add(name + ": " + problem));
-            PlotTerrains terrain = new PlotTerrains(context);
+            PlotTerrains terrain = new PlotTerrains(TerrainCache.of(context));
             Map<PlotTerrain.Result, Integer> bad = new EnumMap<>(PlotTerrain.Result.class);
             Map<PlotTerrain.Result, Integer> fineBad = new EnumMap<>(PlotTerrain.Result.class);
             for (PoolElementStructurePiece building : layout.village().stream().skip(1)
@@ -271,6 +306,41 @@ public final class PlotTerrainGameTests {
                     + "{} missing homes, {} buildings, buildings on bad terrain {}, buildings on bad terrain on the "
                     + "grid of {} blocks {}, {} problems", name, plan.plots().size(), spareBad, plan.missingPlots(),
                     plan.missingHomes(), layout.built(), bad, FINE_STEP, fineBad, layout.problems().size());
+        }
+
+        /**
+         * Makes the layout of a village with the two modes of the terrain cache, and adds a problem if the plans or the
+         * saved pieces are not the same.
+         */
+        void compare(Structure.GenerationContext context, FortifiedVillageStructure.Variant variant, boolean maritime,
+                int startLevel, List<String> problems) {
+            TerrainCache chunks = TerrainCache.of(context);
+            TerrainCache columns = TerrainCache.direct(generator, random, context.heightAccessor());
+            long start = System.nanoTime();
+            FortifiedVillageStructure.Layout fast = structure.layout(context, variant, maritime, startLevel,
+                    Optional.empty(), chunks).orElseThrow();
+            long middle = System.nanoTime();
+            FortifiedVillageStructure.Layout slow = structure.layout(context, variant, maritime, startLevel,
+                    Optional.empty(), columns).orElseThrow();
+            long end = System.nanoTime();
+            String name = "chunk " + context.chunkPos() + " level " + startLevel + (maritime ? " maritime" : "");
+            FolkholdWorld.LOGGER.info("Terrain cache {}: {} ms with {} noise objects of chunks, {} ms with one read "
+                    + "for each column", name, (middle - start) / 1_000_000, chunks.chunks(), (end - middle) / 1_000_000);
+            if (chunks.chunks() == 0) {
+                problems.add(name + ": no noise object of a chunk");
+            }
+            if (!fast.plan().equals(slow.plan())) {
+                problems.add(name + ": the plans are not the same");
+            }
+            if (!saved(fast).equals(saved(slow)) || !fast.problems().equals(slow.problems())) {
+                problems.add(name + ": the pieces are not the same");
+            }
+        }
+
+        /** The saved data of the pieces of a layout. */
+        private List<CompoundTag> saved(FortifiedVillageStructure.Layout layout) {
+            StructurePieceSerializationContext saveContext = StructurePieceSerializationContext.fromLevel(level);
+            return layout.pieces().stream().map(piece -> piece.createTag(saveContext)).toList();
         }
 
         /** Logs the totals, and ends the test. */
