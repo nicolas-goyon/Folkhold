@@ -307,6 +307,46 @@ public final class MarketGrowthGameTests {
     }
 
     /**
+     * With the setting {@code construction.growth} false, a broken market comes back on its plot: this is maintenance.
+     * The village needs places and has a free plot, but it starts no new home.
+     */
+    @GameTest(template = "arena_huge", timeoutTicks = 20, batch = "market_no_growth")
+    public static void brokenMarketComesBackWithNoGrowth(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BuilderSites.stop(level);
+        VillageHeartBlockEntity heart = village(helper, HUGE, twoPlots(helper));
+        TestSupport.atTestEnd(helper, () -> removeVillage(level, heart));
+        levelFive(helper, heart);
+        BuilderSite first = VillageGrowth.check(level, heart).orElseThrow();
+        placeMarket(level, first);
+        BuilderSites.stop(level);
+        heart.requestScan();
+        heart.ensureGarrison(level.getGameTime());
+        helper.assertTrue(heart.getLayout().markets().size() == 1, "The heart must find the market sign: "
+                + heart.getLayout().markets());
+        // The village helper turns the growth on, and its listener sets the value back at the end of the test.
+        WorldConfig.CONSTRUCTION_GROWTH.set(false);
+        level.setBlock(heart.getLayout().markets().get(0), Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+
+        Optional<BuilderSite> again = VillageGrowth.check(level, heart);
+        again.ifPresent(site -> placeMarket(level, site));
+        BuilderSites.stop(level);
+        heart.requestScan();
+        heart.ensureGarrison(level.getGameTime());
+        boolean needsPlaces = VillageGrowth.needsPlaces(Settlements.of(level.getServer(), heart).orElseThrow());
+        Optional<BuilderSite> next = VillageGrowth.check(level, heart);
+
+        helper.assertTrue(again.isPresent() && again.get().template().equals(first.template())
+                && again.get().origin().equals(first.origin()) && again.get().rotation() == first.rotation(),
+                "The broken market must come back on its plot: " + again.map(BuilderSite::origin) + ", expected "
+                + first.origin());
+        helper.assertTrue(needsPlaces, "The village of the test must need places");
+        helper.assertTrue(next.isEmpty(), "With no growth, the village must start no new home: "
+                + next.map(BuilderSite::template));
+        helper.succeed();
+    }
+
+    /**
      * A market of the village structure gets its plot at the first scan of the heart: the market piece that holds the
      * market sign.
      */
@@ -438,6 +478,8 @@ public final class MarketGrowthGameTests {
     /** As {@link #village(GameTestHelper, List)}, for an arena of a size. */
     private static VillageHeartBlockEntity village(GameTestHelper helper, int size, List<VillagePlots.Plot> plots) {
         ServerLevel level = helper.getLevel();
+        // The growth of the villages is off by default: the tests of the growth turn it on.
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_GROWTH, true);
         TestSupport.buildFloor(helper, size);
         // The house-workshop of the farmer: the village has its food post that trades, so a new home comes after
         // the market (see VillageGrowth).

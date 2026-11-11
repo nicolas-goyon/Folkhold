@@ -11,6 +11,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.QuestBoardFeature;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSites;
 import io.github.nicolasgoyon.folkhold.world.construction.GhostPlacement;
@@ -105,6 +106,8 @@ public final class VillageCenterGameTests {
      */
     private static void checkStyle(GameTestHelper helper, String folder, int row) {
         ServerLevel level = helper.getLevel();
+        // The growth of the villages is off by default: the tests of the growth turn it on.
+        TestSupport.setConfigForTest(helper, WorldConfig.CONSTRUCTION_GROWTH, true);
         MinecraftServer server = level.getServer();
         Village village = generate(level, folder, row);
         VillageHeartBlockEntity heart = (VillageHeartBlockEntity) level.getBlockEntity(village.heart());

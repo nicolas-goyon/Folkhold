@@ -63,6 +63,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageMapMarkers;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRaids;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
+import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
 import io.github.nicolasgoyon.folkhold.world.village.VillageSpawnProtection;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
@@ -184,6 +185,7 @@ public final class FolkholdWorld {
         NeoForge.EVENT_BUS.addListener(ConstructionCommands::onServerStopped);
         NeoForge.EVENT_BUS.addListener(LevelTables::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(VillageBuildingTable::onAddReloadListener);
+        NeoForge.EVENT_BUS.addListener(VillageSizes::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(GarrisonEquipment::onAddReloadListener);
         NeoForge.EVENT_BUS.addListener(EconomyData::onAddReloadListener);
         SimulationTicker.addSystem("economy", Economies::tick);

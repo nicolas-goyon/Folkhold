@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.core.sim.RegionPos;
 import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
 import io.github.nicolasgoyon.folkhold.core.sim.group.GroupKind;
 import io.github.nicolasgoyon.folkhold.core.sim.group.MobileGroup;
@@ -16,15 +17,29 @@ import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
 import io.github.nicolasgoyon.folkhold.world.group.MobileGroupData;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementDiscovery;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.StructurePiece;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -201,6 +216,75 @@ public final class SettlementGameTests {
         BlockPos pos = helper.absolutePos(HEART);
         ChunkPos start = Settlements.startChunk(helper.getLevel(), pos);
         helper.assertTrue(start.equals(new ChunkPos(pos)), "Expected the chunk " + new ChunkPos(pos) + ", not " + start);
+        helper.succeed();
+    }
+
+    /**
+     * A settlement that the discovery makes for a village structure and a settlement that the heart of the same
+     * village makes get the same start level: the level of the world seed and the start chunk. The discovery checks a
+     * placement region far from the other tests. The test generates the village start in the candidate chunk and
+     * records it in the chunks, with no blocks. The heart is in a piece in another chunk than the start chunk. The
+     * discovered settlement gets a heart in another place, thus the heart makes its own settlement.
+     */
+    @GameTest(template = "arena", timeoutTicks = 100, batch = "settlement_start_level")
+    public static void discoveredAndBoundSettlementsOfAVillageGetTheSameLevel(GameTestHelper helper) {
+        TestSupport.buildFloor(helper);
+        ServerLevel level = helper.getLevel();
+        MinecraftServer server = level.getServer();
+        ChunkGeneratorStructureState structures = TestSupport.villageStructures(level);
+        Settlement discovered = null;
+        // Regions far from the spawn and from the regions of the other tests.
+        for (int x = 500; x < 540 && discovered == null; x++) {
+            discovered = SettlementDiscovery.checkRegion(level, structures, new RegionPos(x, 401))
+                    .filter(found -> !found.hasHeart()).orElse(null);
+        }
+        helper.assertTrue(discovered != null, "The discovery must find a village in 40 regions");
+        ChunkPos chunk = new ChunkPos(discovered.startChunkX(), discovered.startChunkZ());
+        int discoveredLevel = discovered.level();
+        discovered.setHeart(discovered.x(), Settlements.seaLevel(level), discovered.z());
+        retire(helper, discovered);
+
+        Structure structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
+                .getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        StructureStart start = structure.generate(level.registryAccess(), generator, generator.getBiomeSource(),
+                level.getChunkSource().randomState(), server.getStructureManager(), level.getSeed(), chunk, 0, level,
+                biome -> true);
+        helper.assertTrue(start.isValid(), "The village must start in " + chunk);
+        ChunkPos startChunkPos = chunk;
+        BoundingBox piece = start.getPieces().stream().map(StructurePiece::getBoundingBox)
+                .filter(box -> !new ChunkPos(box.getCenter()).equals(startChunkPos))
+                .findFirst().orElse(null);
+        helper.assertTrue(piece != null, "The village must have a piece in another chunk than " + chunk);
+        BlockPos pos = piece.getCenter();
+        LevelChunk startChunk = level.getChunk(chunk.x, chunk.z);
+        LevelChunk heartChunk = level.getChunkAt(pos);
+        startChunk.setStartForStructure(structure, start);
+        heartChunk.addReferenceForStructure(structure, chunk.toLong());
+        int expected = Settlements.startLevel(level.getSeed(), chunk);
+        Settlement bound;
+        try {
+            level.setBlockAndUpdate(pos, ModBlocks.VILLAGE_HEART.get().defaultBlockState());
+            VillageHeartBlockEntity heart = (VillageHeartBlockEntity) level.getBlockEntity(pos);
+            helper.assertTrue(heart != null, "The heart must be at " + pos);
+            heart.ensureSettlement();
+            bound = Settlements.of(server, heart).orElseThrow();
+        } finally {
+            level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+            Map<Structure, StructureStart> starts = new HashMap<>(startChunk.getAllStarts());
+            starts.remove(structure);
+            startChunk.setAllStarts(starts);
+            Map<Structure, LongSet> references = new HashMap<>(heartChunk.getAllReferences());
+            references.remove(structure);
+            heartChunk.setAllReferences(references);
+        }
+        retire(helper, bound);
+
+        helper.assertTrue(bound.startChunkX() == chunk.x && bound.startChunkZ() == chunk.z,
+                "The heart must find the start chunk " + chunk + " of its village");
+        helper.assertTrue(!bound.id().equals(discovered.id()), "The heart must make its own settlement");
+        helper.assertTrue(discoveredLevel == expected && bound.level() == expected, "Expected the start level "
+                + expected + ", not " + discoveredLevel + " (discovery) and " + bound.level() + " (heart)");
         helper.succeed();
     }
 }

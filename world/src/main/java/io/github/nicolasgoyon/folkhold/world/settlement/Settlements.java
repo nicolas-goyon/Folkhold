@@ -53,7 +53,9 @@ public final class Settlements {
     }
 
     /**
-     * Makes a new active settlement. The faction is the faction with the nearest territory center.
+     * Makes a new active settlement for a village structure. The faction is the faction with the nearest territory
+     * center. The start level comes from the world seed and the start chunk (see {@link #startLevel(long, ChunkPos)}),
+     * thus the structure and the settlement get the same level.
      *
      * @param server     the server
      * @param id         the id of the settlement
@@ -63,10 +65,16 @@ public final class Settlements {
      * @return the settlement, not yet in the registry
      */
     public static Settlement create(MinecraftServer server, UUID id, ChunkPos startChunk, BlockPos pos) {
+        return create(server, id, startChunk, pos, startLevel(server.overworld().getSeed(), startChunk));
+    }
+
+    /** As {@link #create(MinecraftServer, UUID, ChunkPos, BlockPos)}, with a given start level. */
+    private static Settlement create(MinecraftServer server, UUID id, ChunkPos startChunk, BlockPos pos,
+            int startLevel) {
         FactionSpec faction = FactionData.get(server).ownerAt(pos);
         Settlement settlement = new Settlement(id.toString(), startChunk.x, startChunk.z, faction.id(),
                 name(faction, id), pos.getX(), pos.getZ());
-        settlement.setProgress(startLevel(settlement.id()), 0);
+        settlement.setProgress(startLevel, 0);
         settlement.setBiome(Economies.biomeAt(server.overworld(), pos.getX(), pos.getY(), pos.getZ()));
         startEconomy(server, settlement);
         return settlement;
@@ -86,7 +94,20 @@ public final class Settlements {
     }
 
     /**
-     * The start level of a settlement, from the level table. The same id gives the same level.
+     * The start level of a village structure, from the level table. The same world seed and the same start chunk give
+     * the same level. The structure can use this level before its settlement exists.
+     *
+     * @param worldSeed  the seed of the world
+     * @param startChunk the chunk of the structure start
+     * @return the start level
+     */
+    public static int startLevel(long worldSeed, ChunkPos startChunk) {
+        return LevelTables.get().startLevel(worldSeed, startChunk.x, startChunk.z);
+    }
+
+    /**
+     * The start level of a settlement with no known structure start (for example a heart that a player placed), from
+     * the level table. The same id gives the same level.
      *
      * @param id the id of the settlement
      * @return the start level
@@ -144,15 +165,26 @@ public final class Settlements {
      * @return the start chunk
      */
     public static ChunkPos startChunk(ServerLevel level, BlockPos pos) {
+        return structureStart(level, pos).orElseGet(() -> new ChunkPos(pos));
+    }
+
+    /**
+     * The start chunk of the village structure at a position, if the position is in a piece of a village structure.
+     *
+     * @param level the level
+     * @param pos   the position
+     * @return the start chunk, or empty outside a village structure
+     */
+    public static Optional<ChunkPos> structureStart(ServerLevel level, BlockPos pos) {
         Optional<Structure> structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
                 .getOptional(VILLAGE_STRUCTURE);
         if (structure.isPresent()) {
             StructureStart start = level.structureManager().getStructureWithPieceAt(pos, structure.get());
             if (start.isValid()) {
-                return start.getChunkPos();
+                return Optional.of(start.getChunkPos());
             }
         }
-        return new ChunkPos(pos);
+        return Optional.empty();
     }
 
     /**
@@ -165,7 +197,10 @@ public final class Settlements {
      *   <li>The discovery found the settlement, and the heart has a faction: the heart is older than the
      *       settlement. The settlement gets the id, the faction and the name of the heart, because the
      *       reputations use the id of the heart.</li>
-     *   <li>No settlement: the mod makes a settlement with the id of the heart.</li>
+     *   <li>No settlement: the mod makes a settlement with the id of the heart. In a village structure, the start
+     *       level comes from the world seed and the start chunk, as for the discovery (see
+     *       {@link #startLevel(long, ChunkPos)}). Outside a village structure, no start chunk is known: the start
+     *       level comes from the id of the heart (see {@link #startLevel(String)}).</li>
      * </ul>
      *
      * @param level the level of the heart
@@ -179,7 +214,8 @@ public final class Settlements {
         String heartId = heart.getVillageId().toString();
         Settlement settlement = data.registry().byId(heartId).orElse(null);
         if (settlement == null) {
-            ChunkPos start = startChunk(level, pos);
+            Optional<ChunkPos> structureStart = structureStart(level, pos);
+            ChunkPos start = structureStart.orElseGet(() -> new ChunkPos(pos));
             Settlement discovered = data.registry().byStart(start.x, start.z).stream()
                     .filter(found -> !found.hasHeart())
                     .findFirst()
@@ -195,7 +231,9 @@ public final class Settlements {
                     settlement.setName(heartName);
                 }
             } else {
-                settlement = create(server, heart.getVillageId(), start, pos);
+                int startLevel = structureStart.map(chunk -> startLevel(level.getSeed(), chunk))
+                        .orElseGet(() -> startLevel(heartId));
+                settlement = create(server, heart.getVillageId(), start, pos, startLevel);
                 if (heart.getFactionId() != null) {
                     settlement.setFactionId(heart.getFactionId());
                     String heartName = heart.getVillageName();
