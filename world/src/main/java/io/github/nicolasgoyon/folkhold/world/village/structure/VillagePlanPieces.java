@@ -232,6 +232,9 @@ final class VillagePlanPieces {
                 Optional<VillagePlots.Plot> connector = street == null ? Optional.empty() : plotOf(street, plot);
                 if (connector.isEmpty()) {
                     problems.add("no plot connector at " + plot.x() + " " + plot.z());
+                    if (use.type() == PlotUses.Type.HOME) {
+                        homesLeft--;
+                    }
                     continue;
                 }
                 Site site = new Site(sizeTest(style, plot), street, connector.get(),
@@ -255,6 +258,9 @@ final class VillagePlanPieces {
                     VillagePlots.space(templates, homePools, site.connector()).ifPresent(space::add);
                     reserved.add(BoundingBox.encapsulatingBoxes(space).orElseThrow());
                 }
+            }
+            if (beds < this.bedTarget) {
+                problems.add("home beds " + beds + " of " + this.bedTarget);
             }
             return new Result(pieces, reserved, built, free, postJobs, problems);
         }
@@ -387,8 +393,9 @@ final class VillagePlanPieces {
          * <p>The homes give the home beds that the village needs (see {@link PlotUses#leastBeds}): a piece with fewer
          * beds than the least beds of the plot (for example the forge, or the fishing hut of 2 beds) comes only when
          * the home plots that stay give the beds. When no piece with these beds fits the plot, a piece with fewer beds
-         * and at least 1 bed comes, the most beds first. When no home of the pool has beds, all the homes are
-         * candidates.
+         * and at least 1 bed comes, the most beds first: the plot has a building, but the village does not get the home
+         * beds that it needs, and the result gives this as a problem. When no home of the pool has beds, all the homes
+         * are candidates.
          *
          * @return true if the plot has a building
          */
