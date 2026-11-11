@@ -112,13 +112,18 @@ public final class VillageGrowth {
      * plot. The steps come in the order of {@link VillageBuildings#steps}: the first step with a piece and a free plot
      * starts.
      *
+     * <p>With the setting {@code construction.growth} false, the village takes no new plot for a new home, for a
+     * building of the level or for a first market. The maintenance steps stay: the first posts (a village with no
+     * food post or no post that trades), the check of the market signs and the market again on its plot.
+     *
      * @param level the level
      * @param heart the village heart
      * @return the construction site, or empty with no construction
      */
     public static Optional<BuilderSite> check(ServerLevel level, VillageHeartBlockEntity heart) {
         BlockPos heartPos = heart.getBlockPos();
-        if (!WorldConfig.CONSTRUCTION_GROWTH.get() || !BuilderSites.of(level, heartPos).isEmpty()
+        boolean growth = WorldConfig.CONSTRUCTION_GROWTH.get();
+        if (!BuilderSites.of(level, heartPos).isEmpty()
                 || VillageFolk.of(level, heartPos, ModProfessions.BUILDER.get()).isEmpty()) {
             return Optional.empty();
         }
@@ -132,7 +137,10 @@ public final class VillageGrowth {
         List<String> posts = postJobs(level.getServer(), settlement.get());
         List<VillageBuildings.Step> steps = VillageBuildings.steps(VillageBuildingTable.get(),
                 settlement.get().level(), layout.buildings(), layout.isScanned(), needsPlaces(settlement.get()),
-                settlement.get().jobPosts().isPresent() && needsFirstPost(posts));
+                settlement.get().jobPosts().isPresent() && needsFirstPost(posts)).stream()
+                .filter(step -> growth || (step.type() != VillageBuildings.StepType.HOME
+                        && step.type() != VillageBuildings.StepType.BUILDING))
+                .toList();
         List<VillagePlots.Plot> plots = reference.get().plots().stream()
                 .filter(plot -> !plot.built())
                 .sorted(Comparator.comparingDouble(plot -> plot.connector().distSqr(heartPos)))
@@ -167,6 +175,10 @@ public final class VillageGrowth {
                     heart.setMarketNoSpace(false);
                     return site;
                 }
+                continue;
+            }
+            if (market && !growth) {
+                // A first market takes a new plot: only the growth does this.
                 continue;
             }
             Optional<StructurePoolElement> element = piece(level, step, reference.get().homes().get());

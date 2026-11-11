@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.world.village;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -63,5 +64,16 @@ class VillageSizesTest {
                 JsonParser.parseString("{\"sizes\": [{\"tier\": \"city\", \"plots\": 53}]}").getAsJsonObject()));
         assertTrue(missing.getMessage().contains("tier city") && missing.getMessage().contains("wall"),
                 missing.getMessage());
+    }
+
+    /** The apply step checks the tiers of the level table: a table with a missing tier gives the default table. */
+    @Test
+    void tableWithAMissingTierGivesTheDefaultTable() {
+        VillageSizeTable hamletOnly = new VillageSizeTable(
+                List.of(VillageSizeTable.DEFAULT.size("hamlet").orElseThrow()));
+
+        assertSame(VillageSizeTable.DEFAULT, VillageSizes.checked(hamletOnly, LevelTable.DEFAULT));
+        VillageSizeTable full = new VillageSizeTable(List.copyOf(VillageSizeTable.DEFAULT.sizes()));
+        assertSame(full, VillageSizes.checked(full, LevelTable.DEFAULT));
     }
 }

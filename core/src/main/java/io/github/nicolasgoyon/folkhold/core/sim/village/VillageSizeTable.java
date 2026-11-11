@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.core.sim.village;
 
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize.Wall;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,7 +21,7 @@ public final class VillageSizeTable {
     public static final VillageSizeTable DEFAULT = new VillageSizeTable(List.of(
             new VillageSize("hamlet", 14, 0, 0.15, 48, 0, Wall.PALISADE, 9),
             new VillageSize("village", 28, 0, 0.15, 64, 0, Wall.PALISADE, 13),
-            new VillageSize("town", 42, 0, 0.15, 96, 1, Wall.PALISADE, 22),
+            new VillageSize("town", 42, 0, 0.15, 96, 1, Wall.PALISADE, 20),
             new VillageSize("city", 53, 0, 0.15, 128, 2, Wall.PALISADE, 27),
             new VillageSize("capital", 66, 0, 0.15, 160, 3, Wall.PALISADE, 30)));
 
@@ -47,7 +48,7 @@ public final class VillageSizeTable {
 
     /** The sizes, in the order of the data file. */
     public Collection<VillageSize> sizes() {
-        return sizes.values();
+        return Collections.unmodifiableCollection(sizes.values());
     }
 
     /** The size of a tier, if the table has the tier. */

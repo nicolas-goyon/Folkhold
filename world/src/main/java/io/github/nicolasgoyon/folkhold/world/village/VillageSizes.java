@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import io.github.nicolasgoyon.folkhold.core.sim.SerializedName;
+import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable;
 import io.github.nicolasgoyon.folkhold.core.sim.level.Tier;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSizeTable;
@@ -62,10 +63,15 @@ public final class VillageSizes extends SimplePreparableReloadListener<VillageSi
                 .orElseThrow(() -> new IllegalStateException("No village size for the tier " + tier));
     }
 
+    /**
+     * Adds the listener. {@code FolkholdWorld} adds {@link LevelTables} before this listener, thus
+     * {@link #apply} runs after the apply of the level table and checks the tiers of the new level table.
+     */
     public static void onAddReloadListener(AddReloadListenerEvent event) {
         event.addListener(new VillageSizes());
     }
 
+    /** Reads the file. The prepare step runs in parallel with the other listeners: it does not read the level table. */
     @Override
     protected VillageSizeTable prepare(ResourceManager manager, ProfilerFiller profiler) {
         Optional<Resource> resource = manager.getResource(FILE);
@@ -74,8 +80,7 @@ public final class VillageSizes extends SimplePreparableReloadListener<VillageSi
             return VillageSizeTable.DEFAULT;
         }
         try (Reader reader = resource.get().openAsReader()) {
-            return parse(JsonParser.parseReader(reader).getAsJsonObject())
-                    .requireTiers(LevelTables.get().tiers().stream().map(Tier::id).toList());
+            return parse(JsonParser.parseReader(reader).getAsJsonObject());
         } catch (IOException | RuntimeException e) {
             FolkholdWorld.LOGGER.error("The village size table {} is not valid: {}. The mod uses the default table",
                     FILE, e.getMessage());
@@ -85,7 +90,24 @@ public final class VillageSizes extends SimplePreparableReloadListener<VillageSi
 
     @Override
     protected void apply(VillageSizeTable table, ResourceManager manager, ProfilerFiller profiler) {
-        current = table;
+        current = checked(table, LevelTables.get());
+    }
+
+    /**
+     * Checks that a table has a size for each tier of a level table.
+     *
+     * @param table  the village size table
+     * @param levels the level table
+     * @return the table, or {@link VillageSizeTable#DEFAULT} (with an error in the log) when a tier has no size
+     */
+    static VillageSizeTable checked(VillageSizeTable table, LevelTable levels) {
+        try {
+            return table.requireTiers(levels.tiers().stream().map(Tier::id).toList());
+        } catch (IllegalArgumentException e) {
+            FolkholdWorld.LOGGER.error("The village size table {} is not valid: {}. The mod uses the default table",
+                    FILE, e.getMessage());
+            return VillageSizeTable.DEFAULT;
+        }
     }
 
     /**

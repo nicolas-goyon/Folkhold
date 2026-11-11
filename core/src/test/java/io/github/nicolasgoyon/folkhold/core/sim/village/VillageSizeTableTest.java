@@ -34,6 +34,12 @@ class VillageSizeTableTest {
         assertEquals(24, size.plots(64, 4));
         // A hall with more places than the population: 1 home at least.
         assertEquals(2, size.plots(3, 4));
+        // The spare plots of a number of plots agree with the plots of the rule.
+        for (int population = 0; population < 200; population++) {
+            int plots = size.plots(population, 4);
+            int homes = Math.max(1, Math.ceilDiv(Math.max(0, population - 4), 3));
+            assertEquals(plots - homes, size.sparePlots(plots), "Population " + population);
+        }
     }
 
     @Test

@@ -11,7 +11,8 @@ import java.util.Locale;
  *   <li>A plot target: {@code plots} is the number of plots, with the spare plots.</li>
  *   <li>The beds rule: {@code plots} is 0 and {@code bedsPerPlot} is more than 0. The homes hold the maximum
  *       population of the top level of the tier, minus the places of the hall. Each home is one plot with
- *       {@code bedsPerPlot} beds. Then the spare plots come in addition (see {@link #plots(int, int)}).</li>
+ *       {@code bedsPerPlot} beds. Then the spare plots come in addition (see {@link #plots(int, int)}). The rule counts
+ *       the homes only, not the buildings of the level (#782).</li>
  * </ul>
  *
  * @param tier               the id of the tier
@@ -91,16 +92,29 @@ public record VillageSize(String tier, int plots, int bedsPerPlot, double spareS
             return plots;
         }
         int homes = Math.max(1, Math.ceilDiv(Math.max(0, maxPopulation - hallPlaces), bedsPerPlot));
-        return (int) Math.ceil(homes * (1.0 + spareShare));
+        return homes + spareFor(homes);
     }
 
     /**
-     * The number of spare plots among a number of plots.
+     * The number of spare plots among a number of plots: the plots minus the largest number of needed plots that
+     * gives this number of plots or fewer with its spare plots. For the beds rule, {@code sparePlots(plots(...))} is
+     * the number of spare plots that {@link #plots(int, int)} adds.
      *
      * @param plots the number of plots, with the spare plots
      * @return the number of spare plots
      */
     public int sparePlots(int plots) {
-        return (int) Math.round(plots * spareShare / (1.0 + spareShare));
+        for (int needed = plots; needed > 0; needed--) {
+            if (needed + spareFor(needed) <= plots) {
+                return plots - needed;
+            }
+        }
+        return plots;
+    }
+
+    /** The spare plots for a number of needed plots: the spare share of the needed plots, rounded up. */
+    private int spareFor(int needed) {
+        // The small margin keeps an exact product (for example 20 x 0.15) from a round-up of the float error.
+        return (int) Math.ceil(needed * spareShare - 1e-9);
     }
 }
