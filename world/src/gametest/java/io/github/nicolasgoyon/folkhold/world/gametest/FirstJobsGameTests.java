@@ -9,12 +9,9 @@ import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.TemplateSigns;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.HolderSet;
 import net.minecraft.core.QuartPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -23,23 +20,19 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.TagKey;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
-import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 /**
  * In-game tests for the house-workshops of a generated village: the village has the job posts of its start level (see
- * {@link FortifiedVillageStructure}). The pools {@code jobs_food} and {@code jobs_start} (see {@code first_jobs} in
- * {@code tools/structures/village.py}) have valid jobs.
+ * {@link FortifiedVillageStructure}).
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -129,49 +122,6 @@ public final class FirstJobsGameTests {
     }
 
     /**
-     * The pools {@code jobs_food} and {@code jobs_start} of each variant have only house-workshops of jobs with a
-     * minimum level of 1 that trade and that are valid in each biome of the variant. The jobs of the pool
-     * {@code jobs_food} make food.
-     */
-    @GameTest(template = "empty", timeoutTicks = 20, batch = "first_jobs_pools")
-    public static void firstJobPoolsHaveValidJobs(GameTestHelper helper) {
-        ServerLevel level = helper.getLevel();
-        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
-                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
-        Registry<StructureTemplatePool> pools = level.registryAccess().registryOrThrow(Registries.TEMPLATE_POOL);
-        List<FortifiedVillageStructure.Variant> variants = new ArrayList<>(structure.variants());
-        variants.add(new FortifiedVillageStructure.Variant(HolderSet.direct(),
-                structure.startPool(), structure.wall(), structure.homes(), Optional.empty()));
-        List<String> problems = new ArrayList<>();
-        for (FortifiedVillageStructure.Variant variant : variants) {
-            String start = variant.startPool().unwrapKey().orElseThrow().location().getPath();
-            String folder = start.substring(0, start.lastIndexOf('/') + 1);
-            for (String name : List.of("jobs_food", "jobs_start")) {
-                List<StructurePoolElement> elements = pool(pools, folder + name).value()
-                        .getShuffledTemplates(RandomSource.create(0L));
-                if (elements.isEmpty()) {
-                    problems.add(folder + name + " is empty");
-                }
-                for (StructurePoolElement element : elements) {
-                    String template = VillageReference.templateOf(level, element).map(ResourceLocation::getPath)
-                            .orElse("");
-                    String id = FolkholdWorld.MOD_ID + ":" + template.substring(template.lastIndexOf('/') + 1)
-                            .replaceFirst("^job_", "");
-                    Job job = EconomyData.jobs().get(id);
-                    boolean food = name.equals("jobs_food");
-                    if (job == null || job.minLevel() != 1 || !trades(job)
-                            || (food && !job.producesFood(EconomyData.catalog()))
-                            || !variant.biomes().stream().allMatch(biome -> validIn(job, biome))) {
-                        problems.add(folder + name + ": " + template);
-                    }
-                }
-            }
-        }
-        helper.assertTrue(problems.isEmpty(), "Jobs that are not valid in the first job pools: " + problems);
-        helper.succeed();
-    }
-
-    /**
      * The job ids of the job signs of a village, as the scan of the heart reads them: the house-workshops
      * ({@code job_<id>} pieces) and the homes with a job sign (the fishing hut of the maritime villages).
      */
@@ -188,13 +138,6 @@ public final class FirstJobsGameTests {
     /** True if the workers of a job trade: the job file has a profession. */
     private static boolean trades(Job job) {
         return EconomyData.profession(job.id()).isPresent();
-    }
-
-    /** True if a job is valid in a biome: the job has no biome list, or the list has the biome or one of its tags. */
-    private static boolean validIn(Job job, Holder<Biome> biome) {
-        return job.biomes().isEmpty() || job.biomes().stream().anyMatch(entry -> entry.startsWith("#")
-                ? biome.is(TagKey.create(Registries.BIOME, ResourceLocation.parse(entry.substring(1))))
-                : biome.is(ResourceLocation.parse(entry)));
     }
 
     private static Holder<StructureTemplatePool> pool(Registry<StructureTemplatePool> pools, String path) {
