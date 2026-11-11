@@ -3,13 +3,9 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 import io.github.nicolasgoyon.folkhold.blocks.block.BuildingSignKind;
 import io.github.nicolasgoyon.folkhold.blocks.block.JobSignBlockEntity;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
-import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
-import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
-import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
 import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
-import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
 import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
@@ -49,9 +45,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 /**
  * In-game tests for the templates of the job buildings ({@code village/job_<id>}, written by
  * {@code tools/structures/village.py}): each template is a house-workshop with the job sign of its job, the house
- * sign and {@link #HOME_BEDS} beds or more. The construction plan of each template has no warning, the fences have the
- * shape that the game gives them, and the scan of the heart counts the job sign, the home and the beds of each
- * building. The templates have no entities.
+ * sign and {@link #HOME_BEDS} beds or more. The fences have the shape that the game gives them, and the scan of the
+ * heart counts the job sign, the home and the beds of each building. The templates have no entities. The plan test of
+ * the templates is {@link VillageTemplateGameTests#eachVillagePlanHasNoWarning}.
  */
 @GameTestHolder(FolkholdWorld.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -397,8 +393,9 @@ public final class JobBuildingTemplateGameTests {
     }
 
     /**
-     * The 4 or 5 job buildings of a group in a folder of the pieces (a style and a biome variant): the plan of each
-     * template has no warning. After the placement of the templates, each job sign has its job and its icon item, each
+     * The 4 or 5 job buildings of a group in a folder of the pieces (a style and a biome variant). The plan test of
+     * the templates is {@link VillageTemplateGameTests#eachVillagePlanHasNoWarning}. After the placement of the
+     * templates, each job sign has its job and its icon item, each
      * fence and each wall has the shape of its neighbors, and the scan of the heart finds 1 job post for each building
      * with the beds of the building, 1 home (house sign) for each building and the beds of the templates as the home
      * beds of the village. The pieces of a style of {@link #STYLE_JOBS} have the size of the style: their tests use
@@ -422,10 +419,6 @@ public final class JobBuildingTemplateGameTests {
                 helper.assertTrue(style == null || template.getSize().equals(style.size()), "The piece " + folder
                         + "job_" + job + " must have the size of its style: " + template.getSize());
                 BlockPos origin = helper.absolutePos(ORIGINS.get(i));
-                Plan plan = ConstructionPlanner.plan(ConstructionTargets.fromTemplate(level, template, origin,
-                        new StructurePlaceSettings()), ConstructionTargets.view(level), Reach.DEFAULT);
-                helper.assertTrue(plan.warnings().isEmpty(), "The plan of " + job + " must have no warnings: "
-                        + plan.warnings());
                 // As a piece of the village structure: the placement does not change the shapes of the blocks.
                 StructurePlaceSettings settings = new StructurePlaceSettings()
                         .addProcessor(JigsawReplacementProcessor.INSTANCE).setKnownShape(true);

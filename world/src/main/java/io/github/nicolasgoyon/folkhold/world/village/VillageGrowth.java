@@ -96,6 +96,18 @@ public final class VillageGrowth {
     public static final int WORKSHOP_JOBS = 3;
 
     /**
+     * The pools of the pieces that the growth builds in a variant: the house-workshops, the buildings of the levels
+     * and the market. The pools are in the folder of the pool of the homes of the variant.
+     *
+     * @param homes the id of the pool of the homes of the variant
+     * @return the ids of the pools
+     */
+    public static List<ResourceLocation> pools(ResourceLocation homes) {
+        return List.of(VillagePlots.sibling(homes, VillagePlots.JOBS), VillagePlots.sibling(homes, HOUSES),
+                VillagePlots.sibling(homes, MARKET));
+    }
+
+    /**
      * Starts the construction of a house-workshop, of the market or of a missing building of the level on a free
      * plot. The steps come in the order of {@link VillageBuildings#steps}: the first step with a piece and a free plot
      * starts.
