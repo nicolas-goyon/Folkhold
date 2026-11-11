@@ -22,6 +22,9 @@ adds the palisade, the towers and the gates around them. Pieces:
 - street.nbt, street_bank.nbt, street_jobs.nbt, street_end.nbt: the parts of a street. The paths follow the terrain. A
   segment has a plot on each side, and a connector for the end of the street. The end has a lamp post on each edge.
   The street to the south (street_jobs) has the plots of the first house-workshops (see first_jobs).
+- street_next.nbt, street_cross.nbt, street_side.nbt: the pieces of the planned streets, in the pools
+  village/streets_next and village/streets_side (see street_cross). The connectors of the other pieces do not target
+  these pools.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
 - bank.nbt: the village bank. Its walls and its chests resist explosions.
 - job_<id>.nbt: the building of a job (see JOBS), in the pool village/jobs. Each building has the job sign of its job.
@@ -72,6 +75,9 @@ STREET = f"{NS}:street"
 STREET_NEXT = f"{NS}:street_next"
 PLAZA_EXIT = f"{NS}:plaza_exit"
 STREET_ENDS_POOL = f"{NS}:village/street_ends"
+# The pools of the planned streets (see street_cross). No connector of the jigsaw layout targets them.
+NEXT_STREETS_POOL = f"{NS}:village/streets_next"
+SIDE_STREETS_POOL = f"{NS}:village/streets_side"
 FIRST_STREETS_POOL = f"{NS}:village/streets_first"
 JOB_STREETS_POOL = f"{NS}:village/streets_jobs"
 # The pools of the first house-workshops of a village (see first_jobs).
@@ -755,19 +761,21 @@ def street_path(t, rng, length):
             t.set(x, 0, z, path_block(rng))
 
 
-def street(bank=False, jobs=False):
+def street(bank=False, jobs=False, next_street=False):
     """A segment of street along z, with a plot on each side and a connector for the end of the street.
 
     The segment follows the terrain (projection terrain_matching). The segment to the north has the plot of the bank
     on its west side. With jobs, the segment has the plots of the first house-workshops: the pool jobs_food on the
-    west side and the pool jobs_start on the east side.
+    west side and the pool jobs_start on the east side. With next_street, the connector at the end of the segment
+    targets the pool streets_next: the street continues (see street_cross).
     """
     rng = random.Random(12 if bank else 13)
     t = Template(STREET_WIDTH, 4, STREET_LENGTH)
     street_path(t, rng, STREET_LENGTH)
     mid = STREET_WIDTH // 2
     t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
-    t.jigsaw(mid, 0, STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET, STREET_ENDS_POOL, "minecraft:dirt_path")
+    t.jigsaw(mid, 0, STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET,
+             NEXT_STREETS_POOL if next_street else STREET_ENDS_POOL, "minecraft:dirt_path")
     # The plots are near the end of the segment: the houses of 2 streets side by side do not touch.
     plot_z = STREET_LENGTH - 1 - HOUSE_HALF_WIDTH
     west = BANK_POOL if bank else FOOD_JOBS_POOL if jobs else HOUSE_POOL
@@ -791,6 +799,59 @@ def street_end():
     t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
     lamp_post(t, 0, STREET_END_LENGTH - 1)
     lamp_post(t, STREET_WIDTH - 1, STREET_END_LENGTH - 1)
+    return t
+
+
+# The pieces of the planned streets. The frontage of a style is the width of its widest home along the street, and its
+# depth is the depth of its deepest home: 9 and 9 for the pieces of all the cultures and the maritime pieces, 13 and 13
+# for Sunreach, 17 and 17 for Valeholm (see PIECES and STYLES). A home on a plot of a street segment goes past the end
+# of the segment by at most PLOT_MARGIN blocks (a home of 13 blocks on a segment of 13 blocks, a side long house on a
+# Norse segment).
+PLOT_MARGIN = 2
+
+
+def street_cross(frontage):
+    """A crossroad: a street along z with a side street to the west and to the east, and a plot in each corner.
+
+    - The street has 2 arms of frontage + PLOT_MARGIN blocks, and the crossing (STREET_WIDTH blocks) between them. The
+      path of the side streets goes through the 2 edges of the crossing.
+    - A plot on each side of each arm, next to the crossing (4 plots): a home of the full frontage of the style does
+      not go in front of the crossing. The margin at the 2 ends keeps the homes of the next pieces away.
+    - Connectors: the start of the street to the north (STREET), the next street to the south (pool streets_next),
+      and the 2 side streets to the west and to the east (pool streets_side).
+    """
+    arm = frontage + PLOT_MARGIN
+    length = 2 * arm + STREET_WIDTH
+    rng = random.Random(17)
+    t = Template(STREET_WIDTH, 4, length)
+    street_path(t, rng, length)
+    for z in range(arm + 1, arm + STREET_WIDTH - 1):
+        for x in (0, STREET_WIDTH - 1):
+            t.set(x, 0, z, path_block(rng))
+    mid = STREET_WIDTH // 2
+    t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
+    t.jigsaw(mid, 0, length - 1, "south_up", STREET_NEXT, STREET, NEXT_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(0, 0, arm + mid, "west_up", STREET_NEXT, STREET, SIDE_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(STREET_WIDTH - 1, 0, arm + mid, "east_up", STREET_NEXT, STREET, SIDE_STREETS_POOL, "minecraft:dirt_path")
+    for z in (arm - 1 - frontage // 2, arm + STREET_WIDTH + frontage // 2):
+        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+    lamp_post(t, 0, arm)
+    lamp_post(t, STREET_WIDTH - 1, arm + STREET_WIDTH - 1)
+    return t
+
+
+def street_side(depth):
+    """The start of a side street, from a side of a crossroad: depth + PLOT_MARGIN blocks with no plot. The homes of
+    the crossroad (depth blocks deep) are on its 2 sides. The connector at the end targets the pool streets_next."""
+    rng = random.Random(18)
+    length = depth + PLOT_MARGIN
+    t = Template(STREET_WIDTH, 4, length)
+    street_path(t, rng, length)
+    mid = STREET_WIDTH // 2
+    t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
+    t.jigsaw(mid, 0, length - 1, "south_up", STREET_NEXT, STREET, NEXT_STREETS_POOL, "minecraft:dirt_path")
+    lamp_post(t, STREET_WIDTH - 1, length - 1)
     return t
 
 
@@ -1377,17 +1438,19 @@ def norse_storehouse_side():
     return t
 
 
-def norse_street(bank=False, jobs=False):
+def norse_street(bank=False, jobs=False, next_street=False):
     """A Norse street along z: a segment of NORSE_STREET_LENGTH blocks with 2 plots on each side (NORSE_PLOTS), for
     the long houses. The segment to the north has the plot of the bank on its west side, near the plaza. With jobs,
     the segment has the plots of the first house-workshops: near the plaza, the pool jobs_food on the west side and the
-    pool jobs_start on the east side; far from the plaza, the pool jobs_start on the west side."""
+    pool jobs_start on the east side; far from the plaza, the pool jobs_start on the west side. With next_street, the
+    connector at the end of the segment targets the pool streets_next (see street_cross)."""
     rng = random.Random(32 if bank else 33)
     t = Template(STREET_WIDTH, 4, NORSE_STREET_LENGTH)
     street_path(t, rng, NORSE_STREET_LENGTH)
     mid = STREET_WIDTH // 2
     t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
-    t.jigsaw(mid, 0, NORSE_STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET, STREET_ENDS_POOL, "minecraft:dirt_path")
+    t.jigsaw(mid, 0, NORSE_STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET,
+             NEXT_STREETS_POOL if next_street else STREET_ENDS_POOL, "minecraft:dirt_path")
     # The jigsaw fills the plots of the house-workshops first (selection priority): a side long house on the other
     # plot of the street does not take their space.
     for i, z in enumerate(NORSE_PLOTS):
@@ -3590,6 +3653,9 @@ PIECES = {
     "street_bank": lambda: street(bank=True),
     "street_jobs": lambda: street(jobs=True),
     "street_end": street_end,
+    "street_next": lambda: street(next_street=True),
+    "street_cross": lambda: street_cross(W),
+    "street_side": lambda: street_side(D),
     "tower": tower_piece,
     "gate": gate_piece,
     "house_cottage": cottage,
@@ -3609,6 +3675,9 @@ STYLES = {
         "street": norse_street,
         "street_bank": lambda: norse_street(bank=True),
         "street_jobs": lambda: norse_street(jobs=True),
+        "street_next": lambda: norse_street(next_street=True),
+        "street_cross": lambda: street_cross(SL),
+        "street_side": lambda: street_side(LD),
         "house_cottage": norse_cottage,
         "house_cottage_side": norse_cottage_side,
         "house_barracks": norse_barracks,
@@ -3619,6 +3688,8 @@ STYLES = {
         **{f"job_{job}": build for job, build in NORSE_JOBS.items()},
     },
     "sunreach": {
+        "street_cross": lambda: street_cross(CW),
+        "street_side": lambda: street_side(CD),
         "house_cottage": sun_cottage,
         "house_cottage_courtyard": sun_cottage_courtyard,
         "house_barracks": sun_barracks,
@@ -3912,6 +3983,8 @@ def pools(v):
         "streets_jobs": pool([(1, street("street_jobs"))], v.id("street_ends")),
         "streets_bank": pool([(1, street("street_bank"))], v.id("street_ends")),
         "street_ends": pool([(1, street("street_end"))]),
+        "streets_next": pool([(2, street("street_next")), (1, street("street_cross"))], v.id("street_ends")),
+        "streets_side": pool([(1, street("street_side"))], v.id("street_ends")),
     }
 
 

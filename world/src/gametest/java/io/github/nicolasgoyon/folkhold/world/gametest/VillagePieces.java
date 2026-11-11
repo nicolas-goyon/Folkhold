@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
+import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
 import java.util.ArrayDeque;
@@ -37,6 +38,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>The pools of a variant: the start pool, the pool of the homes and the pools of the growth (see
  *       {@link VillageGrowth#pools}), and each pool that a jigsaw connector of a piece of these pools targets, or that
  *       one of these pools has as its fallback.</li>
+ *   <li>The pools of the planned streets of a variant ({@link #PLANNED_STREETS}), in the folder of the pool of its
+ *       homes. No connector of the other pools targets them.</li>
  *   <li>The pieces of the wall of a variant: the template of the tower and the template of the gate. The wall places
  *       them as rigid pieces.</li>
  * </ul>
@@ -44,6 +47,11 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 final class VillagePieces {
     /** The id of the empty pool of the game: it has no pieces. */
     private static final ResourceLocation EMPTY_POOL = ResourceLocation.withDefaultNamespace("empty");
+    /**
+     * The names of the pools of the planned streets of a variant: the street segment that continues, the crossroad
+     * and the start of a side street.
+     */
+    static final List<String> PLANNED_STREETS = List.of("streets_next", "streets_side");
 
     private VillagePieces() {
     }
@@ -95,6 +103,7 @@ final class VillagePieces {
             open.add(id(variant.startPool()));
             open.add(homes);
             open.addAll(VillageGrowth.pools(homes));
+            PLANNED_STREETS.forEach(name -> open.add(VillagePlots.sibling(homes, name)));
             add(pieces, new Piece(variant.wall().tower(), Optional.empty(),
                     StructureTemplatePool.Projection.RIGID), problems);
             add(pieces, new Piece(variant.wall().gate(), Optional.empty(),
