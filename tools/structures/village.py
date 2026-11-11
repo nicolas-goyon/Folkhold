@@ -94,29 +94,255 @@ def wall_torch(facing):
     return "minecraft:wall_torch", {"facing": facing}
 
 
-# Blocks that connect to their neighbors. A template stores the block state, and the game does not update the
-# shape of a block from a template. connect_panes sets the connection properties from the neighbors.
-PANES = ("minecraft:glass_pane", "minecraft:iron_bars")
-# Blocks that are not full. A pane does not connect to them.
-NOT_FULL = ("air", "torch", "lantern", "ladder", "door", "stairs", "slab", "carpet", "bed", "fence", "banner",
-            "flower_pot", "campfire", "brazier", "jigsaw", "composter", "anvil", "grindstone", "cauldron", "chest")
+# ---------------------------------------------------------------- shapes of the connected blocks
+
+# A template stores the block state, and the game does not update the shape of a block from a template. connect gives
+# each fence, wall and pane of a template the state that the game gives it from its neighbors (FenceBlock, WallBlock,
+# IronBarsBlock). Variant.apply calls it after the block replacement of the variant.
 SIDES = {"north": (0, -1), "south": (0, 1), "west": (-1, 0), "east": (1, 0)}
+# The side on the left of a direction (Direction.getCounterClockWise), and the opposite side of a side.
+LEFT = {"north": "west", "west": "south", "south": "east", "east": "north"}
+TOWARD = {"north": "south", "south": "north", "west": "east", "east": "west"}
+AIR = ("minecraft:air", {})
 
 
-def is_full(name):
-    return name is not None and not any(part in name for part in NOT_FULL)
+def is_fence(name):
+    return name.endswith("_fence")
 
 
-def connect_panes(t):
-    """Sets the north, south, east and west properties of each pane from its neighbors in the template."""
-    for (x, y, z), ((name, _props), nbt) in list(t.blocks.items()):
-        if name not in PANES:
-            continue
-        props = {"waterlogged": "false"}
-        for side, (dx, dz) in SIDES.items():
-            neighbor = t.get(x + dx, y, z + dz) if t.inside(x + dx, y, z + dz) else None
-            props[side] = "true" if neighbor in PANES or is_full(neighbor) else "false"
+def is_gate(name):
+    return name.endswith("_fence_gate")
+
+
+def is_wall(name):
+    """True for a block of the tag minecraft:walls. A block of a mod with a name in _wall (bank_wall) is not a wall."""
+    return name.startswith("minecraft:") and name.endswith("_wall")
+
+
+def is_pane(name):
+    """True for an IronBarsBlock: the glass panes and the iron bars."""
+    return name.endswith("_pane") or name.endswith("iron_bars")
+
+
+def box(x1, y1, z1, x2, y2, z2):
+    """A box of a collision shape, in 1/16 of a block (Block.box)."""
+    return x1, y1, z1, x2, y2, z2
+
+
+FULL = (box(0, 0, 0, 16, 16, 16),)
+# The blocks with no collision shape (plants, torches, banners, signs, rails, pressure plates, cobwebs).
+NO_COLLISION = ("minecraft:air", "minecraft:cave_air", "minecraft:allium", "minecraft:cornflower",
+                "minecraft:dandelion", "minecraft:oxeye_daisy", "minecraft:poppy", "minecraft:fern", "minecraft:short_grass",
+                "minecraft:brown_mushroom", "minecraft:red_mushroom", "minecraft:wheat", "minecraft:carrots",
+                "minecraft:potatoes", "minecraft:beetroots", "minecraft:attached_melon_stem",
+                "minecraft:attached_pumpkin_stem", "minecraft:sugar_cane", "minecraft:sweet_berry_bush",
+                "minecraft:cobweb", "minecraft:rail", "minecraft:torch", "minecraft:wall_torch")
+NO_COLLISION_SUFFIXES = ("_banner", "_sign", "_pressure_plate", "_sapling")
+# The blocks with a shape that is not full and that has no full face, with the boxes that touch the bottom of the
+# block. These boxes give the bottom face of the block (see covers). A block with no box here has no box on its
+# bottom face.
+PARTIAL = {
+    "minecraft:chest": (box(1, 0, 1, 15, 14, 15),),
+    "minecraft:anvil": (box(2, 0, 2, 14, 4, 14),),
+    "minecraft:decorated_pot": (box(1, 0, 1, 15, 16, 15),),
+    "minecraft:flower_pot": (box(5, 0, 5, 11, 6, 11),),
+    "minecraft:campfire": (box(0, 0, 0, 16, 7, 16),),
+    "minecraft:stonecutter": (box(0, 0, 0, 16, 9, 16),),
+    "minecraft:farmland": (box(0, 0, 0, 16, 15, 16),),
+    "minecraft:dirt_path": (box(0, 0, 0, 16, 15, 16),),
+    "minecraft:cake": (box(1, 0, 1, 15, 8, 15),),
+    "minecraft:candle_cake": (box(1, 0, 1, 15, 8, 15),),
+    "minecraft:cauldron": (), "minecraft:water_cauldron": (), "minecraft:grindstone": (), "minecraft:lectern": (),
+    "minecraft:bell": (), "minecraft:chain": (), "minecraft:lightning_rod": (), "minecraft:cocoa": (),
+    "folkhold_blocks:brazier": (box(1, 0, 1, 15, 24, 15),),
+    "folkhold_blocks:quest_board": (),
+}
+# The doors: the box of a door by its facing, when it is closed (DoorBlock).
+DOOR = {"south": box(0, 0, 0, 16, 16, 3), "north": box(0, 0, 13, 16, 16, 16),
+        "west": box(13, 0, 0, 16, 16, 16), "east": box(0, 0, 0, 3, 16, 16)}
+
+
+def half_box(side, y1, y2, also=None):
+    """The box of the half of a block on a side, from y1 to y2. also: a second side, for the quarter of the block on
+    the 2 sides."""
+    x1, z1, x2, z2 = 0, 0, 16, 16
+    for s in (side, also):
+        if s == "north":
+            z2 = 8
+        elif s == "south":
+            z1 = 8
+        elif s == "west":
+            x2 = 8
+        elif s == "east":
+            x1 = 8
+    return box(x1, y1, z1, x2, y2, z2)
+
+
+def cross(post, arm, props, height):
+    """The collision shape of a fence, a pane or a wall (CrossCollisionBlock, WallBlock): a post of 2 * post in the
+    middle, and an arm of 2 * arm to each connected side."""
+    lo, hi, alo, ahi = 8 - post, 8 + post, 8 - arm, 8 + arm
+    arms = {"north": box(alo, 0, 0, ahi, height, ahi), "south": box(alo, 0, alo, ahi, height, 16),
+            "west": box(0, 0, alo, ahi, height, ahi), "east": box(alo, 0, alo, 16, height, ahi)}
+    boxes = [box(lo, 0, lo, hi, height, hi)] if props.get("up", "true") == "true" else []
+    return tuple(boxes + [arms[side] for side in SIDES if props.get(side, "false") not in ("false", "none")])
+
+
+def collision(name, props):
+    """The collision shape of a block state, as boxes (see box): the shape that the game uses for the faces of the
+    block (BlockBehaviour.getBlockSupportShape). A block that the rules do not know is a full block."""
+    if is_wall(name):
+        return cross(4, 3, props, 24)
+    if is_fence(name):
+        return cross(2, 2, props, 24)
+    if is_pane(name):
+        return cross(1, 1, props, 16)
+    if is_gate(name):
+        if props.get("open") == "true":
+            return ()
+        return (box(0, 0, 6, 16, 24, 10) if props["facing"] in ("north", "south") else box(6, 0, 0, 10, 24, 16),)
+    if name.endswith("_slab"):
+        return {"bottom": (box(0, 0, 0, 16, 8, 16),), "top": (box(0, 8, 0, 16, 16, 16),)}.get(props["type"], FULL)
+    if name.endswith("_stairs"):
+        facing, shape = props["facing"], props.get("shape", "straight")
+        y1, y2 = (8, 16) if props["half"] == "bottom" else (0, 8)
+        slab = box(0, 0, 0, 16, 8, 16) if props["half"] == "bottom" else box(0, 8, 0, 16, 16, 16)
+        left, right = LEFT[facing], TOWARD[LEFT[facing]]
+        steps = {"straight": [half_box(facing, y1, y2)],
+                 "outer_left": [half_box(facing, y1, y2, left)], "outer_right": [half_box(facing, y1, y2, right)],
+                 "inner_left": [half_box(facing, y1, y2), half_box(left, y1, y2)],
+                 "inner_right": [half_box(facing, y1, y2), half_box(right, y1, y2)]}[shape]
+        return (slab, *steps)
+    if name.endswith("_door"):
+        facing = props["facing"]
+        if props["open"] == "true":
+            facing = LEFT[facing] if props["hinge"] == "right" else TOWARD[LEFT[facing]]
+        return (DOOR[facing],)
+    if name.endswith("_carpet"):
+        return (box(0, 0, 0, 16, 1, 16),)
+    if name.endswith("_bed"):
+        return (box(0, 0, 0, 3, 3, 3), box(0, 0, 13, 3, 3, 16), box(13, 0, 0, 16, 3, 3), box(13, 0, 13, 16, 3, 16))
+    if name == "minecraft:lantern":
+        return () if props.get("hanging") == "true" else (box(5, 0, 5, 11, 7, 11),)
+    if name == "minecraft:composter":
+        return tuple(box(*b) for b in ((0, 0, 0, 16, 2, 16), (0, 0, 0, 2, 16, 16), (14, 0, 0, 16, 16, 16),
+                                       (0, 0, 0, 16, 16, 2), (0, 0, 14, 16, 16, 16)))
+    if name.startswith("folkhold_blocks:building_sign_") or name == "folkhold_blocks:job_sign":
+        return (box(0, 0, 6, 16, 24, 10) if props["facing"] in ("north", "south") else box(6, 0, 0, 10, 24, 16),)
+    if name in PARTIAL:
+        return PARTIAL[name]
+    if name in NO_COLLISION or name.endswith(NO_COLLISION_SUFFIXES) or name.startswith("minecraft:potted_"):
+        return ()
+    return FULL
+
+
+def face(boxes, side):
+    """The cells (1/16 x 1/16) of a face of a block that its boxes cover. side: north, south, west, east or down."""
+    cells = set()
+    for x1, y1, z1, x2, y2, z2 in boxes:
+        y2 = min(y2, 16)
+        if side == "down" and y1 == 0:
+            cells.update((x, z) for x in range(x1, x2) for z in range(z1, z2))
+        elif side == "north" and z1 == 0 or side == "south" and z2 == 16:
+            cells.update((x, y) for x in range(x1, x2) for y in range(y1, y2))
+        elif side == "west" and x1 == 0 or side == "east" and x2 == 16:
+            cells.update((z, y) for z in range(z1, z2) for y in range(y1, y2))
+    return cells
+
+
+def is_sturdy(state, side):
+    """True if the face of a block on a side is full (BlockState.isFaceSturdy with SupportType.FULL)."""
+    return len(face(collision(*state), side)) == 16 * 16
+
+
+def is_exception(name):
+    """True for the blocks that a fence, a wall or a pane does not connect to (Block.isExceptionForConnection)."""
+    return (name.endswith("_leaves") or name.endswith("shulker_box")
+            or name in ("minecraft:barrier", "minecraft:carved_pumpkin", "minecraft:jack_o_lantern",
+                        "minecraft:melon", "minecraft:pumpkin"))
+
+
+# The test boxes of a wall on the bottom face of the block above it (WallBlock): the post and the 4 sides.
+WALL_TESTS = {None: (7, 7, 9, 9), "north": (7, 0, 9, 9), "south": (7, 7, 9, 16), "west": (0, 7, 9, 9),
+              "east": (7, 7, 16, 9)}
+# The blocks over a wall that raise its post (the block tag minecraft:wall_post_override).
+WALL_POST_OVERRIDE = ("torch", "_sign", "_banner", "pressure_plate", "tripwire")
+
+
+def covers(above, side=None):
+    """True if the bottom face of the block above a wall covers the test box of a side of the wall (side), or of its
+    post (no side), as in the game (WallBlock.isCovered). above is the name and the properties of the block above the
+    wall. A full face (a full block, a bottom slab, a carpet) covers all the test boxes."""
+    x1, z1, x2, z2 = WALL_TESTS[side]
+    cells = face(collision(*above), "down")
+    return all((x, z) in cells for x in range(x1, x2) for z in range(z1, z2))
+
+
+def connects(block, other, side):
+    """True if a fence, a wall or a pane (block: its name) connects to the block on a side (other: the name and the
+    properties of the neighbor)."""
+    name, props = other
+    sturdy = not is_exception(name) and is_sturdy(other, TOWARD[side])
+    if is_pane(block):
+        return sturdy or is_pane(name) or is_wall(name)
+    # A fence gate connects across its sides (FenceGateBlock.connectsToDirection).
+    gate = is_gate(name) and (props["facing"] in ("north", "south")) == (side in ("west", "east"))
+    if is_wall(block):
+        return sturdy or is_wall(name) or is_pane(name) or gate
+    # A wooden fence connects to a wooden fence, and the nether brick fence to the nether brick fence.
+    same = is_fence(name) and ("nether_brick" in name) == ("nether_brick" in block)
+    return sturdy or same or gate
+
+
+def state_at(t, x, y, z):
+    """The name and the properties of a block of the template, as in the generation: a position with no block is air,
+    and a jigsaw block is its final state."""
+    entry = t.blocks.get((x, y, z))
+    if not entry:
+        return AIR
+    (name, props), nbt = entry
+    if name == "minecraft:jigsaw":
+        final, _, rest = nbt["final_state"].partition("[")
+        return final, dict(part.split("=") for part in rest.rstrip("]").split(",") if part)
+    return name, dict(props)
+
+
+def wall_state(t, x, y, z, name):
+    """The state of a wall from its neighbors (WallBlock.updateShape): the sides, then the post."""
+    above = state_at(t, x, y + 1, z)
+    props = {}
+    for side, (dx, dz) in SIDES.items():
+        joined = connects(name, state_at(t, x + dx, y, z + dz), side)
+        props[side] = ("tall" if covers(above, side) else "low") if joined else "none"
+    none = {side: props[side] == "none" for side in SIDES}
+    if is_wall(above[0]) and above[1]["up"] == "true":
+        up = True
+    elif all(none.values()) or none["north"] != none["south"] or none["east"] != none["west"]:
+        up = True
+    elif props["north"] == props["south"] == "tall" or props["east"] == props["west"] == "tall":
+        up = False
+    else:
+        up = above[0].startswith("minecraft:") and above[0].endswith(WALL_POST_OVERRIDE) or covers(above)
+    props["up"] = "true" if up else "false"
+    return props
+
+
+def connect(t):
+    """Gives each fence, wall and pane of the template the state that the game gives it from its neighbors in the
+    template. A position with no block is air. The walls go from the top to the bottom: the shape of a wall depends on
+    the wall above it."""
+    shaped = sorted((pos for pos, ((name, _), _) in t.blocks.items()
+                     if is_fence(name) or is_wall(name) or is_pane(name)), key=lambda p: (-p[1], p))
+    for x, y, z in shaped:
+        (name, old), nbt = t.blocks[(x, y, z)]
+        if is_wall(name):
+            props = wall_state(t, x, y, z, name)
+        else:
+            props = {side: "true" if connects(name, state_at(t, x + dx, y, z + dz), side) else "false"
+                     for side, (dx, dz) in SIDES.items()}
+        props["waterlogged"] = dict(old).get("waterlogged", "false")
         t.set(x, y, z, name, props, nbt)
+    return t
 
 
 def cobble(rng):
@@ -750,8 +976,6 @@ def forge(home=False):
     t = house_shell(rng, cobble, cobble, "house" if home else "forge", wide_front=True)
     if home:
         job_sign(t, 1, 1, 0, *BLACKSMITH)
-    for y in range(1, 5):
-        connect_fences(t, y)
     t.set(2, 1, 5, "minecraft:anvil", {"facing": "east"})
     t.set(5, 1, 7, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
     t.set(6, 1, 7, "minecraft:furnace", {"facing": "north", "lit": "false"})
@@ -1098,8 +1322,6 @@ def norse_barracks():
 def norse_forge():
     rng = random.Random(14)
     t = long_house_shell(rng, "forge", cobble, wide_front=True)
-    for y in range(1, LONG_WALL_TOP + 1):
-        connect_fences(t, y)
     forge_tools(t, LW, LD)
     return t
 
@@ -1333,8 +1555,6 @@ def sun_barracks():
 def sun_forge():
     rng = random.Random(45)
     t = flat_house_shell(rng, "forge", FW, FD, wide_front=True)
-    for y in range(1, FLAT_WALL_TOP):
-        connect_fences(t, y)
     t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
     t.set(FW - 2, 1, FD - 2, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
     t.set(FW - 2, 1, FD - 3, "minecraft:furnace", {"facing": "west", "lit": "false"})
@@ -1458,8 +1678,6 @@ GARDEN_X = range(1, W - 1)
 WATER = (W // 2, SHED_DEPTH + 1)
 GRASS = ("minecraft:grass_block", {"snowy": "false"})
 FARMLAND = ("minecraft:farmland", {"moisture": "7"})
-# The direction of a cocoa pod to its log, for a pod on each side of the log.
-TOWARD = {"north": "south", "south": "north", "west": "east", "east": "west"}
 
 
 # The beds of a house-workshop: each job building is the home of a household that does the job. Each job building has
@@ -1525,94 +1743,6 @@ def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"
                 t.set(x, 1, z, "minecraft:spruce_fence")
     for x in (0, W - 1):
         lantern(t, x, 2, D - 1)
-    # The fences of the garden and the porch posts.
-    for y in range(1, 5):
-        connect_fences(t, y)
-    return t
-
-
-# The full blocks that a fence connects to: the blocks of the shell, and the stone and the earth of the job buildings.
-# A fence also connects to a fence, and not to a plant or a fruit.
-FENCE_SUPPORTS = ("cobblestone", "_log", "_planks", "_ore", ":stone", ":andesite", ":sand", ":gravel", ":clay",
-                  ":dirt", "sandstone")
-
-
-def connect_fences(t, y):
-    """Sets the north, south, east and west properties of each spruce fence of a layer from its neighbors: a fence,
-    a fence gate or a block of the shell."""
-    for (x, fy, z), ((name, _props), nbt) in list(t.blocks.items()):
-        if fy != y or name != "minecraft:spruce_fence":
-            continue
-        props = {"waterlogged": "false"}
-        for side, (dx, dz) in SIDES.items():
-            other = t.get(x + dx, y, z + dz) if t.inside(x + dx, y, z + dz) else None
-            connects = other is not None and other.endswith(("_fence", "_fence_gate") + FENCE_SUPPORTS)
-            props[side] = "true" if connects else "false"
-        t.set(x, y, z, name, props, nbt)
-
-
-# The blocks over a wall that raise its post (the block tag minecraft:wall_post_override).
-WALL_POST_OVERRIDE = ("torch", "_sign", "_banner", "pressure_plate", "tripwire")
-
-
-def covers(above, side=None):
-    """True if the bottom of the block above a wall covers a side of the wall (side), or its post (no side), as in the
-    game (WallBlock). above is the name and the properties of the block above the wall. The bottom of a carpet is a
-    full face: a carpet covers the sides and the post. A block of wool (the awning of a Sunreach house) covers them
-    too."""
-    name, props = above
-    if name.endswith("_wall"):
-        return props[side] != "none" if side else props["up"] == "true" or any(props[s] != "none" for s in SIDES)
-    if name.endswith("_slab") or name.endswith("_stairs"):
-        return props.get("type", props.get("half")) == "bottom"
-    if name == "minecraft:lantern" and props.get("hanging") == "false":
-        return side is None
-    if name.endswith(("_carpet", "_wool")):
-        return True
-    return name.endswith(FENCE_SUPPORTS)
-
-
-def connect_walls(t):
-    """Sets the sides and the post of each wall from its neighbors, as the game does (WallBlock).
-
-    - A wall connects to a wall, a pane, a fence gate across the side, and a full block (FENCE_SUPPORTS).
-    - A side is tall when the block above the wall covers it, else low.
-    - The post goes up at an end, at a corner, under a raised post, under a torch, a sign or a banner, and under a
-      block that covers the post. The post of a straight wall with 2 tall sides does not go up.
-
-    The walls go from the top to the bottom: the shape of a wall depends on the wall above it.
-    """
-    walls = sorted((pos for pos, ((name, _), _) in t.blocks.items() if name.endswith("_wall")), key=lambda p: -p[1])
-    for x, y, z in walls:
-        (name, _), nbt = t.blocks[(x, y, z)]
-        entry = t.blocks.get((x, y + 1, z))
-        above = (entry[0][0], dict(entry[0][1])) if entry else ("minecraft:air", {})
-        props = {}
-        for side, (dx, dz) in SIDES.items():
-            entry = t.blocks.get((x + dx, y, z + dz))
-            other, other_props = (entry[0][0], dict(entry[0][1])) if entry else ("minecraft:air", {})
-            across = other.endswith("_fence_gate") and (other_props["facing"] in ("north", "south")) == bool(dx)
-            connects = other.endswith(("_wall",) + FENCE_SUPPORTS) or other in PANES or across
-            props[side] = ("tall" if covers(above, side) else "low") if connects else "none"
-        none = {side: props[side] == "none" for side in SIDES}
-        if above[0].endswith("_wall") and above[1]["up"] == "true":
-            up = True
-        elif all(none.values()) or none["north"] != none["south"] or none["east"] != none["west"]:
-            up = True
-        elif props["north"] == props["south"] == "tall" or props["east"] == props["west"] == "tall":
-            up = False
-        else:
-            up = above[0].startswith("minecraft:") and above[0].endswith(WALL_POST_OVERRIDE) or covers(above)
-        t.set(x, y, z, name, {**props, "up": "true" if up else "false", "waterlogged": "false"}, nbt)
-
-
-def shaped(t):
-    """The template with the shapes of the game: each fence connects to its neighbors (see connect_fences), and each
-    wall of a biome variant gets its shape after the block replacement (see connect_walls). Thus the fences of a pen
-    are walls with no gaps in the desert."""
-    for y in range(1, t.size[1]):
-        connect_fences(t, y)
-    t.shape_walls = True
     return t
 
 
@@ -1780,8 +1910,6 @@ def job_house(rng, job, icon, wall_upper, beds, wide_front=False):
     t = house_shell(rng, cobble, wall_upper, "house", wide_front=wide_front)
     home_beds(t, *beds)
     job_sign(t, 1, 1, 0, job, icon)
-    for y in range(1, 5):
-        connect_fences(t, y)
     return t
 
 
@@ -1902,9 +2030,10 @@ def fisher_hut():
 
     t = job_building(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
     t.set(1, 1, 2, "minecraft:water_cauldron", {"level": "3"})
-    # The nets: cobwebs high on the side wall, out of the way.
+    # The nets: cobwebs high on the east side wall, over the free floor next to the heads of the beds. A player on the
+    # floor walks under them. No net is over a block that a player stands on (the barrel, the tub).
     for z in (2, 3):
-        t.set(1, 3, z, "minecraft:cobweb")
+        t.set(W - 2, 3, z, "minecraft:cobweb")
     return t
 
 
@@ -1949,8 +2078,6 @@ def lumber_yard(job, wood):
     for x, y in ((W - 3, 1), (W - 2, 1), (W - 2, 2)):
         job_material(t, x, y, D - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
     t.set(W - 2, 1, SHED_DEPTH, POTTED.get(wood, f"minecraft:potted_{wood}_sapling"))
-    # The fences next to the piles connect to the logs.
-    connect_fences(t, 1)
     return t
 
 
@@ -2014,7 +2141,6 @@ def mine():
     for x, z in ((1, SHED_DEPTH), (2, SHED_DEPTH), (1, SHED_DEPTH + 1)):
         job_material(t, x, 1, z, "minecraft:cobblestone")
     t.set(1, 1, 2, *BARREL)
-    connect_fences(t, 1)
     return t
 
 
@@ -2034,7 +2160,6 @@ def dig_yard():
     t.set(1, 2, D - 2, "minecraft:sand")
     t.set(W - 2, 2, D - 2, "minecraft:dirt")
     t.set(1, 1, 2, *BARREL)
-    connect_fences(t, 1)
     return t
 
 
@@ -2142,7 +2267,6 @@ def fletcher_range():
     for x in targets:
         t.set(x, 2, row, "minecraft:target", {"power": "0"})
     t.set(1, 1, 2, *BARREL)
-    connect_fences(t, 1)
     return t
 
 
@@ -2185,7 +2309,6 @@ def tannery():
     for x, z in rack:
         t.set(x, 2, z, "minecraft:brown_carpet")
     t.set(1, 1, 2, *BARREL)
-    connect_fences(t, 1)
     return t
 
 
@@ -2308,7 +2431,7 @@ def norse_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
     - The yard: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
       None. A fence goes around the yard, with a lantern on each back corner.
 
-    The caller adds the blocks of the job, then gives the template to shaped.
+    The caller adds the blocks of the job.
     """
     t = long_house_shell(rng, "house", cobble, depth=NORSE_SHED, hearth=False)
     mid = LW // 2
@@ -2359,7 +2482,7 @@ def norse_apiary():
     for x, z in hives:
         t.set(x, 2, z, "minecraft:beehive", {"facing": "south", "honey_level": str(rng.randint(2, 5))})
     t.set(1, 1, 2, *BARREL)
-    return shaped(t)
+    return t
 
 
 def norse_fisher_hut():
@@ -2380,7 +2503,7 @@ def norse_fisher_hut():
 
     t = norse_yard_workshop(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
     t.set(1, 1, 2, *WATER_CAULDRON)
-    return shaped(t)
+    return t
 
 
 def norse_workshop(rng, job, icon, beds=NORSE_BEDS, wide_front=False, wall_lower=cobble):
@@ -2390,7 +2513,7 @@ def norse_workshop(rng, job, icon, beds=NORSE_BEDS, wide_front=False, wall_lower
     an open shop front. wall_lower gives the blocks of the lowest layer of the walls. The job sign stands on the porch
     next to the west porch post, and the house sign next to the east porch post. beds gives the foot of each bed of the
     home (see home_beds): the beds stand on the side walls behind the hearth (NORSE_BEDS). The caller adds the blocks
-    of the job, then gives the template to shaped."""
+    of the job."""
     t = long_house_shell(rng, "house", wall_lower, wide_front=wide_front)
     home_beds(t, *beds)
     job_sign(t, 1, 1, 0, job, icon)
@@ -2425,7 +2548,7 @@ def norse_bakery():
     t.set(LW - 2, 1, 4, *TOP_SLAB)
     t.set(LW - 2, 2, 4, "minecraft:cake", {"bites": "0"})
     lantern(t, 1, 1, 2)
-    return shaped(t)
+    return t
 
 
 def norse_pastry_shop():
@@ -2444,7 +2567,7 @@ def norse_pastry_shop():
     for z in (LD - 3, LD - 4):
         t.set(LW - 2, 1, z, *BARREL)
     lantern(t, 1, 1, 5)
-    return shaped(t)
+    return t
 
 
 def norse_butchery():
@@ -2464,7 +2587,7 @@ def norse_butchery():
         t.set(1, 1, z, *BARREL)
     t.set(LW - 2, 1, 4, *WATER_CAULDRON)
     lantern(t, 1, 1, 2)
-    return shaped(t)
+    return t
 
 
 # ---------------------------------------------------------------- house-workshops of the styles of the cultures
@@ -2537,7 +2660,7 @@ def style_farm(s):
     t = s.yard_workshop(rng, "farmer", "minecraft:wheat", functools.partial(field_ground, water=s.water), plants)
     for x, y in ((1, 1), (2, 1), (1, 2)):
         t.set(x, y, 2, "minecraft:hay_block", LOG_Y)
-    return shaped(t)
+    return t
 
 
 def style_garden(s):
@@ -2568,7 +2691,7 @@ def style_garden(s):
     t = s.yard_workshop(rng, "gardener", "minecraft:pumpkin", ground, plants)
     t.set(1, 1, 2, "minecraft:pumpkin")
     t.set(2, 1, 2, "minecraft:melon")
-    return shaped(t)
+    return t
 
 
 def style_jungle_garden(s):
@@ -2605,7 +2728,7 @@ def style_jungle_garden(s):
         for side, (dx, dz) in SIDES.items():
             t.set(px + dx, 2, pz + dz, "minecraft:cocoa", {"age": str(rng.randint(1, 2)), "facing": TOWARD[side]})
     t.set(1, 1, 2, "minecraft:melon")
-    return shaped(t)
+    return t
 
 
 def style_forager_hut(s):
@@ -2616,7 +2739,7 @@ def style_forager_hut(s):
                         functools.partial(forage_plants, width=s.width))
     t.set(1, 1, 2, *BARREL)
     t.set(2, 1, 2, "minecraft:moss_block")
-    return shaped(t)
+    return t
 
 
 def style_ranch(s):
@@ -2642,7 +2765,7 @@ def style_ranch(s):
     t = s.yard_workshop(rng, "rancher", "minecraft:lead", ground, plants,
                         work=("minecraft:smoker", {"facing": "east", "lit": "false"}))
     t.set(1, 1, 2, "minecraft:hay_block", LOG_Y)
-    return shaped(t)
+    return t
 
 
 def style_lumber_yard(s, job, wood):
@@ -2672,7 +2795,7 @@ def style_lumber_yard(s, job, wood):
     for x, y in ((s.width - 3, 1), (s.width - 2, 1), (s.width - 2, 2)):
         job_material(t, x, y, s.depth - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
     t.set(s.width - 2, 1, s.shed, sapling)
-    return shaped(t)
+    return t
 
 
 def style_sawmill(s, job, wood):
@@ -2700,7 +2823,7 @@ def style_sawmill(s, job, wood):
     t.set(w - 2, 1, 2, *BARREL)
     lantern(t, 1, 1, 2)
     lantern(t, *s.sawmill_lantern)
-    return shaped(t)
+    return t
 
 
 def style_mine(s):
@@ -2743,7 +2866,7 @@ def style_mine(s):
     for x, z in ((1, s.shed), (2, s.shed), (1, s.shed + 1)):
         job_material(t, x, 1, z, "minecraft:cobblestone")
     t.set(1, 1, 2, *BARREL)
-    return shaped(t)
+    return t
 
 
 def style_dig_yard(s):
@@ -2766,7 +2889,7 @@ def style_dig_yard(s):
     t.set(1, 2, back, "minecraft:sand")
     t.set(w - 2, 2, back, "minecraft:dirt")
     t.set(1, 1, 2, *BARREL)
-    return shaped(t)
+    return t
 
 
 def style_mason(s):
@@ -2790,7 +2913,7 @@ def style_mason(s):
     t.set(w - 2, 1, 3, *BARREL)
     lantern(t, 1, 1, 2)
     lantern(t, *s.mason_lantern)
-    return shaped(t)
+    return t
 
 
 def style_smeltery(s, job):
@@ -2822,7 +2945,7 @@ def style_smeltery(s, job):
     lantern(t, 1, 1, 2)
     for pos in layout.lanterns:
         lantern(t, *pos)
-    return shaped(t)
+    return t
 
 
 def style_smithy(s):
@@ -2831,7 +2954,7 @@ def style_smithy(s):
     rng = random.Random(s.seed + 77)
     t = s.workshop(rng, *BLACKSMITH, s.beds, wide_front=True)
     forge_tools(t, s.width, s.depth)
-    return shaped(t)
+    return t
 
 
 def style_tinker(s):
@@ -2856,7 +2979,7 @@ def style_tinker(s):
     t.set(w - 2, 2, 4, "minecraft:lightning_rod", {"facing": "up", "powered": "false", "waterlogged": "false"})
     lantern(t, 1, 1, 2)
     lantern(t, w - 2, 1, back - 2)
-    return shaped(t)
+    return t
 
 
 def style_fletcher_range(s):
@@ -2880,7 +3003,7 @@ def style_fletcher_range(s):
     for x in targets:
         t.set(x, 2, row, "minecraft:target", {"power": "0"})
     t.set(1, 1, 2, *BARREL)
-    return shaped(t)
+    return t
 
 
 def style_carpenter(s):
@@ -2901,7 +3024,7 @@ def style_carpenter(s):
     t.set(1, 1, back, *BARREL)
     lantern(t, 1, 1, 2)
     lantern(t, w - 2, 1, 2)
-    return shaped(t)
+    return t
 
 
 def style_tannery(s):
@@ -2925,7 +3048,7 @@ def style_tannery(s):
     for x, z in rack:
         t.set(x, 2, z, "minecraft:brown_carpet")
     t.set(1, 1, 2, *BARREL)
-    return shaped(t)
+    return t
 
 
 def style_sheepfold(s):
@@ -2946,7 +3069,7 @@ def style_sheepfold(s):
     t.set(1, 1, 2, "minecraft:white_wool")
     t.set(1, 2, 2, "minecraft:white_wool")
     t.set(2, 1, 2, "minecraft:white_wool")
-    return shaped(t)
+    return t
 
 
 def style_weaving_house(s):
@@ -2967,7 +3090,7 @@ def style_weaving_house(s):
         t.set(x, 2, 4, "minecraft:white_carpet")
     lantern(t, 1, 1, 2)
     lantern(t, w - 2, 1, 2)
-    return shaped(t)
+    return t
 
 
 def style_dye_works(s):
@@ -2990,7 +3113,7 @@ def style_dye_works(s):
     t.set(1, 1, 2, "minecraft:red_wool")
     t.set(1, 2, 2, "minecraft:yellow_wool")
     t.set(2, 1, 2, "minecraft:blue_wool")
-    return shaped(t)
+    return t
 
 
 def style_paper_mill(s):
@@ -3015,7 +3138,7 @@ def style_paper_mill(s):
         t.set(x, 2, 4, "minecraft:white_carpet")
     lantern(t, 1, 1, 2)
     lantern(t, w - 2, 1, 2)
-    return shaped(t)
+    return t
 
 
 def style_jobs(s):
@@ -3075,7 +3198,7 @@ SUN_YARD_Z = range(SUN_SHED, CD - 1)
 SUN_YARD_X = range(1, FW - 1)
 # The water of a Sunreach field, in the middle of the yard: it gives water to all the farmland of the yard.
 SUN_WATER = (FW // 2, SUN_SHED + 2)
-# The low wall around a Sunreach yard. The wall connects to its neighbors as in the game (see shaped).
+# The low wall around a Sunreach yard. The wall connects to its neighbors as in the game (see connect).
 SUN_WALL = "minecraft:sandstone_wall"
 
 
@@ -3104,7 +3227,7 @@ def sun_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
     - The yard: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
       None. A low sandstone wall goes around the yard, with a lantern on a pillar at each back corner.
 
-    The caller adds the blocks of the job, then gives the template to shaped.
+    The caller adds the blocks of the job.
     """
     t = sun_workshop_shell(rng, SUN_SHED)
     mid = FW // 2
@@ -3158,7 +3281,7 @@ def sun_apiary():
     t = sun_yard_workshop(rng, "beekeeper", "minecraft:honeycomb", ground, plants)
     for x in (1, 2):
         t.set(x, 1, 2, *DECORATED_POT)
-    return shaped(t)
+    return t
 
 
 def sun_fisher_hut():
@@ -3179,10 +3302,11 @@ def sun_fisher_hut():
 
     t = sun_yard_workshop(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
     t.set(1, 1, 2, *WATER_CAULDRON)
-    # The nets: cobwebs high on the side wall, out of the way.
-    for z in (2, 3):
+    # The nets: cobwebs high on the side wall, over the free floor between the tub and the barrel. A player on the
+    # floor walks under them. No net is over a block that a player stands on (the barrel, the tub).
+    for z in (3, 4):
         t.set(1, 3, z, "minecraft:cobweb")
-    return shaped(t)
+    return t
 
 
 def sun_workshop(rng, job, icon, beds, wide_front=False, wall_lower=None):
@@ -3191,8 +3315,7 @@ def sun_workshop(rng, job, icon, beds, wide_front=False, wall_lower=None):
     carpenter, the weaver and the papermaker), with a door on the street or an open shop front. The job sign
     stands on the porch west of the door, and the house sign east of the door. beds gives the foot of each bed of the
     home (see home_beds): the head is 1 block to the back wall. The walls of a flat house have no lower layer of other
-    blocks: the workshop does not use wall_lower. The caller adds the blocks of the job, then gives the template to
-    shaped."""
+    blocks: the workshop does not use wall_lower. The caller adds the blocks of the job."""
     t = sun_workshop_shell(rng, wide_front=wide_front)
     home_beds(t, *beds)
     job_sign(t, FW // 2 - 1, 1, 0, job, icon)
@@ -3229,7 +3352,7 @@ def sun_bakery():
     t.set(FW - 2, 2, 2, "minecraft:cake", {"bites": "0"})
     lantern(t, 1, 1, 2)
     lantern(t, 1, 1, 7)
-    return shaped(t)
+    return t
 
 
 def sun_pastry_shop():
@@ -3249,7 +3372,7 @@ def sun_pastry_shop():
         t.set(FW - 2, 1, z, *BARREL)
     lantern(t, 1, 1, 8)
     lantern(t, FW - 2, 1, 8)
-    return shaped(t)
+    return t
 
 
 def sun_butchery():
@@ -3268,7 +3391,7 @@ def sun_butchery():
     t.set(FW - 2, 1, 3, *WATER_CAULDRON)
     lantern(t, 1, 1, 2)
     lantern(t, 1, 1, 7)
-    return shaped(t)
+    return t
 
 
 # The beds of a Sunreach workshop with no yard of style_jobs (the sawyers, the mason, the smelters, the blacksmith, the
@@ -3395,8 +3518,6 @@ def market(layout):
     caravan_yard(t)
     for x, z in ((0, 0), (width - 1, 0), (0, depth - 1), (width - 1, depth - 1)):
         lamp_post(t, x, z)
-    for y in (1, 2):
-        connect_fences(t, y)
     t.jigsaw(width // 2, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
     return t
 
@@ -3711,16 +3832,15 @@ class Variant:
 
     def apply(self, t):
         """The template with the materials of this variant. The jigsaw connectors use the pools of the variant. The
-        fixed positions of the template (see job_material) keep their blocks."""
+        fixed positions of the template (see job_material) keep their blocks. Each fence, wall and pane gets the state
+        that the game gives it from its neighbors after the block replacement (see connect)."""
         out = Template(*t.size)
         prefix = f"{NS}:village/"
         for pos, ((name, props), nbt) in t.blocks.items():
             if nbt is not None and nbt.get("id") == "minecraft:jigsaw" and nbt["pool"].startswith(prefix):
                 nbt = dict(nbt, pool=self.id(nbt["pool"][len(prefix):]))
             out.blocks[pos] = ((name, props) if pos in t.fixed else self.replace(name, props), nbt)
-        if t.shape_walls:
-            connect_walls(out)
-        return out
+        return connect(out)
 
 
 # The variants of the village, with their biomes. The tag of the biomes of the village has the biomes of all the
@@ -3886,9 +4006,7 @@ def main():
         os.makedirs(folder, exist_ok=True)
         for name, build in v.pieces.items():
             path = os.path.join(folder, name + ".nbt")
-            template = build()
-            connect_panes(template)
-            v.apply(template).write(path)
+            v.apply(build()).write(path)
             print("wrote", os.path.normpath(path))
         for name, data in pools(v).items():
             write_json(os.path.join(WORLDGEN, "template_pool", *v.path(name).split("/")) + ".json", data)
@@ -3900,9 +4018,7 @@ def main():
     os.makedirs(TEST_OUT, exist_ok=True)
     for name, build in TEST_PIECES.items():
         path = os.path.join(TEST_OUT, name + ".nbt")
-        template = build()
-        connect_panes(template)
-        template.write(path)
+        connect(build()).write(path)
         print("wrote", os.path.normpath(path))
 
 
