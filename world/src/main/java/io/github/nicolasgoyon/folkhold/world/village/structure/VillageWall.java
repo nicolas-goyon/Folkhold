@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.function.IntBinaryOperator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -89,6 +90,8 @@ public final class VillageWall {
     static final int STREET_HALF_WIDTH = 2;
     /** A pier starts at this distance outside the line: after the outer row of the gate. */
     static final int PIER_START = 2;
+    /** The game places the pieces of a structure only in this range of chunks from the start chunk. */
+    static final int CHUNK_RANGE = 8;
 
     private VillageWall() {
     }
@@ -172,7 +175,10 @@ public final class VillageWall {
                 moveHouses(templates, village, arm, levels);
             }
             if (waterGates.contains(gate)) {
-                pieces.add(pier(layout, gate, gateLevels.get(gate), terrain::height, seaLevel, settings.pier()));
+                Optional<PierPiece> pier = pier(layout, gate, gateLevels.get(gate), terrain::height, seaLevel,
+                        settings.pier(), range(context.chunkPos()));
+                // A water gate with no pier in the range is a land gate: it gets the flat terrain in front of it.
+                pier.ifPresentOrElse(pieces::add, () -> waterGates.remove(gate));
             }
         }
         pieces.addAll(terrain(layout, smooth, gateLevels, water, waterGates));
@@ -270,6 +276,19 @@ public final class VillageWall {
      */
     static PierPiece pier(WallLayout layout, Gate gate, int level, IntBinaryOperator top, int seaLevel,
             PierBlocks blocks) {
+        return pier(layout, gate, level, top, seaLevel, blocks, BoundingBox.infinite()).orElseThrow();
+    }
+
+    /**
+     * As {@link #pier(WallLayout, Gate, int, IntBinaryOperator, int, PierBlocks)}, with a limit: the pier stops
+     * before the first row that is not in the limit, also under {@link PierPiece#MIN_LENGTH} rows. The game places
+     * the pieces of a structure only in the range of chunks of its start chunk (see {@link #range}).
+     *
+     * @param limit the box of the blocks that the pier can use, on the horizontal plane
+     * @return the pier, or empty if its first row is not in the limit
+     */
+    static Optional<PierPiece> pier(WallLayout layout, Gate gate, int level, IntBinaryOperator top, int seaLevel,
+            PierBlocks blocks, BoundingBox limit) {
         Side side = gate.side();
         Cell middle = layout.cell(side, layout.along(gate));
         int outX = -side.insideX();
@@ -277,6 +296,15 @@ public final class VillageWall {
         int length = 0;
         while (length < PierPiece.MAX_LENGTH) {
             int distance = PIER_START + length;
+            int x = middle.x() + outX * distance;
+            int z = middle.z() + outZ * distance;
+            // The row goes 1 block to each side of its middle, across the pier.
+            int acrossX = Math.abs(outZ);
+            int acrossZ = Math.abs(outX);
+            if (x - acrossX < limit.minX() || x + acrossX > limit.maxX() || z - acrossZ < limit.minZ()
+                    || z + acrossZ > limit.maxZ()) {
+                break;
+            }
             boolean onWater = isWater(top.applyAsInt(middle.x() + outX * distance, middle.z() + outZ * distance),
                     seaLevel);
             if (!onWater && length >= PierPiece.MIN_LENGTH) {
@@ -284,8 +312,21 @@ public final class VillageWall {
             }
             length++;
         }
-        return new PierPiece(middle.x() + outX * PIER_START, middle.z() + outZ * PIER_START, outX, outZ, length,
-                level, blocks);
+        return length == 0 ? Optional.empty()
+                : Optional.of(new PierPiece(middle.x() + outX * PIER_START, middle.z() + outZ * PIER_START, outX,
+                        outZ, length, level, blocks));
+    }
+
+    /**
+     * The blocks that the pieces of a structure can use on the horizontal plane: the chunks in the range of
+     * {@link #CHUNK_RANGE} chunks of the start chunk.
+     *
+     * @param start the start chunk
+     * @return the box, from the lowest Y to the highest Y of the integers
+     */
+    static BoundingBox range(ChunkPos start) {
+        return new BoundingBox((start.x - CHUNK_RANGE) << 4, Integer.MIN_VALUE / 2, (start.z - CHUNK_RANGE) << 4,
+                ((start.x + CHUNK_RANGE) << 4) + 15, Integer.MAX_VALUE / 2, ((start.z + CHUNK_RANGE) << 4) + 15);
     }
 
     /**
