@@ -26,6 +26,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -317,23 +318,15 @@ public final class FortifiedVillageStructure extends Structure {
      * The layout of the village at the start chunk of a context, as the generation makes it, with a given start level
      * in place of the start level of the chunk. The command {@code /folkhold village generate} uses it.
      *
-     * @param context the context of the generation
+     * @param context the context of the generation: its biome test is the biome rule of the structure
      * @param level   the start level: its tier gives the size of the village
-     * @return the layout, or empty if the site does not accept a village
+     * @param variant the test of the variant of the site
+     * @return the layout, or empty if the site does not accept a village, if the biome at the middle of the plaza is
+     *         not valid (as {@code Structure.generate} checks it), or if the variant fails the test
      */
-    public Optional<Layout> layout(GenerationContext context, int level) {
-        return start(context).map(start -> layout(context, start, level));
-    }
-
-    /**
-     * The variant of the village at the start chunk of a context, as the generation selects it, with no layout: the
-     * check of the site, the culture of the region and the biome.
-     *
-     * @param context the context of the generation
-     * @return the variant, or empty if the site does not accept a village
-     */
-    public Optional<Variant> variantAt(GenerationContext context) {
-        return start(context).map(Start::variant);
+    public Optional<Layout> layout(GenerationContext context, int level, Predicate<Variant> variant) {
+        return start(context).filter(start -> context.validBiome().test(biomeAt(context, start.center())))
+                .filter(start -> variant.test(start.variant())).map(start -> layout(context, start, level));
     }
 
     /**
