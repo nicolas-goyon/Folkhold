@@ -323,6 +323,58 @@ public final class VillageGrowthGameTests {
     }
 
     /**
+     * A village that needs places, with no house-workshop for the free plot: its builders start the missing building of
+     * its level on this plot. The pool of the jobs of the test variant has no piece of a valid job, thus no home has a
+     * plot. The homes keep the plots full, but they do not stop the buildings of the level.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "village_growth_no_home_plot")
+    public static void noPlotForAHomeGivesThePlotToTheBuilding(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Village village = village(helper, TEST_HOMES, true, List.of(plot(helper, false)), 3, 20, false);
+        try {
+            helper.assertTrue(VillageGrowth.needsPlaces(village.settlement()), "The village must need places");
+            Optional<BuilderSite> site = VillageGrowth.check(level, village.heart());
+            helper.assertTrue(site.isPresent() && site.get().template().equals(STOREHOUSE),
+                    "The growth must start the storehouse of the level 3: " + site.map(BuilderSite::template));
+            helper.assertTrue(village.heart().isHomeNoSpace(), "No free plot holds a house-workshop of the jobs");
+        } finally {
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A village of the level 9 with 1 storehouse and its market misses a barracks and a second storehouse. The pool of
+     * the houses of the test variant has no barracks: the growth goes on with the storehouse. The first missing kind
+     * does not stop the next kinds.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "village_growth_next_kind")
+    public static void missingKindWithNoPieceDoesNotStopTheNextKind(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // The population fills the places of the staff: the village needs no home.
+        Village village = village(helper, TEST_HOMES, true, List.of(plot(helper, false)), 9, 3, false);
+        VillageHeartBlockEntity heart = village.heart();
+        try {
+            helper.setBlock(HEART.east(2), ModBlocks.buildingSign(BuildingSignKind.STOREHOUSE));
+            helper.setBlock(HEART.west(2), ModBlocks.buildingSign(BuildingSignKind.MARKET).defaultBlockState()
+                    .setValue(HorizontalDirectionalBlock.FACING, Direction.NORTH));
+            helper.setBlock(HEART.west(2).south(), Blocks.OAK_LOG);
+            heart.requestScan();
+            heart.ensureGarrison(level.getGameTime());
+            Optional<BuilderSite> site = VillageGrowth.check(level, heart);
+
+            helper.assertTrue(heart.getLayout().buildings().getOrDefault("storehouse", 0) == 1
+                    && heart.getLayout().markets().size() == 1,
+                    "The scan must count the storehouse and the market: " + heart.getLayout().buildings());
+            helper.assertTrue(site.isPresent() && site.get().template().equals(STOREHOUSE),
+                    "The growth must start the second storehouse: " + site.map(BuilderSite::template));
+        } finally {
+            end(helper, village);
+        }
+        helper.succeed();
+    }
+
+    /**
      * The growth of generated Sunreach villages (see {@link #grow}): each new house-workshop is a Sunreach piece of
      * 9 x 7 x 13 blocks, it has room on its plot, and it intersects no piece of the generation and no palisade.
      */

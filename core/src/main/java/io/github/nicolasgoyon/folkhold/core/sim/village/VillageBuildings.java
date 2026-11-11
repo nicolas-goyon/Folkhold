@@ -2,10 +2,12 @@ package io.github.nicolasgoyon.folkhold.core.sim.village;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The buildings that a village needs for its level, for example a storehouse from the level 3. The builders of the village
@@ -15,8 +17,11 @@ import java.util.Optional;
  *   <li>A requirement gives a kind of building and the minimum level. The same kind can be in more than one
  *       requirement: a village needs one building of this kind for each requirement of its level.</li>
  *   <li>The kind of a building is the kind of its building sign, for example {@code storehouse}.</li>
- *   <li>The first requirement of the list with a missing building comes first.</li>
+ *   <li>The first requirement of the list with a missing building comes first. A missing building with no plot does
+ *       not stop the missing buildings of the next kinds (see {@link #missingKinds}).</li>
  *   <li>The market ({@link #MARKET}) comes before a new home and before the other buildings (see {@link #steps}).</li>
+ *   <li>A new home comes before the other buildings. When no new home has a plot, the growth goes on with the other
+ *       buildings.</li>
  *   <li>A village with no food post or no post that trades gets a house-workshop first: before the market.</li>
  * </ul>
  */
@@ -47,7 +52,7 @@ public final class VillageBuildings {
         MARKET,
         /** A new home: the house-workshop of the next job of the village. */
         HOME,
-        /** A missing building of the level, other than the market. */
+        /** A missing building of the level, other than the market: one step for each missing kind. */
         BUILDING
     }
 
@@ -94,7 +99,9 @@ public final class VillageBuildings {
      *       never gets its market. A home that waits for the market waits for one construction only.</li>
      *   <li>A new home, when the village needs places. After a first post step, the village gets no second
      *       house-workshop in the same check: the first post step tried the same jobs.</li>
-     *   <li>Else, the first missing building of the level, other than the market.</li>
+     *   <li>Then one step for each missing kind of building of the level, other than the market, in the order of
+     *       {@link #missingKinds}. The homes come first: the growth tries these steps only when no house-workshop
+     *       has a plot. A missing kind with no plot does not stop the next kinds.</li>
      * </ol>
      *
      * <p>A village with no scan has no counts: its steps are only the home.
@@ -117,15 +124,14 @@ public final class VillageBuildings {
         if (scanned && needsMarket(requirements, level, counts)) {
             steps.add(new Step(StepType.MARKET, MARKET));
         }
-        if (needsPlaces) {
-            if (!firstPost) {
-                steps.add(new Step(StepType.HOME, ""));
-            }
-        } else if (scanned) {
+        if (needsPlaces && !firstPost) {
+            steps.add(new Step(StepType.HOME, ""));
+        }
+        if (scanned) {
             List<Requirement> others = requirements.stream()
                     .filter(requirement -> !requirement.kind().equals(MARKET))
                     .toList();
-            missing(others, level, counts).ifPresent(kind -> steps.add(new Step(StepType.BUILDING, kind)));
+            missingKinds(others, level, counts).forEach(kind -> steps.add(new Step(StepType.BUILDING, kind)));
         }
         return steps;
     }
@@ -155,16 +161,30 @@ public final class VillageBuildings {
      * @return the kind of the missing building, or empty when the village has all the buildings of its level
      */
     public static Optional<String> missing(List<Requirement> requirements, int level, Map<String, Integer> counts) {
+        return missingKinds(requirements, level, counts).stream().findFirst();
+    }
+
+    /**
+     * The kinds of the missing buildings of a village, each kind one time, in the order of the first requirement of
+     * each kind with a missing building.
+     *
+     * @param requirements the requirements, in their order
+     * @param level        the level of the village
+     * @param counts       the number of buildings of each kind in the village
+     * @return the kinds of the missing buildings, or an empty list when the village has all the buildings of its level
+     */
+    public static List<String> missingKinds(List<Requirement> requirements, int level, Map<String, Integer> counts) {
         Map<String, Integer> needed = new HashMap<>();
+        Set<String> kinds = new LinkedHashSet<>();
         for (Requirement requirement : requirements) {
             if (requirement.minLevel() > level) {
                 continue;
             }
             int count = needed.merge(requirement.kind(), 1, Integer::sum);
             if (counts.getOrDefault(requirement.kind(), 0) < count) {
-                return Optional.of(requirement.kind());
+                kinds.add(requirement.kind());
             }
         }
-        return Optional.empty();
+        return List.copyOf(kinds);
     }
 }

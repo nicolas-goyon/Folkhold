@@ -63,10 +63,15 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *       {@link VillageHeartBlockEntity#checkMarkets}).</li>
  *   <li>A village that needs places gets a new home: the population of the settlement is more than the places (see
  *       {@link VillageBeds}). The home is a house-workshop.</li>
- *   <li>Else, a village with a missing building of its level gets this building (see {@link VillageBuildings} and
+ *   <li>Then a village with a missing building of its level gets this building (see {@link VillageBuildings} and
  *       {@link VillageBuildingTable}). The scan of the heart counts the building signs of each kind. The building comes
  *       from the pool of the houses of the variant of the village: the piece {@code house_<kind>}. A variant with no
  *       such piece gets no building of this kind.</li>
+ *   <li>The homes come first: the growth tries a building of the level when the village does not need places, or
+ *       when no house-workshop has a free plot. Each missing kind gets a try, in the order of
+ *       {@link VillageBuildings#missingKinds}: a kind with no piece or no free plot does not stop the next kinds. When
+ *       the search for a house-workshop meets a plot in a chunk that is not ready, the growth tries no building of the
+ *       level in this check: this plot can hold the home.</li>
  *   <li>The village has builders and no construction site. The heart looks for a free plot after the check of the
  *       repairs: a repair comes first.</li>
  *   <li>A free plot has no building of the generation. The space of the piece has no piece of the village structure,
@@ -98,7 +103,7 @@ public final class VillageGrowth {
     /**
      * Starts the construction of a house-workshop, of the market or of a missing building of the level on a free
      * plot. The steps come in the order of {@link VillageBuildings#steps}: the first step with a piece and a free plot
-     * starts.
+     * starts. A building of the level starts only when no house-workshop of the check has a free plot.
      *
      * @param level the level
      * @param heart the village heart
@@ -129,6 +134,8 @@ public final class VillageGrowth {
         if (!homeStep) {
             heart.setHomeNoSpace(false);
         }
+        // A home keeps its priority: a plot in a chunk that is not ready can hold it.
+        boolean homeUnknown = false;
         for (VillageBuildings.Step step : steps) {
             if (isHouseWorkshop(step)) {
                 Attempt attempt = startWorkshop(level, heart, settlement.get(), reference.get(), plots, posts);
@@ -139,7 +146,11 @@ public final class VillageGrowth {
                 if (attempt.site().isPresent()) {
                     return attempt.site();
                 }
+                homeUnknown = !attempt.complete();
                 continue;
+            }
+            if (homeUnknown && step.type() == VillageBuildings.StepType.BUILDING) {
+                break;
             }
             boolean market = step.type() == VillageBuildings.StepType.MARKET;
             Optional<VillageMarket.Plot> marketPlot = market ? heart.marketPlot().filter(plot -> hasTemplate(level,
