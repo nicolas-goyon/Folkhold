@@ -48,6 +48,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
@@ -106,6 +107,7 @@ public final class VillageRepairGameTests {
     private static final int BUILDERS = 2;
     /** The quantity of each delivered material in the stock. */
     private static final int STOCK = 64;
+    private static final String COBBLESTONE = "minecraft:cobblestone";
 
     private VillageRepairGameTests() {
     }
@@ -514,7 +516,8 @@ public final class VillageRepairGameTests {
     /**
      * A repair asks at once for the materials that the stock does not have: the village offers delivery quests long
      * before the wait of the common materials ({@link WorldConfig#CONSTRUCTION_MATERIAL_QUEST_MINUTES}). When the
-     * stock has the materials, the builders repair the wall, and the offers go away.
+     * stock has the materials, the builders repair the wall, and the offers go away. A block of stone takes the place
+     * of a log of the wall: the builders remove it, and the village keeps its drop (cobblestone) in its stock.
      */
     @GameTest(template = "village/center", timeoutTicks = 3000, batch = "village_repair_quests")
     public static void repairAsksForItsMaterialsAtOnce(GameTestHelper helper) {
@@ -539,6 +542,7 @@ public final class VillageRepairGameTests {
         for (BlockPos relative : WALL) {
             level.setBlock(origin.offset(relative), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
         }
+        level.setBlock(origin.offset(WALL.get(0)), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
         List<Villager> builders = new ArrayList<>();
         for (int i = 0; i < BUILDERS; i++) {
             Villager builder = VillageFolk.spawn(level, heartPos, ModProfessions.BUILDER.get());
@@ -578,10 +582,15 @@ public final class VillageRepairGameTests {
                 .thenExecute(() -> {
                     boolean offered = offers.stream().anyMatch(offer -> quests.byId(offer.id())
                             .filter(quest -> quest.state() == QuestState.OFFERED).isPresent());
+                    BlockState log = level.getBlockState(origin.offset(WALL.get(0)));
+                    int cobblestone = settlement.economy().stock().count(COBBLESTONE);
                     builders.forEach(Entity::discard);
                     level.setBlock(heartPos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
                     WorldConfig.CONSTRUCTION_BUILDER_TICKS.set(WorldConfig.CONSTRUCTION_BUILDER_TICKS.getDefault());
                     helper.assertFalse(offered, "The repair must withdraw its offers when the stock has the items");
+                    helper.assertTrue(log.is(BlockTags.LOGS), "The repair must replace the stone: " + log);
+                    helper.assertTrue(cobblestone == 1, "The village must keep the cobblestone of the removed stone: "
+                            + cobblestone);
                 })
                 .thenSucceed();
     }

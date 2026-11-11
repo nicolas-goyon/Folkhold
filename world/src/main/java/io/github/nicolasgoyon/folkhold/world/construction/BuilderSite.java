@@ -108,7 +108,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *       level: the blocks in place give no steps. For the new plan, the blocks of the plans before it are blocks of the
  *       plan (see {@link ConstructionPlanner#isWallTop}).</li>
  *   <li>The builders take the materials of the blocks of the plan from the stock of the village (see
- *       {@link SiteMaterials}). The fences and the scaffolding use no materials. A removed block drops no item.</li>
+ *       {@link SiteMaterials}). The fences and the scaffolding use no materials. A removed block drops no item in the
+ *       level: the village keeps its drops as items of the economy (see {@link #removedItems}).</li>
  *   <li>A repair site (see {@link VillageRepairs}) builds only some positions of the structure pieces of its village:
  *       the damaged blocks. Its box is the box of these positions.</li>
  *   <li>At the end of a construction site, the repairs of the village keep the blocks of its box (see
@@ -1382,7 +1383,9 @@ public final class BuilderSite {
                     return Applied.WAITING;
                 }
                 dirty = true;
+                Map<String, Double> removed = removedItems(level, step, pos);
                 plan.applyNext();
+                materials.keep(removed, settlement, level.getServer());
                 if (step.type() == StepType.PLACE_SCAFFOLDING) {
                     dirty |= scaffolding.add(pos);
                 } else if (step.type() == StepType.REMOVE_SCAFFOLDING) {
@@ -1413,6 +1416,23 @@ public final class BuilderSite {
             }
         }
         return Applied.APPLIED;
+    }
+
+    /**
+     * The items of the economy that the village keeps from the block of a step, before the step applies (see
+     * {@link BuilderMaterials#removedItems}). Only a removal step gives items. The fences and the scaffolding of the
+     * site give nothing. A village with no economy and a repair with free materials keep nothing.
+     */
+    private Map<String, Double> removedItems(ServerLevel level, Step step, BlockPos pos) {
+        if (step.type() != StepType.REMOVE || settlement == null || fences.contains(pos) || scaffolding.contains(pos)
+                || (isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get())) {
+            return Map.of();
+        }
+        Block block = level.getBlockState(pos).getBlock();
+        List<BlockPos> positions = new ArrayList<>(List.of(pos));
+        step.partner().map(BlockKinds::toBlockPos).filter(other -> level.getBlockState(other).is(block))
+                .ifPresent(positions::add);
+        return BuilderMaterials.removedItems(level, positions);
     }
 
     /** Puts a fence at a position that is still free. The fence connects to the fences next to it. */

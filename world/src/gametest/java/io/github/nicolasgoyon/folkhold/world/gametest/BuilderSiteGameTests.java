@@ -106,6 +106,8 @@ public final class BuilderSiteGameTests {
     /** The number of blocks of the wall of the tests: 4 × 2. */
     private static final int WALL_BLOCKS = 8;
     private static final int CALCITE_BLOCKS = 4;
+    /** The number of blocks of the pillar of the tests. */
+    private static final int PILLAR_BLOCKS = 6;
     /** The night time of the test of the night. */
     private static final long MIDNIGHT = 18000L;
     /** The test waits this number of ticks to see that a site does not progress. */
@@ -483,16 +485,18 @@ public final class BuilderSiteGameTests {
 
     /**
      * The builders build a pillar that is higher than their reach: they put a scaffolding column, climb it, and
-     * remove it at the end.
+     * remove it at the end. The scaffolding uses no materials and gives no items: the stock has no items at the end.
      */
     @GameTest(template = "arena_large", timeoutTicks = 3000, batch = "builder_site_pillar", skyAccess = true)
     public static void buildersClimbTheScaffolding(GameTestHelper helper) {
-        List<Villager> builders = village(helper);
+        EconomyVillage village = economyVillage(helper);
+        List<Villager> builders = village.builders();
         ServerLevel level = helper.getLevel();
         BlockPos from = new BlockPos(16, 1, 16);
         BlockPos to = new BlockPos(16, 6, 16);
         ResourceLocation id = template(helper, "builder_pillar", from, to, Blocks.OAK_PLANKS);
         BlockPos origin = helper.absolutePos(from);
+        village.stock().set(PLANKS, PILLAR_BLOCKS);
         BoundingBox box = BoundingBox.fromCorners(origin, helper.absolutePos(to));
         List<Boolean> climbed = new ArrayList<>();
 
@@ -511,11 +515,13 @@ public final class BuilderSiteGameTests {
                     List<BlockPos> leftovers = leftovers(level, box);
                     boolean alive = builders.stream().allMatch(Entity::isAlive);
                     boolean grounded = builders.stream().allMatch(builder -> builder.getY() < origin.getY() + 1.0);
+                    Map<String, Integer> stock = Map.copyOf(village.stock().asMap());
                     cleanUp(helper, builders, from, to);
                     helper.assertTrue(missing.isEmpty(), "Blocks of the pillar not in place: " + missing);
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
                     helper.assertTrue(!climbed.isEmpty(), "A builder must climb the scaffolding");
                     helper.assertTrue(alive && grounded, "The builders must be alive and on the ground");
+                    helper.assertTrue(stock.isEmpty(), "The scaffolding must give no items: " + stock);
                 })
                 .thenSucceed();
     }
@@ -1170,6 +1176,60 @@ public final class BuilderSiteGameTests {
                     cleanUp(helper, village.builders(), from, to);
                     helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
                     helper.assertTrue(left == 0, "The builders must take the planks of the stock: " + left + " left");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The builders remove the blocks on the ground of a wall, and the village keeps them in its stock as items of the
+     * economy, with the vanilla drops: stone gives cobblestone, a grass block gives dirt, a log gives its log.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_removed", skyAccess = true)
+    public static void buildersKeepTheBlocksThatTheyRemove(GameTestHelper helper) {
+        EconomyVillage village = economyVillage(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos to = new BlockPos(17, 2, 16);
+        // The template: a row of planks, with air above it.
+        for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
+            helper.setBlock(pos, pos.getY() == from.getY() ? Blocks.OAK_PLANKS : Blocks.AIR);
+        }
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "test/builder_removed");
+        level.getStructureManager().getOrCreate(id).fillFromWorld(level, helper.absolutePos(from),
+                to.subtract(from).offset(1, 1, 1), false, null);
+        for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
+            helper.setBlock(pos, Blocks.AIR);
+        }
+        // The obstacles: blocks where the template has air.
+        List<Block> obstacles = List.of(Blocks.STONE, Blocks.STONE, Blocks.GRASS_BLOCK, Blocks.OAK_LOG);
+        for (int i = 0; i < obstacles.size(); i++) {
+            helper.setBlock(new BlockPos(from.getX() + i, to.getY(), from.getZ()), obstacles.get(i));
+        }
+        BlockPos origin = helper.absolutePos(from);
+        village.stock().set(PLANKS, WALL_BLOCKS / 2);
+
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
+                helper.absolutePos(HEART), null);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, from, new BlockPos(to.getX(), from.getY(), to.getZ()),
+                            Blocks.OAK_PLANKS);
+                    List<BlockPos> left = new ArrayList<>();
+                    for (BlockPos pos : BlockPos.betweenClosed(from.above(), to)) {
+                        if (!helper.getBlockState(pos).isAir()) {
+                            left.add(pos.immutable());
+                        }
+                    }
+                    Map<String, Integer> stock = Map.copyOf(village.stock().asMap());
+                    cleanUp(helper, village.builders(), from, to);
+                    helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
+                    helper.assertTrue(left.isEmpty(), "The builders must remove the obstacles: " + left);
+                    Map<String, Integer> expected = Map.of("minecraft:cobblestone", 2, "minecraft:dirt", 1,
+                            "minecraft:oak_log", 1);
+                    helper.assertTrue(stock.equals(expected), "The stock must keep the removed blocks: " + stock
+                            + " instead of " + expected);
                 })
                 .thenSucceed();
     }

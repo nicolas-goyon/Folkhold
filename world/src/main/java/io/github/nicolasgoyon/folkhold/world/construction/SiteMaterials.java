@@ -41,6 +41,7 @@ import net.minecraft.server.MinecraftServer;
  *       quests follow the stock (see {@link #offerQuests}). The delivered items go into the stock of the
  *       village, and the builders take them there.</li>
  *   <li>At the end of the site, the whole items that the site did not use go back to the stock.</li>
+ *   <li>The village keeps the blocks that the builders remove, as items of the economy (see {@link #keep}).</li>
  * </ul>
  */
 final class SiteMaterials {
@@ -176,6 +177,33 @@ final class SiteMaterials {
             }
         });
         buffer.clear();
+        SettlementData.get(server).setDirty();
+    }
+
+    /**
+     * Keeps the items of the economy from a block that the builders remove (see
+     * {@link BuilderMaterials#removedItems}). The parts of items stay in the site for the next blocks. The whole items
+     * go into the stock of the village at once, up to its stock capacity. The items above the capacity stay in the
+     * site, and go back to the stock at the end of the site.
+     *
+     * @param items      the quantity of each item, by item id
+     * @param settlement the village, or null: a village with no economy keeps nothing
+     * @param server     the server: the method marks the settlements as changed
+     */
+    void keep(Map<String, Double> items, @Nullable Settlement settlement, MinecraftServer server) {
+        if (items.isEmpty() || settlement == null) {
+            return;
+        }
+        int capacity = LevelTables.get().traits(settlement.level()).stockCapacity();
+        Stock stock = settlement.economy().stock();
+        items.forEach((item, quantity) -> {
+            double kept = buffer.merge(item, quantity, Double::sum);
+            int whole = (int) Math.floor(kept + EPSILON);
+            if (whole > 0) {
+                buffer.put(item, kept - stock.add(item, whole, capacity));
+            }
+        });
+        buffer.values().removeIf(quantity -> quantity < EPSILON);
         SettlementData.get(server).setDirty();
     }
 
