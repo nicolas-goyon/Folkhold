@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.gametest.framework.GameTest;
@@ -51,7 +52,44 @@ public final class VillageTemplateGameTests {
     /** The origin of the template of the plan test: the floor goes around the piece on each side. */
     private static final BlockPos PLAN_ORIGIN = new BlockPos(3, 1, 3);
 
+    /** The folder of the templates of the village structure, in the namespace of the mod. */
+    private static final String VILLAGE_FOLDER = "village/";
+    /**
+     * The templates of the village folder that are not pieces of the structure, in the resources of the GameTests: the
+     * compound of the GameTests ({@code center.nbt}) and the house-workshop of the test variant of the growth tests
+     * ({@code test/job_test_smith.nbt}, see {@link VillageGrowthGameTests}).
+     */
+    private static final Set<ResourceLocation> TEST_TEMPLATES = Set.of(
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, VILLAGE_FOLDER + "center"),
+            ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, VILLAGE_FOLDER + "test/job_test_smith"));
+
     private VillageTemplateGameTests() {
+    }
+
+    /**
+     * Each template file of the village folder is a piece of the structure: {@link VillagePieces#all} reaches it, or it
+     * is a template of the GameTests ({@link #TEST_TEMPLATES}). A template file that no pool has is an error: the
+     * structure script writes only the templates of the pools.
+     */
+    @GameTest(template = "empty", timeoutTicks = 20, batch = "village_templates")
+    public static void eachVillageTemplateIsInAPool(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        List<String> problems = new ArrayList<>();
+        Set<ResourceLocation> pieces = VillagePieces.all(level, problems).keySet();
+        List<ResourceLocation> files = level.getStructureManager().listTemplates()
+                .filter(id -> id.getNamespace().equals(FolkholdWorld.MOD_ID)
+                        && id.getPath().startsWith(VILLAGE_FOLDER))
+                .sorted()
+                .toList();
+        List<ResourceLocation> unused = files.stream()
+                .filter(id -> !pieces.contains(id) && !TEST_TEMPLATES.contains(id))
+                .toList();
+        FolkholdWorld.LOGGER.info("Template files of the village folder: {}, pieces of the pools: {}", files.size(),
+                pieces.size());
+        helper.assertTrue(problems.isEmpty(), "Problems of the village pieces: " + problems);
+        helper.assertTrue(files.containsAll(TEST_TEMPLATES), "Missing templates of the GameTests: " + TEST_TEMPLATES);
+        helper.assertTrue(unused.isEmpty(), "Template files of the village folder in no pool: " + unused);
+        helper.succeed();
     }
 
     /**
