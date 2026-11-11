@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -128,7 +129,7 @@ public final class PlotTerrainGameTests {
             Structure.GenerationContext context = measure.maritimeSite(i).orElse(null);
             if (context != null) {
                 Optional<FortifiedVillageStructure.Layout> layout = measure.structure.layout(context);
-                if (layout.isPresent() && isMaritime(layout.get())) {
+                if (layout.isPresent() && layout.get().style().name().equals(StreetStyle.MARITIME.name())) {
                     found++;
                     measure.check(context, layout.get(), "", problems);
                 }
@@ -145,38 +146,23 @@ public final class PlotTerrainGameTests {
     public static void capitalsHaveTheirHomes(GameTestHelper helper) {
         Measure measure = new Measure(helper.getLevel());
         List<String> problems = new ArrayList<>();
-        int found = 0;
         FortifiedVillageStructure structure = measure.structure;
         FortifiedVillageStructure.Variant land = new FortifiedVillageStructure.Variant(HolderSet.direct(),
                 structure.startPool(), structure.wall(), structure.homes(), Optional.empty());
-        for (int i = 0; i < TRIES; i++) {
-            Structure.GenerationContext context = measure.context(new ChunkPos((i % ROW) * LAND_STEP,
-                    (i / ROW) * LAND_STEP));
-            if (structure.site(context).filter(site -> site == VillageSite.Result.ACCEPTED).isPresent()) {
-                measure.check(context, structure.layout(context, land, false, CAPITAL_LEVEL).orElseThrow(),
-                        " forced", problems);
-                found++;
-                break;
-            }
-        }
         FortifiedVillageStructure.Variant maritime = structure.variants().stream()
                 .filter(FortifiedVillageStructure.Variant::maritime).filter(variant -> variant.biomes().size() == 0)
                 .findFirst().orElseThrow();
-        for (int i = 0; i < TRIES; i++) {
-            Optional<Structure.GenerationContext> context = measure.maritimeSite(i);
-            if (context.isPresent()) {
-                measure.check(context.get(),
-                        structure.layout(context.get(), maritime, true, CAPITAL_LEVEL).orElseThrow(), " forced",
-                        problems);
-                found++;
-                break;
-            }
-        }
-        measure.end(helper, found, 2, problems);
-    }
-
-    private static boolean isMaritime(FortifiedVillageStructure.Layout layout) {
-        return layout.style().name().equals(StreetStyle.MARITIME.name());
+        Optional<Structure.GenerationContext> site = IntStream.range(0, TRIES)
+                .mapToObj(i -> measure.context(new ChunkPos((i % ROW) * LAND_STEP, (i / ROW) * LAND_STEP)))
+                .filter(context -> structure.site(context).equals(Optional.of(VillageSite.Result.ACCEPTED)))
+                .findFirst();
+        Optional<Structure.GenerationContext> coast = IntStream.range(0, TRIES).mapToObj(measure::maritimeSite)
+                .flatMap(Optional::stream).findFirst();
+        site.ifPresent(context -> measure.check(context,
+                structure.layout(context, land, false, CAPITAL_LEVEL).orElseThrow(), " forced", problems));
+        coast.ifPresent(context -> measure.check(context,
+                structure.layout(context, maritime, true, CAPITAL_LEVEL).orElseThrow(), " forced", problems));
+        measure.end(helper, (site.isPresent() ? 1 : 0) + (coast.isPresent() ? 1 : 0), 2, problems);
     }
 
     /** The noise terrain of the measure, and the counts of the villages. */
@@ -287,7 +273,7 @@ public final class PlotTerrainGameTests {
                     plan.missingHomes(), layout.built(), bad, FINE_STEP, fineBad, layout.problems().size());
         }
 
-        /** Logs the totals and ends the test. */
+        /** Logs the totals, and ends the test. */
         void end(GameTestHelper helper, int found, int wanted, List<String> problems) {
             FolkholdWorld.LOGGER.info("Plot terrain: {} villages, {} spare plots with bad terrain, buildings of the "
                     + "bank and of the first jobs on bad terrain {}, buildings on bad terrain on the grid of {} blocks "
