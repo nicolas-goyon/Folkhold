@@ -14,7 +14,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.junit.jupiter.api.Test;
@@ -98,6 +100,31 @@ class VillageWallTest {
         assertEquals(line - VillageWall.PIER_START, box.maxZ(), "The pier starts after the outer row of the gate");
         assertEquals(-1, box.minX());
         assertEquals(1, box.maxX());
+    }
+
+    /**
+     * A pier stops before the first row out of the range of chunks of the start chunk, also under 4 rows. A pier with
+     * its first row out of the range is not a piece.
+     */
+    @Test
+    void pierStaysInTheRangeOfTheStartChunk() {
+        WallLayout layout = layout();
+        Gate north = layout.gates().stream().filter(gate -> gate.side() == Side.NORTH).findFirst().orElseThrow();
+        int line = layout.outline().minZ();
+        int first = line - VillageWall.PIER_START;
+
+        Optional<PierPiece> cut = VillageWall.pier(layout, north, BASE, (x, z) -> SEA - 1, SEA, PIER,
+                new BoundingBox(-100, -100, first - 2, 100, 100, 100));
+        Optional<PierPiece> none = VillageWall.pier(layout, north, BASE, (x, z) -> SEA - 1, SEA, PIER,
+                new BoundingBox(-100, -100, first + 1, 100, 100, 100));
+        BoundingBox range = VillageWall.range(new ChunkPos(2, -3));
+
+        assertEquals(3, cut.orElseThrow().length(), "Rows at 2, 3 and 4 blocks from the line");
+        assertTrue(none.isEmpty(), "The first row is out of the range");
+        assertEquals(-6 * 16, range.minX());
+        assertEquals(11 * 16 - 1, range.maxX());
+        assertEquals(-11 * 16, range.minZ());
+        assertEquals(6 * 16 - 1, range.maxZ());
     }
 
     /**

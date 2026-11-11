@@ -67,6 +67,10 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>The start level of the village comes from the world seed and the start chunk (see
  *       {@link Settlements#startLevel(long, ChunkPos)}). Its tier gives the size of the village (see
  *       {@link VillageSizes}): the plot target and the maximum radius of the plan (see {@link VillagePlan}).</li>
+ *   <li>The plan uses the plots with good terrain (see {@link PlotTerrains}): no lava, no deep water and no steep
+ *       slope. A plot with bad terrain is a spare plot. The plots of the bank and of the first jobs next to the plaza
+ *       keep their building on bad terrain. A building over a ravine or a lava lake (the noise of the terrain does not
+ *       show them) stands on the foundation of its template.</li>
  *   <li>The street pieces and the buildings on the plots come from the plan (see {@link VillagePlanPieces}). The
  *       village has the buildings of its start level (see {@link VillageBuildingTable}) and the job posts of its start
  *       level: one house-workshop for each job slot of the level, at most one for each job that the level and the
@@ -370,7 +374,8 @@ public final class FortifiedVillageStructure extends Structure {
         int plazaSize = start.plaza().getBoundingBox().getXSpan();
         long seed = VillagePlanPieces.seed(context.seed(), context.chunkPos());
         VillagePlan plan = VillagePlan.plan(limited, plotTarget(size), style, plazaSize,
-                VillagePlan.Start.around(plazaSize), FortifiedVillageStructure::goodTerrain, seed);
+                VillagePlan.Start.around(plazaSize),
+                new PlotTerrains(context).plan(start.center(), start.plaza().getRotation()), seed);
         VillagePlanPieces.Posts posts = posts(context, start.center(), level, seed);
         int beds = Math.max(0, LevelTables.get().traits(level).maxPopulation() - VillageBeds.staff());
         VillagePlanPieces.Result result = pieces.place(style, plan, PlotUses.assign(plan, buildings, posts.count()),
@@ -397,15 +402,6 @@ public final class FortifiedVillageStructure extends Structure {
                 cultures.cultureAt(center.getX(), center.getZ()));
         int slots = LevelTables.get().traits(level).jobSlots();
         return new VillagePlanPieces.Posts(eligible, Math.min(slots, eligible.size()), seed);
-    }
-
-    /**
-     * The terrain test of the plots of the plan: each plot has good terrain. A building on bad terrain stands on the
-     * foundation of its template.
-     */
-    @SuppressWarnings("unused")
-    private static boolean goodTerrain(VillagePlan.Box area) {
-        return true;
     }
 
     /**
