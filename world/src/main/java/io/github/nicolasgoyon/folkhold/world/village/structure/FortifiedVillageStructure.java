@@ -314,6 +314,29 @@ public final class FortifiedVillageStructure extends Structure {
     }
 
     /**
+     * The layout of the village at the start chunk of a context, as the generation makes it, with a given start level
+     * in place of the start level of the chunk. The command {@code /folkhold village generate} uses it.
+     *
+     * @param context the context of the generation
+     * @param level   the start level: its tier gives the size of the village
+     * @return the layout, or empty if the site does not accept a village
+     */
+    public Optional<Layout> layout(GenerationContext context, int level) {
+        return start(context).map(start -> layout(context, start, level));
+    }
+
+    /**
+     * The variant of the village at the start chunk of a context, as the generation selects it, with no layout: the
+     * check of the site, the culture of the region and the biome.
+     *
+     * @param context the context of the generation
+     * @return the variant, or empty if the site does not accept a village
+     */
+    public Optional<Variant> variantAt(GenerationContext context) {
+        return start(context).map(Start::variant);
+    }
+
+    /**
      * The layout of a village of a variant and of a start level at the start chunk of a context, with no check of the
      * site. The tests and the commands use this method to make a village of a level.
      *

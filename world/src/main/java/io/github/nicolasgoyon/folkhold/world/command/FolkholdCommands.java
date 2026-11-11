@@ -48,6 +48,7 @@ public final class FolkholdCommands {
         SettlementCommands.register(event.getDispatcher());
         GroupCommands.register(event.getDispatcher());
         ConstructionCommands.register(event.getDispatcher());
+        VillageCommands.register(event.getDispatcher());
     }
 
     private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
