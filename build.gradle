@@ -1,7 +1,7 @@
 plugins {
     id 'net.neoforged.moddev' version '2.0.148' apply false
     id 'com.diffplug.spotless' version '8.11.0'
-    id 'net.ltgt.errorprone' version '5.1.1' apply false
+    id 'net.ltgt.errorprone' version '5.2.0' apply false
 }
 
 // Format checks for the files of the root project. The mod subprojects check their sources in
