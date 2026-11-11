@@ -804,8 +804,8 @@ def street_end():
 
 # The pieces of the planned streets. The frontage of a style is the width of its widest home along the street, and its
 # depth is the depth of its deepest home: 9 and 9 for the pieces of all the cultures and the maritime pieces, 13 and 13
-# for Sunreach, 17 and 17 for Valeholm (see PIECES and STYLES). The ends of a crossroad and the start of a side street
-# have PLOT_MARGIN blocks with no home. The homes on the plots of a street segment go past its ends:
+# for Sunreach, 17 and 17 for Valeholm (see PIECES and STYLES). The 2 ends of a crossroad and the end of a side street
+# have PLOT_MARGIN blocks with no home next to them. The homes on the plots of a street segment go past its ends:
 # - A home of 13 blocks (Sunreach) on the plot z = 8 of a segment of 13 blocks covers z = 2..14: 2 blocks past the end.
 # - A side long house (17 blocks) on a Norse segment of 21 blocks: on the plot z = 6, it covers z = -2..14, 2 blocks
 #   before the start; on the plot z = 16, it covers z = 8..24, 4 blocks past the end.
