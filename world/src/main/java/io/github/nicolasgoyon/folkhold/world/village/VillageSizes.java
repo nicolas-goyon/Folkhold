@@ -31,7 +31,7 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  *
  * <p>Format:
  * <pre>
- * {"sizes": [{"tier": "hamlet", "plots": 14, "spare_share": 0.15, "max_radius": 48, "rings": 0,
+ * {"sizes": [{"tier": "hamlet", "plots": 14, "spare_share": 0.15, "max_radius": 64, "rings": 0,
  *             "wall": "palisade", "min_territory_radius": 9}, ...]}
  * </pre>
  * {@code plots} is the plot target with the spare plots. In place of {@code plots}, {@code beds_per_plot} gives the
