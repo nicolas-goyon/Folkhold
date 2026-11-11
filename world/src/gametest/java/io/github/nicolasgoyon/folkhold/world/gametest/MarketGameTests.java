@@ -41,7 +41,6 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
-import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.templatesystem.JigsawReplacementProcessor;
@@ -57,7 +56,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * <ul>
  *   <li>each variant has one market sign with the market post behind it, no job sign and no entities, and the size of
  *       the plot of one house of its style;</li>
- *   <li>the market fits each plot of the generated villages of each style where a home fits;</li>
+ *   <li>the market fits the generated villages of each style: the plot of the market in the plan, or each plot where a
+ *       home fits;</li>
  *   <li>the scan of the heart finds the market squares by their market signs, and not the fish market of a maritime
  *       village.</li>
  * </ul>
@@ -137,10 +137,18 @@ public final class MarketGameTests {
     }
 
     /**
-     * The market fits each plot of the generated villages of each style where a home of the style fits: on each plot,
-     * the market touches a piece of the village only if a home on the plot also touches it. Thus the growth can put the
-     * market on each free plot where it can put a home. The check is on the horizontal plane, as the check of a free
-     * plot ({@code VillageGrowth.isFree}) on a flat terrain. The building of the generation on the plot does not count.
+     * The market fits the generated villages of each style. The check is on the horizontal plane, as the check of a
+     * free plot ({@code VillageGrowth.isFree}) on a flat terrain. The building of the generation on the plot does not
+     * count.
+     *
+     * <ul>
+     *   <li>A style with a wide plot for the market in its plan (the base, Sunreach and maritime styles, see
+     *       {@code StreetStyle#wide()}): each village has a free plot with a space that holds the market, and on this
+     *       plot the market touches no piece of the village.</li>
+     *   <li>The other styles (Valeholm: the market fits the plot of a long house): on each plot, the market touches a
+     *       piece of the village only if a home on the plot also touches it. Thus the growth can put the market on each
+     *       free plot where it can put a home.</li>
+     * </ul>
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "market_plots")
     public static void marketFitsEachPlot(GameTestHelper helper) {
@@ -157,27 +165,39 @@ public final class MarketGameTests {
             StructurePoolElement home = first(homes);
             FortifiedVillageStructure village = new FortifiedVillageStructure(new Structure.StructureSettings(
                     structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
-                    pool(pools, style + "plaza"), structure.size(), structure.maxDistanceFromCenter(),
+                    pool(pools, style + "plaza"), structure.maxDistanceFromCenter(),
                     structure.wall(), homes, List.of());
             int plots = 0;
             for (int i = 0; i < CANDIDATES; i++) {
                 ChunkPos chunk = new ChunkPos(FIRST_CHUNK + i * CANDIDATE_STEP, FIRST_CHUNK);
-                StructureStart start = village.generate(level.registryAccess(), generator,
-                        generator.getBiomeSource(), level.getChunkSource().randomState(),
-                        level.getServer().getStructureManager(), level.getSeed(), chunk, 0, level, biome -> true);
-                if (!start.isValid()) {
+                Optional<FortifiedVillageStructure.Layout> layout = village.layout(new Structure.GenerationContext(
+                        level.registryAccess(), generator, generator.getBiomeSource(),
+                        level.getChunkSource().randomState(), templates, level.getSeed(), chunk, level,
+                        biome -> true));
+                if (layout.isEmpty()) {
                     continue;
                 }
-                List<BoundingBox> pieces = start.getPieces().stream()
-                        .filter(PoolElementStructurePiece.class::isInstance)
-                        .map(StructurePiece::getBoundingBox)
-                        .toList();
-                for (VillagePlots.Plot plot : VillagePlots.of(templates, start.getPieces())) {
+                boolean wide = layout.get().style().wide().stream().anyMatch(plan -> plan.name().equals("market"));
+                List<StructurePiece> pieces = layout.get().pieces();
+                List<BoundingBox> boxes = pieces.stream().filter(PoolElementStructurePiece.class::isInstance)
+                        .map(StructurePiece::getBoundingBox).toList();
+                int marketPlots = 0;
+                for (VillagePlots.Plot plot : VillagePlots.of(templates, pieces)) {
                     int ground = plot.connector().getY();
                     BoundingBox marketBox = VillagePlots.place(templates, market, plot, ground).orElseThrow().box();
                     BoundingBox homeBox = VillagePlots.place(templates, home, plot, ground).orElseThrow().box();
                     plots++;
-                    for (BoundingBox piece : pieces) {
+                    if (wide) {
+                        if (!plot.built() && layout.get().reserved().stream()
+                                .anyMatch(space -> contains(space, marketBox))) {
+                            marketPlots++;
+                            boxes.stream().filter(piece -> overlaps(marketBox, piece)).forEach(piece -> problems.add(
+                                    style + "market " + marketBox + " on its plot " + plot.connector()
+                                            + " touches the piece " + piece));
+                        }
+                        continue;
+                    }
+                    for (BoundingBox piece : boxes) {
                         boolean onPlot = covers(piece, plot.front());
                         if (!onPlot && overlaps(marketBox, piece) && !overlaps(homeBox, piece)) {
                             problems.add(style + "market " + marketBox + " on the plot " + plot.connector()
@@ -185,10 +205,13 @@ public final class MarketGameTests {
                         }
                     }
                 }
+                if (wide && marketPlots == 0) {
+                    problems.add("the village " + style + " in " + chunk + " has no free plot for its market");
+                }
             }
             helper.assertTrue(plots > 0, "The villages of the style '" + style + "' must have plots");
         }
-        helper.assertTrue(problems.isEmpty(), "The market must fit each plot where a home fits: " + problems);
+        helper.assertTrue(problems.isEmpty(), "The market must fit the plots: " + problems);
         helper.succeed();
     }
 
@@ -267,6 +290,12 @@ public final class MarketGameTests {
     /** True if 2 boxes have a common column on the horizontal plane. */
     private static boolean overlaps(BoundingBox a, BoundingBox b) {
         return a.minX() <= b.maxX() && a.maxX() >= b.minX() && a.minZ() <= b.maxZ() && a.maxZ() >= b.minZ();
+    }
+
+    /** True if a box holds another box on the horizontal plane. */
+    private static boolean contains(BoundingBox outer, BoundingBox inner) {
+        return inner.minX() >= outer.minX() && inner.maxX() <= outer.maxX() && inner.minZ() >= outer.minZ()
+                && inner.maxZ() <= outer.maxZ();
     }
 
     /** True if the column of a position is in a box. */

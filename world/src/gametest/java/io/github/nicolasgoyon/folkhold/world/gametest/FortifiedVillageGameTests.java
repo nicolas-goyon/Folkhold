@@ -172,7 +172,7 @@ public final class FortifiedVillageGameTests {
                 pool(pools, "village/plains/plaza"), structure.wall(), structure.homes(), Optional.empty());
         FortifiedVillageStructure cultures = new FortifiedVillageStructure(new Structure.StructureSettings(
                 structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
-                structure.startPool(), structure.size(), structure.maxDistanceFromCenter(), structure.wall(),
+                structure.startPool(), structure.maxDistanceFromCenter(), structure.wall(),
                 structure.homes(), List.of(allPlains, northBase, northPlains));
 
         helper.assertTrue(cultures.variantAt("valeholm", plains) == northPlains,
@@ -297,7 +297,7 @@ public final class FortifiedVillageGameTests {
 
         FortifiedVillageStructure baseOnly = new FortifiedVillageStructure(new Structure.StructureSettings(
                 structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
-                structure.startPool(), structure.size(), structure.maxDistanceFromCenter(), structure.wall(),
+                structure.startPool(), structure.maxDistanceFromCenter(), structure.wall(),
                 structure.homes(), List.of());
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         StructureStart base = baseOnly.generate(level.registryAccess(), generator, generator.getBiomeSource(),
@@ -403,37 +403,33 @@ public final class FortifiedVillageGameTests {
 
     /**
      * The plots of the generated villages: a plot with a house has a junction, a free plot has none. The wall keeps
-     * the space of a new home on each free plot (see {@link FortifiedVillageStructure#reservedSpaces}): the space is
+     * the space of each free plot of the plan (see {@link FortifiedVillageStructure.Layout#reserved}): the space is
      * inside the area of the village, and has no palisade.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "fortified_village_plots")
     public static void wallKeepsTheSpaceOfTheFreePlots(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        Structure structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE)
-                .getOrThrow(Settlements.VILLAGE_STRUCTURE);
+        FortifiedVillageStructure structure = (FortifiedVillageStructure) level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE).getOrThrow(Settlements.VILLAGE_STRUCTURE);
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         int free = 0;
         for (int i = 0; i < CANDIDATES; i++) {
             ChunkPos chunk = new ChunkPos(FIRST_CHUNK + i * CANDIDATE_STEP, FIRST_CHUNK + CANDIDATE_STEP);
-            StructureStart start = structure.generate(level.registryAccess(), generator, generator.getBiomeSource(),
-                    level.getChunkSource().randomState(), level.getServer().getStructureManager(), level.getSeed(),
-                    chunk, 0, level, biome -> true);
-            helper.assertTrue(start.isValid(), "The village must start in " + chunk);
-            VillageReference reference = VillageReference.of(level, start.getPieces()).orElseThrow();
+            Optional<FortifiedVillageStructure.Layout> layout = structure.layout(new Structure.GenerationContext(
+                    level.registryAccess(), generator, generator.getBiomeSource(),
+                    level.getChunkSource().randomState(), level.getStructureManager(), level.getSeed(), chunk, level,
+                    biome -> true));
+            helper.assertTrue(layout.isPresent(), "The village must start in " + chunk);
+            VillageReference reference = VillageReference.of(level, layout.get().pieces()).orElseThrow();
             BoundingBox area = reference.area().orElseThrow();
             long houses = reference.pieces().stream().map(piece -> name(piece.template()))
                     .filter(name -> HOUSES.contains(name) || name.startsWith("job_")).count();
             long built = reference.plots().stream().filter(VillagePlots.Plot::built).count();
-            helper.assertTrue(built == houses, "Each house must have its plot: " + houses + " houses, " + built
-                    + " built plots in " + chunk);
-            // The spaces of the free plots, with the method of the generation.
-            List<BoundingBox> spaces = FortifiedVillageStructure.reservedSpaces(level.registryAccess(),
-                    level.getStructureManager(),
-                    ((FortifiedVillageStructure) structure).variantOf(level, start.getPieces()).homes(),
-                    start.getPieces());
-            long freePlots = reference.plots().stream().filter(plot -> !plot.built()).count();
-            helper.assertTrue(spaces.size() == freePlots, "Each free plot must have a space: " + freePlots
-                    + " free plots, " + spaces.size() + " spaces in " + chunk);
+            helper.assertTrue(built == houses && built == layout.get().built(), "Each house must have its plot: "
+                    + houses + " houses, " + built + " built plots in " + chunk);
+            List<BoundingBox> spaces = layout.get().reserved();
+            helper.assertTrue(spaces.size() == layout.get().free(), "Each free plot must have a space: "
+                    + layout.get().free() + " free plots, " + spaces.size() + " spaces in " + chunk);
             for (BoundingBox space : spaces) {
                 free++;
                 helper.assertTrue(space.minX() > area.minX() && space.maxX() < area.maxX()

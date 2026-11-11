@@ -20,6 +20,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
+import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
@@ -77,22 +78,22 @@ public final class VillageCenterGameTests {
     private VillageCenterGameTests() {
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200, batch = "village_center_base")
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "village_center_base")
     public static void baseVillageKeepsItsCenter(GameTestHelper helper) {
         checkStyle(helper, "", 0);
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200, batch = "village_center_valeholm")
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "village_center_valeholm")
     public static void valeholmVillageKeepsItsCenter(GameTestHelper helper) {
         checkStyle(helper, "valeholm/", 1);
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200, batch = "village_center_sunreach")
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "village_center_sunreach")
     public static void sunreachVillageKeepsItsCenter(GameTestHelper helper) {
         checkStyle(helper, "sunreach/", 2);
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200, batch = "village_center_maritime")
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "village_center_maritime")
     public static void maritimeVillageKeepsItsCenter(GameTestHelper helper) {
         checkStyle(helper, "maritime/", 3);
     }
@@ -118,6 +119,9 @@ public final class VillageCenterGameTests {
         Settlement[] settlement = new Settlement[1];
         helper.startSequence()
                 .thenIdle(CHUNK_LOAD)
+                // The forced chunks of a large village are ready after some ticks: the first garrison waits for them.
+                .thenWaitUntil(() -> helper.assertTrue(VillageLayout.isAreaReady(level, heart.scanArea(level)),
+                        "The scan area of the village must be ready"))
                 .thenExecute(() -> {
                     heart.ensureSettlement();
                     settlement[0] = Settlements.of(server, heart).orElseThrow();
@@ -233,7 +237,7 @@ public final class VillageCenterGameTests {
         // The style with no variants: the biome and the culture of the GameTest world do not select another style.
         FortifiedVillageStructure style = new FortifiedVillageStructure(new Structure.StructureSettings(
                 structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
-                pool(pools, "village/" + folder + "plaza"), structure.size(), structure.maxDistanceFromCenter(),
+                pool(pools, "village/" + folder + "plaza"), structure.maxDistanceFromCenter(),
                 structure.wall(), pools.getHolderOrThrow(ResourceKey.create(Registries.TEMPLATE_POOL, homes)),
                 List.of());
         ChunkGenerator generator = level.getChunkSource().getGenerator();

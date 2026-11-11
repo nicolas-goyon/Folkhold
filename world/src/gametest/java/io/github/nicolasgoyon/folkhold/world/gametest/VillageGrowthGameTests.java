@@ -336,7 +336,7 @@ public final class VillageGrowthGameTests {
         // The style with no variants: the biome and the culture of the GameTest world do not select another style.
         FortifiedVillageStructure sunreach = new FortifiedVillageStructure(new Structure.StructureSettings(
                 structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
-                poolHolder(pools, SUNREACH + "plaza"), structure.size(), structure.maxDistanceFromCenter(),
+                poolHolder(pools, SUNREACH + "plaza"), structure.maxDistanceFromCenter(),
                 sunreachWall(structure), poolHolder(pools, SUNREACH + "homes"), List.of());
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         List<String> problems = new ArrayList<>();

@@ -15,8 +15,9 @@ Output:
 
     python3 tools/structures/village.py
 
-The village structure (type folkhold_world:fortified_village) puts the pieces of the jigsaw pools together, then it
-adds the palisade, the towers and the gates around them. Pieces:
+The village structure (type folkhold_world:fortified_village) places the pieces of the plan of its tier (the street
+pieces and the buildings on their plots, see VillagePlan), then it adds the palisade, the towers and the gates around
+them. The jigsaw connectors give the positions of the plots and the pools of the pieces. Pieces:
 - plaza.nbt: the start piece. The village heart, 4 braziers, the alarm bell, the hall sign, the quest board and lamp
   posts. 4 jigsaw connectors for the streets: the street to the north has the plot of the bank.
 - street.nbt, street_bank.nbt, street_jobs.nbt, street_end.nbt: the parts of a street. The paths follow the terrain. A
@@ -4082,8 +4083,7 @@ def structure():
         "spawn_overrides": {},
         "terrain_adaptation": "beard_thin",
         "start_pool": base["start_pool"],
-        "size": 2,
-        "max_distance_from_center": 64,
+        "max_distance_from_center": 110,
         "wall": base["wall"],
         "homes": base["homes"],
         "variants": variants,
