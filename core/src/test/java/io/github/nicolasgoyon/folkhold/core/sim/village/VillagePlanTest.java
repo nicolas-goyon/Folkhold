@@ -7,9 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.nicolasgoyon.folkhold.core.sim.village.StreetStyle.Home;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Box;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Dir;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Kind;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Piece;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Plot;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.PlotRole;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Start;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize.Wall;
 import java.io.IOException;
@@ -18,7 +20,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 class VillagePlanTest {
@@ -50,7 +54,8 @@ class VillagePlanTest {
                         checkLayout(plan, style, name);
                         assertTrue(plan.radius() <= size.maxRadius(), name);
                         assertEquals(size.plots(0, 0), plan.plots().size() + plan.missingPlots(), name);
-                        assertTrue(plan.plots().stream().allMatch(plot -> plot.good() || plot.spare()), name);
+                        assertTrue(plan.plots().stream()
+                                .allMatch(plot -> plot.good() || plot.spare() || plot.role() != PlotRole.HOME), name);
                         assertEquals(0, plan.missingPlots(), name);
                         assertEquals(0, plan.missingHomes(), name);
                         long spare = plan.plots().stream().filter(Plot::spare).count();
@@ -85,14 +90,15 @@ class VillagePlanTest {
             assertTrue(plot.area().contains(plot.x() + plot.facing().dx(), plot.z() + plot.facing().dz()), name);
         }
         for (Start start : STARTS) {
-            assertTrue(plan.pieces().stream().anyMatch(p -> p.parent() == -1 && p.x() == start.x()
-                    && p.z() == start.z() && p.dir() == start.dir()), name + " axis " + start.dir());
+            assertTrue(plan.pieces().stream().anyMatch(p -> p.parent() == -1 && p.kind() == Kind.SEGMENT
+                    && p.x() == start.x() && p.z() == start.z() && p.dir() == start.dir()),
+                    name + " axis " + start.dir());
         }
         // The rule of the end of a piece: a wide home goes past the end only when a street end is after it.
         for (Plot plot : plan.plots().stream().filter(Plot::wide).toList()) {
             Piece piece = plan.pieces().get(plot.piece());
             if (style.endOverflow() == 0 && overflows(plot, piece)) {
-                assertTrue(plan.pieces().stream().noneMatch(p -> p.parent() == plot.piece() && p.dir() == piece.dir()
+                assertTrue(plan.pieces().stream().noneMatch(p -> p.parent() == plot.piece() && p.exit() == 0
                         && p.kind() != Kind.END), name);
             }
         }
@@ -119,8 +125,36 @@ class VillagePlanTest {
                 VillagePlan plan = plan(size, style, VillagePlanTest::good, 1);
                 assertTrue(plan.missingWide().isEmpty(), size.tier() + " " + style.name() + " " + plan.missingWide());
                 int wide = style.wide().stream().mapToInt(Home::count).sum();
-                assertEquals(wide, plan.plots().stream().filter(Plot::wide).count());
+                assertEquals(wide, plan.plots().stream().filter(Plot::wide).count(),
+                        size.tier() + " " + style.name() + ": the wide plots");
                 assertTrue(plan.plots().stream().filter(Plot::wide).noneMatch(Plot::spare));
+            }
+        }
+    }
+
+    /**
+     * The first pieces of the streets to the north and to the south keep the plots of the bank and of the first jobs:
+     * never wide, never spare, also on bad terrain.
+     */
+    @Test
+    void firstPiecesKeepTheBankAndTheJobPlots() {
+        for (VillageSize size : VillageSizeTable.DEFAULT.sizes()) {
+            for (StreetStyle style : StreetStyle.ALL) {
+                for (Predicate<Box> terrain : List.<Predicate<Box>>of(VillagePlanTest::good, box -> false)) {
+                    VillagePlan plan = plan(size, style, terrain, 5);
+                    String name = size.tier() + " " + style.name();
+                    Map<PlotRole, Long> roles = plan.plots().stream()
+                            .collect(Collectors.groupingBy(Plot::role, Collectors.counting()));
+                    assertEquals(1, roles.get(PlotRole.BANK), name);
+                    assertEquals(1, roles.get(PlotRole.JOBS_FOOD), name);
+                    assertEquals(style == StreetStyle.VALEHOLM ? 2 : 1, roles.get(PlotRole.JOBS_START), name);
+                    for (Plot plot : plan.plots().stream().filter(p -> p.role() != PlotRole.HOME).toList()) {
+                        Piece piece = plan.pieces().get(plot.piece());
+                        assertEquals(-1, piece.parent(), name);
+                        assertEquals(plot.role() == PlotRole.BANK ? Dir.NORTH : Dir.SOUTH, piece.dir(), name);
+                        assertFalse(plot.spare() || plot.wide(), name);
+                    }
+                }
             }
         }
     }
@@ -142,14 +176,16 @@ class VillagePlanTest {
     void sparePlotsAreTheBadPlotsThenTheFarthestPlots() {
         VillageSize size = VillageSizeTable.DEFAULT.size("village").orElseThrow();
         VillagePlan plan = plan(size, StreetStyle.BASE, VillagePlanTest::good, 3);
-        double home = plan.plots().stream().filter(p -> !p.spare()).mapToDouble(VillagePlanTest::distance).max()
-                .orElseThrow();
+        // The homes with no role and no wide home are nearer than the spare plots.
+        double home = plan.plots().stream().filter(p -> !p.spare() && !p.wide() && p.role() == PlotRole.HOME)
+                .mapToDouble(VillagePlanTest::distance).max().orElseThrow();
         assertTrue(plan.plots().stream().filter(Plot::spare).allMatch(p -> distance(p) >= home));
-        // A bad plot near the plaza: it is a spare plot.
+        // A bad plot near the plaza: it is a spare plot, except a plot with a role (the bank).
         Predicate<Box> badNorth = box -> !box.overlaps(new Box(-30, -30, 30, -8));
         VillagePlan bad = plan(size, StreetStyle.BASE, badNorth, 3);
-        assertTrue(bad.plots().stream().filter(p -> !p.good()).allMatch(Plot::spare));
-        assertTrue(bad.plots().stream().anyMatch(p -> !p.good()));
+        assertTrue(bad.plots().stream().filter(p -> !p.good() && p.role() == PlotRole.HOME).allMatch(Plot::spare));
+        assertTrue(bad.plots().stream().anyMatch(p -> !p.good() && p.spare()));
+        assertTrue(bad.plots().stream().anyMatch(p -> !p.good() && p.role() == PlotRole.BANK && !p.spare()));
     }
 
     private static double distance(Plot plot) {

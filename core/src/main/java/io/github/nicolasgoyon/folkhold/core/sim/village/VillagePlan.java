@@ -16,7 +16,8 @@ import java.util.function.Predicate;
  *
  * <ul>
  *   <li>A street goes out of each side of the plaza: the 4 axis streets. The gates and the arms of the wall use them.
- *       </li>
+ *       The first piece of each axis street is a segment (see {@link Piece}), and its plots for the bank and the first
+ *       jobs have a role ({@link PlotRole}).</li>
  *   <li>The plan adds the pieces one by one at the open end of a street that is nearest to the middle: a segment
  *       ({@code street_next}) or a crossroad ({@code street_cross}, weight 1 against 2, from the seed). A side exit of
  *       a crossroad starts with the piece {@code street_side}. A piece goes only where its box, the box of a street end
@@ -24,18 +25,19 @@ import java.util.function.Predicate;
  *       A plot that does not obey this is not a plot. Each open end gets a street end ({@code street_end}).</li>
  *   <li>The plan stops when it has the plot target, the homes on plots with good terrain and the wide plots. For the
  *       wide plots, it adds 4 pieces at most after it has the plots.</li>
- *   <li>The wide homes of the style take the good plots nearest to the middle where they touch no piece and no plot of
- *       another piece. A wide home can take the place of a plot of its own piece (for example the 2 plots on a side of
- *       a Valeholm segment) when the plan keeps its target. A wide home goes past the end of its piece by
- *       {@link StreetStyle#endOverflow()} blocks at most, except before a street end.</li>
- *   <li>The homes take the wide plots and the good plots nearest to the middle. The spare plots are the bad plots
- *       first, then the farthest plots. The other plots are not in the plan.</li>
+ *   <li>The wide homes of the style take the good plots nearest to the middle (not a plot with a role) where they
+ *       touch no piece and no plot of another piece. A wide home can take the place of a home plot of its own piece
+ *       (for example the 2 plots on a side of a Valeholm segment) when the plan keeps its target. A wide home goes
+ *       past the end of its piece by {@link StreetStyle#endOverflow()} blocks at most, except before a street end.
+ *       </li>
+ *   <li>The homes take the plots with a role, the wide plots and the good plots nearest to the middle. The spare
+ *       plots are the bad plots first, then the farthest plots of the plan. The other plots are not in the plan.</li>
  *   <li>When the radius is too small, the plan has fewer plots or homes: {@link #missingPlots()} and
  *       {@link #missingHomes()} give the shortfall.</li>
  * </ul>
  *
- * <p>The plan tries 8 layouts from the seed and keeps the best: the smallest shortfall, then the
- * fewest missing wide plots, then the smallest radius. The same inputs and the same seed give the same plan.
+ * <p>The plan tries 8 layouts from the seed and keeps the best: the smallest shortfall, then the fewest missing wide
+ * plots, then the smallest radius. The same inputs and the same seed give the same plan.
  *
  * @param pieces       the street pieces
  * @param plots        the plots: the homes, then the spare plots
@@ -155,6 +157,11 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
     /**
      * A street piece. The template goes south (+z) from its start connector at (2, 0, 0).
      *
+     * <p>The first piece of each axis street is a segment ({@code parent} -1). It takes the place of the first street
+     * piece of the current village structure, with the same dimensions: {@code street_bank} for the street to the
+     * north, {@code street_jobs} for the street to the south and {@code street} for the streets to the east and to the
+     * west (the Norse pieces in the Valeholm style). Its plots have the roles of these pieces (see {@link PlotRole}).
+     *
      * @param kind   the kind of the piece
      * @param x      the block X of the start: the middle of the start edge
      * @param z      the block Z of the start
@@ -162,8 +169,28 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
      * @param length the length of the piece along the street
      * @param box    the box of the piece
      * @param parent the index of the piece before this piece, or -1 for the first piece of an axis street
+     * @param exit   the exit of the piece before this piece: 0 for the next piece, 1 for the side exit at x = 0 and 2
+     *               for the side exit at x = 4 of a crossroad, or -1 for the first piece of an axis street
      */
-    public record Piece(Kind kind, int x, int z, Dir dir, int length, Box box, int parent) {
+    public record Piece(Kind kind, int x, int z, Dir dir, int length, Box box, int parent, int exit) {
+    }
+
+    /**
+     * The role of a plot. The plots of the first pieces of the street to the north and of the street to the south have
+     * the roles of the current village structure. They are never wide plots and never spare plots.
+     */
+    public enum PlotRole {
+        /** A home: the pool {@code houses}. */
+        HOME,
+        /** The bank: the plot at x = 0 of the first plot row of the street to the north (pool {@code bank}). */
+        BANK,
+        /** The first food job: the plot at x = 0 of the first plot row of the street to the south. */
+        JOBS_FOOD,
+        /**
+         * The first trader job: the plot at x = 4 of the first plot row of the street to the south, and in the
+         * Valeholm style also the plot at x = 0 of its second plot row.
+         */
+        JOBS_START
     }
 
     /**
@@ -174,11 +201,13 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
      * @param facing the direction from the street to the home
      * @param area   the box around the homes that fit the plot
      * @param homes  the homes that fit the plot: the home of the style, and the wide home of a marked plot
+     * @param role   the role of the plot: the pool of its building
      * @param good   true when the terrain of the plot is good
      * @param spare  true for a spare plot: it stays empty
      * @param piece  the index of the piece of the plot
      */
-    public record Plot(int x, int z, Dir facing, Box area, List<Home> homes, boolean good, boolean spare, int piece) {
+    public record Plot(int x, int z, Dir facing, Box area, List<Home> homes, PlotRole role, boolean good,
+            boolean spare, int piece) {
         /** True when a wide home fits the plot. */
         public boolean wide() {
             return homes.size() > 1;
@@ -227,14 +256,20 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
             .thenComparingDouble(VillagePlan::radius);
 
     /** A plot before the choice of the homes. */
-    private record Slot(int x, int z, Dir facing, int piece, int along, boolean east, Box area, boolean good) {
+    private record Slot(int x, int z, Dir facing, int piece, int along, boolean east, Box area, PlotRole role,
+            boolean good) {
+        /** True for a plot of a building of the first pieces: it is never wide and never spare. */
+        boolean reserved() {
+            return role != PlotRole.HOME;
+        }
+
         long distance() {
             return (long) x * x + (long) z * z;
         }
     }
 
     /** An open end of a street: the place of the next piece, with the box of its street end. */
-    private record Tail(Start start, boolean side, int parent, Box end) {
+    private record Tail(Start start, boolean side, int parent, int exit, Box end) {
     }
 
     private static final class Planner {
@@ -263,8 +298,16 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
         }
 
         VillagePlan plan(List<Start> starts) {
-            for (Start start : starts) {
-                tails.add(new Tail(start, false, -1, box(start, StreetStyle.END)));
+            // The first pieces of the streets to the north and to the south come first: their plots have roles.
+            List<Start> ordered = new ArrayList<>(starts);
+            ordered.sort(Comparator.comparing(start -> start.dir() != Dir.NORTH && start.dir() != Dir.SOUTH));
+            for (Start start : ordered) {
+                Tail tail = new Tail(start, false, -1, -1, box(start, StreetStyle.END));
+                if (fits(tail, Kind.SEGMENT)) {
+                    add(tail, Kind.SEGMENT);
+                } else {
+                    closed.add(tail);
+                }
             }
             int widePieces = 0;
             while (!tails.isEmpty()) {
@@ -295,7 +338,7 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
             Choice choice = choose();
             for (Tail tail : tails) {
                 pieces.add(new Piece(Kind.END, tail.start().x(), tail.start().z(), tail.start().dir(), StreetStyle.END,
-                        tail.end(), tail.parent()));
+                        tail.end(), tail.parent(), tail.exit()));
             }
             double radius = 0;
             for (Piece piece : pieces) {
@@ -309,7 +352,7 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
         }
 
         private boolean enough() {
-            return slots.size() >= target && slots.stream().filter(Slot::good).count() >= needed;
+            return slots.size() >= target && slots.stream().filter(s -> s.good() || s.reserved()).count() >= needed;
         }
 
         private static long distance(Start start) {
@@ -362,13 +405,13 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
         }
 
         /** True when the box is inside the radius and touches no piece, no plot and no street end. */
-        private boolean free(Box box, Tail ignore) {
+        private boolean free(Box box) {
             if (!inside(box) || box.overlaps(plaza)) {
                 return false;
             }
             return pieces.stream().noneMatch(p -> p.box().overlaps(box))
                     && slots.stream().noneMatch(s -> s.area().overlaps(box))
-                    && tails.stream().noneMatch(t -> t != ignore && t.end().overlaps(box))
+                    && tails.stream().noneMatch(t -> t.end().overlaps(box))
                     && closed.stream().noneMatch(t -> t.end().overlaps(box));
         }
 
@@ -378,39 +421,51 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
                 // The segment after the side piece must also fit.
                 Start next = exits(start, kind).get(0);
                 Box side = box(start, length(kind));
-                return free(side, tail)
-                        && fits(new Tail(next, false, -1, side), Kind.SEGMENT);
+                return free(side) && fits(new Tail(next, false, -1, 0, side), Kind.SEGMENT);
             }
-            if (!free(box(start, length(kind)), tail)) {
+            if (!free(box(start, length(kind)))) {
                 return false;
             }
-            return exits(start, kind).stream().allMatch(exit -> free(box(exit, StreetStyle.END), tail));
+            return exits(start, kind).stream().allMatch(exit -> free(box(exit, StreetStyle.END)));
         }
 
         private void add(Tail tail, Kind kind) {
             Start start = tail.start();
             int index = pieces.size();
             pieces.add(new Piece(kind, start.x(), start.z(), start.dir(), length(kind), box(start, length(kind)),
-                    tail.parent()));
+                    tail.parent(), tail.exit()));
             List<Start> exits = exits(start, kind);
             for (int i = 0; i < exits.size(); i++) {
                 Start exit = exits.get(i);
-                tails.add(new Tail(exit, kind == Kind.CROSS && i > 0, index, box(exit, StreetStyle.END)));
+                tails.add(new Tail(exit, kind == Kind.CROSS && i > 0, index, i, box(exit, StreetStyle.END)));
             }
             List<Integer> plotZ = kind == Kind.SEGMENT ? style.segmentPlots()
                     : kind == Kind.CROSS ? style.crossPlots() : List.of();
-            for (int along : plotZ) {
+            for (int row = 0; row < plotZ.size(); row++) {
+                int along = plotZ.get(row);
                 for (boolean east : new boolean[] {false, true}) {
                     Box area = area(start, along, east, style.home());
-                    if (free(area, null)) {
+                    if (free(area)) {
                         int[] connector = at(start, east ? StreetStyle.WIDTH - 1 : 0, along);
                         Dir side = start.dir().counterclockwise();
                         Dir facing = east ? side : side.opposite();
-                        slots.add(new Slot(connector[0], connector[1], facing, index, along, east, area,
+                        PlotRole role = tail.parent() == -1 ? role(start.dir(), row, east) : PlotRole.HOME;
+                        slots.add(new Slot(connector[0], connector[1], facing, index, along, east, area, role,
                                 terrain.test(area)));
                     }
                 }
             }
+        }
+
+        /** The role of a plot of the first piece of an axis street, from its row (0 near the plaza) and its side. */
+        private static PlotRole role(Dir street, int row, boolean east) {
+            if (street == Dir.NORTH && row == 0 && !east) {
+                return PlotRole.BANK;
+            }
+            if (street == Dir.SOUTH && row == 0) {
+                return east ? PlotRole.JOBS_START : PlotRole.JOBS_FOOD;
+            }
+            return street == Dir.SOUTH && row == 1 && !east ? PlotRole.JOBS_START : PlotRole.HOME;
         }
 
         /** The box of a home on a plot: centered on the plot along the street, outside the box of the piece. */
@@ -422,10 +477,10 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
         }
 
         /**
-         * Chooses the plots. First the wide homes take the good plots nearest to the middle. A wide home can take the
-         * place of other plots of its piece when the plan keeps its target without them. Then the homes take the wide
-         * plots and the good plots nearest to the middle, and the spare plots are the bad plots, then the nearest
-         * other plots.
+         * Chooses the plots. First the wide homes take the good plots nearest to the middle, but not a plot with a
+         * role. A wide home can take the place of other home plots of its piece when the plan keeps its target without
+         * them. Then the plots with a role, the wide plots and the good plots nearest to the middle are the homes. The
+         * spare plots are the bad plots first, then the farthest plots of the plan.
          */
         private Choice choose() {
             List<Slot> order = new ArrayList<>(slots);
@@ -439,7 +494,7 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
                     if (marked >= wide.count()) {
                         break;
                     }
-                    if (!order.contains(slot) || !slot.good() || wideOf.containsKey(slot)) {
+                    if (!order.contains(slot) || !slot.good() || slot.reserved() || wideOf.containsKey(slot)) {
                         continue;
                     }
                     Box area = wideArea(slot, wide);
@@ -449,8 +504,10 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
                     List<Slot> lost = order.stream().filter(other -> other != slot
                             && areas.getOrDefault(other, other.area()).overlaps(area)).toList();
                     boolean keepsTarget = order.size() - lost.size() >= target
-                            && order.stream().filter(o -> o.good() && !lost.contains(o)).count() >= needed;
-                    if (lost.stream().allMatch(o -> o.piece() == slot.piece() && !wideOf.containsKey(o))
+                            && order.stream().filter(o -> (o.good() || o.reserved()) && !lost.contains(o)).count()
+                                    >= needed;
+                    if (lost.stream()
+                                    .allMatch(o -> o.piece() == slot.piece() && !o.reserved() && !wideOf.containsKey(o))
                             && (lost.isEmpty() || keepsTarget)) {
                         order.removeAll(lost);
                         wideOf.put(slot, wide);
@@ -463,7 +520,8 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
                 }
             }
             int count = Math.min(target, order.size());
-            List<Slot> homes = new ArrayList<>(wideOf.keySet());
+            List<Slot> homes = new ArrayList<>(order.stream().filter(Slot::reserved).toList());
+            homes.addAll(wideOf.keySet());
             for (Slot slot : order) {
                 if (homes.size() < Math.min(needed, count) && slot.good() && !homes.contains(slot)) {
                     homes.add(slot);
@@ -485,7 +543,7 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
         private Plot plot(Slot slot, Home wide, Map<Slot, Box> areas, boolean spare) {
             List<Home> homes = wide == null ? List.of(style.home()) : List.of(style.home(), wide);
             return new Plot(slot.x(), slot.z(), slot.facing(), areas.getOrDefault(slot, slot.area()), homes,
-                    slot.good(), spare, slot.piece());
+                    slot.role(), slot.good(), spare, slot.piece());
         }
 
         /**
@@ -497,7 +555,7 @@ public record VillagePlan(List<Piece> pieces, List<Plot> plots, int target, int 
             Box area = area(new Start(piece.x(), piece.z(), piece.dir()), slot.along(), slot.east(), wide)
                     .union(slot.area());
             int overflow = slot.along() + wide.frontage() - 1 - wide.frontage() / 2 - (piece.length() - 1);
-            boolean next = pieces.stream().anyMatch(p -> p.parent() == slot.piece() && p.dir() == piece.dir());
+            boolean next = pieces.stream().anyMatch(p -> p.parent() == slot.piece() && p.exit() == 0);
             if (!inside(area) || area.overlaps(plaza) || !terrain.test(area) || (overflow > style.endOverflow() && next)
                     || pieces.stream().anyMatch(p -> p.box().overlaps(area))
                     || tails.stream().anyMatch(t -> t.end().overlaps(area))

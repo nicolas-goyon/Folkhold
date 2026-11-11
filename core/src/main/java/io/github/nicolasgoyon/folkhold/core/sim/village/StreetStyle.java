@@ -9,6 +9,11 @@ import java.util.List;
  * piece: x = 0 faces west, x = 4 faces east. A home is centered on its plot along the street, and it is outside the
  * box of the piece. The structure script ({@code tools/structures/village.py}) writes the pieces with these values.
  *
+ * <p>Each plot holds {@link #home()}. Only the wide homes of {@link #wide()} take a wide plot: a home that is larger
+ * than {@link #home()} goes only on a plot that the plan marks for it. For example, the 13 x 13 Sunreach courtyard
+ * houses (the cottage, the barracks, the storehouse) and the Valeholm side long houses ({@code house_cottage_side}
+ * and {@code house_storehouse_side}) never go on a plot that is not wide.
+ *
  * @param name          the name of the style
  * @param segment       the length of the piece {@code street_next}
  * @param segmentPlots  the z of the plots of the piece {@code street_next}, on each side

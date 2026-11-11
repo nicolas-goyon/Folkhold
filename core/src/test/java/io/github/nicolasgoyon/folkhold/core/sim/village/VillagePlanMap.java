@@ -11,8 +11,8 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Plot;
  * <ul>
  *   <li>{@code P} the plaza, {@code =} a segment, {@code +} a crossroad, {@code s} a side piece, {@code e} a street
  *       end;</li>
- *   <li>{@code W} a plot with a wide home, {@code h} a home plot, {@code o} a spare plot, {@code x} a spare plot with
- *       bad terrain;</li>
+ *   <li>{@code B} the bank, {@code J} a plot of a first job, {@code W} a plot with a wide home, {@code h} a home
+ *       plot, {@code o} a spare plot, {@code x} a spare plot with bad terrain;</li>
  *   <li>{@code .} inside the maximum radius, a space outside it.</li>
  * </ul>
  */
@@ -50,7 +50,11 @@ final class VillagePlanMap {
         }
         for (Plot plot : plan.plots()) {
             if (plot.area().overlaps(cell)) {
-                return plot.spare() ? plot.good() ? 'o' : 'x' : plot.wide() ? 'W' : 'h';
+                return switch (plot.role()) {
+                    case BANK -> 'B';
+                    case JOBS_FOOD, JOBS_START -> 'J';
+                    case HOME -> plot.spare() ? plot.good() ? 'o' : 'x' : plot.wide() ? 'W' : 'h';
+                };
             }
         }
         double x = cell.minX() + (cell.maxX() - cell.minX()) / 2.0;
