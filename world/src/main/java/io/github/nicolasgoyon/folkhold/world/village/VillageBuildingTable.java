@@ -28,11 +28,11 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  * <pre>
  * {"buildings": [{"kind": "storehouse", "min_level": 3}, {"kind": "barracks", "min_level": 9}, ...]}
  * </pre>
- * {@code kind} is the kind of the building sign of the building. The growth builds the piece {@code house_<kind>} of the
- * pool {@code houses} of the variant of the village. The generation uses a piece of this pool with the building sign of
- * the kind (see {@code VillagePlanPieces}): the maritime storehouse is the smokehouse. The template of the market ({@link VillageBuildings#MARKET}) is the
- * piece of the pool {@code market} of the variant. The forge is not in the file: the blacksmith works in the
- * house-workshop of its job post (see {@link VillageBeds#posts}).
+ * {@code kind} is the kind of the building sign of the building. The growth builds the piece {@code house_<kind>} of
+ * the pool {@code houses} of the variant of the village. The generation uses a piece of this pool with the building
+ * sign of the kind (see {@code VillagePlanPieces}): the maritime storehouse is the smokehouse. The template of the
+ * market ({@link VillageBuildings#MARKET}) is the piece of the pool {@code market} of the variant. The forge is not in
+ * the file: the blacksmith works in the house-workshop of its job post (see {@link VillageBeds#posts}).
  */
 public final class VillageBuildingTable extends SimplePreparableReloadListener<List<Requirement>> {
     public static final ResourceLocation FILE =

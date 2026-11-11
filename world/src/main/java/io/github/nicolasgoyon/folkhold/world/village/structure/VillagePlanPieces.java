@@ -172,8 +172,8 @@ final class VillagePlanPieces {
         }
 
         /**
-         * The buildings of a level, with the home of the style that holds the piece of each one. A kind with no piece in
-         * the variant, or with a piece that fits no home of the style, is a problem of the result.
+         * The buildings of a level, with the home of the style that holds the piece of each one. A kind with no piece
+         * in the variant, or with a piece that fits no home of the style, is a problem of the result.
          *
          * @param kinds the kinds of the buildings of the level, in their order
          * @param style the style of the plan
@@ -202,12 +202,12 @@ final class VillagePlanPieces {
          * @param plan   the plan
          * @param uses   the uses of the plots of the plan
          * @param posts  the job posts
-         * @param beds   the home beds that the village needs: the maximum population of the level minus the places of
-         *               the hall
-         * @param random the random of the choice of the buildings
+         * @param bedTarget the home beds that the village needs: the maximum population of the level minus the places
+         *                  of the hall
+         * @param random    the random of the choice of the buildings
          * @return the pieces
          */
-        Result place(StreetStyle style, VillagePlan plan, PlotUses.Result uses, Posts posts, int beds,
+        Result place(StreetStyle style, VillagePlan plan, PlotUses.Result uses, Posts posts, int bedTarget,
                 RandomSource random) {
             uses.missing().forEach(kind -> problems.add("no plot for the building " + kind));
             if (uses.posts() < posts.count()) {
@@ -221,7 +221,7 @@ final class VillagePlanPieces {
             streets.stream().filter(street -> street != null).forEach(pieces::add);
             eligible = new ArrayList<>(posts.eligible());
             postLimit = posts.count();
-            bedTarget = beds;
+            this.bedTarget = bedTarget;
             homesLeft = (int) uses.uses().stream().filter(use -> use.type() == PlotUses.Type.HOME).count();
             int built = 0;
             int free = 0;
@@ -232,6 +232,9 @@ final class VillagePlanPieces {
                 Optional<VillagePlots.Plot> connector = street == null ? Optional.empty() : plotOf(street, plot);
                 if (connector.isEmpty()) {
                     problems.add("no plot connector at " + plot.x() + " " + plot.z());
+                    if (use.type() == PlotUses.Type.HOME) {
+                        homesLeft--;
+                    }
                     continue;
                 }
                 Site site = new Site(sizeTest(style, plot), street, connector.get(),
@@ -240,7 +243,8 @@ final class VillagePlanPieces {
                     case FREE -> false;
                     case BANK -> build(site, shuffled("bank", random), "the bank");
                     case BUILDING -> build(site, candidates(use.kind(), style), "the building " + use.kind());
-                    case POST -> (postJobs.size() < postLimit && post(site, posts.seed(), random)) || home(site, random);
+                    case POST -> (postJobs.size() < postLimit && post(site, posts.seed(), random))
+                            || home(site, random);
                     case HOME -> home(site, random);
                 };
                 if (use.type() == PlotUses.Type.HOME) {
@@ -254,6 +258,9 @@ final class VillagePlanPieces {
                     VillagePlots.space(templates, homePools, site.connector()).ifPresent(space::add);
                     reserved.add(BoundingBox.encapsulatingBoxes(space).orElseThrow());
                 }
+            }
+            if (beds < this.bedTarget) {
+                problems.add("home beds " + beds + " of " + this.bedTarget);
             }
             return new Result(pieces, reserved, built, free, postJobs, problems);
         }
@@ -381,22 +388,30 @@ final class VillagePlanPieces {
         /**
          * Places a home: an element of the pool of the houses, with the weights of the pool. A piece with a building
          * sign of a level kind is not a home. A piece with a job sign is a job post: it comes only while the village
-         * has fewer posts than {@link Posts#count()}, with a job that the level and the biome allow. A piece with no bed
-         * (for example the forge) comes only when the home plots that stay give the home beds that the village needs
-         * (see {@link PlotUses#needsBeds}).
+         * has fewer posts than {@link Posts#count()}, with a job that the level and the biome allow.
+         *
+         * <p>The homes give the home beds that the village needs (see {@link PlotUses#leastBeds}): a piece with fewer
+         * beds than the least beds of the plot (for example the forge, or the fishing hut of 2 beds) comes only when
+         * the home plots that stay give the beds. When no piece with these beds fits the plot, a piece with fewer beds
+         * and at least 1 bed comes, the most beds first: the plot has a building, but the village does not get the home
+         * beds that it needs, and the result gives this as a problem. When no home of the pool has beds, all the homes
+         * are candidates.
          *
          * @return true if the plot has a building
          */
         private boolean home(Site site, RandomSource random) {
             Set<String> ids = eligible.stream().map(Job::id).collect(Collectors.toSet());
-            List<StructurePoolElement> pool = shuffled(HOUSES, random).stream().filter(this::isHome).toList();
-            int most = pool.stream().mapToInt(element -> signs(element).beds()).max().orElse(0);
-            boolean needsBeds = PlotUses.needsBeds(bedTarget - beds, homesLeft, most);
-            List<StructurePoolElement> homes = pool.stream()
-                    .filter(element -> !needsBeds || signs(element).beds() > 0)
+            List<StructurePoolElement> pool = shuffled(HOUSES, random).stream().filter(this::isHome)
                     .filter(element -> signs(element).jobs().isEmpty() || (postJobs.size() < postLimit
                             && ids.containsAll(signs(element).jobs())))
                     .toList();
+            int most = pool.stream().mapToInt(element -> signs(element).beds()).max().orElse(0);
+            int least = PlotUses.leastBeds(bedTarget - beds, homesLeft, most);
+            List<StructurePoolElement> homes = Stream.concat(
+                    pool.stream().filter(element -> signs(element).beds() >= least),
+                    pool.stream().filter(element -> signs(element).beds() > 0 && signs(element).beds() < least)
+                            .sorted(Comparator.comparingInt((StructurePoolElement element) -> signs(element).beds())
+                                    .reversed())).toList();
             Optional<StructurePoolElement> placed = place(site, homes);
             placed.ifPresent(element -> postJobs.addAll(signs(element).jobs()));
             if (placed.isEmpty()) {
