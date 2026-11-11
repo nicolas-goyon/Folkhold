@@ -660,7 +660,7 @@ public final class WorldConfig {
                 .translation(KEY_PREFIX + "economy")
                 .push("economy");
         ECONOMY_WORKERS_PER_JOB = builder
-                .comment("Inhabitants for one active job.")
+                .comment("Inhabitants for one active job in the economy: each cycle runs at most population / workersPerJob job slots. In a village with job posts, the household of a post shows the job, and this value does not change the households.")
                 .translation(KEY_PREFIX + "economyWorkersPerJob")
                 .defineInRange("workersPerJob", 2, 1, 20);
         ECONOMY_FOOD_PER_INHABITANT = builder
@@ -987,9 +987,13 @@ public final class WorldConfig {
         CONSTRUCTION_GROWTH = builder
                 .comment("True: the builders of a village build a new home on a free plot of its streets when the",
                         "village needs places: its population is more than the places of its beds and of its hall.",
-                        "The village looks for a free plot after the check of the repairs.")
+                        "They also build the buildings of the level and the first market on the free plots.",
+                        "The village looks for a free plot after the check of the repairs.",
+                        "False (default): the villages take no new plot for a new home, a building of the level or a",
+                        "first market. The first posts of a village with no food post or no post that trades, and a",
+                        "broken market on its plot, still come back.")
                 .translation(KEY_PREFIX + "constructionGrowth")
-                .define("growth", true);
+                .define("growth", false);
         builder.pop();
 
         builder.comment("Base values of each unit type.")

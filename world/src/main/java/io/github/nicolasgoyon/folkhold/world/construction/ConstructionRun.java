@@ -20,6 +20,7 @@ import net.minecraft.world.level.block.ScaffoldingBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.material.FluidState;
 
 /**
@@ -33,6 +34,18 @@ import net.minecraft.world.level.material.FluidState;
  */
 public final class ConstructionRun {
     private static final BlockState AIR = Blocks.AIR.defaultBlockState();
+    /**
+     * The properties that show the contents of a block entity, or the connection of a chest to the chest next to it.
+     * A placement on the same block keeps the value of the level for them: the state and the contents agree.
+     */
+    private static final List<Property<?>> CONTENT_PROPERTIES = List.of(BlockStateProperties.HAS_BOOK,
+            BlockStateProperties.HAS_RECORD, BlockStateProperties.CHISELED_BOOKSHELF_SLOT_0_OCCUPIED,
+            BlockStateProperties.CHISELED_BOOKSHELF_SLOT_1_OCCUPIED,
+            BlockStateProperties.CHISELED_BOOKSHELF_SLOT_2_OCCUPIED,
+            BlockStateProperties.CHISELED_BOOKSHELF_SLOT_3_OCCUPIED,
+            BlockStateProperties.CHISELED_BOOKSHELF_SLOT_4_OCCUPIED,
+            BlockStateProperties.CHISELED_BOOKSHELF_SLOT_5_OCCUPIED, BlockStateProperties.HAS_BOTTLE_0,
+            BlockStateProperties.HAS_BOTTLE_1, BlockStateProperties.HAS_BOTTLE_2, BlockStateProperties.CHEST_TYPE);
 
     private final ServerLevel level;
     private final List<Step> steps;
@@ -141,16 +154,39 @@ public final class ConstructionRun {
         if (state.isEmpty()) {
             return;
         }
-        Clearable.tryClear(level.getBlockEntity(pos));
-        level.setBlock(pos, state.get(), Block.UPDATE_ALL);
+        BlockState placed = setOrUpdate(pos, state.get());
         if (step.partner().isPresent() && step.partnerState().isPresent()) {
             BlockPos other = BlockKinds.toBlockPos(step.partner().get());
-            state(step.partnerState().get()).ifPresent(partnerState -> {
-                Clearable.tryClear(level.getBlockEntity(other));
-                level.setBlock(other, partnerState, Block.UPDATE_ALL);
-            });
+            state(step.partnerState().get()).ifPresent(partnerState -> setOrUpdate(other, partnerState));
         }
-        step.data().ifPresent(data -> loadData(pos, state.get(), data));
+        step.data().ifPresent(data -> loadData(pos, placed, data));
+    }
+
+    /**
+     * Places a block of a step, and gives the placed state. On another block, the method clears the contents of the
+     * block entity and places the state. On the same block (see {@code ConstructionPlanner}), the method changes only
+     * the state: the block entity stays, and the properties of {@link #CONTENT_PROPERTIES} keep the value of the level.
+     * Drops are suppressed.
+     */
+    private BlockState setOrUpdate(BlockPos pos, BlockState target) {
+        BlockState current = level.getBlockState(pos);
+        if (!current.is(target.getBlock())) {
+            Clearable.tryClear(level.getBlockEntity(pos));
+            level.setBlock(pos, target, Block.UPDATE_ALL);
+            return target;
+        }
+        BlockState state = target;
+        for (Property<?> property : CONTENT_PROPERTIES) {
+            state = withValueOf(state, current, property);
+        }
+        level.setBlock(pos, state, Block.UPDATE_ALL | Block.UPDATE_SUPPRESS_DROPS);
+        return state;
+    }
+
+    private static <T extends Comparable<T>> BlockState withValueOf(BlockState state, BlockState source,
+            Property<T> property) {
+        return state.hasProperty(property) && source.hasProperty(property)
+                ? state.setValue(property, source.getValue(property)) : state;
     }
 
     private void loadData(BlockPos pos, BlockState state, String data) {

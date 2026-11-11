@@ -29,8 +29,9 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
  * {"buildings": [{"kind": "storehouse", "min_level": 3}, {"kind": "barracks", "min_level": 9}, ...]}
  * </pre>
  * {@code kind} is the kind of the building sign of the building. The template of the building is the piece
- * {@code house_<kind>} of the variant of the village. The forge is not in the file: it is the building of the blacksmith
- * (a job building, see {@link VillageLayout#BUILDING_JOBS}).
+ * {@code house_<kind>} of the variant of the village. The template of the market ({@link VillageBuildings#MARKET}) is the
+ * piece of the pool {@code market} of the variant. The forge is not in the file: the blacksmith works in the
+ * house-workshop of its job post (see {@link VillageBeds#posts}).
  */
 public final class VillageBuildingTable extends SimplePreparableReloadListener<List<Requirement>> {
     public static final ResourceLocation FILE =

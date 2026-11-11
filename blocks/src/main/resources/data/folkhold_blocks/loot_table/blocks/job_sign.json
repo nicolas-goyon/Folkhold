@@ -6,7 +6,14 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "folkhold_blocks:job_sign"
+          "name": "folkhold_blocks:job_sign",
+          "functions": [
+            {
+              "function": "minecraft:copy_components",
+              "source": "block_entity",
+              "include": ["minecraft:block_entity_data"]
+            }
+          ]
         }
       ],
       "conditions": [

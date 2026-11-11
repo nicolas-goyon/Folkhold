@@ -2,23 +2,33 @@ package io.github.nicolasgoyon.folkhold.world.gametest;
 
 import com.google.common.base.Splitter;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
+import io.github.nicolasgoyon.folkhold.core.sim.faction.FactionSpec;
+import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
+import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
+import io.github.nicolasgoyon.folkhold.world.faction.FactionData;
+import io.github.nicolasgoyon.folkhold.world.settlement.SettlementData;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.GarrisonRole;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestGenerator;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.gametest.framework.GameTestInfo;
@@ -27,6 +37,7 @@ import net.minecraft.gametest.framework.GameTestRunner;
 import net.minecraft.gametest.framework.GameTestSequence;
 import net.minecraft.gametest.framework.StructureUtils;
 import net.minecraft.gametest.framework.TestFunction;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -61,6 +72,18 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  *
  * <p>The arena is a cell of the GameTest grid. The barrier cages of the tests that ran before stay in the world, and
  * some of them are near the spawn positions of the raiders. A cage can block the path of a raider.
+ *
+ * <p>The conditions of a trial are fixed: the result does not depend on the random position of the GameTest structures.
+ * <ul>
+ *   <li>Culture: the settlement of the trial belongs to the first faction of one culture ({@link #CULTURE} for the exit
+ *       tests, {@link #CULTURE_VARIABLE} for the matrix). The culture of a faction selects the equipment of its units
+ *       ({@code GarrisonEquipment}), and the culture of a new settlement comes from the region of its position. The
+ *       GameTest server puts the tests at a random position. Without this fixed faction, all the trials of one server
+ *       run get the equipment of one random culture. The economy of the settlement (population, jobs, stock) starts
+ *       again with the faction and the level of the trial.</li>
+ *   <li>Time: the trial starts at noon of the first day ({@link TestSupport#sweep}), thus at the same moon phase.</li>
+ *   <li>Difficulty: the GameTest world has the difficulty Normal.</li>
+ * </ul>
  *
  * <p>The raid level is the level of the Raid Omen (1 to 5). The GameTest world has the difficulty Normal: a raid has 5
  * waves, and a 6th wave when its level is 2 or more. At a faction village, each wave of a raid of level 4 or 5 has
@@ -111,6 +134,17 @@ public final class RaidBalanceGameTests {
      * the matrix runs only these cells, {@value #MATRIX_VARIABLE} times each.
      */
     static final String CELLS_VARIABLE = "FOLKHOLD_RAID_CELLS";
+    /**
+     * The culture of the settlements of the trials: Ashmark. Its equipment sets are the sets with no culture, except
+     * the archers (crossbows).
+     */
+    static final String CULTURE = Cultures.ASHMARK.id();
+    /**
+     * The environment variable that selects the culture of the matrix trials, for example {@code sunreach} (the case
+     * of the value does not change the culture). With no value, the matrix uses {@link #CULTURE}. The exit tests
+     * always use {@link #CULTURE}.
+     */
+    static final String CULTURE_VARIABLE = "FOLKHOLD_RAID_CULTURE";
     static final int[] MATRIX_RAIDS = {1, 3, 4, 5};
     /** The first level of each tier: hamlet, village, town, city, capital. */
     static final int[] MATRIX_LEVELS = {1, 5, 9, 13, 17};
@@ -161,8 +195,9 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a hamlet (level 1) falls to a raid of level 1. Cell "raid level 1, hamlet" of the
-     * targets. Measured: falls in 40 of 40 trials (the total of all the measures). The 95 % interval of the fall rate
-     * starts at about 0.91, and at this rate a wrong majority occurs in about 0.6 % of the runs. The test is required.
+     * targets. Measured with the culture {@link #CULTURE}: falls in 48 of 48 trials (2 server runs). The 95 % interval
+     * of the fall rate starts at about 0.93, and at this rate a wrong majority occurs in about 0.4 % of the runs. The
+     * test is required.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_hamlet")
     public static void smallVillageFalls(GameTestHelper helper) {
@@ -171,8 +206,9 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a village (level 5) holds against a raid of level 1. Cell "raid level 1, village" of
-     * the targets. Measured: holds in 11 of 16 trials, thus a wrong majority in about 18 % of the runs. The test is
-     * optional until a wrong majority is below 1 % at the low end of the 95 % interval of the hold rate.
+     * the targets. Measured with the culture {@link #CULTURE}: holds in 22 of 24 trials (1 stall), thus a wrong
+     * majority in about 0.5 % of the runs at this rate and in about 11 % at the low end of the 95 % interval (0.74).
+     * The test is optional until a wrong majority is below 1 % at the low end of the 95 % interval of the hold rate.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_village",
             required = false)
@@ -182,20 +218,20 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a town (level 9) holds against a raid of level 3. Cell "raid level 3, town" of the
-     * targets. Measured: holds in 32 of 33 trials, thus a wrong majority in about 0.03 % of the runs. The 95 % interval
-     * of the hold rate is 0.85 to 0.99, and at 0.85 a wrong majority occurs in about 2.8 % of the runs. The test is
-     * optional until a wrong majority is below 1 % at the low end of this interval.
+     * targets. Measured with the culture {@link #CULTURE}: holds in 48 of 48 trials (2 server runs). The 95 % interval
+     * of the hold rate is 0.93 to 1, and at 0.93 a wrong majority occurs in about 0.4 % of the runs. The test is
+     * required.
      */
-    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town",
-            required = false)
+    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town")
     public static void townHoldsAgainstARaidOfLevel3(GameTestHelper helper) {
         majority(helper, 3, 9, Outcome.HOLDS, "A town must hold against a raid of level 3");
     }
 
     /**
      * Exit criterion of version 1: a city (level 13) holds against a raid of level 5, with the extra ravagers of
-     * {@code VillageRaids.extraRavagers}. Cell "raid level 5, city" of the targets. Measured: holds in 17 of 21 trials,
-     * thus a wrong majority in about 5.1 % of the runs. The test is optional until a wrong majority is below 1 % at
+     * {@code VillageRaids.extraRavagers}. Cell "raid level 5, city" of the targets. Measured with the culture
+     * {@link #CULTURE}: holds in 98 of 122 trials, thus a wrong majority in about 5.5 % of the runs at this rate and in
+     * about 13 % at the low end of the 95 % interval (0.72). The test is optional until a wrong majority is below 1 % at
      * the low end of the 95 % interval of the hold rate.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_city",
@@ -239,7 +275,8 @@ public final class RaidBalanceGameTests {
     private static TestFunction matrixTrial(String name, int raidLevel, int villageLevel, boolean palisade) {
         return new TestFunction("raid_matrix_" + name, "raidmatrix." + name, TEMPLATE, Rotation.NONE,
                 TestSupport.WORKER_TICKS, 0L, false, false, 1, 1, false,
-                helper -> thenTrial(helper, helper.startSequence(), raidLevel, villageLevel, palisade, () -> false,
+                helper -> thenTrial(helper, helper.startSequence(), raidLevel, villageLevel, palisade,
+                        culture(System.getenv(CULTURE_VARIABLE)), () -> false,
                         result -> helper.assertTrue(
                                 result.outcome() == Outcome.HOLDS || result.outcome() == Outcome.FALLS,
                                 "The trial must give a result: " + result))
@@ -280,6 +317,11 @@ public final class RaidBalanceGameTests {
         }
     }
 
+    /** The culture of the matrix trials: the value of the variable in lower case, else {@link #CULTURE}. */
+    static String culture(String value) {
+        return value == null || value.isBlank() ? CULTURE : value.trim().toLowerCase(Locale.ROOT);
+    }
+
     /**
      * Runs up to {@link #EXIT_TRIALS} trials and checks the result of the majority. The test stops the trials when
      * {@link #EXIT_MAJORITY} trials give the same side: the expected result, or another result.
@@ -298,7 +340,7 @@ public final class RaidBalanceGameTests {
         };
         GameTestSequence sequence = helper.startSequence();
         for (int i = 0; i < EXIT_TRIALS; i++) {
-            sequence = thenTrial(helper, sequence, raidLevel, villageLevel, false, decided,
+            sequence = thenTrial(helper, sequence, raidLevel, villageLevel, false, CULTURE, decided,
                     result -> outcomes.add(result.outcome()));
         }
         sequence.thenExecute(() -> helper.assertTrue(
@@ -317,12 +359,13 @@ public final class RaidBalanceGameTests {
      * @param raidLevel    the level of the raid, 1 to 5
      * @param villageLevel the level of the village, 1 to 20
      * @param palisade     true for a village with a palisade (see {@link #buildPalisade})
+     * @param culture      the id of the culture of the settlement (see {@link #joinFaction})
      * @param skip         true when the test needs no more trials
      * @param onResult     receives the result of the trial
      * @return the sequence, with the stages of the trial
      */
     static GameTestSequence thenTrial(GameTestHelper helper, GameTestSequence sequence, int raidLevel,
-            int villageLevel, boolean palisade, BooleanSupplier skip, Consumer<Result> onResult) {
+            int villageLevel, boolean palisade, String culture, BooleanSupplier skip, Consumer<Result> onResult) {
         ServerLevel level = helper.getLevel();
         BlockPos heartPos = helper.absolutePos(HEART);
         PoiManager pois = level.getPoiManager();
@@ -351,6 +394,7 @@ public final class RaidBalanceGameTests {
             helper.setBlock(HEART, ModBlocks.VILLAGE_HEART.get());
             VillageHeartBlockEntity heart = helper.getBlockEntity(HEART);
             TestSupport.setLevel(helper, heart, villageLevel);
+            joinFaction(helper, heart, culture);
             heads.forEach(head -> TestSupport.placeBed(helper, head.north(), Direction.SOUTH));
             if (palisade) {
                 buildPalisade(helper, Blocks.OAK_LOG.defaultBlockState(), Blocks.SPRUCE_FENCE_GATE.defaultBlockState());
@@ -417,6 +461,39 @@ public final class RaidBalanceGameTests {
                     forceChunks(helper, false);
                     onResult.accept(result);
                 });
+    }
+
+    /**
+     * Puts the settlement of the heart in the first faction of a culture, before the heart creates its garrison. The
+     * faction generator gives the cultures in turn ({@code FactionGenerator}: the faction {@code i} gets the culture
+     * {@code i % Cultures.ALL.size()}, with {@code Cultures.ALL} = Valeholm, Ashmark, Sunreach), and a world has 5
+     * factions or more. Thus the first faction of each culture is always the same: {@code faction_1} for Ashmark. The
+     * units take the faction of the heart, and the culture of the faction selects their equipment.
+     *
+     * <p>The economy of the settlement starts with the faction of its region, before {@code joinFaction} changes the
+     * faction. When the economy is active, the method starts the economy again ({@link Economies#initialize}, with no
+     * jobs and an empty stock first), thus the population, the jobs and the stock follow the culture and the level of
+     * the trial.
+     *
+     * @param helper  the helper of the test
+     * @param heart   the heart of the trial
+     * @param culture the id of the culture
+     */
+    static void joinFaction(GameTestHelper helper, VillageHeartBlockEntity heart, String culture) {
+        MinecraftServer server = helper.getLevel().getServer();
+        FactionSpec faction = FactionData.get(server).factions().stream()
+                .filter(spec -> spec.cultureId().equals(culture))
+                .findFirst()
+                .orElseThrow(() -> new GameTestAssertException("No faction of the culture " + culture));
+        Settlement settlement = Settlements.of(server, heart).orElseThrow();
+        settlement.setFactionId(faction.id());
+        heart.adoptSettlement(UUID.fromString(settlement.id()), faction.id(), settlement.name());
+        if (EconomyData.isActive()) {
+            settlement.economy().setJobs(List.of());
+            TestSupport.emptyStock(settlement);
+            Economies.initialize(server, settlement);
+        }
+        SettlementData.get(server).setDirty();
     }
 
     /**

@@ -119,4 +119,31 @@ class JobTradesTest {
         assertEquals(0, JobTrades.share(7, 0, 0));
         assertEquals(0, JobTrades.share(0, 3, 0));
     }
+
+    @Test
+    void marketDayAddsOffersUpToTheCap() {
+        assertEquals(3, JobTrades.offers(7, 2, 1, 0), "A day that is not a market day gives the share");
+        assertEquals(5, JobTrades.offers(7, 2, 1, 2), "A market day adds the extra offers to the share");
+        assertEquals(JobTrades.MAX_OFFERS, JobTrades.offers(7, 1, 0, 64), "The extra offers stop at the cap");
+        assertEquals(JobTrades.MAX_OFFERS, JobTrades.offers(22, 1, 0, 2));
+        assertEquals(30, JobTrades.offers(30, 1, 0, 2), "The cap does not remove offers of the share");
+        assertEquals(0, JobTrades.offers(7, 0, 0, 2), "A village with no traders has no offers");
+        assertEquals(0, JobTrades.offers(0, 3, 0, 2), "A level with no offers has no offers");
+    }
+
+    @Test
+    void surplusIsTheStockThatNoWorkerSellsAboveTheReserve() {
+        Map<String, Integer> stock = Map.of("sword", 2, "helmet", 9, "iron", 40, "coal", 40, "bread", 50,
+                "emerald", 9);
+
+        // Population 10: the target of iron and coal is 32, the target of bread is 32.
+        assertEquals(Map.of("helmet", 9, "sword", 2, "iron", 8, "coal", 8, "bread", 18), JobTrades.surplus(List.of(),
+                List.of(SMITH), stock, CATALOG, 10, JobTradesTest::known));
+        assertEquals(List.of("helmet", "bread", "iron", "sword", "coal"), List.copyOf(JobTrades.surplus(List.of(),
+                List.of(SMITH), stock, CATALOG, 10, JobTradesTest::known).keySet()), "The most valuable first");
+        assertEquals(Map.of("iron", 8, "coal", 8, "bread", 18), JobTrades.surplus(List.of(SMITH), List.of(SMITH),
+                stock, CATALOG, 10, JobTradesTest::known), "No output of a worker");
+        assertEquals(Map.of("coal", 40, "iron", 40), JobTrades.surplus(List.of(), List.of(), Map.of("iron", 40,
+                "coal", 40, "bread", 20), CATALOG, 10, JobTradesTest::known), "No input, and the bread reserve");
+    }
 }

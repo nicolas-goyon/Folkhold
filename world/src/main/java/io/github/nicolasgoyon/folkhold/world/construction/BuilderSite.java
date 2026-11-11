@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.construction.Step;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.StepType;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.WalkSearch;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.WalkSearch.Way;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.WorkZone;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.ItemCatalog;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Prices;
@@ -30,6 +31,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -44,6 +46,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -64,6 +67,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -76,6 +80,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -98,8 +103,10 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *   <li>The sites of one village come one after the other: the builders work only on the oldest site.</li>
  *   <li>The fences can go in any order: each builder takes the fence nearest to it.</li>
  *   <li>A block of the plan does not go into an entity. The entity moves out after some time.</li>
- *   <li>The site keeps its template, its position, its phase, its fences and its scaffolding. After a load, the site
- *       makes a new plan from the blocks of the level: the blocks in place give no steps.</li>
+ *   <li>The site keeps its template, its position, its phase, its fences, its scaffolding and the positions of the
+ *       blocks of its plans (see {@link #isWallTop}). After a load, the site makes a new plan from the blocks of the
+ *       level: the blocks in place give no steps. For the new plan, the blocks of the plans before it are blocks of the
+ *       plan (see {@link ConstructionPlanner#isWallTop}).</li>
  *   <li>The builders take the materials of the blocks of the plan from the stock of the village (see
  *       {@link SiteMaterials}). The fences and the scaffolding use no materials. A removed block drops no item.</li>
  *   <li>A repair site (see {@link VillageRepairs}) builds only some positions of the structure pieces of its village:
@@ -257,6 +264,13 @@ public final class BuilderSite {
     @Nullable
     private WalkSearch ways;
     private long waysTime;
+    /**
+     * The positions where a step of a plan of the site places a block or a fluid, with the other part of a block of
+     * two parts. Empty before the first plan of the site. A new plan after a load adds its positions: the positions of
+     * the plans before it stay. The site keeps them. A builder does not stand on the top of a new wall (see
+     * {@link #isWallTop}).
+     */
+    private Set<BlockPos> planBlocks = Set.of();
 
     BuilderSite(int id, ResourceLocation template, BlockPos origin, Rotation rotation, Mirror mirror, BlockPos heart,
             @Nullable UUID operator) {
@@ -315,6 +329,11 @@ public final class BuilderSite {
     /** The position of the origin of the template in the level. */
     public BlockPos origin() {
         return origin;
+    }
+
+    /** The turn of the template. */
+    public Rotation rotation() {
+        return rotation;
     }
 
     /** The position of the heart of the village of the builders. */
@@ -804,22 +823,63 @@ public final class BuilderSite {
 
     /** The plan of the structure, from the blocks of the level now. */
     private void prepareBuild(ServerLevel level) {
+        Optional<Plan> found = plan(level);
+        if (found.isEmpty()) {
+            setSteps(List.of(), true, null);
+            return;
+        }
+        Plan plan = found.get();
+        Set<BlockPos> placed = new HashSet<>(planBlocks);
+        placed.addAll(placedPositions(plan.steps()));
+        planBlocks = Set.copyOf(placed);
+        // The tops of the walls change with the blocks of the plan: the next search reads them again.
+        ways = null;
+        dirty = true;
+        FolkholdWorld.LOGGER.debug("Builder site {}: plan of {} steps with {} warnings", id, plan.steps().size(),
+                plan.warnings().size());
+        setSteps(plan.steps(), true, new ConstructionRun(level, plan, 1));
+    }
+
+    /**
+     * The plan of the structure from the blocks of the level now. The blocks of the plans of the site before it are
+     * blocks of the plan (see {@link #planBlocks}): a builder does not stand on the top of a wall that the site built
+     * before a load.
+     *
+     * @param level the level of the site
+     * @return the plan, or empty when the template of the site is not found
+     */
+    public Optional<Plan> plan(ServerLevel level) {
         Target target;
         if (repairReference != null) {
             target = repairTarget(level, repairReference);
         } else {
             Optional<StructureTemplate> found = level.getStructureManager().get(template);
             if (found.isEmpty()) {
-                setSteps(List.of(), true, null);
-                return;
+                return Optional.empty();
             }
             target = ConstructionTargets.fromTemplate(level, found.get(), origin,
                     GhostPlacement.settings(rotation, mirror));
         }
-        Plan plan = ConstructionPlanner.plan(target, ConstructionTargets.view(level), reach);
-        FolkholdWorld.LOGGER.debug("Builder site {}: plan of {} steps with {} warnings", id, plan.steps().size(),
-                plan.warnings().size());
-        setSteps(plan.steps(), true, new ConstructionRun(level, plan, 1));
+        Set<BuildPos> placedBefore = new HashSet<>();
+        for (BlockPos pos : planBlocks) {
+            placedBefore.add(BlockKinds.toBuildPos(pos));
+        }
+        return Optional.of(ConstructionPlanner.plan(target, ConstructionTargets.view(level), reach, placedBefore));
+    }
+
+    /**
+     * The positions where the steps of a plan place a block or a fluid, with the other part of a block of two parts:
+     * the blocks that the plan put (see {@link ConstructionPlanner}).
+     */
+    private static Set<BlockPos> placedPositions(List<Step> steps) {
+        Set<BlockPos> positions = new HashSet<>();
+        for (Step step : steps) {
+            if (step.type() == StepType.PLACE || step.type() == StepType.ADD_FLUID) {
+                positions.add(BlockKinds.toBlockPos(step.pos()));
+                step.partner().ifPresent(partner -> positions.add(BlockKinds.toBlockPos(partner)));
+            }
+        }
+        return Set.copyOf(positions);
     }
 
     /**
@@ -1005,9 +1065,9 @@ public final class BuilderSite {
     /**
      * The position where a builder stands for a step: the position of the plan if it is free. Else, the free position
      * nearest to the builder with the block of the step in its reach zone, and with a way from the ground (see
-     * {@link WalkSearch}). On a scaffolding column, the way goes to the bottom of the column. When the step can apply
-     * and no free position has a way, it is the nearest free position: the builder goes there directly (see
-     * {@link BuilderWorker}).
+     * {@link WalkSearch}). A position with a clear way comes before a position with a way over the top of a new wall.
+     * On a scaffolding column, the way goes to the bottom of the column. When the step can apply and no free position
+     * has a way, it is the nearest free position: the builder goes there directly (see {@link BuilderWorker}).
      *
      * @return the position, or null with no such position
      */
@@ -1034,20 +1094,37 @@ public final class BuilderSite {
             return null;
         }
         free.sort(Comparator.comparingDouble(feet -> feet.distToCenterSqr(villager.position())));
+        BlockPos overWall = null;
         for (BlockPos feet : free) {
-            if (hasWay(level, feet)) {
+            Way way = way(level, feet);
+            if (way == Way.CLEAR) {
                 return feet;
             }
+            if (way == Way.OVER_WALL && overWall == null) {
+                overWall = feet;
+            }
+        }
+        if (overWall != null) {
+            return overWall;
         }
         return schedule().canApply(index) ? free.get(0) : null;
     }
 
     /**
-     * True if a builder can go from the ground to a position to stand, on the blocks of the level now (see
-     * {@link WalkSearch}). On a scaffolding column, the way goes to the bottom of the column.
+     * True if a builder can go from the ground to a position to stand, on a clear way or over the top of a new wall
+     * (see {@link #way}).
      */
     boolean hasWay(ServerLevel level, BlockPos feet) {
-        return ways(level).canReach(BlockKinds.toBuildPos(feet));
+        return way(level, feet) != Way.NONE;
+    }
+
+    /**
+     * The way from the ground to a position to stand, on the blocks of the level now (see {@link WalkSearch}). The
+     * search first looks for a clear way, then for a way over the top of a new wall (see {@link #isWallTop}). On a
+     * scaffolding column, the way goes to the bottom of the column.
+     */
+    Way way(ServerLevel level, BlockPos feet) {
+        return ways(level).way(BlockKinds.toBuildPos(feet));
     }
 
     /**
@@ -1064,7 +1141,8 @@ public final class BuilderSite {
                             new BuildPos(bounds.maxX(), bounds.maxY(), bounds.maxZ()));
             current = WalkSearch.around(corners, reach,
                     pos -> BlockKinds.walk(level.getBlockState(BlockKinds.toBlockPos(pos))),
-                    pos -> isScaffolding(level, BlockKinds.toBlockPos(pos)));
+                    pos -> isScaffolding(level, BlockKinds.toBlockPos(pos)),
+                    pos -> isWallTop(level, BlockKinds.toBlockPos(pos)));
             ways = current;
             waysTime = now;
         }
@@ -1083,7 +1161,8 @@ public final class BuilderSite {
 
     /**
      * True if a builder can stand at a position for a step. The position is free (see {@link #isStandFree}) and not in
-     * the blocks of the step. The block of the step is in the reach zone.
+     * the blocks of the step. The block of the step is in the reach zone. The block below is not the top of a new wall
+     * (see {@link #isWallTop}).
      */
     boolean isStandFor(ServerLevel level, BlockPos feet, int index) {
         if (!reach.contains(BlockKinds.toBuildPos(feet), BlockKinds.toBuildPos(reachTarget(level, index)))) {
@@ -1093,7 +1172,37 @@ public final class BuilderSite {
         if (busy.contains(feet) || busy.contains(feet.above()) || busy.contains(feet.below())) {
             return false;
         }
-        return isStandFree(level, feet);
+        return isStandFree(level, feet) && !isWallTop(level, feet.below());
+    }
+
+    /**
+     * True if a block is the top of a new wall: a builder does not stand on it, and walks on it only when no other way
+     * is near (see {@link BuilderNavigation}). The rule is the rule of the plan (see
+     * {@link ConstructionPlanner#isWallTop}), with the same inputs: the blocks of the plans of the site (see
+     * {@link #planBlocks}), and the floors of the level now (see {@link #isPlanFloor}). Examples: the top of a wall of
+     * 1 block, the top of a pillar of the plan. The floor of a house on the ground and the floor of an upper storey are
+     * not the top of a wall.
+     *
+     * @param level the blocks of the level, or the blocks of a search of a path
+     * @param block the position of the block
+     */
+    public boolean isWallTop(BlockGetter level, BlockPos block) {
+        Set<BlockPos> blocks = planBlocks;
+        if (!blocks.contains(block)) {
+            return false;
+        }
+        return ConstructionPlanner.isWallTop(BlockKinds.toBuildPos(block),
+                pos -> blocks.contains(BlockKinds.toBlockPos(pos)),
+                pos -> isPlanFloor(level, BlockKinds.toBlockPos(pos)));
+    }
+
+    /**
+     * True if a builder can stand on a block for the plan: the scaffolding, or a block with a sturdy top face (see
+     * {@link BlockKinds#isFloor}).
+     */
+    private static boolean isPlanFloor(BlockGetter level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return state.is(Blocks.SCAFFOLDING) || BlockKinds.isFloor(state);
     }
 
     /**
@@ -1458,17 +1567,36 @@ public final class BuilderSite {
         return feet.immutable();
     }
 
-    /** Moves an entity to a position directly, with no fall damage. */
+    /**
+     * Moves an entity to a position directly, with no fall damage. The entity stops at the position: it keeps no speed,
+     * and a mob keeps no path, no walk input and no jump (see {@link #stopMoving}). Else an entity that walks or jumps
+     * at this time moves on from the position, for example off the top of a scaffolding column.
+     */
     static void teleport(LivingEntity entity, BlockPos feet) {
         entity.teleportTo(feet.getX() + 0.5, feet.getY(), feet.getZ() + 0.5);
         entity.resetFallDistance();
+        entity.setDeltaMovement(Vec3.ZERO);
         if (entity instanceof Mob mob) {
-            mob.getNavigation().stop();
+            stopMoving(mob);
         }
     }
 
+    /**
+     * Stops the walk of a mob where it is: its path, its walk input and its jump. The move control of a mob that jumps
+     * keeps the walk input until the mob is on the ground again. A builder that climbs or goes down a column is not on
+     * the ground. If nothing stops the walk, the builder walks on in the air, for example above the top of the column.
+     */
+    static void stopMoving(Mob mob) {
+        mob.getNavigation().stop();
+        // A wanted position at the mob, with no speed: the next tick of the move control sets the walk input to 0.
+        mob.getMoveControl().setWantedPosition(mob.getX(), mob.getY(), mob.getZ(), 0.0);
+        mob.setJumping(false);
+        mob.setZza(0.0F);
+        mob.setXxa(0.0F);
+    }
+
     /** The data of the site in the saved data of the level. */
-    CompoundTag save() {
+    public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
         tag.putInt("Id", id);
         tag.putString("Template", template.toString());
@@ -1486,6 +1614,8 @@ public final class BuilderSite {
         }
         tag.putLongArray("Fences", fences.stream().mapToLong(BlockPos::asLong).toArray());
         tag.putLongArray("Scaffolding", scaffolding.stream().mapToLong(BlockPos::asLong).toArray());
+        // The positions go in a fixed order: the same site gives the same data.
+        tag.putLongArray("PlanBlocks", planBlocks.stream().mapToLong(BlockPos::asLong).sorted().toArray());
         tag.put("Materials", materials.save());
         if (repairReference != null) {
             CompoundTag repair = repairReference.save();
@@ -1501,7 +1631,7 @@ public final class BuilderSite {
      * @param tag the data of the site
      * @return the site, or empty for data that is not valid
      */
-    static Optional<BuilderSite> load(CompoundTag tag) {
+    public static Optional<BuilderSite> load(CompoundTag tag) {
         ResourceLocation template = ResourceLocation.tryParse(tag.getString("Template"));
         Optional<Rotation> rotation = enumValue(Rotation.class, tag.getString("Rotation"));
         Optional<Mirror> mirror = enumValue(Mirror.class, tag.getString("Mirror"));
@@ -1534,6 +1664,8 @@ public final class BuilderSite {
         for (long pos : tag.getLongArray("Scaffolding")) {
             site.scaffolding.add(BlockPos.of(pos));
         }
+        site.planBlocks = Arrays.stream(tag.getLongArray("PlanBlocks")).mapToObj(BlockPos::of)
+                .collect(Collectors.toUnmodifiableSet());
         site.materials.load(tag.getCompound("Materials"));
         return Optional.of(site);
     }

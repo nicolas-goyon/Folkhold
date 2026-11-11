@@ -14,6 +14,7 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageInfo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
@@ -172,7 +173,7 @@ public final class BehaviorGameTests {
 
     /**
      * The village heart screen gives the player part (welcome, reputation, four services, advice) and the village,
-     * garrison, economy and territory sections, with the village name.
+     * garrison, economy (with the market first), jobs and territory sections, with the village name.
      */
     @GameTest(template = "arena", timeoutTicks = 20, batch = "behavior_village_info")
     public static void villageInfoHasAllSections(GameTestHelper helper) {
@@ -184,7 +185,14 @@ public final class BehaviorGameTests {
         scene.remove(helper);
 
         helper.assertTrue(info.title().getString().equals(name), "The title must be the village name");
-        helper.assertTrue(info.sections().size() == 4, "Expected 4 sections, found " + info.sections().size());
+        helper.assertTrue(info.sections().size() == 5, "Expected 5 sections, found " + info.sections().size());
+        helper.assertTrue(info.sections().get(3).heading().getContents() instanceof TranslatableContents jobs
+                && jobs.getKey().equals("screen.folkhold_world.village_heart.jobs"),
+                "The fourth section must be the jobs section");
+        helper.assertTrue(info.sections().get(2).rows().get(0).label().getContents()
+                instanceof TranslatableContents market
+                && market.getKey().equals("screen.folkhold_world.village_heart.market"),
+                "The economy section must start with the market");
         helper.assertTrue(info.sections().get(1).rows().size() == GarrisonRole.values().length
                 && info.sections().get(1).rows().stream()
                         .allMatch(row -> row.meterKind() == VillageInfoPayload.METER_SEGMENTS),

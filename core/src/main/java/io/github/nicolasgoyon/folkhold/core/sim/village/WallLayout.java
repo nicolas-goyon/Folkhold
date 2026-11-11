@@ -2,6 +2,7 @@ package io.github.nicolasgoyon.folkhold.core.sim.village;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalInt;
 
 /**
  * The wall of a village: the outline around the pieces of the village, with its towers, its gates and the palisade
@@ -22,6 +23,11 @@ import java.util.List;
  *
  * <p>The ring is the line of the palisade as one closed list of blocks, clockwise from the north-west corner (see
  * {@link #ringSize()}).
+ *
+ * <p>An outer ring of the wall is a new wall around an inner wall (see {@link #ring} and {@link #rings}). Its outline is
+ * the inner outline, larger by the band on each side. Its gates are on the same X (north and south sides) or Z (east
+ * and west sides) as the gates of the inner wall: the streets of the arms go straight from an inner gate to the gate of
+ * the ring. Its towers obey the tower spacing of the inner wall. A tower and its stair go inside the ring, in the band.
  */
 public final class WallLayout {
     /** The size of a tower, in blocks. */
@@ -40,6 +46,10 @@ public final class WallLayout {
      * gate is near the previous tower.
      */
     public static final int MIN_TOWER_SPACING = 2 * (TOWER + STAIR + GATE_CLEARANCE + GATE / 2);
+    /** The smallest band of an outer ring: the distance from the line of the inner wall to the line of the ring. */
+    public static final int MIN_BAND = 24;
+    /** The largest band of an outer ring. */
+    public static final int MAX_BAND = 32;
 
     /** A side of the outline, named for its direction from the middle of the village. */
     public enum Side {
@@ -161,13 +171,34 @@ public final class WallLayout {
     public record Cell(int x, int z) {
     }
 
+    /**
+     * A side of the outline as a line, for a cut into parts.
+     *
+     * @param side   the side
+     * @param start  the first block of the side: the corner at the start of the side
+     * @param end    the last block of the side: the corner at the start of the next side
+     * @param length the number of blocks of the side, the 2 corners included
+     * @param towers the distances from the start of the side to the first block of each tower of the side, in order.
+     *               The corner tower at the start of the side is the first tower (distance 0). The last
+     *               {@link #TOWER} blocks of the side are under the corner tower of the next side: this tower is not
+     *               in the list
+     * @param gate   the distance from the start of the side to the middle of the gate, if the side has a gate
+     */
+    public record SideLine(Side side, Cell start, Cell end, int length, List<Integer> towers, OptionalInt gate) {
+        public SideLine {
+            towers = List.copyOf(towers);
+        }
+    }
+
     private final Box outline;
+    private final int towerSpacing;
     private final List<Tower> towers;
     private final List<Gate> gates;
     private final List<Segment> segments;
 
-    private WallLayout(Box outline, List<Tower> towers, List<Gate> gates, List<Segment> segments) {
+    private WallLayout(Box outline, int towerSpacing, List<Tower> towers, List<Gate> gates, List<Segment> segments) {
         this.outline = outline;
+        this.towerSpacing = towerSpacing;
         this.towers = List.copyOf(towers);
         this.gates = List.copyOf(gates);
         this.segments = List.copyOf(segments);
@@ -198,7 +229,63 @@ public final class WallLayout {
         for (Box piece : pieces) {
             box = box.union(piece);
         }
-        Box outline = minimumSize(box.grow(margin + 1));
+        return build(minimumSize(box.grow(margin + 1)), towerSpacing, gates);
+    }
+
+    /**
+     * Calculates an outer ring around a wall. The outline of the ring is the inner outline, larger by the band on each
+     * side, thus each side of the ring is 2 bands longer than the inner side. Each gate of the inner wall gives a gate
+     * on the same side of the ring, at the same position. The towers of the ring obey the tower spacing of the inner
+     * wall, with a corner tower at the start of each side. The calculation is deterministic.
+     *
+     * @param inner the inner wall: the first wall of the village, or the last ring
+     * @param band  the distance from the line of the inner wall to the line of the ring, from {@link #MIN_BAND} to
+     *              {@link #MAX_BAND}
+     * @return the ring
+     */
+    public static WallLayout ring(WallLayout inner, int band) {
+        if (band < MIN_BAND || band > MAX_BAND) {
+            throw new IllegalArgumentException("The band of a ring must be " + MIN_BAND + " to " + MAX_BAND
+                    + " blocks: " + band);
+        }
+        return build(inner.outline.grow(band), inner.towerSpacing, inner.gates);
+    }
+
+    /**
+     * Calculates the walls of a village: the inner wall, then each ring around the wall before it.
+     *
+     * @param inner the first wall of the village
+     * @param count the number of rings outside the first wall, 0 or more
+     * @param band  the band of each ring (see {@link #ring})
+     * @return the inner wall first, then the rings from the inside to the outside: {@code count + 1} walls
+     */
+    public static List<WallLayout> rings(WallLayout inner, int count, int band) {
+        if (count < 0) {
+            throw new IllegalArgumentException("The number of rings must be 0 or more: " + count);
+        }
+        List<WallLayout> walls = new ArrayList<>();
+        walls.add(inner);
+        for (int i = 0; i < count; i++) {
+            walls.add(ring(walls.get(i), band));
+        }
+        return List.copyOf(walls);
+    }
+
+    /**
+     * Calculates the walls of a village of a tier: the inner wall and the rings of the tier (see
+     * {@link VillageSize#rings()}).
+     *
+     * @param inner the first wall of the village
+     * @param size  the size of the tier
+     * @param band  the band of each ring (see {@link #ring})
+     * @return the inner wall first, then the rings from the inside to the outside
+     */
+    public static List<WallLayout> rings(WallLayout inner, VillageSize size, int band) {
+        return rings(inner, size.rings(), band);
+    }
+
+    /** Calculates the towers, the gates and the segments of the palisade on an outline. */
+    private static WallLayout build(Box outline, int towerSpacing, List<Gate> gates) {
         List<Gate> placed = new ArrayList<>();
         List<Tower> towers = new ArrayList<>();
         List<Segment> segments = new ArrayList<>();
@@ -217,7 +304,7 @@ public final class WallLayout {
             }
             segments.addAll(segmentsOfSide(side, length, sideTowers, gate));
         }
-        return new WallLayout(outline, towers, placed, segments);
+        return new WallLayout(outline, towerSpacing, towers, placed, segments);
     }
 
     /** The outline, with at least {@link #MIN_SIDE} blocks on each side. A short side grows on its two ends. */
@@ -383,6 +470,27 @@ public final class WallLayout {
     /** The outline: its sides are the lines of the palisade. */
     public Box outline() {
         return outline;
+    }
+
+    /** The maximum distance between the middles of 2 towers of a side. */
+    public int towerSpacing() {
+        return towerSpacing;
+    }
+
+    /**
+     * The 4 sides of the outline as lines, clockwise from the north side. Each line has its towers and its gate. The
+     * end of a line is the start of the next line.
+     */
+    public List<SideLine> sides() {
+        List<SideLine> lines = new ArrayList<>();
+        for (Side side : Side.values()) {
+            int length = length(outline, side);
+            List<Integer> alongs = towers.stream().filter(tower -> tower.side() == side).map(Tower::along).toList();
+            OptionalInt gate = gates.stream().filter(candidate -> candidate.side() == side).mapToInt(this::along)
+                    .findFirst();
+            lines.add(new SideLine(side, cell(side, 0), cell(side, length - 1), length, alongs, gate));
+        }
+        return List.copyOf(lines);
     }
 
     /** The towers, side after side, in the order of the sides. */

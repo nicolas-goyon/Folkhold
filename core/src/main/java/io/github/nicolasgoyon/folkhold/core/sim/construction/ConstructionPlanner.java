@@ -1,6 +1,7 @@
 package io.github.nicolasgoyon.folkhold.core.sim.construction;
 
 import io.github.nicolasgoyon.folkhold.core.sim.construction.PlanWarning.Problem;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.WalkSearch.Way;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,9 +23,10 @@ import java.util.function.Predicate;
  *
  * <p>Rules:
  * <ul>
- *   <li>A block of the level that is equal to the block of the target stays. A block with another state is an
- *       obstacle: the plan removes it, and places the block of the target. A block that needs an obstacle as its
- *       support also goes, and comes back if it is in the target.</li>
+ *   <li>A block of the level that is equal to the block of the target stays. The same block with only other
+ *       properties gets the state of the target with no removal: thus a block of more than one part keeps its other
+ *       parts. Another block is an obstacle: the plan removes it, and places the block of the target. A block that
+ *       needs an obstacle as its support also goes, and comes back if it is in the target.</li>
  *   <li>The removals come first: the attached blocks first, then from the top to the bottom.</li>
  *   <li>The placements go from the bottom to the top. A block comes after the block below it, and after its support.
  *       For example, a falling block comes after the block below it, and an attached block after its support. A
@@ -35,9 +37,12 @@ import java.util.function.Predicate;
  *       builder (see {@link Reach}). This position has space for the builder and a floor below it. The floor is a
  *       block of the level or of the scaffolding. It can also be a block of the plan on a block of the level, for
  *       example the floor of a house. A block of the plan in a square of 2 × 2 floor blocks is a floor too, for
- *       example an upper floor. A builder does not stand on the top of a new wall, which is 1 block wide.</li>
+ *       example an upper floor. A builder does not stand on the top of a new wall, which is 1 block wide (see
+ *       {@link #isWallTop}). The blocks of the plan are the blocks that the steps place, and the blocks that the site
+ *       placed before the plan, for example before a load of the level.</li>
  *   <li>The plan selects a position where a villager can walk from the ground, or a position on a scaffolding
- *       column (see {@link WalkSearch}). Of two positions, the plan selects the position with the block nearer to the
+ *       column (see {@link WalkSearch}). A position with a clear way comes before a position with a way over the top
+ *       of a new wall. Of two positions with the same way, the plan selects the position with the block nearer to the
  *       eyes of the builder.</li>
  *   <li>When there is no such position, the plan adds a column of scaffolding next to the block, on positions that
  *       the target does not fill. A column on the ground comes before a column on a block of the plan, then the
@@ -66,7 +71,10 @@ public final class ConstructionPlanner {
     private final WalkSearch walks;
     /** The blocks of the level that the steps change, during the plan. */
     private final Map<BuildPos, BuildBlock> changes = new HashMap<>();
-    /** The positions where a step of the plan put a block of the target. The scaffolding is not in this set. */
+    /**
+     * The positions where a step of the plan put a block of the target, and the positions of the blocks that the site
+     * placed before the plan. The scaffolding is not in this set.
+     */
     private final Set<BuildPos> placed = new HashSet<>();
     /** The target positions that a later step fills: no scaffolding there. */
     private final Set<BuildPos> toFill = new HashSet<>();
@@ -76,16 +84,17 @@ public final class ConstructionPlanner {
     private final Set<BuildPos> pendingRemovals = new HashSet<>();
     private final List<PlanWarning> warnings = new ArrayList<>();
 
-    private ConstructionPlanner(Target target, LevelView level, Reach reach) {
+    private ConstructionPlanner(Target target, LevelView level, Reach reach, Set<BuildPos> placedBefore) {
         this.target = target;
         this.level = level;
         this.reach = reach;
+        this.placed.addAll(placedBefore);
         this.walks = WalkSearch.around(target.blocks().keySet(), reach, pos -> current(pos).walk(),
-                this::isScaffolding);
+                this::isScaffolding, this::isWallTop);
     }
 
     /**
-     * Makes the plan of a construction.
+     * Makes the plan of a construction with no blocks of the site in the level.
      *
      * @param target the target
      * @param level  the blocks of the level before the construction
@@ -93,7 +102,21 @@ public final class ConstructionPlanner {
      * @return the plan
      */
     public static Plan plan(Target target, LevelView level, Reach reach) {
-        return new ConstructionPlanner(target, level, reach).run();
+        return plan(target, level, reach, Set.of());
+    }
+
+    /**
+     * Makes the plan of a construction. The site placed some blocks of the level, for example before a load of the
+     * level: for the plan, these blocks are blocks of the plan (see {@link #isWallTop}).
+     *
+     * @param target       the target
+     * @param level        the blocks of the level before the construction
+     * @param reach        the zone where a builder places and removes blocks (see {@link Reach#DEFAULT})
+     * @param placedBefore the positions of the blocks that the site placed before the plan
+     * @return the plan
+     */
+    public static Plan plan(Target target, LevelView level, Reach reach, Set<BuildPos> placedBefore) {
+        return new ConstructionPlanner(target, level, reach, placedBefore).run();
     }
 
     private Plan run() {
@@ -106,7 +129,7 @@ public final class ConstructionPlanner {
             if (have.sameBlock(entry.getValue())) {
                 continue;
             }
-            if (have.kind() != BlockKind.AIR) {
+            if (have.kind() != BlockKind.AIR && !have.sameBlockOtherState(entry.getValue())) {
                 remove.add(pos);
             }
             markToPlace(pos, place, fluids);
@@ -404,8 +427,10 @@ public final class ConstructionPlanner {
     /**
      * The position where the builder stands for a step. The plan selects the first possible position in this order:
      * <ol>
-     *   <li>The nearest position to stand with a way from the ground (see {@link WalkSearch}).</li>
-     *   <li>A new scaffolding column with a way from the ground to its bottom.</li>
+     *   <li>The nearest position to stand with a clear way from the ground (see {@link WalkSearch}).</li>
+     *   <li>The nearest position to stand with a way over the top of a new wall.</li>
+     *   <li>A new scaffolding column with a clear way from the ground to its bottom.</li>
+     *   <li>A new scaffolding column with a way over the top of a new wall to its bottom.</li>
      *   <li>The nearest position to stand with no way from the ground. The builder goes there directly.</li>
      *   <li>A new scaffolding column with no way from the ground to its bottom.</li>
      * </ol>
@@ -413,9 +438,22 @@ public final class ConstructionPlanner {
      */
     private Optional<BuildPos> standFor(BuildPos pos, Optional<BuildPos> partner) {
         List<BuildPos> stands = findStands(pos, partner);
-        Optional<BuildPos> stand = stands.stream().filter(walks::canReach).findFirst();
+        Optional<BuildPos> stand = Optional.empty();
+        for (BuildPos candidate : stands) {
+            Way way = walks.way(candidate);
+            if (way == Way.CLEAR) {
+                stand = Optional.of(candidate);
+                break;
+            }
+            if (way == Way.OVER_WALL && stand.isEmpty()) {
+                stand = Optional.of(candidate);
+            }
+        }
         if (stand.isEmpty()) {
-            stand = buildScaffolding(pos, partner, walks::canClimb);
+            stand = buildScaffolding(pos, partner, bottom -> walks.climbWay(bottom) == Way.CLEAR);
+        }
+        if (stand.isEmpty()) {
+            stand = buildScaffolding(pos, partner, bottom -> walks.climbWay(bottom) != Way.NONE);
         }
         if (stand.isEmpty() && !stands.isEmpty()) {
             stand = Optional.of(stands.get(0));
@@ -480,40 +518,52 @@ public final class ConstructionPlanner {
     }
 
     /**
-     * True if a builder can stand on a block now. The block is a floor, and it is one of these blocks:
-     * <ul>
-     *   <li>a block of the level, or the scaffolding of the plan</li>
-     *   <li>a block that the plan put directly on a floor of the level</li>
-     *   <li>a block of the plan in a square of 2 × 2 floor blocks now (see {@link #inWideFloor})</li>
-     * </ul>
-     * A builder does not climb on the other blocks of the plan, for example on the top of a new wall.
+     * True if a builder can stand on a block now: the block is a floor, and it is not the top of a new wall (see
+     * {@link #isWallTop(BuildPos, Predicate, Predicate)}). A builder does not climb on the top of a new wall.
      */
     private boolean standsOn(BuildPos floor) {
-        if (!current(floor).floor()) {
-            return false;
-        }
-        if (!placed.contains(floor)) {
-            return true;
-        }
-        BuildPos below = floor.below();
-        return (!placed.contains(below) && current(below).floor()) || inWideFloor(floor);
+        return current(floor).floor() && !isWallTop(floor);
+    }
+
+    /** True if a block is the top of a new wall now (see {@link #isWallTop(BuildPos, Predicate, Predicate)}). */
+    private boolean isWallTop(BuildPos block) {
+        return isWallTop(block, placed::contains, pos -> current(pos).floor());
     }
 
     /**
-     * True if a floor block is in a square of 2 × 2 floor blocks now, at the same height. A floor of a house on its
-     * foundation, the floor of an upper storey or the top of a platform is in such a square. The top of a wall of 1
-     * block is not.
+     * True if a block is the top of a new wall: a builder does not stand on it, and walks on it only when no clear way
+     * is found (see {@link WalkSearch}). The plan and the construction site use this rule. The block is a floor, and
+     * a block of the plan. It is not one of these blocks:
+     * <ul>
+     *   <li>a block on a floor that is not a block of the plan, for example the floor of a house on the ground</li>
+     *   <li>a block in a square of 2 × 2 floor blocks at the same height, for example the floor of an upper storey or
+     *       the top of a platform</li>
+     * </ul>
+     * Examples: the top of a wall of 1 block, the top of a pillar of the plan.
+     *
+     * @param block  the position of the block
+     * @param placed true for a block of the plan: a block that a step places, or that the site placed before
+     * @param floor  true for a block that a builder can stand on now: a block with a sturdy top face, or the
+     *               scaffolding
+     * @return true for the top of a new wall
      */
-    private boolean inWideFloor(BuildPos floor) {
+    public static boolean isWallTop(BuildPos block, Predicate<BuildPos> placed, Predicate<BuildPos> floor) {
+        if (!placed.test(block) || !floor.test(block)) {
+            return false;
+        }
+        BuildPos below = block.below();
+        if (!placed.test(below) && floor.test(below)) {
+            return false;
+        }
         for (int dx = -1; dx <= 1; dx += 2) {
             for (int dz = -1; dz <= 1; dz += 2) {
-                if (current(floor.offset(dx, 0, 0)).floor() && current(floor.offset(0, 0, dz)).floor()
-                        && current(floor.offset(dx, 0, dz)).floor()) {
-                    return true;
+                if (floor.test(block.offset(dx, 0, 0)) && floor.test(block.offset(0, 0, dz))
+                        && floor.test(block.offset(dx, 0, dz))) {
+                    return false;
                 }
             }
         }
-        return false;
+        return true;
     }
 
     /**

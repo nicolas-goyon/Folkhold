@@ -19,11 +19,18 @@ The village structure (type folkhold_world:fortified_village) puts the pieces of
 adds the palisade, the towers and the gates around them. Pieces:
 - plaza.nbt: the start piece. The village heart, 4 braziers, the alarm bell, the hall sign, the quest board and lamp
   posts. 4 jigsaw connectors for the streets: the street to the north has the plot of the bank.
-- street.nbt, street_bank.nbt, street_end.nbt: the parts of a street. The paths follow the terrain. A segment has a
-  plot on each side, and a connector for the end of the street. The end has a lamp post on each edge.
+- street.nbt, street_bank.nbt, street_jobs.nbt, street_end.nbt: the parts of a street. The paths follow the terrain. A
+  segment has a plot on each side, and a connector for the end of the street. The end has a lamp post on each edge.
+  The street to the south (street_jobs) has the plots of the first house-workshops (see first_jobs).
+- street_next.nbt, street_cross.nbt, street_side.nbt: the pieces of the planned streets, in the pools
+  village/streets_next and village/streets_side (see street_cross). The connectors of the other pieces do not target
+  these pools.
 - house_*.nbt: houses for the plots. Each house has a porch row (z = 0) with its jigsaw connector.
 - bank.nbt: the village bank. Its walls and its chests resist explosions.
 - job_<id>.nbt: the building of a job (see JOBS), in the pool village/jobs. Each building has the job sign of its job.
+  The pools village/jobs_food and village/jobs_start have the first house-workshops of the generation.
+- market.nbt: the market square, in the pool village/market. It takes the plot of one house, and it has the market
+  sign in front of the market post (see market).
 - tower.nbt: a tower of the palisade, with the stair along the palisade. The outside of the template is to the west
   and to the north: the shape of a corner tower. The towers between the corners use the same template.
 - gate.nbt: a gate of 3 blocks in the palisade. The outside of the template is to the north.
@@ -35,11 +42,13 @@ plaza with the village heart and 4 house plots.
 Conventions: y = 0 is the ground layer (foundations, floors, paths). y = 1 is the first layer above ground.
 The compound gets a foundation of FOUNDATION layers under its ground layer (see with_foundation).
 """
+import dataclasses
 import functools
 import json
 import os
 import random
 import sys
+from collections.abc import Callable
 
 sys.path.insert(0, os.path.dirname(__file__))
 from nbt import Template  # noqa: E402
@@ -66,7 +75,14 @@ STREET = f"{NS}:street"
 STREET_NEXT = f"{NS}:street_next"
 PLAZA_EXIT = f"{NS}:plaza_exit"
 STREET_ENDS_POOL = f"{NS}:village/street_ends"
+# The pools of the planned streets (see street_cross). No connector of the jigsaw layout targets them.
+NEXT_STREETS_POOL = f"{NS}:village/streets_next"
+SIDE_STREETS_POOL = f"{NS}:village/streets_side"
 FIRST_STREETS_POOL = f"{NS}:village/streets_first"
+JOB_STREETS_POOL = f"{NS}:village/streets_jobs"
+# The pools of the first house-workshops of a village (see first_jobs).
+FOOD_JOBS_POOL = f"{NS}:village/jobs_food"
+START_JOBS_POOL = f"{NS}:village/jobs_start"
 BANK_STREETS_POOL = f"{NS}:village/streets_bank"
 # The village heart gives the banner of the faction to each banner of the village.
 BANNER = "minecraft:white_banner"
@@ -84,29 +100,266 @@ def wall_torch(facing):
     return "minecraft:wall_torch", {"facing": facing}
 
 
-# Blocks that connect to their neighbors. A template stores the block state, and the game does not update the
-# shape of a block from a template. connect_panes sets the connection properties from the neighbors.
-PANES = ("minecraft:glass_pane", "minecraft:iron_bars")
-# Blocks that are not full. A pane does not connect to them.
-NOT_FULL = ("air", "torch", "lantern", "ladder", "door", "stairs", "slab", "carpet", "bed", "fence", "banner",
-            "flower_pot", "campfire", "brazier", "jigsaw", "composter", "anvil", "grindstone", "cauldron", "chest")
+# ---------------------------------------------------------------- shapes of the connected blocks
+
+# A template stores the block state, and the game does not update the shape of a block from a template. connect gives
+# each fence, wall and pane of a template the state that the game gives it from its neighbors (FenceBlock, WallBlock,
+# IronBarsBlock). Variant.apply calls it after the block replacement of the variant.
 SIDES = {"north": (0, -1), "south": (0, 1), "west": (-1, 0), "east": (1, 0)}
+# The side on the left of a direction (Direction.getCounterClockWise), and the opposite side of a side.
+LEFT = {"north": "west", "west": "south", "south": "east", "east": "north"}
+TOWARD = {"north": "south", "south": "north", "west": "east", "east": "west"}
+AIR = ("minecraft:air", {})
 
 
-def is_full(name):
-    return name is not None and not any(part in name for part in NOT_FULL)
+def is_fence(name):
+    return name.endswith("_fence")
 
 
-def connect_panes(t):
-    """Sets the north, south, east and west properties of each pane from its neighbors in the template."""
-    for (x, y, z), ((name, _props), nbt) in list(t.blocks.items()):
-        if name not in PANES:
-            continue
-        props = {"waterlogged": "false"}
-        for side, (dx, dz) in SIDES.items():
-            neighbor = t.get(x + dx, y, z + dz) if t.inside(x + dx, y, z + dz) else None
-            props[side] = "true" if neighbor in PANES or is_full(neighbor) else "false"
+def is_gate(name):
+    return name.endswith("_fence_gate")
+
+
+def is_wall(name):
+    """True for a block of the tag minecraft:walls. A block of a mod with a name in _wall (bank_wall) is not a wall."""
+    return name.startswith("minecraft:") and name.endswith("_wall")
+
+
+def is_pane(name):
+    """True for an IronBarsBlock: the glass panes and the iron bars."""
+    return name.endswith("_pane") or name.endswith("iron_bars")
+
+
+def box(x1, y1, z1, x2, y2, z2):
+    """A box of a collision shape, in 1/16 of a block (Block.box)."""
+    return x1, y1, z1, x2, y2, z2
+
+
+FULL = (box(0, 0, 0, 16, 16, 16),)
+# The blocks with no collision shape (plants, torches, banners, signs, rails, pressure plates, cobwebs).
+NO_COLLISION = ("minecraft:air", "minecraft:cave_air", "minecraft:allium", "minecraft:cornflower",
+                "minecraft:dandelion", "minecraft:oxeye_daisy", "minecraft:poppy", "minecraft:fern", "minecraft:short_grass",
+                "minecraft:brown_mushroom", "minecraft:red_mushroom", "minecraft:wheat", "minecraft:carrots",
+                "minecraft:potatoes", "minecraft:beetroots", "minecraft:attached_melon_stem",
+                "minecraft:attached_pumpkin_stem", "minecraft:sugar_cane", "minecraft:sweet_berry_bush",
+                "minecraft:cobweb", "minecraft:rail", "minecraft:torch", "minecraft:wall_torch")
+NO_COLLISION_SUFFIXES = ("_banner", "_sign", "_pressure_plate", "_sapling")
+# The blocks with a shape that is not full and that has no full face, with the boxes that touch the bottom of the
+# block. These boxes give the bottom face of the block (see covers). A block with no box here has no box on its
+# bottom face.
+PARTIAL = {
+    "minecraft:chest": (box(1, 0, 1, 15, 14, 15),),
+    "minecraft:anvil": (box(2, 0, 2, 14, 4, 14),),
+    "minecraft:decorated_pot": (box(1, 0, 1, 15, 16, 15),),
+    "minecraft:flower_pot": (box(5, 0, 5, 11, 6, 11),),
+    "minecraft:campfire": (box(0, 0, 0, 16, 7, 16),),
+    "minecraft:stonecutter": (box(0, 0, 0, 16, 9, 16),),
+    "minecraft:farmland": (box(0, 0, 0, 16, 15, 16),),
+    "minecraft:dirt_path": (box(0, 0, 0, 16, 15, 16),),
+    "minecraft:cake": (box(1, 0, 1, 15, 8, 15),),
+    "minecraft:lectern": (box(0, 0, 0, 16, 2, 16), box(4, 2, 4, 12, 14, 12)),
+    "minecraft:candle_cake": (box(1, 0, 1, 15, 8, 15),),
+    "minecraft:cauldron": (), "minecraft:water_cauldron": (), "minecraft:grindstone": (),
+    "minecraft:bell": (), "minecraft:chain": (), "minecraft:lightning_rod": (), "minecraft:cocoa": (),
+    "folkhold_blocks:brazier": (box(1, 0, 1, 15, 24, 15),),
+    "folkhold_blocks:quest_board": (),
+}
+# The doors: the box of a door by its facing, when it is closed (DoorBlock).
+DOOR = {"south": box(0, 0, 0, 16, 16, 3), "north": box(0, 0, 13, 16, 16, 16),
+        "west": box(13, 0, 0, 16, 16, 16), "east": box(0, 0, 0, 3, 16, 16)}
+
+
+def half_box(side, y1, y2, also=None):
+    """The box of the half of a block on a side, from y1 to y2. also: a second side, for the quarter of the block on
+    the 2 sides."""
+    x1, z1, x2, z2 = 0, 0, 16, 16
+    for s in (side, also):
+        if s == "north":
+            z2 = 8
+        elif s == "south":
+            z1 = 8
+        elif s == "west":
+            x2 = 8
+        elif s == "east":
+            x1 = 8
+    return box(x1, y1, z1, x2, y2, z2)
+
+
+def cross(post, arm, props, height):
+    """The collision shape of a fence, a pane or a wall (CrossCollisionBlock, WallBlock): a post of 2 * post in the
+    middle, and an arm of 2 * arm to each connected side."""
+    lo, hi, alo, ahi = 8 - post, 8 + post, 8 - arm, 8 + arm
+    arms = {"north": box(alo, 0, 0, ahi, height, ahi), "south": box(alo, 0, alo, ahi, height, 16),
+            "west": box(0, 0, alo, ahi, height, ahi), "east": box(alo, 0, alo, 16, height, ahi)}
+    boxes = [box(lo, 0, lo, hi, height, hi)] if props.get("up", "true") == "true" else []
+    return tuple(boxes + [arms[side] for side in SIDES if props.get(side, "false") not in ("false", "none")])
+
+
+def collision(name, props):
+    """The collision shape of a block state, as boxes (see box), as in the game (getCollisionShape). For the blocks of
+    the templates, it also gives the full faces (isFaceSturdy) and the bottom face under which a wall side is tall
+    (WallBlock). A block that the rules do not know is a full block."""
+    if is_wall(name):
+        return cross(4, 3, props, 24)
+    if is_fence(name):
+        return cross(2, 2, props, 24)
+    if is_pane(name):
+        return cross(1, 1, props, 16)
+    if is_gate(name):
+        if props.get("open") == "true":
+            return ()
+        return (box(0, 0, 6, 16, 24, 10) if props["facing"] in ("north", "south") else box(6, 0, 0, 10, 24, 16),)
+    if name.endswith("_slab"):
+        return {"bottom": (box(0, 0, 0, 16, 8, 16),), "top": (box(0, 8, 0, 16, 16, 16),)}.get(props["type"], FULL)
+    if name.endswith("_stairs"):
+        facing, shape = props["facing"], props.get("shape", "straight")
+        y1, y2 = (8, 16) if props["half"] == "bottom" else (0, 8)
+        slab = box(0, 0, 0, 16, 8, 16) if props["half"] == "bottom" else box(0, 8, 0, 16, 16, 16)
+        left, right = LEFT[facing], TOWARD[LEFT[facing]]
+        steps = {"straight": [half_box(facing, y1, y2)],
+                 "outer_left": [half_box(facing, y1, y2, left)], "outer_right": [half_box(facing, y1, y2, right)],
+                 "inner_left": [half_box(facing, y1, y2), half_box(left, y1, y2)],
+                 "inner_right": [half_box(facing, y1, y2), half_box(right, y1, y2)]}[shape]
+        return (slab, *steps)
+    if name.endswith("_door"):
+        facing = props["facing"]
+        if props["open"] == "true":
+            facing = LEFT[facing] if props["hinge"] == "right" else TOWARD[LEFT[facing]]
+        return (DOOR[facing],)
+    if name.endswith("_carpet"):
+        return (box(0, 0, 0, 16, 1, 16),)
+    if name.endswith("_bed"):
+        return (box(0, 0, 0, 3, 3, 3), box(0, 0, 13, 3, 3, 16), box(13, 0, 0, 16, 3, 3), box(13, 0, 13, 16, 3, 16))
+    if name == "minecraft:lantern":
+        return () if props.get("hanging") == "true" else (box(5, 0, 5, 11, 7, 11),)
+    if name == "minecraft:composter":
+        return tuple(box(*b) for b in ((0, 0, 0, 16, 2, 16), (0, 0, 0, 2, 16, 16), (14, 0, 0, 16, 16, 16),
+                                       (0, 0, 0, 16, 16, 2), (0, 0, 14, 16, 16, 16)))
+    if name.startswith("folkhold_blocks:building_sign_") or name == "folkhold_blocks:job_sign":
+        return (box(0, 0, 6, 16, 24, 10) if props["facing"] in ("north", "south") else box(6, 0, 0, 10, 24, 16),)
+    if name in PARTIAL:
+        return PARTIAL[name]
+    if name in NO_COLLISION or name.endswith(NO_COLLISION_SUFFIXES) or name.startswith("minecraft:potted_"):
+        return ()
+    return FULL
+
+
+def face(boxes, side):
+    """The cells (1/16 x 1/16) of a face of a block that its boxes cover. side: north, south, west, east or down."""
+    cells = set()
+    for x1, y1, z1, x2, y2, z2 in boxes:
+        y2 = min(y2, 16)
+        if side == "down" and y1 == 0:
+            cells.update((x, z) for x in range(x1, x2) for z in range(z1, z2))
+        elif side == "north" and z1 == 0 or side == "south" and z2 == 16:
+            cells.update((x, y) for x in range(x1, x2) for y in range(y1, y2))
+        elif side == "west" and x1 == 0 or side == "east" and x2 == 16:
+            cells.update((z, y) for z in range(z1, z2) for y in range(y1, y2))
+    return cells
+
+
+def is_sturdy(state, side):
+    """True if the face of a block on a side is full (BlockState.isFaceSturdy with SupportType.FULL)."""
+    return len(face(collision(*state), side)) == 16 * 16
+
+
+def is_exception(name):
+    """True for the blocks that a fence, a wall or a pane does not connect to (Block.isExceptionForConnection)."""
+    return (name.endswith("_leaves") or name.endswith("shulker_box")
+            or name in ("minecraft:barrier", "minecraft:carved_pumpkin", "minecraft:jack_o_lantern",
+                        "minecraft:melon", "minecraft:pumpkin"))
+
+
+# The test boxes of a wall on the bottom face of the block above it (WallBlock): the post and the 4 sides.
+WALL_TESTS = {None: (7, 7, 9, 9), "north": (7, 0, 9, 9), "south": (7, 7, 9, 16), "west": (0, 7, 9, 9),
+              "east": (7, 7, 16, 9)}
+# The blocks over a wall that raise its post (the block tag minecraft:wall_post_override).
+WALL_POST_OVERRIDE = ("minecraft:torch", "minecraft:soul_torch", "minecraft:redstone_torch", "minecraft:tripwire")
+
+
+def raises_post(name):
+    """True for a block of the tag minecraft:wall_post_override: the standing torches, the tripwire, the standing and
+    wall signs (not the hanging signs), the banners and the pressure plates."""
+    if not name.startswith("minecraft:"):
+        return False
+    return (name in WALL_POST_OVERRIDE or name.endswith("_banner") or name.endswith("_pressure_plate")
+            or name.endswith("_sign") and not name.endswith("_hanging_sign"))
+
+
+def covers(above, side=None):
+    """True if the bottom face of the block above a wall covers the test box of a side of the wall (side), or of its
+    post (no side), as in the game (WallBlock.isCovered). above is the name and the properties of the block above the
+    wall. A full face (a full block, a bottom slab, a carpet) covers all the test boxes."""
+    x1, z1, x2, z2 = WALL_TESTS[side]
+    cells = face(collision(*above), "down")
+    return all((x, z) in cells for x in range(x1, x2) for z in range(z1, z2))
+
+
+def connects(block, other, side):
+    """True if a fence, a wall or a pane (block: its name) connects to the block on a side (other: the name and the
+    properties of the neighbor)."""
+    name, props = other
+    sturdy = not is_exception(name) and is_sturdy(other, TOWARD[side])
+    if is_pane(block):
+        return sturdy or is_pane(name) or is_wall(name)
+    # A fence gate connects across its sides (FenceGateBlock.connectsToDirection).
+    gate = is_gate(name) and (props["facing"] in ("north", "south")) == (side in ("west", "east"))
+    if is_wall(block):
+        return sturdy or is_wall(name) or is_pane(name) or gate
+    # A wooden fence connects to a wooden fence, and the nether brick fence to the nether brick fence.
+    same = is_fence(name) and ("nether_brick" in name) == ("nether_brick" in block)
+    return sturdy or same or gate
+
+
+def state_at(t, x, y, z):
+    """The name and the properties of a block of the template, as in the generation: a position with no block is air,
+    and a jigsaw block is its final state."""
+    entry = t.blocks.get((x, y, z))
+    if not entry:
+        return AIR
+    (name, props), nbt = entry
+    if name == "minecraft:jigsaw":
+        final, _, rest = nbt["final_state"].partition("[")
+        return final, dict(part.split("=") for part in rest.rstrip("]").split(",") if part)
+    return name, dict(props)
+
+
+def wall_state(t, x, y, z, name):
+    """The state of a wall from its neighbors (WallBlock.updateShape): the sides, then the post."""
+    above = state_at(t, x, y + 1, z)
+    props = {}
+    for side, (dx, dz) in SIDES.items():
+        joined = connects(name, state_at(t, x + dx, y, z + dz), side)
+        props[side] = ("tall" if covers(above, side) else "low") if joined else "none"
+    none = {side: props[side] == "none" for side in SIDES}
+    if is_wall(above[0]) and above[1]["up"] == "true":
+        up = True
+    elif all(none.values()) or none["north"] != none["south"] or none["east"] != none["west"]:
+        up = True
+    elif props["north"] == props["south"] == "tall" or props["east"] == props["west"] == "tall":
+        up = False
+    else:
+        up = raises_post(above[0]) or covers(above)
+    props["up"] = "true" if up else "false"
+    return props
+
+
+def connect(t):
+    """Gives each fence, wall and pane of the template the state that the game gives it from its neighbors in the
+    template. A position with no block is air. The walls go from the top to the bottom: the shape of a wall depends on
+    the wall above it."""
+    shaped = sorted((pos for pos, ((name, _), _) in t.blocks.items()
+                     if is_fence(name) or is_wall(name) or is_pane(name)), key=lambda p: (-p[1], p))
+    for x, y, z in shaped:
+        (name, old), nbt = t.blocks[(x, y, z)]
+        if is_wall(name):
+            props = wall_state(t, x, y, z, name)
+        else:
+            props = {side: "true" if connects(name, state_at(t, x + dx, y, z + dz), side) else "false"
+                     for side, (dx, dz) in SIDES.items()}
+        props["waterlogged"] = dict(old).get("waterlogged", "false")
         t.set(x, y, z, name, props, nbt)
+    return t
 
 
 def cobble(rng):
@@ -222,7 +475,10 @@ def roof_stairs(dx, dz, low, high):
 
 
 def tower_roof(t, tx, tz):
-    """Pyramid roof of dark oak on the corner posts of a tower: a ring of 5 x 5, a ring of 3 x 3 and a slab."""
+    """Pyramid roof of dark oak on the corner posts of a tower: a ring of 5 x 5, then a ring of 3 x 3 around a slab.
+
+    The slab is in the middle of the top ring, not above it: a builder on a scaffolding in the tower reaches it.
+    """
     for ring in range(2):
         y = POST_TOP_Y + 1 + ring
         low, high = ring, TOWER - 1 - ring
@@ -232,7 +488,8 @@ def tower_roof(t, tx, tz):
                     t.set(tx + dx, y, tz + dz, *roof_stairs(dx, dz, low, high))
                 else:
                     t.set(tx + dx, y, tz + dz, "minecraft:air")
-    t.set(tx + 2, POST_TOP_Y + 3, tz + 2, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+    t.set(tx + 2, POST_TOP_Y + 2, tz + 2, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
+    t.set(tx + 2, POST_TOP_Y + 3, tz + 2, "minecraft:air")
 
 
 # The number of stairs from the ground of the compound to the platform of a tower.
@@ -484,10 +741,14 @@ def plaza():
                   {"facing": "west", "column": str(column), "row": str(row), "papers": "0"})
     for (x, z) in ((1, 1), (PLAZA - 2, 1), (1, PLAZA - 2)):
         lamp_post(t, x, z)
-    # The connectors of the streets, in the middle of each side. The street to the north has the plot of the bank.
+    # The connectors of the streets, in the middle of each side. The street to the north has the plot of the bank, and
+    # the street to the south has the plots of the first house-workshops. The jigsaw places the plots of the street to
+    # the south first (placement priority): a large house of a next street (13 x 13 in Sunreach, a side long house in
+    # Valeholm) does not take the space of a house-workshop.
     last = PLAZA - 1
     t.jigsaw(PLAZA_MID, 0, 0, "north_up", PLAZA_EXIT, STREET, BANK_STREETS_POOL, "minecraft:dirt_path")
-    t.jigsaw(PLAZA_MID, 0, last, "south_up", PLAZA_EXIT, STREET, FIRST_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(PLAZA_MID, 0, last, "south_up", PLAZA_EXIT, STREET, JOB_STREETS_POOL, "minecraft:dirt_path",
+             placement_priority=1)
     t.jigsaw(0, 0, PLAZA_MID, "west_up", PLAZA_EXIT, STREET, FIRST_STREETS_POOL, "minecraft:dirt_path")
     t.jigsaw(last, 0, PLAZA_MID, "east_up", PLAZA_EXIT, STREET, FIRST_STREETS_POOL, "minecraft:dirt_path")
     return t
@@ -500,22 +761,27 @@ def street_path(t, rng, length):
             t.set(x, 0, z, path_block(rng))
 
 
-def street(bank=False):
+def street(bank=False, jobs=False, next_street=False):
     """A segment of street along z, with a plot on each side and a connector for the end of the street.
 
     The segment follows the terrain (projection terrain_matching). The segment to the north has the plot of the bank
-    on its west side.
+    on its west side. With jobs, the segment has the plots of the first house-workshops: the pool jobs_food on the
+    west side and the pool jobs_start on the east side. With next_street, the connector at the end of the segment
+    targets the pool streets_next: the street continues (see street_cross).
     """
     rng = random.Random(12 if bank else 13)
     t = Template(STREET_WIDTH, 4, STREET_LENGTH)
     street_path(t, rng, STREET_LENGTH)
     mid = STREET_WIDTH // 2
     t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
-    t.jigsaw(mid, 0, STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET, STREET_ENDS_POOL, "minecraft:dirt_path")
+    t.jigsaw(mid, 0, STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET,
+             NEXT_STREETS_POOL if next_street else STREET_ENDS_POOL, "minecraft:dirt_path")
     # The plots are near the end of the segment: the houses of 2 streets side by side do not touch.
     plot_z = STREET_LENGTH - 1 - HOUSE_HALF_WIDTH
-    t.jigsaw(0, 1, plot_z, "west_up", PLOT, HOUSE_FRONT, BANK_POOL if bank else HOUSE_POOL, "minecraft:air")
-    t.jigsaw(STREET_WIDTH - 1, 1, plot_z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+    west = BANK_POOL if bank else FOOD_JOBS_POOL if jobs else HOUSE_POOL
+    t.jigsaw(0, 1, plot_z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air")
+    t.jigsaw(STREET_WIDTH - 1, 1, plot_z, "east_up", PLOT, HOUSE_FRONT, START_JOBS_POOL if jobs else HOUSE_POOL,
+             "minecraft:air")
     # A lamp post at the far end, on the east edge.
     lamp_post(t, STREET_WIDTH - 1, STREET_LENGTH - 1)
     return t
@@ -533,6 +799,67 @@ def street_end():
     t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
     lamp_post(t, 0, STREET_END_LENGTH - 1)
     lamp_post(t, STREET_WIDTH - 1, STREET_END_LENGTH - 1)
+    return t
+
+
+# The pieces of the planned streets. The frontage of a style is the width of its widest home along the street, and its
+# depth is the depth of its deepest home: 9 and 9 for the pieces of all the cultures and the maritime pieces, 13 and 13
+# for Sunreach, 17 and 17 for Valeholm (see PIECES and STYLES). The 2 ends of a crossroad and the end of a side street
+# have PLOT_MARGIN blocks with no home next to them. The homes on the plots of a street segment go past its ends:
+# - A home of 13 blocks (Sunreach) on the plot z = 8 of a segment of 13 blocks covers z = 2..14: 2 blocks past the end.
+# - A side long house (17 blocks) on a Norse segment of 21 blocks: on the plot z = 6, it covers z = -2..14, 2 blocks
+#   before the start; on the plot z = 16, it covers z = 8..24, 4 blocks past the end.
+# Thus the plan of the village obeys these rules for the Norse segments:
+# - No side long house on the plot z = 16 of a segment with a piece after it.
+# - A side long house on the plot z = 6 of a segment and a home on the plot z = 16 of the same segment overlap: the
+#   segment uses only one of the 2 plots on that side. A side long house on the plot z = 6 also goes into the piece
+#   before the segment: that piece has no home in its last 2 blocks.
+PLOT_MARGIN = 2
+
+
+def street_cross(frontage):
+    """A crossroad: a street along z with a side street to the west and to the east, and a plot in each corner.
+
+    - The street has 2 arms of frontage + PLOT_MARGIN blocks, and the crossing (STREET_WIDTH blocks) between them. The
+      path of the side streets goes through the 2 edges of the crossing.
+    - A plot on each side of each arm, next to the crossing (4 plots): a home of the full frontage of the style does
+      not go in front of the crossing. The margin at the 2 ends keeps the homes of the next pieces away.
+    - Connectors: the start of the street to the north (STREET), the next street to the south (pool streets_next),
+      and the 2 side streets to the west and to the east (pool streets_side).
+    """
+    arm = frontage + PLOT_MARGIN
+    length = 2 * arm + STREET_WIDTH
+    rng = random.Random(17)
+    t = Template(STREET_WIDTH, 4, length)
+    street_path(t, rng, length)
+    for z in range(arm + 1, arm + STREET_WIDTH - 1):
+        for x in (0, STREET_WIDTH - 1):
+            t.set(x, 0, z, path_block(rng))
+    mid = STREET_WIDTH // 2
+    t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
+    t.jigsaw(mid, 0, length - 1, "south_up", STREET_NEXT, STREET, NEXT_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(0, 0, arm + mid, "west_up", STREET_NEXT, STREET, SIDE_STREETS_POOL, "minecraft:dirt_path")
+    t.jigsaw(STREET_WIDTH - 1, 0, arm + mid, "east_up", STREET_NEXT, STREET, SIDE_STREETS_POOL, "minecraft:dirt_path")
+    for z in (arm - 1 - frontage // 2, arm + STREET_WIDTH + frontage // 2):
+        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+    lamp_post(t, 0, arm)
+    lamp_post(t, STREET_WIDTH - 1, arm + STREET_WIDTH - 1)
+    return t
+
+
+def street_side(depth):
+    """The start of a side street, from a side of a crossroad: depth + PLOT_MARGIN blocks with no plot. The homes of
+    the crossroad (depth blocks deep) are on its 2 sides. The connector at the end targets the pool streets_next. A
+    lamp post is at the end, on the east edge."""
+    rng = random.Random(18)
+    length = depth + PLOT_MARGIN
+    t = Template(STREET_WIDTH, 4, length)
+    street_path(t, rng, length)
+    mid = STREET_WIDTH // 2
+    t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
+    t.jigsaw(mid, 0, length - 1, "south_up", STREET_NEXT, STREET, NEXT_STREETS_POOL, "minecraft:dirt_path")
+    lamp_post(t, STREET_WIDTH - 1, length - 1)
     return t
 
 
@@ -677,20 +1004,23 @@ def lantern(t, x, y, z):
     t.set(x, y, z, "minecraft:lantern", {"hanging": "false", "waterlogged": "false"})
 
 
-def bed(t, x, z_foot, color="blue"):
-    """A bed with the foot at z_foot and the head at z_foot + 1 (toward the back wall)."""
-    t.set(x, 1, z_foot, f"minecraft:{color}_bed", {"facing": "south", "part": "foot", "occupied": "false"})
-    t.set(x, 1, z_foot + 1, f"minecraft:{color}_bed", {"facing": "south", "part": "head", "occupied": "false"})
+def bed(t, x, z_foot, color="blue", facing="south"):
+    """A bed with the foot at (x, z_foot) and the head 1 block in the direction of facing: toward the back wall for
+    "south", toward the east wall for "east"."""
+    dx, dz = SIDES[facing]
+    t.set(x, 1, z_foot, f"minecraft:{color}_bed", {"facing": facing, "part": "foot", "occupied": "false"})
+    t.set(x + dx, 1, z_foot + dz, f"minecraft:{color}_bed", {"facing": facing, "part": "head", "occupied": "false"})
 
 
 def cottage():
     rng = random.Random(2)
     t = house_shell(rng, cobble, calcite, "house")
-    # 3 beds: each bed gives a place to an inhabitant of the village.
-    for x in (1, 2, 3):
+    # 3 beds: each bed gives a place to an inhabitant of the village. A free floor block between 2 beds lets a
+    # villager walk to the head of each bed.
+    for x in (1, 3, 5):
         bed(t, x, 6, "red")
     t.set(6, 1, 7, "minecraft:crafting_table")
-    t.set(5, 1, 7, "minecraft:chest", {"facing": "north", "type": "single", "waterlogged": "false"})
+    t.set(7, 1, 6, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
     t.set(4, 0, 4, "minecraft:spruce_planks")
     t.set(4, 1, 4, "minecraft:red_carpet")
     t.set(7, 1, 2, "minecraft:flower_pot")
@@ -710,19 +1040,22 @@ def barracks():
     return t
 
 
-# The job sign of the blacksmith: each forge is the building of the blacksmith.
+# The job sign of the blacksmith, on its house-workshop (the piece job_blacksmith).
 BLACKSMITH = ("blacksmith", "minecraft:anvil")
 
 
-def forge():
+def forge(home=False):
     """The forge: an open front, an anvil, a blast furnace, a furnace, a smithing table, a grindstone (the work block
-    of the vanilla weaponsmith) and a water cauldron to cool the metal. The forge is the building of the blacksmith:
-    the job sign stands next to the west porch post, and the building sign of the forge next to the east porch post."""
+    of the vanilla weaponsmith) and a water cauldron to cool the metal. The building sign of the forge stands next to
+    the east porch post. The forge has no beds and no job sign: it is a building of the village, not a home with a job
+    post.
+
+    With home, the forge is the house-workshop of the blacksmith (the piece job_blacksmith): the building sign is the
+    house sign, the job sign stands next to the west porch post, and 2 beds stand on the side walls (see home_beds)."""
     rng = random.Random(4)
-    t = house_shell(rng, cobble, cobble, "forge", wide_front=True)
-    job_sign(t, 1, 1, 0, *BLACKSMITH)
-    for y in range(1, 5):
-        connect_fences(t, y)
+    t = house_shell(rng, cobble, cobble, "house" if home else "forge", wide_front=True)
+    if home:
+        job_sign(t, 1, 1, 0, *BLACKSMITH)
     t.set(2, 1, 5, "minecraft:anvil", {"facing": "east"})
     t.set(5, 1, 7, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
     t.set(6, 1, 7, "minecraft:furnace", {"facing": "north", "lit": "false"})
@@ -730,15 +1063,18 @@ def forge():
     t.set(1, 1, 7, "minecraft:grindstone", {"face": "floor", "facing": "north"})
     t.set(7, 1, 3, "minecraft:water_cauldron", {"level": "3"})
     lantern(t, 1, 1, 2)
+    if home:
+        home_beds(t, (1, 4), (7, 4))
     return t
 
 
 def storehouse():
     rng = random.Random(5)
     t = house_shell(rng, cobble, lambda r: "minecraft:spruce_planks", "storehouse")
-    for (x, z) in ((1, 7), (2, 7), (1, 6), (7, 7), (7, 6)):
+    # Each barrel has a free floor block next to it: a villager can walk to it.
+    for (x, z) in ((1, 7), (2, 6), (1, 6), (6, 6), (7, 6)):
         t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
-    for (x, z) in ((6, 7), (6, 6), (5, 7)):
+    for (x, z) in ((6, 7), (7, 7), (5, 7)):
         t.set(x, 1, z, "minecraft:hay_block", LOG_Y)
     t.set(6, 2, 7, "minecraft:hay_block", LOG_Y)
     t.set(1, 1, 3, "minecraft:composter", {"level": "0"})
@@ -849,12 +1185,17 @@ def unlit_campfire(facing="north"):
     return "minecraft:campfire", {"facing": facing, "lit": "false", "signal_fire": "false", "waterlogged": "false"}
 
 
-def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
+def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False, depth=LD, hearth=True):
     """A deep Norse long house: a base of cobblestone, walls of horizontal spruce logs between posts of stripped spruce
     logs, a steep roof of dark oak with a ridge along the house, and carved horns at the ends of the ridge.
 
-    The building sign of the kind stands on the porch, next to the east porch post. A hearth of stone bricks is in the
-    middle of the body, with a campfire that is not lit.
+    The building sign of the kind stands on the porch, next to the east porch post. With hearth, a hearth of stone
+    bricks is in the middle of the body, with a campfire that is not lit. The body goes from z = 1 to z = depth - 1. A
+    depth less than LD leaves the back of the plot empty.
+
+    The ridge is a row of planks with no slab on it, and the middle horn stands on these planks. A builder stands on a
+    scaffolding in the house to place the ridge (see ConstructionPlanner). A slab on the ridge has no position to stand
+    for a builder: a builder does not stand on the 1-block strips of the roof stairs.
     """
     t = Template(LW, LH, LD)
     t.fill(0, 1, 0, LW - 1, LH - 1, LD - 1, "minecraft:air")
@@ -862,14 +1203,14 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
     # Porch and floor.
     for x in range(LW):
         t.set(x, 0, 0, "minecraft:cobblestone" if x in (0, LW - 1) else "minecraft:spruce_planks")
-        for z in range(1, LD):
-            edge = x in (0, LW - 1) or z in (1, LD - 1)
+        for z in range(1, depth):
+            edge = x in (0, LW - 1) or z in (1, depth - 1)
             t.set(x, 0, z, cobble(rng) if edge else "minecraft:spruce_planks")
     # Walls: posts at the corners and every 4 blocks along the sides, logs between them.
     for x in range(LW):
-        for z in range(1, LD):
+        for z in range(1, depth):
             side = x in (0, LW - 1)
-            end = z in (1, LD - 1)
+            end = z in (1, depth - 1)
             if not (side or end):
                 continue
             post = (side and end) or (side and (z - 1) % 4 == 0) or (end and x == mid)
@@ -882,8 +1223,9 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
                     t.set(x, y, z, "minecraft:spruce_log", {"axis": "z" if side else "x"})
     # Small windows on the sides.
     for z in (3, 7, 11, 15):
-        for x in (0, LW - 1):
-            t.set(x, 2, z, "minecraft:glass_pane")
+        if z < depth - 1:
+            for x in (0, LW - 1):
+                t.set(x, 2, z, "minecraft:glass_pane")
     # Front opening.
     if wide_front:
         for x in (mid - 1, mid, mid + 1):
@@ -905,29 +1247,29 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
     # Steep roof (ridge along z), over the porch.
     for x in range(LW):
         top = steep_roof_top(x, LW)
-        for z in range(LD):
+        for z in range(depth):
             t.set(x, top - 1, z, "minecraft:dark_oak_planks")
-            if x == mid:
-                t.set(x, top, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
-            else:
+            if x != mid:
                 t.set(x, top, z, "minecraft:dark_oak_stairs", stairs("east" if x < mid else "west"))
         # Gable walls under the roof, at the front and the back of the body.
         if 0 < x < LW - 1:
             for y in range(LONG_WALL_TOP + 1, top - 1):
-                for z in (1, LD - 1):
+                for z in (1, depth - 1):
                     t.set(x, y, z, "minecraft:spruce_planks")
     # Carved horns at the 2 ends of the ridge.
-    for z in (0, LD - 1):
+    for z in (0, depth - 1):
         for x in (mid - 1, mid + 1):
             t.set(x, steep_roof_top(x, LW) + 1, z, "minecraft:spruce_fence")
             t.set(x, steep_roof_top(x, LW) + 2, z, "minecraft:spruce_fence")
-        t.set(mid, steep_roof_top(mid, LW) + 1, z, "minecraft:spruce_fence")
-    # Long hearth in the middle of the body.
-    hearth = LD // 2
-    for z in range(hearth - 2, hearth + 3):
-        t.set(mid, 0, z, "minecraft:stone_bricks")
-    t.set(mid, 1, hearth, *unlit_campfire())
-    t.set(mid, steep_roof_top(mid, LW) - 2, hearth + 4, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+        t.set(mid, steep_roof_top(mid, LW), z, "minecraft:spruce_fence")
+    # Long hearth in the middle of the body, and a lantern under the ridge.
+    middle = depth // 2
+    if hearth:
+        for z in range(middle - 2, middle + 3):
+            t.set(mid, 0, z, "minecraft:stone_bricks")
+        t.set(mid, 1, middle, *unlit_campfire())
+    t.set(mid, steep_roof_top(mid, LW) - 2, middle + 4 if hearth else middle, "minecraft:lantern",
+          {"hanging": "true", "waterlogged": "false"})
     building_sign(t, LW - 2, 1, 0, sign)
     # Jigsaw connector in the porch, facing out (north).
     t.jigsaw(mid, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
@@ -937,7 +1279,7 @@ def long_house_shell(rng, sign, wall_lower, door=True, wide_front=False):
 def side_house_shell(rng, sign, wall_lower):
     """A side Norse long house: the same walls and roof as a deep long house, with the ridge along the street and the
     door in the middle of the long side. A small porch with 2 posts is in front of the door. The hearth is in the
-    middle of the body, along the ridge.
+    middle of the body, along the ridge. The ridge is a row of planks with no slab on it, as on a deep long house.
     """
     t = Template(SL, LH, SD)
     t.fill(0, 1, 1, SL - 1, LH - 1, SD - 1, "minecraft:air")
@@ -989,9 +1331,7 @@ def side_house_shell(rng, sign, wall_lower):
         top = steep_roof_top(z - 1, SD - 1)
         for x in range(SL):
             t.set(x, top - 1, z, "minecraft:dark_oak_planks")
-            if z == ridge:
-                t.set(x, top, z, "minecraft:dark_oak_slab", {"type": "bottom", "waterlogged": "false"})
-            else:
+            if z != ridge:
                 t.set(x, top, z, "minecraft:dark_oak_stairs", stairs("south" if z < ridge else "north"))
         if 1 < z < SD - 1:
             for y in range(LONG_WALL_TOP + 1, top - 1):
@@ -1004,7 +1344,7 @@ def side_house_shell(rng, sign, wall_lower):
         for z in (ridge - 1, ridge + 1):
             t.set(x, steep_roof_top(z - 1, SD - 1) + 1, z, "minecraft:spruce_fence")
             t.set(x, steep_roof_top(z - 1, SD - 1) + 2, z, "minecraft:spruce_fence")
-        t.set(x, steep_roof_top(ridge - 1, SD - 1) + 1, ridge, "minecraft:spruce_fence")
+        t.set(x, steep_roof_top(ridge - 1, SD - 1), ridge, "minecraft:spruce_fence")
     # Long hearth along the ridge.
     for x in range(mid - 3, mid + 4):
         t.set(x, 0, ridge, "minecraft:stone_bricks")
@@ -1034,8 +1374,8 @@ def norse_cottage():
 def norse_cottage_side():
     rng = random.Random(22)
     t = side_house_shell(rng, "house", cobble)
-    # 3 beds along the back wall.
-    for x in (2, 3, SL - 3):
+    # 3 beds along the back wall, with a free floor block next to the head of each bed.
+    for x in (2, 4, SL - 3):
         bed(t, x, SD - 3, "blue")
     t.set(1, 1, 2, "minecraft:crafting_table")
     t.set(SL - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
@@ -1062,17 +1402,22 @@ def norse_barracks():
 def norse_forge():
     rng = random.Random(14)
     t = long_house_shell(rng, "forge", cobble, wide_front=True)
-    job_sign(t, 1, 1, 0, *BLACKSMITH)
-    for y in range(1, LONG_WALL_TOP + 1):
-        connect_fences(t, y)
-    t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
-    t.set(LW - 2, 1, LD - 3, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
-    t.set(LW - 2, 1, LD - 4, "minecraft:furnace", {"facing": "west", "lit": "false"})
-    t.set(1, 1, LD - 3, "minecraft:smithing_table")
-    t.set(1, 1, LD - 4, "minecraft:grindstone", {"face": "floor", "facing": "east"})
-    t.set(LW - 2, 1, 3, "minecraft:water_cauldron", {"level": "3"})
-    lantern(t, 1, 1, 7)
+    forge_tools(t, LW, LD)
     return t
+
+
+def forge_tools(t, width, depth):
+    """The tools of a forge in a house of width x depth blocks with an open front: an anvil, a blast furnace, a
+    furnace, a smithing table, a grindstone (the work block of the vanilla weaponsmith), a water cauldron and a
+    lantern. The Valeholm forge (norse_forge) and the blacksmith of the styles (style_smithy) use these tools. The
+    places of the beds of a house-workshop (the beds of WorkshopStyle) stay free."""
+    t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
+    t.set(width - 2, 1, depth - 3, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
+    t.set(width - 2, 1, depth - 4, "minecraft:furnace", {"facing": "west", "lit": "false"})
+    t.set(1, 1, depth - 3, "minecraft:smithing_table")
+    t.set(1, 1, depth - 4, "minecraft:grindstone", {"face": "floor", "facing": "east"})
+    t.set(width - 2, 1, 3, "minecraft:water_cauldron", {"level": "3"})
+    lantern(t, 1, 1, 7)
 
 
 def norse_storehouse():
@@ -1101,19 +1446,30 @@ def norse_storehouse_side():
     return t
 
 
-def norse_street(bank=False):
+def norse_street(bank=False, jobs=False, next_street=False):
     """A Norse street along z: a segment of NORSE_STREET_LENGTH blocks with 2 plots on each side (NORSE_PLOTS), for
-    the long houses. The segment to the north has the plot of the bank on its west side, near the plaza."""
+    the long houses. The segment to the north has the plot of the bank on its west side, near the plaza. With jobs,
+    the segment has the plots of the first house-workshops: near the plaza, the pool jobs_food on the west side and the
+    pool jobs_start on the east side; far from the plaza, the pool jobs_start on the west side. With next_street, the
+    connector at the end of the segment targets the pool streets_next (see street_cross)."""
     rng = random.Random(32 if bank else 33)
     t = Template(STREET_WIDTH, 4, NORSE_STREET_LENGTH)
     street_path(t, rng, NORSE_STREET_LENGTH)
     mid = STREET_WIDTH // 2
     t.jigsaw(mid, 0, 0, "north_up", STREET, "minecraft:empty", "minecraft:empty", "minecraft:dirt_path")
-    t.jigsaw(mid, 0, NORSE_STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET, STREET_ENDS_POOL, "minecraft:dirt_path")
+    t.jigsaw(mid, 0, NORSE_STREET_LENGTH - 1, "south_up", STREET_NEXT, STREET,
+             NEXT_STREETS_POOL if next_street else STREET_ENDS_POOL, "minecraft:dirt_path")
+    # The jigsaw fills the plots of the house-workshops first (selection priority): a side long house on the other
+    # plot of the street does not take their space.
     for i, z in enumerate(NORSE_PLOTS):
-        west = BANK_POOL if bank and i == 0 else HOUSE_POOL
-        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air")
-        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, HOUSE_POOL, "minecraft:air")
+        if jobs:
+            west, east = (FOOD_JOBS_POOL, START_JOBS_POOL) if i == 0 else (START_JOBS_POOL, HOUSE_POOL)
+        else:
+            west, east = BANK_POOL if bank and i == 0 else HOUSE_POOL, HOUSE_POOL
+        t.jigsaw(0, 1, z, "west_up", PLOT, HOUSE_FRONT, west, "minecraft:air",
+                 selection_priority=int(jobs and west != HOUSE_POOL))
+        t.jigsaw(STREET_WIDTH - 1, 1, z, "east_up", PLOT, HOUSE_FRONT, east, "minecraft:air",
+                 selection_priority=int(jobs and east != HOUSE_POOL))
     lamp_post(t, STREET_WIDTH - 1, NORSE_PLOTS[0] + 5)
     lamp_post(t, 0, NORSE_STREET_LENGTH - 1)
     return t
@@ -1237,8 +1593,9 @@ def flat_house_shell(rng, sign, width, depth, wide_front=False, courtyard=False)
 def sun_cottage():
     rng = random.Random(42)
     t = flat_house_shell(rng, "house", FW, FD)
-    # 3 beds: each bed gives a place to an inhabitant of the village.
-    for x in (1, 2, FW - 2):
+    # 3 beds: each bed gives a place to an inhabitant of the village. A free floor block next to the head of each bed
+    # lets a villager walk to it.
+    for x in (1, 3, FW - 2):
         bed(t, x, FD - 3, "orange")
     t.set(1, 1, 2, "minecraft:crafting_table")
     t.set(FW - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
@@ -1252,8 +1609,8 @@ def sun_cottage():
 def sun_cottage_courtyard():
     rng = random.Random(43)
     t = flat_house_shell(rng, "house", CW, CD, courtyard=True)
-    # 3 beds in the back rooms.
-    for x in (1, 2, CW - 2):
+    # 3 beds in the back rooms, with a free floor block next to the head of each bed.
+    for x in (1, 3, CW - 2):
         bed(t, x, CD - 3, "orange")
     t.set(1, 1, 2, "minecraft:crafting_table")
     t.set(CW - 2, 1, 2, "minecraft:chest", {"facing": "west", "type": "single", "waterlogged": "false"})
@@ -1266,7 +1623,8 @@ def sun_cottage_courtyard():
 def sun_barracks():
     rng = random.Random(44)
     t = flat_house_shell(rng, "barracks", CW, CD, courtyard=True)
-    for x in (1, 2, CW - 3, CW - 2):
+    # A free floor block next to the head of each bed lets a villager walk to it.
+    for x in (1, 3, CW - 4, CW - 2):
         bed(t, x, CD - 3, "red")
     t.set(1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(CW - 2, 1, 2, BANNER, {"rotation": "4"})
@@ -1279,9 +1637,6 @@ def sun_barracks():
 def sun_forge():
     rng = random.Random(45)
     t = flat_house_shell(rng, "forge", FW, FD, wide_front=True)
-    job_sign(t, FW // 2 - 1, 1, 0, *BLACKSMITH)
-    for y in range(1, FLAT_WALL_TOP):
-        connect_fences(t, y)
     t.set(2, 1, 4, "minecraft:anvil", {"facing": "east"})
     t.set(FW - 2, 1, FD - 2, "minecraft:blast_furnace", {"facing": "west", "lit": "false"})
     t.set(FW - 2, 1, FD - 3, "minecraft:furnace", {"facing": "west", "lit": "false"})
@@ -1338,15 +1693,18 @@ def fishing_hut():
     rng = random.Random(21)
     t = house_shell(rng, weathered, planks, "house")
     iron_windows(t)
-    for x in (1, 2):
+    # A free floor block between the 2 beds lets a villager walk to the head of each bed.
+    for x in (1, 3):
         bed(t, x, 6, "cyan")
     t.set(7, 1, 7, "minecraft:smoker", {"facing": "north", "lit": "false"})
     t.set(6, 1, 7, "minecraft:barrel", {"facing": "up", "open": "false"})
-    t.set(7, 1, 6, "minecraft:barrel", {"facing": "up", "open": "false"})
+    t.set(7, 1, 5, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(7, 1, 2, "minecraft:water_cauldron", {"level": "3"})
-    # The nets: cobwebs on the back wall, over the beds.
-    for x in (1, 2, 3):
-        t.set(x, 3, 7, "minecraft:cobweb")
+    # The nets: cobwebs high on the walls, over the free floor: on the back wall between the 2 beds and east of the
+    # lantern, and on the west wall in front of the beds. A player on the floor walks under them. No net is over a bed
+    # or another block that a player stands on.
+    for x, z in ((2, 7), (5, 7), (1, 4)):
+        t.set(x, 3, z, "minecraft:cobweb")
     lantern(t, 4, 1, 7)
     lantern(t, 1, 1, 2)
     stone_base(t)
@@ -1384,7 +1742,8 @@ def smokehouse():
     # The racks: chains from the roof beam, over the smokers.
     for x in (2, 4, 6):
         t.set(x, 3, 6, "minecraft:chain", {"axis": "y", "waterlogged": "false"})
-    for (x, z) in ((1, 7), (7, 7), (1, 6), (7, 6)):
+    # The barrels in the back corners have a free floor block in front of them: a villager can walk to them.
+    for (x, z) in ((1, 7), (7, 7), (1, 5), (7, 5)):
         t.set(x, 1, z, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(1, 1, 2, "minecraft:composter", {"level": "0"})
     lantern(t, 4, 1, 3)
@@ -1403,8 +1762,21 @@ GARDEN_X = range(1, W - 1)
 WATER = (W // 2, SHED_DEPTH + 1)
 GRASS = ("minecraft:grass_block", {"snowy": "false"})
 FARMLAND = ("minecraft:farmland", {"moisture": "7"})
-# The direction of a cocoa pod to its log, for a pod on each side of the log.
-TOWARD = {"north": "south", "south": "north", "west": "east", "east": "west"}
+
+
+# The beds of a house-workshop: each job building is the home of a household that does the job. Each job building has
+# HOME_BEDS beds, and each bed gives a place to an inhabitant of the village (see VillageBeds).
+HOME_BEDS = 2
+HOME_BED_COLOR = "brown"
+
+
+def home_beds(t, *feet, facing="south"):
+    """The HOME_BEDS beds of a house-workshop: the foot (x, z) of each bed, and the direction of its head. A foot
+    (x, z, facing) gives the direction of its bed. A bed stands next to a free floor block, so that an inhabitant can
+    go to it."""
+    assert len(feet) == HOME_BEDS, feet
+    for foot in feet:
+        bed(t, foot[0], foot[1], HOME_BED_COLOR, foot[2] if len(foot) > 2 else facing)
 
 
 def job_sign(t, x, y, z, job, icon, facing="north"):
@@ -1418,16 +1790,19 @@ def block(entry):
 
 
 def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"level": "0"})):
-    """The building of a job of the fields and the gardens: a timber frame shed and a garden behind it.
+    """The house-workshop of a job of the fields and the gardens: a timber frame shed and a garden behind it.
 
     - The shed: the house shell (see house_shell) with a body of SHED_DEPTH - 1 rows, a door on the street and a back
-      door to the garden. The job sign stands on the porch, next to the east porch post.
-    - The work blocks: the work block of the vanilla profession of the job (a composter for the farmer) and a barrel in
-      the shed.
+      door to the garden. The job sign stands on the porch next to the west porch post, and the house sign next to the
+      east porch post.
+    - The work blocks: the work block of the vanilla profession of the job (a composter for the farmer) in the west
+      half of the shed, and a barrel next to the door.
+    - The home: 2 beds side by side in the east half of the shed, with the heads to the east. The path from the door to
+      the back door (x = 4) goes along the feet of the beds.
     - The garden: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
       None. A fence goes around the garden, with a lantern on each back corner.
     """
-    t = house_shell(rng, cobble, planks, None, depth=SHED_DEPTH)
+    t = house_shell(rng, cobble, planks, "house", depth=SHED_DEPTH)
     mid = W // 2
     back = SHED_DEPTH - 1
     for y, half in ((1, "lower"), (2, "upper")):
@@ -1435,9 +1810,11 @@ def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"
               {"facing": "south", "half": half, "hinge": "left", "open": "false", "powered": "false"})
     t.set(mid, 3, back, "minecraft:stripped_spruce_log", {"axis": "x"})
     t.set(1, 1, back - 1, *work)
-    t.set(W - 2, 1, back - 1, "minecraft:barrel", {"facing": "up", "open": "false"})
-    lantern(t, W - 2, 1, 2)
-    job_sign(t, W - 2, 1, 0, job, icon)
+    t.set(mid - 1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
+    # The lantern stands on the barrel: the head of each bed has a free floor block next to it.
+    lantern(t, mid - 1, 2, 2)
+    home_beds(t, (mid + 1, 2), (mid + 1, 3), facing="east")
+    job_sign(t, 1, 1, 0, job, icon)
     for x in range(W):
         for z in range(SHED_DEPTH, D):
             if x in GARDEN_X and z in GARDEN_Z:
@@ -1450,30 +1827,7 @@ def job_building(rng, job, icon, ground, plants, work=("minecraft:composter", {"
                 t.set(x, 1, z, "minecraft:spruce_fence")
     for x in (0, W - 1):
         lantern(t, x, 2, D - 1)
-    # The fences of the garden and the porch posts.
-    for y in range(1, 5):
-        connect_fences(t, y)
     return t
-
-
-# The full blocks that a fence connects to: the blocks of the shell, and the stone and the earth of the job buildings.
-# A fence also connects to a fence, and not to a plant or a fruit.
-FENCE_SUPPORTS = ("cobblestone", "_log", "_planks", "_ore", ":stone", ":andesite", ":sand", ":gravel", ":clay",
-                  ":dirt", "sandstone")
-
-
-def connect_fences(t, y):
-    """Sets the north, south, east and west properties of each spruce fence of a layer from its neighbors: a fence,
-    a fence gate or a block of the shell."""
-    for (x, fy, z), ((name, _props), nbt) in list(t.blocks.items()):
-        if fy != y or name != "minecraft:spruce_fence":
-            continue
-        props = {"waterlogged": "false"}
-        for side, (dx, dz) in SIDES.items():
-            other = t.get(x + dx, y, z + dz) if t.inside(x + dx, y, z + dz) else None
-            connects = other is not None and other.endswith(("_fence", "_fence_gate") + FENCE_SUPPORTS)
-            props[side] = "true" if connects else "false"
-        t.set(x, y, z, name, props, nbt)
 
 
 # The water of a field: a waterlogged slab. The slab holds the water on uneven ground, and the foundation goes under
@@ -1481,12 +1835,12 @@ def connect_fences(t, y):
 WATER_SLAB = ("minecraft:spruce_slab", {"type": "bottom", "waterlogged": "true"})
 
 
-def field_ground(x, z):
+def field_ground(x, z, water=WATER):
     """Farmland around the water of the field, and a path of coarse dirt from the back door to the water: a builder
     stands on the path to add the water."""
-    if (x, z) == WATER:
+    if (x, z) == water:
         return WATER_SLAB
-    return "minecraft:coarse_dirt" if x == WATER[0] else FARMLAND
+    return "minecraft:coarse_dirt" if x == water[0] else FARMLAND
 
 
 def crop(name, rng, top=7):
@@ -1584,27 +1938,32 @@ def jungle_garden():
     return t
 
 
+FLOWERS = ("minecraft:dandelion", "minecraft:poppy", "minecraft:cornflower")
+
+
+def forage_ground(x, z, width=W):
+    """The ground of the yard of the forager in a building of this width: podzol in the west half, grass in the east
+    half, and a path of coarse dirt in the middle."""
+    if x == width // 2:
+        return "minecraft:coarse_dirt"
+    return "minecraft:podzol" if x < width // 2 else GRASS
+
+
+def forage_plants(x, z, width=W):
+    """The finds of the forager in a building of this width: mushrooms on the podzol and wild flowers on the grass."""
+    if x == width // 2:
+        return None
+    if x < width // 2:
+        return "minecraft:brown_mushroom" if (x + z) % 2 == 0 else "minecraft:red_mushroom"
+    return FLOWERS[(x + z) % len(FLOWERS)]
+
+
 def forager_hut():
     """The building of the forager: mushrooms on podzol, wild flowers on grass, and the finds in a barrel."""
     rng = random.Random(54)
-    mid = W // 2
-    flowers = ("minecraft:dandelion", "minecraft:poppy", "minecraft:cornflower")
-
-    def ground(x, z):
-        if x == mid:
-            return "minecraft:coarse_dirt"
-        return "minecraft:podzol" if x < mid else GRASS
-
-    def plants(x, z):
-        if x == mid:
-            return None
-        if x < mid:
-            return "minecraft:brown_mushroom" if (x + z) % 2 == 0 else "minecraft:red_mushroom"
-        return flowers[(x + z) % len(flowers)]
-
-    t = job_building(rng, "forager", "minecraft:red_mushroom", ground, plants)
-    t.set(1, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
-    t.set(2, 1, 2, "minecraft:moss_block")
+    t = job_building(rng, "forager", "minecraft:red_mushroom", forage_ground, forage_plants)
+    t.set(1, 1, 2, "minecraft:moss_block")
+    t.set(2, 1, 2, "minecraft:barrel", {"facing": "up", "open": "false"})
     return t
 
 
@@ -1628,13 +1987,13 @@ def apiary():
     return t
 
 
-def job_house(rng, job, icon, wall_upper, wide_front=False):
-    """The building of a job of the food: the house shell with a door on the street, or an open shop front. The job
-    sign stands on the porch, next to the east porch post."""
-    t = house_shell(rng, cobble, wall_upper, None, wide_front=wide_front)
-    job_sign(t, W - 2, 1, 0, job, icon)
-    for y in range(1, 5):
-        connect_fences(t, y)
+def job_house(rng, job, icon, wall_upper, beds, wide_front=False):
+    """The house-workshop of a job in a house: the house shell with a door on the street, or an open shop front. The
+    job sign stands on the porch next to the west porch post, and the house sign next to the east porch post. beds
+    gives the foot of each bed of the home (see home_beds): the head is 1 block to the back wall."""
+    t = house_shell(rng, cobble, wall_upper, "house", wide_front=wide_front)
+    home_beds(t, *beds)
+    job_sign(t, 1, 1, 0, job, icon)
     return t
 
 
@@ -1658,10 +2017,10 @@ def bakery():
     """The building of the baker: a brick oven, a crafting table to knead the dough, barrels of flour, the wheat on
     hay bales and a cake on the counter."""
     rng = random.Random(56)
-    t = job_house(rng, "baker", "minecraft:bread", planks)
+    t = job_house(rng, "baker", "minecraft:bread", planks, ((1, 3), (7, 3)))
     oven(t, 4)
     t.set(1, 1, 7, "minecraft:crafting_table")
-    for x, z in ((1, 6), (2, 7)):
+    for x, z in ((1, 5), (2, 7)):
         t.set(x, 1, z, *BARREL)
     for x, y, z in ((7, 1, 7), (7, 1, 6), (7, 2, 7)):
         t.set(x, y, z, "minecraft:hay_block", LOG_Y)
@@ -1675,7 +2034,7 @@ def pastry_shop():
     """The building of the pastry cook: an open shop front, a counter with cakes, a brick oven, pumpkins and barrels
     of sugar."""
     rng = random.Random(57)
-    t = job_house(rng, "pastry_cook", "minecraft:pumpkin_pie", calcite, wide_front=True)
+    t = job_house(rng, "pastry_cook", "minecraft:pumpkin_pie", calcite, ((2, 5), (6, 4)), wide_front=True)
     oven(t, 4)
     # The counter behind the open front, with a free passage in the middle.
     for x in (1, 2, 6, 7):
@@ -1694,7 +2053,7 @@ def butchery():
     """The building of the butcher: 2 smokers (the work block of the vanilla butcher), a block of coal, a chopping
     block, and a rack of chains on a beam across the room. The chains leave 2 blocks of space under them."""
     rng = random.Random(58)
-    t = job_house(rng, "butcher", "minecraft:cooked_beef", planks)
+    t = job_house(rng, "butcher", "minecraft:cooked_beef", planks, ((1, 4), (7, 4)))
     for x in (5, 6):
         t.set(x, 1, 7, "minecraft:smoker", {"facing": "north", "lit": "false"})
     t.set(7, 1, 7, "minecraft:coal_block")
@@ -1755,9 +2114,10 @@ def fisher_hut():
 
     t = job_building(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
     t.set(1, 1, 2, "minecraft:water_cauldron", {"level": "3"})
-    # The nets: cobwebs high on the side wall, out of the way.
+    # The nets: cobwebs high on the east side wall, over the free floor next to the heads of the beds. A player on the
+    # floor walks under them. No net is over a block that a player stands on (the barrel, the tub).
     for z in (2, 3):
-        t.set(1, 3, z, "minecraft:cobweb")
+        t.set(W - 2, 3, z, "minecraft:cobweb")
     return t
 
 
@@ -1802,8 +2162,6 @@ def lumber_yard(job, wood):
     for x, y in ((W - 3, 1), (W - 2, 1), (W - 2, 2)):
         job_material(t, x, y, D - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
     t.set(W - 2, 1, SHED_DEPTH, POTTED.get(wood, f"minecraft:potted_{wood}_sapling"))
-    # The fences next to the piles connect to the logs.
-    connect_fences(t, 1)
     return t
 
 
@@ -1814,7 +2172,7 @@ def sawmill(job, wood):
     All the sawyers have this shape. Only the wood of the logs, the planks and the slabs changes.
     """
     rng = random.Random(62)
-    t = job_house(rng, job, f"minecraft:{wood}_planks", planks)
+    t = job_house(rng, job, f"minecraft:{wood}_planks", planks, ((2, 3), (6, 3)))
     bench = 5
     for x in (2, 3):
         job_material(t, x, 1, bench, f"minecraft:{wood}_log", {"axis": "x"})
@@ -1867,7 +2225,6 @@ def mine():
     for x, z in ((1, SHED_DEPTH), (2, SHED_DEPTH), (1, SHED_DEPTH + 1)):
         job_material(t, x, 1, z, "minecraft:cobblestone")
     t.set(1, 1, 2, *BARREL)
-    connect_fences(t, 1)
     return t
 
 
@@ -1887,7 +2244,6 @@ def dig_yard():
     t.set(1, 2, D - 2, "minecraft:sand")
     t.set(W - 2, 2, D - 2, "minecraft:dirt")
     t.set(1, 1, 2, *BARREL)
-    connect_fences(t, 1)
     return t
 
 
@@ -1900,7 +2256,7 @@ def mason_workshop():
     a block of stone to cut, a brick kiln on the back wall, and stacks of stone bricks, bricks, smooth stone and
     terracotta. The stacks of stone bricks stay stone bricks in all the variants."""
     rng = random.Random(65)
-    t = job_house(rng, "mason", "minecraft:stone_bricks", stone_bricks)
+    t = job_house(rng, "mason", "minecraft:stone_bricks", stone_bricks, ((1, 4), (6, 4)))
     oven(t, 4)
     for x, y, z in ((1, 1, D - 2), (1, 2, D - 2), (2, 1, D - 2), (1, 1, D - 3)):
         job_material(t, x, y, z, "minecraft:stone_bricks")
@@ -1935,7 +2291,7 @@ def smeltery(job):
     """
     icon, ores, plate = SMELTERS[job]
     rng = random.Random(66)
-    t = job_house(rng, job, icon, lambda r: "minecraft:bricks")
+    t = job_house(rng, job, icon, lambda r: "minecraft:bricks", ((1, 3), (7, 4)))
     oven(t, 4)
     for x in (2, W - 3):
         t.set(x, 1, D - 2, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
@@ -1943,7 +2299,7 @@ def smeltery(job):
         t.set(1, 1, z, ore)
     t.set(1, 1, D - 4, "minecraft:coal_block")
     if job == "smelter":
-        t.set(W - 2, 1, D - 2, *BARREL)
+        t.set(W - 2, 1, 2, *BARREL)
     t.set(W - 2, 1, D - 3, "minecraft:water_cauldron", {"level": "3"})
     for x in (W - 3, W - 2):
         t.set(x, 1, 3, *TOP_SLAB)
@@ -1957,7 +2313,7 @@ def tinker_workshop():
     iron and copper, a crafting table, a short track of rails, and a counter with lanterns and a lightning rod (the
     goods of the job)."""
     rng = random.Random(67)
-    t = job_house(rng, "tinker", "minecraft:bucket", planks)
+    t = job_house(rng, "tinker", "minecraft:bucket", planks, ((2, 5), (7, 2)))
     t.set(W - 3, 1, D - 2, "minecraft:smithing_table")
     t.set(1, 1, D - 2, "minecraft:iron_block")
     t.set(1, 2, D - 2, "minecraft:waxed_copper_block")
@@ -1971,7 +2327,7 @@ def tinker_workshop():
     lantern(t, W - 3, 2, 4)
     t.set(W - 2, 2, 4, "minecraft:lightning_rod", {"facing": "up", "powered": "false", "waterlogged": "false"})
     lantern(t, 1, 1, 2)
-    lantern(t, W - 2, 1, D - 3)
+    lantern(t, W - 2, 2, D - 2)
     return t
 
 
@@ -1995,7 +2351,6 @@ def fletcher_range():
     for x in targets:
         t.set(x, 2, row, "minecraft:target", {"power": "0"})
     t.set(1, 1, 2, *BARREL)
-    connect_fences(t, 1)
     return t
 
 
@@ -2003,7 +2358,7 @@ def carpenter_workshop():
     """The building of the carpenter: a house with 2 crafting tables, a bench of oak slabs, a stack of oak planks, and
     chests and barrels (the goods of the job). The oak planks and the oak slabs stay oak in all the variants."""
     rng = random.Random(69)
-    t = job_house(rng, "carpenter", "minecraft:crafting_table", planks)
+    t = job_house(rng, "carpenter", "minecraft:crafting_table", planks, ((2, 5), (6, 5)))
     t.set(2, 1, 4, "minecraft:crafting_table")
     t.set(W - 3, 1, 4, "minecraft:crafting_table")
     for x in (3, W - 2):
@@ -2012,7 +2367,7 @@ def carpenter_workshop():
         job_material(t, x, y, z, "minecraft:oak_planks")
     for x in (1, 2):
         t.set(x, 1, D - 2, "minecraft:chest", {"facing": "north", "type": "single", "waterlogged": "false"})
-    t.set(1, 1, D - 3, *BARREL)
+    t.set(W - 4, 1, D - 2, *BARREL)
     lantern(t, 1, 1, 2)
     lantern(t, W - 2, 1, 2)
     return t
@@ -2038,7 +2393,6 @@ def tannery():
     for x, z in rack:
         t.set(x, 2, z, "minecraft:brown_carpet")
     t.set(1, 1, 2, *BARREL)
-    connect_fences(t, 1)
     return t
 
 
@@ -2064,7 +2418,7 @@ def sheepfold():
     t = job_building(rng, "shepherd", "minecraft:shears", ground, plants, work=LOOM)
     t.set(1, 1, 2, "minecraft:white_wool")
     t.set(1, 2, 2, "minecraft:white_wool")
-    t.set(2, 1, 3, "minecraft:white_wool")
+    t.set(2, 1, 2, "minecraft:white_wool")
     return t
 
 
@@ -2072,13 +2426,13 @@ def weaving_house():
     """The building of the weaver: a house with 2 looms (the work block of the vanilla shepherd), stacks of white wool,
     a crafting table for the beds, a barrel, and a counter with rolls of cloth (white carpets)."""
     rng = random.Random(72)
-    t = job_house(rng, "weaver", "minecraft:white_carpet", planks)
+    t = job_house(rng, "weaver", "minecraft:white_carpet", planks, ((1, 3), (2, 3)))
     for x in (2, W - 3):
         t.set(x, 1, D - 2, *LOOM)
     for x, y, z in ((1, 1, D - 2), (1, 2, D - 2), (1, 1, D - 3)):
         t.set(x, y, z, "minecraft:white_wool")
     t.set(W - 2, 1, D - 2, "minecraft:crafting_table")
-    t.set(W - 2, 1, D - 3, *BARREL)
+    t.set(W - 2, 1, D - 4, *BARREL)
     for x in (W - 3, W - 2):
         t.set(x, 1, 4, *TOP_SLAB)
         t.set(x, 2, 4, "minecraft:white_carpet")
@@ -2104,7 +2458,7 @@ def dye_works():
     t = job_building(rng, "dyer", "minecraft:red_dye", ground, plants, work=LOOM)
     t.set(1, 1, 2, "minecraft:red_wool")
     t.set(1, 2, 2, "minecraft:yellow_wool")
-    t.set(2, 1, 3, "minecraft:blue_wool")
+    t.set(2, 1, 2, "minecraft:blue_wool")
     return t
 
 
@@ -2113,11 +2467,11 @@ def paper_mill():
     pulp (water cauldrons), barrels of sugar cane, a crafting table, bookshelves, and a counter with sheets of paper
     to dry (white carpets). The path from the door to the lectern stays free."""
     rng = random.Random(74)
-    t = job_house(rng, "papermaker", "minecraft:paper", planks)
+    t = job_house(rng, "papermaker", "minecraft:paper", planks, ((1, 3, "east"), (7, 4)))
     t.set(W // 2, 1, D - 3, "minecraft:lectern", {"facing": "north", "has_book": "false", "powered": "false"})
     for x in (3, W - 4):
         t.set(x, 1, D - 2, *WATER_CAULDRON)
-    for z in (D - 2, D - 3):
+    for z in (D - 3, D - 4):
         t.set(1, 1, z, *BARREL)
     t.set(2, 1, D - 2, "minecraft:crafting_table")
     for x, y, z in ((W - 2, 1, D - 2), (W - 2, 2, D - 2), (W - 2, 1, D - 3)):
@@ -2127,6 +2481,1128 @@ def paper_mill():
         t.set(x, 2, 4, "minecraft:white_carpet")
     lantern(t, 1, 1, 2)
     lantern(t, W - 2, 1, 2)
+    return t
+
+
+# ---------------------------------------------------------------- house-workshops of the Valeholm style
+
+# A Norse house-workshop is a deep long house of LW x LD blocks: it fits each plot of a Norse street, as a long house.
+# The jobs of the fields, the gardens, the animals, the lumberjacks, the miner, the digger, the fletcher, the tanner,
+# the shepherd and the dyer have a short long house on the street (z = 1..NORSE_SHED - 1) and a fenced yard behind it.
+NORSE_SHED = 9
+NORSE_YARD_Z = range(NORSE_SHED, LD - 1)
+NORSE_YARD_X = range(1, LW - 1)
+# The water of a Norse field, in the middle of the yard: it gives water to all the farmland of the yard.
+NORSE_WATER = (LW // 2, NORSE_SHED + 3)
+# The beds of a Norse long house: on the 2 side walls, behind the hearth, with the heads to the back wall.
+NORSE_BEDS = ((1, 10), (LW - 2, 10))
+COMPOSTER = ("minecraft:composter", {"level": "0"})
+
+
+def norse_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
+    """The house-workshop of a job with a yard in the Valeholm style (the beekeeper, the fisher, and the jobs with a
+    yard of style_jobs: the farmer, the gardeners, the forager, the rancher, the lumberjacks, the miner, the digger,
+    the fletcher, the tanner, the shepherd and the dyer): a short long house on the street and a fenced yard behind
+    it.
+
+    - The house: the long house shell (see long_house_shell) with no hearth, a door on the street and a back door to
+      the yard. The job sign stands on the porch next to the west porch post, and the house sign next to the east
+      porch post.
+    - The work blocks: the work block of the vanilla profession of the job in the west back corner, and a barrel next
+      to the door.
+    - The home: 2 beds side by side in the east half, with the heads to the east. The path from the door to the back
+      door (x = 4) goes along the feet of the beds.
+    - The yard: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
+      None. A fence goes around the yard, with a lantern on each back corner.
+
+    The caller adds the blocks of the job.
+    """
+    t = long_house_shell(rng, "house", cobble, depth=NORSE_SHED, hearth=False)
+    mid = LW // 2
+    back = NORSE_SHED - 1
+    for y, half in ((1, "lower"), (2, "upper")):
+        t.set(mid, y, back, "minecraft:spruce_door",
+              {"facing": "south", "half": half, "hinge": "left", "open": "false", "powered": "false"})
+    t.set(mid, 3, back, "minecraft:stripped_spruce_log", {"axis": "x"})
+    t.set(1, 1, back - 1, *work)
+    t.set(mid - 1, 1, 2, *BARREL)
+    lantern(t, LW - 2, 1, 2)
+    home_beds(t, (mid + 1, back - 3), (mid + 1, back - 2), facing="east")
+    job_sign(t, 1, 1, 0, job, icon)
+    for x in range(LW):
+        for z in range(NORSE_SHED, LD):
+            if x in NORSE_YARD_X and z in NORSE_YARD_Z:
+                t.set(x, 0, z, *block(ground(x, z)))
+                plant = plants(x, z)
+                if plant:
+                    t.set(x, 1, z, *block(plant))
+            else:
+                t.set(x, 0, z, cobble(rng))
+                t.set(x, 1, z, "minecraft:spruce_fence")
+    for x in (0, LW - 1):
+        lantern(t, x, 2, LD - 1)
+    return t
+
+
+def norse_apiary():
+    """The Valeholm building of the beekeeper: 2 beehives on stands of stripped logs among the flowers, and a path of
+    coarse dirt. The yard has no campfire: a campfire burns, and the heart takes it as a brazier."""
+    rng = random.Random(65)
+    mid, row = NORSE_WATER
+    hives = ((2, row), (LW - 3, row))
+    flowers = FLOWERS + ("minecraft:oxeye_daisy", "minecraft:allium")
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == mid else GRASS
+
+    def plants(x, z):
+        if (x, z) in hives:
+            return "minecraft:stripped_spruce_log", LOG_Y
+        if x == mid or (x + z) % 2:
+            return None
+        return flowers[rng.randrange(len(flowers))]
+
+    t = norse_yard_workshop(rng, "beekeeper", "minecraft:honeycomb", ground, plants)
+    for x, z in hives:
+        t.set(x, 2, z, "minecraft:beehive", {"facing": "south", "honey_level": str(rng.randint(2, 5))})
+    t.set(1, 1, 2, *BARREL)
+    return t
+
+
+def norse_fisher_hut():
+    """The Valeholm building of the fisher: a house with barrels (the work block of the vanilla fisherman) and a tub,
+    and a yard with a pond for the live catch. The pond is a row of waterlogged slabs, with a path of coarse dirt next
+    to it: a builder stands on the path to add the water."""
+    rng = random.Random(67)
+    pond = range(2, LW - 2)
+    row = LD - 3
+
+    def ground(x, z):
+        if z == row and x in pond:
+            return WATER_SLAB
+        return "minecraft:coarse_dirt" if z == row - 1 or x == LW // 2 else GRASS
+
+    def plants(x, z):
+        return BARREL if (x, z) in ((2, NORSE_SHED), (LW - 3, NORSE_SHED)) else None
+
+    t = norse_yard_workshop(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
+    t.set(1, 1, 2, *WATER_CAULDRON)
+    return t
+
+
+def norse_workshop(rng, job, icon, beds=NORSE_BEDS, wide_front=False, wall_lower=cobble):
+    """The house-workshop of a job in a Valeholm long house (the baker, the pastry cook, the butcher, and the jobs
+    with no yard of style_jobs: the sawyers, the mason, the smelters, the blacksmith, the tinker, the carpenter, the
+    weaver and the papermaker): the long house shell with the hearth (see long_house_shell), a door on the street or
+    an open shop front. wall_lower gives the blocks of the lowest layer of the walls. The job sign stands on the porch
+    next to the west porch post, and the house sign next to the east porch post. beds gives the foot of each bed of the
+    home (see home_beds): the beds stand on the side walls behind the hearth (NORSE_BEDS). The caller adds the blocks
+    of the job."""
+    t = long_house_shell(rng, "house", wall_lower, wide_front=wide_front)
+    home_beds(t, *beds)
+    job_sign(t, 1, 1, 0, job, icon)
+    return t
+
+
+def norse_oven(t):
+    """A brick oven on the back wall of a long house: a furnace in bricks, with a chimney of bricks through the steep
+    roof. The chimney takes the place of the roof blocks, so the roof has no hole. The oven is east of the middle: the
+    chimney does not touch the carved horns of the ridge."""
+    x, z = LW // 2 + 1, LD - 2
+    t.set(x, 1, z, "minecraft:furnace", {"facing": "north", "lit": "false"})
+    for dx in (-1, 0, 1):
+        t.set(x + dx, 2, z, "minecraft:bricks")
+        if dx:
+            t.set(x + dx, 1, z, "minecraft:bricks")
+    for y in range(3, steep_roof_top(x + 1, LW) + 2):
+        t.set(x + 1, y, z, "minecraft:bricks")
+
+
+def norse_bakery():
+    """The Valeholm building of the baker: a brick oven, a crafting table to knead the dough, barrels of flour, the
+    wheat on hay bales and a cake on the counter."""
+    rng = random.Random(68)
+    t = norse_workshop(rng, "baker", "minecraft:bread")
+    norse_oven(t)
+    t.set(1, 1, LD - 2, "minecraft:crafting_table")
+    for x, z in ((1, LD - 4), (2, LD - 2)):
+        t.set(x, 1, z, *BARREL)
+    for x, y, z in ((LW - 2, 1, LD - 2), (LW - 2, 1, LD - 3), (LW - 2, 2, LD - 3)):
+        t.set(x, y, z, "minecraft:hay_block", LOG_Y)
+    t.set(LW - 2, 1, 4, *TOP_SLAB)
+    t.set(LW - 2, 2, 4, "minecraft:cake", {"bites": "0"})
+    lantern(t, 1, 1, 2)
+    return t
+
+
+def norse_pastry_shop():
+    """The Valeholm building of the pastry cook: an open shop front, a counter with cakes, a brick oven, pumpkins and
+    barrels of sugar."""
+    rng = random.Random(69)
+    t = norse_workshop(rng, "pastry_cook", "minecraft:pumpkin_pie", wide_front=True)
+    norse_oven(t)
+    # The counter behind the open front, with a free passage in the middle.
+    for x in (1, 2, LW - 3, LW - 2):
+        t.set(x, 1, 3, *TOP_SLAB)
+    for x in (2, LW - 3):
+        t.set(x, 2, 3, "minecraft:candle_cake", {"lit": "false"})
+    for x, y in ((1, 1), (2, 1), (2, 2)):
+        t.set(x, y, LD - 2, "minecraft:pumpkin")
+    for z in (LD - 3, LD - 4):
+        t.set(LW - 2, 1, z, *BARREL)
+    lantern(t, 1, 1, 5)
+    return t
+
+
+def norse_butchery():
+    """The Valeholm building of the butcher: 2 smokers (the work block of the vanilla butcher), a block of coal, a
+    chopping block, and a rack of chains on a beam across the room. The chains leave 2 blocks of space under them."""
+    rng = random.Random(70)
+    t = norse_workshop(rng, "butcher", "minecraft:cooked_beef")
+    for x in (5, 6):
+        t.set(x, 1, LD - 2, "minecraft:smoker", {"facing": "north", "lit": "false"})
+    t.set(LW - 2, 1, LD - 2, "minecraft:coal_block")
+    for x in range(1, LW - 1):
+        t.set(x, 4, 12, "minecraft:stripped_spruce_log", {"axis": "x"})
+    for x in (2, 3, 6):
+        t.set(x, 3, 12, "minecraft:chain", {"axis": "y", "waterlogged": "false"})
+    t.set(2, 1, 4, "minecraft:stripped_oak_log", LOG_Y)
+    for z in (LD - 2, LD - 3):
+        t.set(1, 1, z, *BARREL)
+    t.set(LW - 2, 1, 4, *WATER_CAULDRON)
+    lantern(t, 1, 1, 2)
+    return t
+
+
+# ---------------------------------------------------------------- house-workshops of the styles of the cultures
+
+RAIL = ("minecraft:rail", {"shape": "north_south", "waterlogged": "false"})
+
+
+@dataclasses.dataclass(frozen=True)
+class SmelteryLayout:
+    """The places of the blocks of a smeltery of a style (see style_smeltery). The back row is the row in front of the
+    back wall.
+
+    - furnaces: the x of the 2 blast furnaces on the back row.
+    - ore_x: the x of the 2 blocks of raw ore on the back row and the row in front of it.
+    - coal: (x, z) of the block of coal.
+    - cauldron: (x, z) of the water cauldron. The barrel of sand of the smelter is 1 block in front of it (z - 1).
+    - lanterns: (x, y, z) of each lantern after the lantern next to the door.
+    """
+    furnaces: tuple[int, int]
+    ore_x: int
+    coal: tuple[int, int]
+    cauldron: tuple[int, int]
+    lanterns: tuple[tuple[int, int, int], ...]
+
+
+@dataclasses.dataclass(frozen=True)
+class WorkshopStyle:
+    """The style of the house-workshops of a culture (VALEHOLM, SUNREACH): the values that the builders of the styles
+    (see style_jobs) take from the style.
+
+    - width, depth: the size of a piece along the street and away from the street.
+    - shed: the first row of the yard of a house-workshop with a yard. The house is z = 1..shed - 1.
+    - water: (x, z) of the water of a field, in the middle of the yard.
+    - seed: the builders add it to their seeds, so that each style has its own random blocks.
+    - yard_workshop(rng, job, icon, ground, plants, work): the house and the yard of a job with a yard.
+    - workshop(rng, job, icon, beds, wide_front, wall_lower): the house of a job with no yard.
+    - oven(t): a brick oven with a chimney on the back wall of a house with no yard.
+    - beds: the foot of each home bed of a house with no yard (see home_beds).
+    - sawmill_lantern: (x, y, z) of the lantern of a sawmill after the lantern next to the door.
+    - mason_cutter: (x, z) of the stonecutter of the mason. The block of stone to cut is in front of it (z - 1).
+    - mason_lantern: (x, y, z) of the lantern of the mason after the lantern next to the door.
+    - smeltery: the places of the blocks of a smeltery (see SmelteryLayout).
+    """
+    width: int
+    depth: int
+    shed: int
+    water: tuple[int, int]
+    seed: int
+    yard_workshop: Callable[..., Template]
+    workshop: Callable[..., Template]
+    oven: Callable[[Template], None]
+    beds: tuple[tuple[int, int], ...]
+    sawmill_lantern: tuple[int, int, int]
+    mason_cutter: tuple[int, int]
+    mason_lantern: tuple[int, int, int]
+    smeltery: SmelteryLayout
+
+
+def style_farm(s):
+    """The building of the farmer in the style s: a field of wheat, carrots, potatoes and beetroots around the water,
+    and hay bales in the house."""
+    rng = random.Random(s.seed + 61)
+    rows = {1: "wheat", 2: "wheat", 3: "carrots", 5: "potatoes", 6: "beetroots", 7: "beetroots"}
+
+    def plants(x, z):
+        if x == s.water[0]:
+            return None
+        return crop(f"minecraft:{rows[x]}", rng, 3 if rows[x] == "beetroots" else 7)
+
+    t = s.yard_workshop(rng, "farmer", "minecraft:wheat", functools.partial(field_ground, water=s.water), plants)
+    for x, y in ((1, 1), (2, 1), (1, 2)):
+        t.set(x, y, 2, "minecraft:hay_block", LOG_Y)
+    return t
+
+
+def style_garden(s):
+    """The building of the gardener in the style s: 2 rows of pumpkins and melons on their stems, and sugar cane next
+    to the water. The sugar cane is 1 block high, with no block next to it (see garden)."""
+    rng = random.Random(s.seed + 62)
+    mid, row = s.water
+    stems = (row - 2, row + 2)
+
+    def ground(x, z):
+        if x == mid:
+            return field_ground(x, z, s.water)
+        return FARMLAND if abs(x - mid) == 2 and z in stems else GRASS
+
+    def plants(x, z):
+        side = x - mid
+        if z == row and abs(side) == 1:
+            return "minecraft:sugar_cane", {"age": "0"}
+        if z not in stems:
+            return None
+        fruit = "pumpkin" if side < 0 else "melon"
+        if abs(side) == 3:
+            return f"minecraft:{fruit}"
+        if abs(side) == 2:
+            return f"minecraft:attached_{fruit}_stem", {"facing": "west" if side < 0 else "east"}
+        return None
+
+    t = s.yard_workshop(rng, "gardener", "minecraft:pumpkin", ground, plants)
+    t.set(1, 1, 2, "minecraft:pumpkin")
+    t.set(2, 1, 2, "minecraft:melon")
+    return t
+
+
+def style_jungle_garden(s):
+    """The building of the gardener of the jungle in the style s: cocoa pods on 2 posts of jungle logs, 2 melons on
+    their stems next to the water, and ferns along the sides of the yard."""
+    rng = random.Random(s.seed + 63)
+    mid, row = s.water
+    posts = ((2, row), (s.width - 3, row))
+    melons = {(mid, row - 1): "west", (mid, row + 1): "east"}
+
+    def ground(x, z):
+        if (x, z) == s.water:
+            return WATER_SLAB
+        if x == mid:
+            return FARMLAND if (x, z) in melons else "minecraft:coarse_dirt"
+        return GRASS
+
+    def plants(x, z):
+        if (x, z) in posts:
+            return "minecraft:jungle_log", LOG_Y
+        if (x, z) in melons:
+            return "minecraft:attached_melon_stem", {"facing": melons[(x, z)]}
+        if (x - mid, z - row) in ((-1, -1), (1, 1)):
+            return "minecraft:melon"
+        if abs(x - mid) == 3 and z != row:
+            return "minecraft:fern" if rng.random() < 0.5 else None
+        return None
+
+    t = s.yard_workshop(rng, "gardener_jungle", "minecraft:cocoa_beans", ground, plants)
+    # The posts: 3 jungle logs high, with a cocoa pod on each side. A pod faces its log.
+    for px, pz in posts:
+        for y in (2, 3):
+            t.set(px, y, pz, "minecraft:jungle_log", LOG_Y)
+        for side, (dx, dz) in SIDES.items():
+            t.set(px + dx, 2, pz + dz, "minecraft:cocoa", {"age": str(rng.randint(1, 2)), "facing": TOWARD[side]})
+    t.set(1, 1, 2, "minecraft:melon")
+    return t
+
+
+def style_forager_hut(s):
+    """The building of the forager in the style s: mushrooms on podzol, wild flowers on grass (see forage_plants),
+    and the finds in a barrel."""
+    rng = random.Random(s.seed + 64)
+    t = s.yard_workshop(rng, "forager", "minecraft:red_mushroom", functools.partial(forage_ground, width=s.width),
+                        functools.partial(forage_plants, width=s.width))
+    t.set(1, 1, 2, *BARREL)
+    t.set(2, 1, 2, "minecraft:moss_block")
+    return t
+
+
+def style_ranch(s):
+    """The building of the rancher in the style s: a house with a smoker (the work block of the vanilla butcher) and a
+    pen behind it, with hay and a water trough. The doors of the house and the edge of the yard keep the animals in
+    the pen. The template has no animals (see ranch)."""
+    rng = random.Random(s.seed + 66)
+    row = s.shed + 2
+    # A hay bale in the first row of the pen, and a hay bale in the back row of a deep pen. The hay and the trough are
+    # not next to the edge of the yard: a fence or a wall connects to a full block.
+    hay = {(2, row)} | ({(2, s.depth - 3)} if s.depth - 3 > row + 1 else set())
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if (x, z) == (s.width // 2, s.shed) else GRASS
+
+    def plants(x, z):
+        if (x, z) in hay:
+            return "minecraft:hay_block", LOG_Y
+        if (x, z) == (s.width - 3, row):
+            return WATER_CAULDRON
+        return None
+
+    t = s.yard_workshop(rng, "rancher", "minecraft:lead", ground, plants,
+                        work=("minecraft:smoker", {"facing": "east", "lit": "false"}))
+    t.set(1, 1, 2, "minecraft:hay_block", LOG_Y)
+    return t
+
+
+def style_lumber_yard(s, job, wood):
+    """The building of a lumberjack in the style s: a house with a grindstone for the axes and a potted sapling, and a
+    yard with a pile of logs of the wood of the job along the west side, a chopping block and the split wood (see
+    lumber_yard).
+
+    All the lumberjacks have this shape. Only the wood of the logs, of the chopping block and of the sapling changes.
+    """
+    log = f"minecraft:{wood}_log"
+    sapling = POTTED.get(wood, f"minecraft:potted_{wood}_sapling")
+    rng = random.Random(s.seed + 71)
+
+    def ground(x, z):
+        return GRASS if x in (1, 2, s.width - 2) else "minecraft:coarse_dirt"
+
+    t = s.yard_workshop(rng, job, log, ground, lambda x, z: None,
+                        work=("minecraft:grindstone", {"face": "floor", "facing": "north"}))
+    t.set(1, 1, 2, sapling)
+    # The west pile: 2 rows of logs along the side of the yard, the row on the side 2 logs high.
+    for z in range(s.shed + 1, s.depth - 2):
+        for x, top in ((1, 2), (2, 1)):
+            for y in range(1, top + 1):
+                job_material(t, x, y, z, log, {"axis": "z"})
+    # The chopping block: a log on its end. The split wood: stripped logs in the east back corner.
+    job_material(t, s.width - 3, 1, s.water[1], log, LOG_Y)
+    for x, y in ((s.width - 3, 1), (s.width - 2, 1), (s.width - 2, 2)):
+        job_material(t, x, y, s.depth - 2, f"minecraft:stripped_{wood}_log", {"axis": "x"})
+    t.set(s.width - 2, 1, s.shed, sapling)
+    return t
+
+
+def style_sawmill(s, job, wood):
+    """The building of a sawyer in the style s: a house with a saw bench across the room behind the beds (a
+    stonecutter between the logs and the slabs), a pile of logs and a stack of planks on the back wall, a crafting
+    table and a barrel (see sawmill).
+
+    All the sawyers have this shape. Only the wood of the logs, the planks and the slabs changes.
+    """
+    rng = random.Random(s.seed + 72)
+    t = s.workshop(rng, job, f"minecraft:{wood}_planks", s.beds)
+    w, back = s.width, s.depth - 2
+    bench = s.depth - 4
+    for x in (2, 3):
+        job_material(t, x, 1, bench, f"minecraft:{wood}_log", {"axis": "x"})
+    t.set(4, 1, bench, "minecraft:stonecutter", {"facing": "north"})
+    for x in (5, 6):
+        job_material(t, x, 1, bench, f"minecraft:{wood}_slab", {"type": "bottom", "waterlogged": "false"})
+    # The logs to saw (west) and the planks (east) on the back wall. The passages at the ends of the bench stay free.
+    for x, y in ((1, 1), (2, 1), (3, 1), (1, 2), (2, 2)):
+        job_material(t, x, y, back, f"minecraft:{wood}_log", {"axis": "x"})
+    for x, y, z in ((w - 3, 1, back), (w - 2, 1, back), (w - 2, 2, back), (w - 2, 1, back - 1)):
+        job_material(t, x, y, z, f"minecraft:{wood}_planks")
+    t.set(1, 1, 3, "minecraft:crafting_table")
+    t.set(w - 2, 1, 2, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, *s.sawmill_lantern)
+    return t
+
+
+def style_mine(s):
+    """The building of the miner in the style s: a house with a smithing table (the work block of the vanilla
+    toolsmith), and a yard with a rock face at the back (see mine). A timber frame in the rock face makes the mouth of
+    the mine, with a lantern under the beam. A rail goes from the back door to the mouth. A pile of cobblestone stands
+    next to the rail. The cobblestone of the pile stays cobblestone in all the variants."""
+    rng = random.Random(s.seed + 73)
+    w = s.width
+    mid = w // 2
+    face = s.depth - 2
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == mid else "minecraft:gravel"
+
+    def plants(x, z):
+        return RAIL if x == mid else None
+
+    t = s.yard_workshop(rng, "miner", "minecraft:iron_pickaxe", ground, plants,
+                        work=("minecraft:smithing_table", None))
+    # The rock face: 3 blocks high, with stone at its foot on the 2 sides.
+    rock = {1: ("minecraft:stone", "minecraft:andesite", "minecraft:stone"),
+            2: ("minecraft:coal_ore", "minecraft:stone", "minecraft:andesite"),
+            w - 3: ("minecraft:iron_ore", "minecraft:stone", "minecraft:stone"),
+            w - 2: ("minecraft:andesite", "minecraft:copper_ore", "minecraft:stone")}
+    for x, column in rock.items():
+        for y, name in enumerate(column, 1):
+            t.set(x, y, face, name)
+    for x in (1, w - 2):
+        t.set(x, 1, face - 1, "minecraft:stone")
+    # The mouth: 2 posts and a beam in the rock face, and the rock behind it in place of the back edge of the yard.
+    for x in (mid - 1, mid + 1):
+        for y in (1, 2):
+            t.set(x, y, face, "minecraft:spruce_log", LOG_Y)
+    for x in (mid - 1, mid, mid + 1):
+        t.set(x, 3, face, "minecraft:spruce_log", {"axis": "x"})
+        for y in (1, 2, 3):
+            t.set(x, y, s.depth - 1, "minecraft:stone")
+    t.set(mid, 2, face, "minecraft:lantern", {"hanging": "true", "waterlogged": "false"})
+    for x, z in ((1, s.shed), (2, s.shed), (1, s.shed + 1)):
+        job_material(t, x, 1, z, "minecraft:cobblestone")
+    t.set(1, 1, 2, *BARREL)
+    return t
+
+
+def style_dig_yard(s):
+    """The building of the digger in the style s: a house with a stonecutter (the work block of the vanilla mason),
+    and a yard with heaps of sand, gravel, clay and dirt along the sides (see dig_yard). A heap of clay and a heap of
+    sand stand in the row in front of the middle of the yard. A path of coarse dirt goes from the back door to the back
+    of the yard."""
+    rng = random.Random(s.seed + 74)
+    w, back = s.width, s.depth - 2
+    front = s.water[1] - 1
+    heaps = {(1, back): "sand", (2, back): "sand", (1, back - 1): "sand", (3, back): "gravel",
+             (w - 4, back): "clay", (w - 3, back): "dirt", (w - 2, back): "dirt", (w - 2, back - 1): "gravel",
+             (1, front): "clay", (w - 2, front): "sand"}
+
+    def plants(x, z):
+        return f"minecraft:{heaps[(x, z)]}" if (x, z) in heaps else None
+
+    t = s.yard_workshop(rng, "digger", "minecraft:iron_shovel", lambda x, z: "minecraft:coarse_dirt", plants,
+                        work=("minecraft:stonecutter", {"facing": "east"}))
+    t.set(1, 2, back, "minecraft:sand")
+    t.set(w - 2, 2, back, "minecraft:dirt")
+    t.set(1, 1, 2, *BARREL)
+    return t
+
+
+def style_mason(s):
+    """The building of the mason in the style s: a house with a stonecutter (the work block of the vanilla mason) and
+    a block of stone to cut in front of it, a brick kiln with a chimney (the oven of the style), and stacks of stone
+    bricks, bricks, smooth stone and terracotta on the back wall (see mason_workshop). In a long house, the lowest layer
+    of the walls is stone bricks. The stacks of stone bricks stay stone bricks in all the variants."""
+    rng = random.Random(s.seed + 75)
+    t = s.workshop(rng, "mason", "minecraft:stone_bricks", s.beds, wall_lower=stone_bricks)
+    s.oven(t)
+    w, back = s.width, s.depth - 2
+    for x, y, z in ((1, 1, back), (1, 2, back), (2, 1, back), (1, 1, back - 1)):
+        job_material(t, x, y, z, "minecraft:stone_bricks")
+    for y in (1, 2):
+        t.set(w - 2, y, back, "minecraft:bricks")
+    t.set(w - 2, 1, back - 1, "minecraft:smooth_stone")
+    t.set(w - 2, 1, back - 2, "minecraft:terracotta")
+    cx, cz = s.mason_cutter
+    t.set(cx, 1, cz, "minecraft:stonecutter", {"facing": "east"})
+    t.set(cx, 1, cz - 1, "minecraft:stone")
+    t.set(w - 2, 1, 3, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, *s.mason_lantern)
+    return t
+
+
+def style_smeltery(s, job):
+    """The building of a smelter in the style s: a house with 2 blast furnaces (the work block of the vanilla armorer)
+    next to a furnace in a brick oven with a chimney (the oven of the style), the raw ore and a block of coal, a water
+    cauldron to cool the metal, and the ingots on a counter (see smeltery). In a long house, the lowest layer of the
+    walls is bricks. The smelter also makes glass: its building has a barrel of sand in front of the cauldron.
+
+    All the smelters have this shape. Only the ore and the ingots change.
+    """
+    icon, ores, plate = SMELTERS[job]
+    rng = random.Random(s.seed + 76)
+    layout = s.smeltery
+    t = s.workshop(rng, job, icon, s.beds, wall_lower=lambda r: "minecraft:bricks")
+    s.oven(t)
+    back = s.depth - 2
+    for x in layout.furnaces:
+        t.set(x, 1, back, "minecraft:blast_furnace", {"facing": "north", "lit": "false"})
+    for z, ore in zip((back, back - 1), ores):
+        t.set(layout.ore_x, 1, z, ore)
+    t.set(layout.coal[0], 1, layout.coal[1], "minecraft:coal_block")
+    cx, cz = layout.cauldron
+    t.set(cx, 1, cz, *WATER_CAULDRON)
+    if job == "smelter":
+        t.set(cx, 1, cz - 1, *BARREL)
+    for x in (s.width - 3, s.width - 2):
+        t.set(x, 1, 3, *TOP_SLAB)
+        t.set(x, 2, 3, plate, {"power": "0"})
+    lantern(t, 1, 1, 2)
+    for pos in layout.lanterns:
+        lantern(t, *pos)
+    return t
+
+
+def style_smithy(s):
+    """The building of the blacksmith in the style s: a forge (see forge_tools) as a house-workshop, with an open
+    front."""
+    rng = random.Random(s.seed + 77)
+    t = s.workshop(rng, *BLACKSMITH, s.beds, wide_front=True)
+    forge_tools(t, s.width, s.depth)
+    return t
+
+
+def style_tinker(s):
+    """The building of the tinker in the style s: a house with a smithing table (the work block of the vanilla
+    toolsmith), blocks of iron and copper, a crafting table, a barrel, a short track of rails, and a counter with a
+    lantern and a lightning rod (the goods of the job). See tinker_workshop."""
+    rng = random.Random(s.seed + 78)
+    t = s.workshop(rng, "tinker", "minecraft:bucket", s.beds)
+    w, back = s.width, s.depth - 2
+    t.set(w - 3, 1, back, "minecraft:smithing_table")
+    t.set(1, 1, back, "minecraft:iron_block")
+    t.set(1, 2, back, "minecraft:waxed_copper_block")
+    t.set(1, 1, back - 1, "minecraft:waxed_copper_block")
+    t.set(2, 1, back, "minecraft:crafting_table")
+    t.set(w - 2, 1, back, *BARREL)
+    # The track: 3 rails at most along the west wall. It stops in front of the west bed.
+    for z in range(3, min(6, s.beds[0][1])):
+        t.set(1, 1, z, *RAIL)
+    for x in (w - 3, w - 2):
+        t.set(x, 1, 4, *TOP_SLAB)
+    lantern(t, w - 3, 2, 4)
+    t.set(w - 2, 2, 4, "minecraft:lightning_rod", {"facing": "up", "powered": "false", "waterlogged": "false"})
+    lantern(t, 1, 1, 2)
+    lantern(t, w - 2, 1, back - 2)
+    return t
+
+
+def style_fletcher_range(s):
+    """The building of the fletcher in the style s: a house with a fletching table (the work block of the vanilla
+    fletcher), and a yard with 2 targets on hay bales at the back and a heap of gravel (the flint of the arrows). A path
+    of coarse dirt goes from the back door to the back of the yard. The targets are not next to the edge of the yard
+    (see fletcher_range)."""
+    rng = random.Random(s.seed + 79)
+    targets = (2, s.width - 3)
+    row = s.depth - 3
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == s.width // 2 else GRASS
+
+    def plants(x, z):
+        if x in targets and z == row:
+            return "minecraft:hay_block", LOG_Y
+        return "minecraft:gravel" if (x, z) == (1, s.depth - 2) else None
+
+    t = s.yard_workshop(rng, "fletcher", "minecraft:arrow", ground, plants, work=("minecraft:fletching_table", None))
+    for x in targets:
+        t.set(x, 2, row, "minecraft:target", {"power": "0"})
+    t.set(1, 1, 2, *BARREL)
+    return t
+
+
+def style_carpenter(s):
+    """The building of the carpenter in the style s: a house with 2 crafting tables and a bench of oak slabs near the
+    door, a stack of oak planks, 2 chests and a barrel on the back wall (see carpenter_workshop). The oak planks and the
+    oak slabs stay oak in all the variants."""
+    rng = random.Random(s.seed + 80)
+    t = s.workshop(rng, "carpenter", "minecraft:crafting_table", s.beds)
+    w, back = s.width, s.depth - 2
+    for x in (2, w - 3):
+        t.set(x, 1, 4, "minecraft:crafting_table")
+    for x in (3, w - 2):
+        job_material(t, x, 1, 4, "minecraft:oak_slab", {"type": "top", "waterlogged": "false"})
+    for x, y, z in ((w - 2, 1, back), (w - 2, 2, back), (w - 3, 1, back), (w - 2, 1, back - 1)):
+        job_material(t, x, y, z, "minecraft:oak_planks")
+    for x in (2, 3):
+        t.set(x, 1, back, "minecraft:chest", {"facing": "north", "type": "single", "waterlogged": "false"})
+    t.set(1, 1, back, *BARREL)
+    lantern(t, 1, 1, 2)
+    lantern(t, w - 2, 1, 2)
+    return t
+
+
+def style_tannery(s):
+    """The building of the tanner in the style s: a house with a cauldron (the work block of the vanilla
+    leatherworker), and a yard with 2 vats of water (water cauldrons) and a rack of fences with hides (brown carpets)
+    on it. A path of coarse dirt goes from the back door to the back of the yard. The vats and the rack are not next to
+    the edge of the yard (see tannery): the rack has 3 fences, or 2 fences in a short yard."""
+    rng = random.Random(s.seed + 81)
+    vats = ((2, s.shed + 2), (3, s.shed + 2))
+    rack = tuple((s.width - 3, z) for z in range(s.shed + 2, min(s.shed + 5, s.depth - 2)))
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == s.width // 2 else GRASS
+
+    def plants(x, z):
+        if (x, z) in vats:
+            return WATER_CAULDRON
+        return "minecraft:spruce_fence" if (x, z) in rack else None
+
+    t = s.yard_workshop(rng, "tanner", "minecraft:leather", ground, plants, work=("minecraft:cauldron", None))
+    for x, z in rack:
+        t.set(x, 2, z, "minecraft:brown_carpet")
+    t.set(1, 1, 2, *BARREL)
+    return t
+
+
+def style_sheepfold(s):
+    """The building of the shepherd in the style s: a house with a loom (the work block of the vanilla shepherd) and
+    bales of wool, and a pen behind it with 2 hay bales, a water trough and a salt lick (a block of calcite) in the
+    first row and in the back row of the pen. The doors of the house and the edge of the yard keep the sheep in the
+    pen. The template has no animals (see ranch). The hay, the trough and the salt lick are not next to the edge of
+    the yard."""
+    rng = random.Random(s.seed + 82)
+    row, last = s.shed + 2, s.depth - 3
+    pen = {(2, row): ("minecraft:hay_block", LOG_Y), (2, last): ("minecraft:hay_block", LOG_Y),
+           (s.width - 3, row): WATER_CAULDRON, (s.width - 3, last): "minecraft:calcite"}
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if (x, z) == (s.width // 2, s.shed) else GRASS
+
+    t = s.yard_workshop(rng, "shepherd", "minecraft:shears", ground, lambda x, z: pen.get((x, z)), work=LOOM)
+    t.set(1, 1, 2, "minecraft:white_wool")
+    t.set(1, 2, 2, "minecraft:white_wool")
+    t.set(2, 1, 2, "minecraft:white_wool")
+    return t
+
+
+def style_weaving_house(s):
+    """The building of the weaver in the style s: a house with 2 looms (the work block of the vanilla shepherd) and
+    stacks of white wool on the back wall, a crafting table for the beds, a barrel, and a counter with rolls of cloth
+    (white carpets) near the door (see weaving_house)."""
+    rng = random.Random(s.seed + 83)
+    t = s.workshop(rng, "weaver", "minecraft:white_carpet", s.beds)
+    w, back = s.width, s.depth - 2
+    for x in (2, w - 3):
+        t.set(x, 1, back, *LOOM)
+    for x, y, z in ((1, 1, back), (1, 2, back), (1, 1, back - 1)):
+        t.set(x, y, z, "minecraft:white_wool")
+    t.set(w - 2, 1, back, "minecraft:crafting_table")
+    t.set(w - 2, 1, back - 2, *BARREL)
+    for x in (w - 3, w - 2):
+        t.set(x, 1, 4, *TOP_SLAB)
+        t.set(x, 2, 4, "minecraft:white_carpet")
+    lantern(t, 1, 1, 2)
+    lantern(t, w - 2, 1, 2)
+    return t
+
+
+def style_dye_works(s):
+    """The building of the dyer in the style s: a house with a loom (the work block of the vanilla shepherd) and bales
+    of dyed wool, and a yard with beds of dandelions, poppies and cornflowers (the colors of the dyes) along the sides
+    and 2 dye vats (water cauldrons). A path of coarse dirt goes from the back door to the back of the yard. The vats
+    are not next to the edge of the yard (see dye_works)."""
+    rng = random.Random(s.seed + 84)
+    w = s.width
+    flowers = {1: "minecraft:dandelion", 2: "minecraft:poppy", w - 3: "minecraft:poppy", w - 2: "minecraft:cornflower"}
+    vats = ((3, s.shed + 2), (w - 4, s.shed + 2))
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == w // 2 else GRASS
+
+    def plants(x, z):
+        return WATER_CAULDRON if (x, z) in vats else flowers.get(x)
+
+    t = s.yard_workshop(rng, "dyer", "minecraft:red_dye", ground, plants, work=LOOM)
+    t.set(1, 1, 2, "minecraft:red_wool")
+    t.set(1, 2, 2, "minecraft:yellow_wool")
+    t.set(2, 1, 2, "minecraft:blue_wool")
+    return t
+
+
+def style_paper_mill(s):
+    """The building of the papermaker in the style s: a house with a lectern (the work block of the vanilla librarian)
+    between 2 vats of pulp (water cauldrons), barrels of sugar cane, a crafting table, bookshelves, and a counter with
+    sheets of paper to dry (white carpets) near the door (see paper_mill). A free block stays next to each work
+    block."""
+    rng = random.Random(s.seed + 85)
+    t = s.workshop(rng, "papermaker", "minecraft:paper", s.beds)
+    w, back = s.width, s.depth - 2
+    mid = w // 2
+    t.set(mid, 1, back - 1, "minecraft:lectern", {"facing": "north", "has_book": "false", "powered": "false"})
+    for x in (mid - 1, mid + 1):
+        t.set(x, 1, back, *WATER_CAULDRON)
+    t.set(1, 1, back, "minecraft:crafting_table")
+    for z in (back - 1, back - 2):
+        t.set(1, 1, z, *BARREL)
+    for x, y, z in ((w - 2, 1, back), (w - 2, 2, back), (w - 2, 1, back - 1)):
+        t.set(x, y, z, "minecraft:bookshelf")
+    for x in (1, 2):
+        t.set(x, 1, 4, *TOP_SLAB)
+        t.set(x, 2, 4, "minecraft:white_carpet")
+    lantern(t, 1, 1, 2)
+    lantern(t, w - 2, 1, 2)
+    return t
+
+
+def style_jobs(s):
+    """The house-workshops of the style s from the builders of the styles, by job: all the jobs of JOBS except the
+    beekeeper, the fisher, the baker, the pastry cook and the butcher. Each style has builders of its own for these
+    5 jobs."""
+    return {
+        "farmer": functools.partial(style_farm, s),
+        "gardener": functools.partial(style_garden, s),
+        "gardener_jungle": functools.partial(style_jungle_garden, s),
+        "forager": functools.partial(style_forager_hut, s),
+        "rancher": functools.partial(style_ranch, s),
+        **{job: functools.partial(style_lumber_yard, s, job, wood) for job, wood in LUMBERJACKS.items()},
+        **{job: functools.partial(style_sawmill, s, job, wood) for job, wood in SAWYERS.items()},
+        "miner": functools.partial(style_mine, s),
+        "digger": functools.partial(style_dig_yard, s),
+        "mason": functools.partial(style_mason, s),
+        **{job: functools.partial(style_smeltery, s, job) for job in SMELTERS},
+        "blacksmith": functools.partial(style_smithy, s),
+        "tinker": functools.partial(style_tinker, s),
+        "fletcher": functools.partial(style_fletcher_range, s),
+        "carpenter": functools.partial(style_carpenter, s),
+        "tanner": functools.partial(style_tannery, s),
+        "shepherd": functools.partial(style_sheepfold, s),
+        "weaver": functools.partial(style_weaving_house, s),
+        "dyer": functools.partial(style_dye_works, s),
+        "papermaker": functools.partial(style_paper_mill, s),
+    }
+
+
+# The Valeholm style of the house-workshops: Norse long houses of LW x LD blocks (see WorkshopStyle).
+VALEHOLM = WorkshopStyle(
+    width=LW, depth=LD, shed=NORSE_SHED, water=NORSE_WATER, seed=0, yard_workshop=norse_yard_workshop,
+    workshop=norse_workshop, oven=norse_oven, beds=NORSE_BEDS,
+    sawmill_lantern=(LW - 2, 1, 4), mason_cutter=(2, 4), mason_lantern=(LW - 2, 1, 6),
+    smeltery=SmelteryLayout(furnaces=(2, 3), ore_x=1, coal=(1, LD - 4), cauldron=(LW - 2, LD - 3), lanterns=()))
+
+# The house-workshops of the Valeholm style, by job: each job of JOBS has a piece of the style.
+NORSE_JOBS = {
+    **style_jobs(VALEHOLM),
+    "beekeeper": norse_apiary,
+    "fisher": norse_fisher_hut,
+    "baker": norse_bakery,
+    "pastry_cook": norse_pastry_shop,
+    "butcher": norse_butchery,
+}
+
+
+# ---------------------------------------------------------------- house-workshops of the Sunreach style
+
+# A Sunreach house-workshop is FW blocks wide, as the flat houses of the style, and CD blocks deep, as the courtyard
+# houses of the style. The farmer, the gardeners, the forager, the beekeeper, the rancher, the fisher, the lumberjacks,
+# the miner, the digger, the fletcher, the tanner, the shepherd and the dyer have a flat house on the street
+# (z = 1..SUN_SHED - 1) and a walled yard behind it.
+SUN_SHED = 7
+SUN_YARD_Z = range(SUN_SHED, CD - 1)
+SUN_YARD_X = range(1, FW - 1)
+# The water of a Sunreach field, in the middle of the yard: it gives water to all the farmland of the yard.
+SUN_WATER = (FW // 2, SUN_SHED + 2)
+# The low wall around a Sunreach yard. The wall connects to its neighbors as in the game (see connect).
+SUN_WALL = "minecraft:sandstone_wall"
+
+
+def sun_workshop_shell(rng, depth=CD, wide_front=False):
+    """The shell of a Sunreach house-workshop: the flat house shell (see flat_house_shell) with a body from z = 1 to
+    z = depth - 1, in a template of FW x FH x CD blocks. The house sign stands on the porch east of the door, and the
+    job sign of the caller west of the door."""
+    shell = flat_house_shell(rng, "house", FW, depth, wide_front=wide_front)
+    t = Template(FW, FH, CD)
+    t.fill(0, 1, 0, FW - 1, FH - 1, CD - 1, "minecraft:air")
+    t.blocks.update(shell.blocks)
+    return t
+
+
+def sun_yard_workshop(rng, job, icon, ground, plants, work=COMPOSTER):
+    """The house-workshop of a job with a yard in the Sunreach style (the beekeeper, the fisher, and the jobs with a
+    yard of style_jobs: the farmer, the gardeners, the forager, the rancher, the lumberjacks, the miner, the digger,
+    the fletcher, the tanner, the shepherd and the dyer): a flat house on the street and a walled yard behind it.
+
+    - The house: the flat house shell with a door on the street and a back door to the yard. The job sign stands on
+      the porch west of the door, and the house sign east of the door.
+    - The work blocks: the work block of the vanilla profession of the job in the west back corner, and a barrel next
+      to the door.
+    - The home: 2 beds side by side in the east half, with the heads to the east. The path from the door to the back
+      door (x = 4) goes along the feet of the beds.
+    - The yard: ground(x, z) gives the ground block of each position, and plants(x, z) gives the block above it, or
+      None. A low sandstone wall goes around the yard, with a lantern on a pillar at each back corner.
+
+    The caller adds the blocks of the job.
+    """
+    t = sun_workshop_shell(rng, SUN_SHED)
+    mid = FW // 2
+    back = SUN_SHED - 1
+    for y, half in ((1, "lower"), (2, "upper")):
+        t.set(mid, y, back, "minecraft:spruce_door",
+              {"facing": "south", "half": half, "hinge": "left", "open": "false", "powered": "false"})
+    t.set(1, 1, back - 1, *work)
+    t.set(mid - 1, 1, 2, *BARREL)
+    lantern(t, FW - 2, 1, 2)
+    home_beds(t, (mid + 1, back - 3), (mid + 1, back - 2), facing="east")
+    job_sign(t, mid - 1, 1, 0, job, icon)
+    for x in range(FW):
+        for z in range(SUN_SHED, CD):
+            if x in SUN_YARD_X and z in SUN_YARD_Z:
+                t.set(x, 0, z, *block(ground(x, z)))
+                plant = plants(x, z)
+                if plant:
+                    t.set(x, 1, z, *block(plant))
+            else:
+                t.set(x, 0, z, "minecraft:sandstone")
+                pillar = x in (0, FW - 1) and z == CD - 1
+                t.set(x, 1, z, "minecraft:cut_sandstone" if pillar else SUN_WALL)
+    for x in (0, FW - 1):
+        lantern(t, x, 2, CD - 1)
+    return t
+
+
+DECORATED_POT = ("minecraft:decorated_pot", {"cracked": "false", "facing": "south", "waterlogged": "false"})
+
+
+def sun_apiary():
+    """The Sunreach building of the beekeeper: 2 beehives on the ground among the flowers, a path of coarse dirt, and
+    pots of honey in the house. A walk in the yard reaches each hive. The yard has no campfire: a campfire burns, and
+    the heart takes it as a brazier."""
+    rng = random.Random(85)
+    mid, row = SUN_WATER
+    hives = ((2, row), (FW - 3, row))
+    flowers = FLOWERS + ("minecraft:oxeye_daisy", "minecraft:allium")
+
+    def ground(x, z):
+        return "minecraft:coarse_dirt" if x == mid else GRASS
+
+    def plants(x, z):
+        if (x, z) in hives:
+            return "minecraft:beehive", {"facing": "south", "honey_level": str(rng.randint(2, 5))}
+        if x == mid or (x + z) % 2:
+            return None
+        return flowers[rng.randrange(len(flowers))]
+
+    t = sun_yard_workshop(rng, "beekeeper", "minecraft:honeycomb", ground, plants)
+    for x in (1, 2):
+        t.set(x, 1, 2, *DECORATED_POT)
+    return t
+
+
+def sun_fisher_hut():
+    """The Sunreach building of the fisher: a house with barrels (the work block of the vanilla fisherman) and a tub,
+    and a yard with a pond for the live catch. The pond is a row of waterlogged slabs, with a path of coarse dirt next
+    to it: a builder stands on the path to add the water."""
+    rng = random.Random(87)
+    pond = range(2, FW - 2)
+    row = CD - 2
+
+    def ground(x, z):
+        if z == row and x in pond:
+            return WATER_SLAB
+        return "minecraft:coarse_dirt" if z == row - 1 or x == FW // 2 else GRASS
+
+    def plants(x, z):
+        return BARREL if (x, z) in ((2, SUN_SHED), (FW - 3, SUN_SHED)) else None
+
+    t = sun_yard_workshop(rng, "fisher", "minecraft:cod", ground, plants, work=BARREL)
+    t.set(1, 1, 2, *WATER_CAULDRON)
+    # The nets: cobwebs high on the side wall, over the free floor between the tub and the barrel. A player on the
+    # floor walks under them. No net is over a block that a player stands on (the barrel, the tub).
+    for z in (3, 4):
+        t.set(1, 3, z, "minecraft:cobweb")
+    return t
+
+
+def sun_workshop(rng, job, icon, beds, wide_front=False, wall_lower=None):
+    """The house-workshop of a job in a Sunreach flat house of FW x CD blocks (the baker, the pastry cook, the butcher,
+    and the jobs with no yard of style_jobs: the sawyers, the mason, the smelters, the blacksmith, the tinker, the
+    carpenter, the weaver and the papermaker), with a door on the street or an open shop front. The job sign
+    stands on the porch west of the door, and the house sign east of the door. beds gives the foot of each bed of the
+    home (see home_beds): the head is 1 block to the back wall. The walls of a flat house have no lower layer of other
+    blocks: the workshop does not use wall_lower. The caller adds the blocks of the job."""
+    t = sun_workshop_shell(rng, wide_front=wide_front)
+    home_beds(t, *beds)
+    job_sign(t, FW // 2 - 1, 1, 0, job, icon)
+    return t
+
+
+def sun_oven(t):
+    """A brick oven on the back wall of a Sunreach house: a furnace in bricks, with a chimney of bricks through the
+    flat roof."""
+    x, z = FW // 2, CD - 2
+    t.set(x, 1, z, "minecraft:furnace", {"facing": "north", "lit": "false"})
+    for dx in (-1, 0, 1):
+        t.set(x + dx, 2, z, "minecraft:bricks")
+        if dx:
+            t.set(x + dx, 1, z, "minecraft:bricks")
+    for y in range(3, FH):
+        t.set(x + 1, y, z, "minecraft:bricks")
+
+
+def sun_bakery():
+    """The Sunreach building of the baker: a brick oven, a crafting table to knead the dough, barrels of flour, the
+    wheat on hay bales, pots of grain and a cake on the counter."""
+    rng = random.Random(88)
+    t = sun_workshop(rng, "baker", "minecraft:bread", ((1, 3), (FW - 2, 3)))
+    sun_oven(t)
+    t.set(1, 1, CD - 2, "minecraft:crafting_table")
+    for x, z in ((1, CD - 4), (2, CD - 2)):
+        t.set(x, 1, z, *BARREL)
+    for x, y, z in ((FW - 2, 1, CD - 2), (FW - 2, 1, CD - 3), (FW - 2, 2, CD - 2)):
+        t.set(x, y, z, "minecraft:hay_block", LOG_Y)
+    for z in (6, 7):
+        t.set(FW - 2, 1, z, *DECORATED_POT)
+    t.set(FW - 2, 1, 2, *TOP_SLAB)
+    t.set(FW - 2, 2, 2, "minecraft:cake", {"bites": "0"})
+    lantern(t, 1, 1, 2)
+    lantern(t, 1, 1, 7)
+    return t
+
+
+def sun_pastry_shop():
+    """The Sunreach building of the pastry cook: an open shop front, a counter with cakes, a brick oven, pumpkins and
+    barrels of sugar."""
+    rng = random.Random(89)
+    t = sun_workshop(rng, "pastry_cook", "minecraft:pumpkin_pie", ((1, 5), (FW - 2, 5)), wide_front=True)
+    sun_oven(t)
+    # The counter behind the open front, with a free passage in the middle.
+    for x in (1, 2, FW - 3, FW - 2):
+        t.set(x, 1, 3, *TOP_SLAB)
+    for x in (2, FW - 3):
+        t.set(x, 2, 3, "minecraft:candle_cake", {"lit": "false"})
+    for x, y in ((1, 1), (2, 1), (1, 2)):
+        t.set(x, y, CD - 2, "minecraft:pumpkin")
+    for z in (CD - 2, CD - 3):
+        t.set(FW - 2, 1, z, *BARREL)
+    lantern(t, 1, 1, 8)
+    lantern(t, FW - 2, 1, 8)
+    return t
+
+
+def sun_butchery():
+    """The Sunreach building of the butcher: 2 smokers (the work block of the vanilla butcher), a block of coal, a
+    chopping block, and a rack of chains under the roof. The chains leave 2 blocks of space under them."""
+    rng = random.Random(90)
+    t = sun_workshop(rng, "butcher", "minecraft:cooked_beef", ((1, 4), (FW - 2, 4)))
+    for x in (5, 6):
+        t.set(x, 1, CD - 2, "minecraft:smoker", {"facing": "north", "lit": "false"})
+    t.set(FW - 2, 1, CD - 2, "minecraft:coal_block")
+    for x in (2, 3, 6):
+        t.set(x, FLAT_WALL_TOP, 8, "minecraft:chain", {"axis": "y", "waterlogged": "false"})
+    t.set(2, 1, 3, "minecraft:stripped_oak_log", LOG_Y)
+    for z in (CD - 2, CD - 3):
+        t.set(1, 1, z, *BARREL)
+    t.set(FW - 2, 1, 3, *WATER_CAULDRON)
+    lantern(t, 1, 1, 2)
+    lantern(t, 1, 1, 7)
+    return t
+
+
+# The beds of a Sunreach workshop with no yard of style_jobs (the sawyers, the mason, the smelters, the blacksmith, the
+# tinker, the carpenter, the weaver and the papermaker): on the 2 side walls, in the middle of the room. The front of
+# the room stays free for the counter and the tools, and the back of the room for the work.
+SUN_CRAFT_BEDS = ((1, 5), (FW - 2, 5))
+
+# The Sunreach style of the house-workshops: flat houses of FW x CD blocks (see WorkshopStyle).
+SUNREACH = WorkshopStyle(
+    width=FW, depth=CD, shed=SUN_SHED, water=SUN_WATER, seed=20, yard_workshop=sun_yard_workshop,
+    workshop=sun_workshop, oven=sun_oven, beds=SUN_CRAFT_BEDS,
+    sawmill_lantern=(FW - 2, 1, 3), mason_cutter=(2, 3), mason_lantern=(FW - 2, 1, 8),
+    smeltery=SmelteryLayout(furnaces=(1, 2), ore_x=FW - 2, coal=(FW - 3, CD - 2), cauldron=(FW - 2, CD - 4),
+                            lanterns=((1, 1, 8),)))
+
+# The house-workshops of the Sunreach style, by job: each job of JOBS has a piece of the style.
+SUNREACH_JOBS = {
+    **style_jobs(SUNREACH),
+    "beekeeper": sun_apiary,
+    "fisher": sun_fisher_hut,
+    "baker": sun_bakery,
+    "pastry_cook": sun_pastry_shop,
+    "butcher": sun_butchery,
+}
+
+
+# ---------------------------------------------------------------- market
+
+# The market square takes the plot of one house. x goes along the street, z goes away from the street: z = 0 is the
+# street side, with the jigsaw connector house_front in the middle. Each layout has:
+# - size: (width along the street, depth);
+# - post: (x, z) of the market post, in the middle of the free part of the square;
+# - stalls: (x, z, facing) of each stall: the corner with the lowest x and z, and the direction of the counter.
+# The caravan yard is in the corner at the west of the street side (see caravan_yard).
+MARKET_LAYOUTS = {
+    # Base, Sunreach and maritime streets: 15 blocks along the street, 9 blocks deep (the depth of a house of 9 x 9).
+    "wide": {
+        "size": (15, 9),
+        "post": (7, 4),
+        "stalls": ((1, 5, "east"), (11, 1, "west"), (11, 5, "west")),
+    },
+    # Valeholm streets: 9 blocks along the street, 15 blocks deep (inside the space of a long house of 9 x 17).
+    "deep": {
+        "size": (9, 15),
+        "post": (4, 7),
+        "stalls": ((1, 11, "north"), (5, 11, "north")),
+    },
+}
+MARKET_HEIGHT = 6
+# The wool of the awning of each stall, in the order of the stalls of the layout.
+AWNINGS = ("red", "yellow", "blue", "lime")
+# The direction of a counter: the step (dx, dz) from the middle of the stall to the counter.
+COUNTER_SIDES = {"east": (1, 0), "west": (-1, 0), "north": (0, -1)}
+
+
+def stall(t, x0, z0, facing, color):
+    """A stall of 3 x 3 blocks: 4 fence posts at the corners, an awning of wool stripes, a counter of a top slab with a
+    lantern on it, and a barrel in the middle of the stall.
+
+    The counter is in the middle of the side of the stall in the direction facing. The barrel is not next to a post:
+    a fence connects to a barrel."""
+    for x in (x0, x0 + 2):
+        for z in (z0, z0 + 2):
+            for y in (1, 2):
+                t.set(x, y, z, "minecraft:spruce_fence")
+    dx, dz = COUNTER_SIDES[facing]
+    for x in range(x0, x0 + 3):
+        for z in range(z0, z0 + 3):
+            # The white stripe goes from the counter to the back of the stall.
+            stripe = (x == x0 + 1) if dx == 0 else (z == z0 + 1)
+            t.set(x, 3, z, f"minecraft:{'white' if stripe else color}_wool")
+    mx, mz = x0 + 1, z0 + 1
+    t.set(mx + dx, 1, mz + dz, *TOP_SLAB)
+    lantern(t, mx + dx, 2, mz + dz)
+    t.set(mx, 1, mz, *BARREL)
+
+
+def caravan_yard(t):
+    """The caravan yard: the corner at the west of the street side (x = 0 to 3, z = 1 to 3), out of the middle of the
+    square. The mules come in from the street.
+
+    - A hitching rail of 3 fences on the west edge (x = 0), with a lantern on each end.
+    - The place of the mules: x = 1 and 2, z = 1 to 3.
+    - A water trough (a water cauldron) and a hay bale at x = 3. They are not next to a fence."""
+    for z in (1, 2, 3):
+        t.set(0, 1, z, "minecraft:spruce_fence")
+    for z in (1, 3):
+        lantern(t, 0, 2, z)
+    t.set(3, 1, 1, *WATER_CAULDRON)
+    t.set(3, 1, 3, "minecraft:hay_block", LOG_Y)
+
+
+def market(layout):
+    """The market square: the place where the workers of the village trade, and where a caravan stops. It takes the
+    plot of one house (see MARKET_LAYOUTS).
+
+    - The square is paved: cobblestone with a border of stone bricks. It is open on all the sides, and the side on the
+      street (z = 0) is free.
+    - The market post stands in the free middle of the square: a log with a lantern on it, on chiseled stone bricks.
+      The market sign stands on the street side of the post and faces the street. The heart finds the market by this
+      sign: the market post is behind it (tag folkhold_world:market_posts).
+    - The stalls (see stall) along the sides of the free middle. The counters face the middle.
+    - The free middle: 7 x 7 blocks around the market post, for the workers.
+    - The caravan yard in a corner of the street side (see caravan_yard).
+    - A lamp post at each corner.
+    """
+    spec = MARKET_LAYOUTS[layout]
+    width, depth = spec["size"]
+    rng = random.Random(81)
+    t = Template(width, MARKET_HEIGHT, depth)
+    t.fill(0, 1, 0, width - 1, MARKET_HEIGHT - 1, depth - 1, "minecraft:air")
+    for x in range(width):
+        for z in range(depth):
+            border = x in (0, width - 1) or z in (0, depth - 1)
+            t.set(x, 0, z, "minecraft:stone_bricks" if border else cobble(rng))
+    px, pz = spec["post"]
+    t.set(px, 0, pz, "minecraft:chiseled_stone_bricks")
+    for y in (1, 2, 3):
+        t.set(px, y, pz, "minecraft:stripped_spruce_log", LOG_Y)
+    lantern(t, px, 4, pz)
+    building_sign(t, px, 1, pz - 1, "market")
+    for (x0, z0, facing), color in zip(spec["stalls"], AWNINGS):
+        stall(t, x0, z0, facing, color)
+    caravan_yard(t)
+    for x, z in ((0, 0), (width - 1, 0), (0, depth - 1), (width - 1, depth - 1)):
+        lamp_post(t, x, z)
+    t.jigsaw(width // 2, 1, 0, "north_up", HOUSE_FRONT, "minecraft:empty", "minecraft:empty", "minecraft:air")
     return t
 
 
@@ -2149,7 +3625,7 @@ JOBS = {
     "digger": dig_yard,
     "mason": mason_workshop,
     **{job: functools.partial(smeltery, job) for job in SMELTERS},
-    "blacksmith": forge,
+    "blacksmith": functools.partial(forge, home=True),
     "tinker": tinker_workshop,
     "fletcher": fletcher_range,
     "carpenter": carpenter_workshop,
@@ -2159,12 +3635,35 @@ JOBS = {
     "dyer": dye_works,
     "papermaker": paper_mill,
 }
+# The house-workshops of the styles of the cultures, by culture and job.
+STYLE_JOBS = {"valeholm": NORSE_JOBS, "sunreach": SUNREACH_JOBS}
+# The cultures whose style has a house-workshop for each job of JOBS. Add a culture here when its style is complete.
+COMPLETE_STYLES = ("valeholm", "sunreach")
+
+
+def check_style_jobs():
+    """Stops the script when a style has a piece for a job that is not in JOBS, or when a complete style (see
+    COMPLETE_STYLES) has no piece for a job of JOBS."""
+    for culture, jobs in STYLE_JOBS.items():
+        unknown = sorted(jobs.keys() - JOBS.keys())
+        if unknown:
+            raise SystemExit(f"The style {culture} has pieces for jobs that are not in JOBS: {unknown}")
+        missing = sorted(JOBS.keys() - jobs.keys())
+        if culture in COMPLETE_STYLES and missing:
+            raise SystemExit(f"Each job needs a house-workshop of the style {culture}. No piece for: {missing}")
+
+
+check_style_jobs()
 
 PIECES = {
     "plaza": plaza,
     "street": street,
     "street_bank": lambda: street(bank=True),
+    "street_jobs": lambda: street(jobs=True),
     "street_end": street_end,
+    "street_next": lambda: street(next_street=True),
+    "street_cross": lambda: street_cross(W),
+    "street_side": lambda: street_side(D),
     "tower": tower_piece,
     "gate": gate_piece,
     "house_cottage": cottage,
@@ -2172,6 +3671,7 @@ PIECES = {
     "house_forge": forge,
     "house_storehouse": storehouse,
     "bank": bank,
+    "market": functools.partial(market, "wide"),
     **{f"job_{job}": build for job, build in JOBS.items()},
 }
 
@@ -2182,19 +3682,28 @@ STYLES = {
     "valeholm": {
         "street": norse_street,
         "street_bank": lambda: norse_street(bank=True),
+        "street_jobs": lambda: norse_street(jobs=True),
+        "street_next": lambda: norse_street(next_street=True),
+        "street_cross": lambda: street_cross(SL),
+        "street_side": lambda: street_side(LD),
         "house_cottage": norse_cottage,
         "house_cottage_side": norse_cottage_side,
         "house_barracks": norse_barracks,
         "house_forge": norse_forge,
         "house_storehouse": norse_storehouse,
         "house_storehouse_side": norse_storehouse_side,
+        "market": functools.partial(market, "deep"),
+        **{f"job_{job}": build for job, build in NORSE_JOBS.items()},
     },
     "sunreach": {
+        "street_cross": lambda: street_cross(CW),
+        "street_side": lambda: street_side(CD),
         "house_cottage": sun_cottage,
         "house_cottage_courtyard": sun_cottage_courtyard,
         "house_barracks": sun_barracks,
         "house_forge": sun_forge,
         "house_storehouse": sun_storehouse,
+        **{f"job_{job}": build for job, build in SUNREACH_JOBS.items()},
     },
 }
 # The pieces of the maritime villages: the village of a site on the coast or on an island, in all the cultures. The
@@ -2204,8 +3713,11 @@ MARITIME = {
     "house_fish_market": fish_market,
     "house_smokehouse": smokehouse,
 }
+# The pieces of the pool "houses" of the maritime villages, with their weights: the buildings of the fishing port
+# (MARITIME) and the houses of HOUSES. Each piece of MARITIME and of HOUSES is in this pool, thus each template that the
+# script writes for a maritime variant is in a pool (VillageTemplateGameTests.eachVillageTemplateIsInAPool).
 MARITIME_HOUSES = [(3, "house_fishing_hut"), (1, "house_fish_market"), (1, "house_smokehouse"),
-                   (2, "house_cottage"), (1, "house_barracks"), (1, "house_storehouse")]
+                   (2, "house_cottage"), (1, "house_barracks"), (1, "house_forge"), (1, "house_storehouse")]
 # The blocks of Immersive Weathering in the maritime pieces, when the mod is present (see OptionalReplaceProcessor).
 WEATHERED = {
     "minecraft:stone": "immersive_weathering:mossy_stone",
@@ -2223,6 +3735,76 @@ STYLE_HOUSES = {
     "sunreach": [(3, "house_cottage"), (2, "house_cottage_courtyard"), (2, "house_barracks"), (1, "house_forge"),
                  (2, "house_storehouse")],
 }
+
+# ---------------------------------------------------------------- first house-workshops
+
+# The job files and the item values of the economy.
+JOB_FILES = os.path.join(ROOT, "main", "resources", "data", "folkhold_world", "folkhold", "jobs")
+ITEM_FILE = os.path.join(ROOT, "main", "resources", "data", "folkhold_world", "folkhold", "items.json")
+# The jobs of the food family (see the table of the jobs in docs/design.md). One output of each job is food.
+FOOD_JOBS = ("farmer", "gardener", "gardener_jungle", "baker", "pastry_cook", "rancher", "butcher", "fisher",
+             "beekeeper")
+# The culture of the pieces of all the cultures: the culture with no style in STYLES. Its multipliers give the weights
+# of the first house-workshops of these pieces. The maritime pieces are for all the cultures: no multiplier.
+COMMON_CULTURE = "ashmark"
+# The biomes of the vanilla biome tags in the job files (Minecraft 1.21.1).
+BIOME_TAGS = {
+    "#minecraft:is_taiga": ["minecraft:taiga", "minecraft:snowy_taiga", "minecraft:old_growth_pine_taiga",
+                            "minecraft:old_growth_spruce_taiga"],
+    "#minecraft:is_jungle": ["minecraft:jungle", "minecraft:sparse_jungle", "minecraft:bamboo_jungle"],
+    "#minecraft:is_savanna": ["minecraft:savanna", "minecraft:savanna_plateau", "minecraft:windswept_savanna"],
+    "#minecraft:is_ocean": ["minecraft:deep_frozen_ocean", "minecraft:deep_cold_ocean", "minecraft:deep_ocean",
+                            "minecraft:deep_lukewarm_ocean", "minecraft:frozen_ocean", "minecraft:ocean",
+                            "minecraft:cold_ocean", "minecraft:lukewarm_ocean", "minecraft:warm_ocean"],
+    "#minecraft:is_beach": ["minecraft:beach", "minecraft:snowy_beach"],
+    "#minecraft:is_river": ["minecraft:river", "minecraft:frozen_river"],
+}
+
+
+@functools.cache
+def job_files():
+    """The job files of the economy, by job id (the name of the file)."""
+    jobs = {}
+    for name in sorted(os.listdir(JOB_FILES)):
+        with open(os.path.join(JOB_FILES, name), encoding="utf-8") as f:
+            jobs[name.removesuffix(".json")] = json.load(f)
+    with open(ITEM_FILE, encoding="utf-8") as f:
+        items = json.load(f)
+    for job in FOOD_JOBS:
+        food = [out["item"] for out in jobs[job]["outputs"] if items.get(out["item"], {}).get("food", 0) > 0]
+        assert food, f"The food job {job} makes no food"
+    return jobs
+
+
+def job_biomes(job):
+    """The biomes of a job file, with the biomes of its tags, or None for all the biomes."""
+    entries = job_files()[job].get("biomes")
+    if not entries:
+        return None
+    return {biome for entry in entries for biome in (BIOME_TAGS[entry] if entry.startswith("#") else [entry])}
+
+
+def first_jobs(v, food):
+    """The first house-workshops of a variant, with their weights: the pieces of the pools jobs_food (food) and
+    jobs_start.
+
+    The jigsaw does not know the level of the settlement: a job goes into the pools only with a minimum level of 1. A
+    job also needs a profession (a worker of the job trades) and a biome list with all the biomes of the variant: the
+    job is valid in each village of the variant. The weight is the weight of the job file times the multiplier of the
+    culture of the variant.
+    """
+    culture = None if v.maritime else v.culture or COMMON_CULTURE
+    result = []
+    for job in JOBS:
+        data = job_files()[job]
+        biomes = job_biomes(job)
+        if data["min_level"] != 1 or "profession" not in data or (food and job not in FOOD_JOBS):
+            continue
+        if biomes is not None and not set(v.biomes) <= biomes:
+            continue
+        result.append((data["weight"] * data.get("cultures", {}).get(culture, 1), f"job_{job}"))
+    assert result, f"No first house-workshop in {v.path('')}"
+    return result
 
 
 # The pieces of the GameTests.
@@ -2345,14 +3927,15 @@ class Variant:
 
     def apply(self, t):
         """The template with the materials of this variant. The jigsaw connectors use the pools of the variant. The
-        fixed positions of the template (see job_material) keep their blocks."""
+        fixed positions of the template (see job_material) keep their blocks. Each fence, wall and pane gets the state
+        that the game gives it from its neighbors after the block replacement (see connect)."""
         out = Template(*t.size)
         prefix = f"{NS}:village/"
         for pos, ((name, props), nbt) in t.blocks.items():
             if nbt is not None and nbt.get("id") == "minecraft:jigsaw" and nbt["pool"].startswith(prefix):
                 nbt = dict(nbt, pool=self.id(nbt["pool"][len(prefix):]))
             out.blocks[pos] = ((name, props) if pos in t.fixed else self.replace(name, props), nbt)
-        return out
+        return connect(out)
 
 
 # The variants of the village, with their biomes. The tag of the biomes of the village has the biomes of all the
@@ -2404,9 +3987,15 @@ def pools(v):
         "homes": pool([(1, house("house_cottage"))]),
         "bank": pool([(1, house("bank"))]),
         "jobs": pool([(1, house(f"job_{job}")) for job in JOBS]),
+        "jobs_food": pool([(weight, house(piece)) for weight, piece in first_jobs(v, True)], v.id("jobs_start")),
+        "jobs_start": pool([(weight, house(piece)) for weight, piece in first_jobs(v, False)], v.id("houses")),
+        "market": pool([(1, house("market"))]),
         "streets_first": pool([(1, street("street"))], v.id("street_ends")),
+        "streets_jobs": pool([(1, street("street_jobs"))], v.id("street_ends")),
         "streets_bank": pool([(1, street("street_bank"))], v.id("street_ends")),
         "street_ends": pool([(1, street("street_end"))]),
+        "streets_next": pool([(2, street("street_next")), (1, street("street_cross"))], v.id("street_ends")),
+        "streets_side": pool([(1, street("street_side"))], v.id("street_ends")),
     }
 
 
@@ -2514,9 +4103,7 @@ def main():
         os.makedirs(folder, exist_ok=True)
         for name, build in v.pieces.items():
             path = os.path.join(folder, name + ".nbt")
-            template = build()
-            connect_panes(template)
-            v.apply(template).write(path)
+            v.apply(build()).write(path)
             print("wrote", os.path.normpath(path))
         for name, data in pools(v).items():
             write_json(os.path.join(WORLDGEN, "template_pool", *v.path(name).split("/")) + ".json", data)
@@ -2528,9 +4115,7 @@ def main():
     os.makedirs(TEST_OUT, exist_ok=True)
     for name, build in TEST_PIECES.items():
         path = os.path.join(TEST_OUT, name + ".nbt")
-        template = build()
-        connect_panes(template)
-        template.write(path)
+        connect(build()).write(path)
         print("wrote", os.path.normpath(path))
 
 

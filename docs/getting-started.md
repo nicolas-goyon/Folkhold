@@ -234,12 +234,15 @@ To see a village in the game: `/locate structure folkhold_world:village`, then `
 
 ## Textures from a script
 
-Scripts make the textures of the villager and zombie villager professions and the armband of the faction golem (world mod). Pillow is in the container. Change a script, then run it:
+Scripts make the textures of the villager and zombie villager professions, the armband of the faction golem and the map decoration icons (world mod). The scripts need Pillow and PixVox: PixVox writes the PNG files with the same bytes on all machines. The container has the two. Outside the container, install them first: `pip install -r tools/pixvox/requirements.txt`. Change a script, then run it:
 
 ```bash
 python3 tools/textures/villager_professions.py
 python3 tools/textures/golem_armband.py
+python3 tools/textures/map_decorations.py
 ```
+
+A script does not write a PNG file when its pixels do not change.
 
 ## Blocks from PixVox
 

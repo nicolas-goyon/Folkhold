@@ -6,12 +6,19 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.npc.AbstractVillager;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 
 /**
  * Cancels damage between units of the same village (for example an arrow of an archer that hits a guard). The horses of
  * the riders of the village count as units of the village. Units without a village do not hurt other units without a
  * village.
+ *
+ * <p>A unit also does not hurt a villager or a trader ({@link AbstractVillager}: the villagers, the wandering traders
+ * and the caravan merchants). A unit never targets them, thus all the damage from a unit to them is an accident: for
+ * example an arrow that misses a raider and hits a villager behind the raider. During a raid, the death of the last
+ * villagers near the center of the raid ends the raid in a loss: without this rule, the archers of the village can
+ * make the village fall.
  */
 public final class FriendlyFire {
 
@@ -20,7 +27,7 @@ public final class FriendlyFire {
 
     public static void onIncomingDamage(LivingIncomingDamageEvent event) {
         if (event.getSource().getEntity() instanceof FactionUnit attacker
-                && isOfVillage(event.getEntity(), attacker.getVillagePos())) {
+                && (event.getEntity() instanceof AbstractVillager || isOfVillage(event.getEntity(), attacker.getVillagePos()))) {
             event.setCanceled(true);
         }
     }

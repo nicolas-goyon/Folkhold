@@ -117,4 +117,56 @@ class LevelTableTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new LevelTable(levels, List.of(new Tier("a", 1, 2)), List.of(new StartChance(1, 3, 1))));
     }
+
+    @Test
+    void startLevelOfAChunkIsStableForASeedAndAChunk() {
+        assertEquals(TABLE.startLevel(42L, 3, -7), TABLE.startLevel(42L, 3, -7));
+        assertEquals(LevelTable.startSeed(42L, 3, -7), LevelTable.startSeed(42L, 3, -7));
+        int differentChunk = 0;
+        int differentSeed = 0;
+        for (int x = 0; x < 200; x++) {
+            if (TABLE.startLevel(42L, x, 0) != TABLE.startLevel(42L, x + 1, 0)) {
+                differentChunk++;
+            }
+            if (TABLE.startLevel(x, 5, 5) != TABLE.startLevel(x + 1, 5, 5)) {
+                differentSeed++;
+            }
+        }
+        assertTrue(differentChunk > 50, "The chunk must change the level: " + differentChunk);
+        assertTrue(differentSeed > 50, "The world seed must change the level: " + differentSeed);
+    }
+
+    /** The start levels of the chunks of a world follow the weights of the start chances (40, 30, 20, 8, 2). */
+    @Test
+    void startLevelsOfTheChunksFollowTheWeights() {
+        int[] tiers = new int[5];
+        int samples = 0;
+        for (long seed : new long[] {0L, -4_172_144_997_891_116_000L, 123_456_789L}) {
+            for (int x = -50; x < 50; x++) {
+                for (int z = -50; z < 50; z++) {
+                    int level = TABLE.startLevel(seed, x, z);
+                    assertTrue(level >= 1 && level <= 16, "Start level out of range: " + level);
+                    int range = level == 1 ? 0 : level <= 4 ? 1 : (level - 1) / 4 + 1;
+                    tiers[range]++;
+                    samples++;
+                }
+            }
+        }
+        double[] weights = {0.40, 0.30, 0.20, 0.08, 0.02};
+        for (int i = 0; i < weights.length; i++) {
+            double share = (double) tiers[i] / samples;
+            assertTrue(Math.abs(share - weights[i]) < 0.01, "Range " + i + ": share " + share + ", weight "
+                    + weights[i]);
+        }
+    }
+
+    @Test
+    void startChanceInTheLastTierIsRejected() {
+        LevelTraits traits = new LevelTraits(10, 1, 1, 1, 1, 1, 1, GARRISON);
+        List<LevelTraits> levels = List.of(traits, traits);
+        List<Tier> tiers = List.of(new Tier("a", 1, 1), new Tier("capital", 2, 2));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> new LevelTable(levels, tiers, List.of(new StartChance(1, 2, 1))));
+        assertTrue(error.getMessage().contains("last tier capital"), error.getMessage());
+    }
 }

@@ -6,6 +6,11 @@ import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BlockKind;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildBlock;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.BuildPos;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.ConstructionPlanner;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Plan;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Reach;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.Step;
+import io.github.nicolasgoyon.folkhold.core.sim.construction.StepType;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.Target;
 import io.github.nicolasgoyon.folkhold.core.sim.construction.WorkZone;
 import io.github.nicolasgoyon.folkhold.core.sim.economy.Stock;
@@ -17,6 +22,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
 import io.github.nicolasgoyon.folkhold.world.config.WorldConfig;
+import io.github.nicolasgoyon.folkhold.world.construction.BlockKinds;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderMaterials;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderNavigation;
 import io.github.nicolasgoyon.folkhold.world.construction.BuilderSite;
@@ -32,10 +38,12 @@ import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairData;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
@@ -51,6 +59,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.Items;
@@ -58,8 +67,11 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -106,6 +118,31 @@ public final class BuilderSiteGameTests {
     private static final int CATCH_UP_STEPS = 4;
     /** The work of the builders while the chunks are not loaded, in steps: more than the steps of the site. */
     private static final double PENDING_STEPS = 200.0;
+    /** The failure message of a test with builders shows this number of losses of health at most. */
+    private static final int MAX_HURT_RECORDS = 20;
+    /** The failure message of the test of the cottage shows this number of positions on a wall at most. */
+    private static final int MAX_WALL_RECORDS = 20;
+    /** The walls of the cottage go from this layer of the template to {@link #COTTAGE_WALL_TOP}. */
+    private static final int COTTAGE_WALL_BOTTOM = 1;
+    private static final int COTTAGE_WALL_TOP = 4;
+    /** In the test of a direct move to a column, the glass ring is at this distance from the block of the site. */
+    private static final int RING = 2;
+    /** The lowest corner of the two rooms of {@link #twoRoomsPlan}. */
+    private static final BlockPos ROOMS = new BlockPos(12, 1, 12);
+    /**
+     * In the test of a direct move to a column, the builder jumps when it has no path for this number of ticks. The
+     * builder goes to its position directly after 100 ticks with no path.
+     */
+    private static final int JUMP_BEFORE_DIRECT = 95;
+    /**
+     * In the test of a direct move to a column, the horizontal speed of the jump on each axis that goes out from the
+     * block of the site, in blocks for each tick.
+     */
+    private static final double JUMP_SPEED = 0.4;
+    /** In the test of a direct move to a column, the vertical speed of the jump, in blocks for each tick. */
+    private static final double JUMP_UP = 0.25;
+    /** In the test of a direct move to a column, the last jump is this number of ticks before the move or fewer. */
+    private static final int JUMP_TO_MOVE_TICKS = 2;
 
     private BuilderSiteGameTests() {
     }
@@ -484,6 +521,359 @@ public final class BuilderSiteGameTests {
     }
 
     /**
+     * A builder that goes directly to the top of a scaffolding column stays on the top. This is also true when the
+     * builder jumps at that time.
+     *
+     * <p>The block of the site is 7 blocks above the floor. A glass ring is around the block, at 2 blocks from it. The
+     * ring is 2 blocks high, and the builders cannot go over it. The plan puts a scaffolding column of 3 blocks on the
+     * ring. The top of the column is 5 blocks above the floor. The builder cannot walk to the bottom of the column. Thus
+     * it goes directly to the top of the column.
+     *
+     * <p>A builder that has no path often jumps. In the last ticks before the direct move, the test makes the builder
+     * jump. The jump goes out from the block, on the axes where the column is on the ring. The test records each loss of
+     * health with the data of the builder (see {@link #recordHurts}).
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_direct", skyAccess = true)
+    public static void builderThatGoesDirectlyStaysOnTheColumn(GameTestHelper helper) {
+        List<Villager> builders = village(helper, ARENA, 1);
+        Villager builder = builders.get(0);
+        ServerLevel level = helper.getLevel();
+        BlockPos block = new BlockPos(16, 7, 16);
+        ResourceLocation id = template(helper, "builder_direct", block, block, Blocks.OAK_PLANKS);
+        for (BlockPos pos : BlockPos.betweenClosed(block.getX() - RING, 1, block.getZ() - RING, block.getX() + RING,
+                2, block.getZ() + RING)) {
+            if (Math.max(Math.abs(pos.getX() - block.getX()), Math.abs(pos.getZ() - block.getZ())) == RING) {
+                helper.setBlock(pos, Blocks.GLASS);
+            }
+        }
+        BlockPos origin = helper.absolutePos(block);
+        BoundingBox box = BoundingBox.fromCorners(origin, origin);
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE, helper.absolutePos(HEART),
+                null);
+        List<String> hurts = new ArrayList<>();
+        recordHurts(helper, site, builders, hurts);
+        double[] highest = {0.0};
+        // The tick of the last jump, and the first tick on the top of the column.
+        long[] lastJump = {-1L};
+        long[] arrival = {-1L};
+        int floorY = helper.absolutePos(BlockPos.ZERO).getY();
+        helper.onEachTick(() -> {
+            double feet = builder.getY() - floorY;
+            highest[0] = Math.max(highest[0], feet);
+            if (arrival[0] < 0 && feet >= block.getY() - 2) {
+                arrival[0] = level.getGameTime();
+            }
+            Optional<Long> since = builder.getBrain().getMemory(MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE);
+            boolean stuck = since.isPresent() && level.getGameTime() - since.get() >= JUMP_BEFORE_DIRECT;
+            Optional<BlockPos> column = columnOnRing(helper, block);
+            if (arrival[0] < 0 && stuck && column.isPresent()) {
+                // The jump goes out from the block, on the axes where the column is on the ring.
+                int outX = Integer.signum(column.get().getX() - block.getX());
+                int outZ = Integer.signum(column.get().getZ() - block.getZ());
+                boolean onX = Math.abs(column.get().getX() - block.getX()) == RING;
+                boolean onZ = Math.abs(column.get().getZ() - block.getZ()) == RING;
+                builder.setDeltaMovement(onX ? outX * JUMP_SPEED : 0.0, JUMP_UP, onZ ? outZ * JUMP_SPEED : 0.0);
+                lastJump[0] = level.getGameTime();
+            }
+        });
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, block, block, Blocks.OAK_PLANKS);
+                    List<BlockPos> leftovers = leftovers(level, box);
+                    boolean alive = builder.isAlive();
+                    float health = builder.getHealth();
+                    boolean healthy = health >= builder.getMaxHealth();
+                    cleanUp(helper, builders, block, block);
+                    for (BlockPos pos : BlockPos.betweenClosed(block.getX() - RING, 1, block.getZ() - RING,
+                            block.getX() + RING, 2, block.getZ() + RING)) {
+                        helper.setBlock(pos, Blocks.AIR);
+                    }
+                    helper.assertTrue(missing.isEmpty(), "The block of the site must be in place: " + missing);
+                    helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
+                    helper.assertTrue(highest[0] >= block.getY() - 1, "The builder must go to the top of the column: "
+                            + highest[0]);
+                    helper.assertTrue(lastJump[0] >= 0 && arrival[0] >= 0
+                            && arrival[0] - lastJump[0] <= JUMP_TO_MOVE_TICKS, "The builder must jump just before it"
+                            + " goes directly to the column: last jump at " + lastJump[0] + ", arrival at "
+                            + arrival[0]);
+                    helper.assertTrue(alive, "The builder must stay alive, damage: " + hurts);
+                    helper.assertTrue(healthy, "The builder must not fall: its health is " + health + ", damage: "
+                            + hurts);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The top block of the scaffolding column on the glass ring of the test of a direct move, or empty before the plan
+     * puts the column.
+     */
+    private static Optional<BlockPos> columnOnRing(GameTestHelper helper, BlockPos block) {
+        for (BlockPos pos : BlockPos.betweenClosed(block.getX() - RING, block.getY() - 2, block.getZ() - RING,
+                block.getX() + RING, block.getY() - 2, block.getZ() + RING)) {
+            if (helper.getBlockState(pos).is(Blocks.SCAFFOLDING)) {
+                return Optional.of(pos.immutable());
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * A builder stands on a block of the target that is in the level before the site, when the plan selects it. The
+     * plan does not place this block, thus the block is not the top of a new wall (see {@link BuilderSite}).
+     *
+     * <p>A stone pillar of 2 blocks is in the level and in the template. A cobblestone block next to the pillar is a
+     * step from the ground to the top of the pillar. The block of the site is 3 blocks above the pillar, next to it.
+     * The plan selects the top of the pillar as the position to stand: no other floor has the block in its reach
+     * zone.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_level_floor", skyAccess = true)
+    public static void builderStandsOnATargetBlockOfTheLevel(GameTestHelper helper) {
+        List<Villager> builders = village(helper, ARENA, 1);
+        ServerLevel level = helper.getLevel();
+        BlockPos pillar = new BlockPos(16, 1, 16);
+        BlockPos block = pillar.offset(1, 4, 0);
+        BlockPos step = pillar.west();
+        BlockPos stand = pillar.above(2);
+        helper.setBlock(pillar, Blocks.STONE);
+        helper.setBlock(pillar.above(), Blocks.STONE);
+        helper.setBlock(block, Blocks.OAK_PLANKS);
+        BlockPos min = helper.absolutePos(pillar);
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "test/builder_level_floor");
+        StructureTemplate template = level.getStructureManager().getOrCreate(id);
+        template.fillFromWorld(level, min, block.subtract(pillar).offset(1, 1, 1), false, null);
+        helper.setBlock(block, Blocks.AIR);
+        helper.setBlock(step, Blocks.COBBLESTONE);
+        BuilderSite site = BuilderSites.start(level, id, min, Rotation.NONE, Mirror.NONE, helper.absolutePos(HEART),
+                null);
+        String planned = "stand " + helper.absolutePos(stand);
+        boolean[] onPillar = {false};
+        helper.onEachTick(() -> {
+            if (site.phase() == BuilderSite.Phase.BUILD && site.describeBuilder(builders.get(0).getUUID())
+                    .contains(planned)) {
+                onPillar[0] = true;
+            }
+        });
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, min), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, block, block, Blocks.OAK_PLANKS);
+                    cleanUp(helper, builders, pillar, block);
+                    helper.setBlock(step, Blocks.AIR);
+                    helper.assertTrue(missing.isEmpty(), "The block of the site must be in place: " + missing);
+                    helper.assertTrue(onPillar[0], "The builder must take the position of the plan on the pillar: "
+                            + helper.absolutePos(stand));
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * A site keeps the blocks of its plan in its saved data: after a load, the top of a wall that the builders built
+     * before the save is still the top of a new wall (see {@link BuilderSite#isWallTop}).
+     *
+     * <p>The builders build a wall of 4 × 2 blocks on the ground. When a block of the upper layer is in place, the
+     * test saves the site and loads a copy of it. The block of the upper layer is on a block of the plan: it is the
+     * top of a new wall for the site and for its copy.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_saved_wall", skyAccess = true)
+    public static void siteKeepsTheTopsOfItsWallsAfterALoad(GameTestHelper helper) {
+        List<Villager> builders = village(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos to = new BlockPos(17, 2, 16);
+        ResourceLocation id = template(helper, "builder_saved_wall", from, to, Blocks.OAK_PLANKS);
+        BlockPos origin = helper.absolutePos(from);
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE, helper.absolutePos(HEART),
+                null);
+        // The first block of the upper layer in place, the result for the site, and the result for its copy.
+        BlockPos[] top = {null};
+        boolean[] results = new boolean[2];
+        helper.onEachTick(() -> {
+            if (top[0] != null || site.phase() != BuilderSite.Phase.BUILD) {
+                return;
+            }
+            for (BlockPos pos : BlockPos.betweenClosed(from.atY(to.getY()), to)) {
+                BlockPos block = helper.absolutePos(pos);
+                if (level.getBlockState(block).is(Blocks.OAK_PLANKS)) {
+                    top[0] = block.immutable();
+                    results[0] = site.isWallTop(level, top[0]);
+                    results[1] = BuilderSite.load(site.save()).map(copy -> copy.isWallTop(level, top[0]))
+                            .orElse(false);
+                    return;
+                }
+            }
+        });
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, from, to, Blocks.OAK_PLANKS);
+                    cleanUp(helper, builders, from, to);
+                    helper.assertTrue(missing.isEmpty(), "The wall must be in place: " + missing);
+                    helper.assertTrue(top[0] != null, "A block of the upper layer must go in place during the build");
+                    helper.assertTrue(results[0], "The block at " + top[0] + " must be the top of a new wall");
+                    helper.assertTrue(results[1], "After a load, the block at " + top[0]
+                            + " must stay the top of a new wall");
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The plan selects a position to stand with a way through a door before a position with a way over the top of a
+     * new wall (see {@link #twoRoomsPlan}). The block above the wall between the rooms has a position to stand in each
+     * room at the same distance. The builder stands in the east room, with the way through its door.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "builder_plan_ways")
+    public static void planUsesTheWayThroughTheDoor(GameTestHelper helper) {
+        Plan plan = twoRoomsPlan(helper, "builder_plan_door", true);
+        helper.assertTrue(plan.warnings().isEmpty(), "The plan must have no warnings: " + plan.warnings());
+        BlockPos east = helper.absolutePos(ROOMS.offset(5, 0, 2));
+        Optional<BlockPos> stand = twoRoomsStand(helper, plan);
+        helper.assertTrue(stand.equals(Optional.of(east)), "The builder must stand in the room with the door at "
+                + east + ": " + stand);
+        helper.succeed();
+    }
+
+    /**
+     * With no clear way, the plan keeps a position to stand with a way over the top of a new wall (see
+     * {@link #twoRoomsPlan}). The two rooms have no door: only the west room has a way, over its wall. The plan adds
+     * no scaffolding and has no warning.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 20, batch = "builder_plan_ways")
+    public static void planKeepsAWayOverAWall(GameTestHelper helper) {
+        Plan plan = twoRoomsPlan(helper, "builder_plan_wall", false);
+        helper.assertTrue(plan.warnings().isEmpty(), "The plan must have no warnings: " + plan.warnings());
+        BlockPos west = helper.absolutePos(ROOMS.offset(3, 0, 2));
+        Optional<BlockPos> stand = twoRoomsStand(helper, plan);
+        helper.assertTrue(stand.equals(Optional.of(west)), "The builder must stand in the west room at " + west + ": "
+                + stand);
+        helper.assertTrue(plan.steps().stream().noneMatch(step -> step.type() == StepType.PLACE_SCAFFOLDING),
+                "The plan must add no scaffolding");
+        helper.succeed();
+    }
+
+    /**
+     * The plan of two rooms with walls of 2 blocks, from a template. The rooms are side by side, with a wall between
+     * them. The west room has no door: a cobblestone step of the level, out of the template, gives a way over its west
+     * wall. The east room has an oak door in its east wall, or a wall with no door. An oak planks block is above the
+     * wall between the rooms. The plan starts on the floor of the arena.
+     */
+    private static Plan twoRoomsPlan(GameTestHelper helper, String name, boolean door) {
+        TestSupport.buildFloor(helper, ARENA);
+        ServerLevel level = helper.getLevel();
+        BlockPos to = ROOMS.offset(8, 2, 4);
+        for (BlockPos pos : BlockPos.betweenClosed(ROOMS, ROOMS.offset(8, 1, 4))) {
+            int x = pos.getX() - ROOMS.getX();
+            int z = pos.getZ() - ROOMS.getZ();
+            if (x == 0 || x == 4 || x == 8 || z == 0 || z == 4) {
+                helper.setBlock(pos, Blocks.STONE);
+            }
+        }
+        if (door) {
+            BlockState lower = Blocks.OAK_DOOR.defaultBlockState().setValue(DoorBlock.FACING, Direction.WEST)
+                    .setValue(DoorBlock.OPEN, false);
+            BlockPos gap = ROOMS.offset(8, 0, 2);
+            helper.setBlock(gap, lower.setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER));
+            helper.setBlock(gap.above(), lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+        }
+        helper.setBlock(ROOMS.offset(4, 2, 2), Blocks.OAK_PLANKS);
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "test/" + name);
+        StructureTemplate template = level.getStructureManager().getOrCreate(id);
+        BlockPos origin = helper.absolutePos(ROOMS);
+        template.fillFromWorld(level, origin, to.subtract(ROOMS).offset(1, 1, 1), false, null);
+        // The upper part of the door first: else the lower part drops an item.
+        for (int y = to.getY(); y >= ROOMS.getY(); y--) {
+            for (BlockPos pos : BlockPos.betweenClosed(ROOMS.atY(y), to.atY(y))) {
+                helper.setBlock(pos, Blocks.AIR);
+            }
+        }
+        BlockPos step = ROOMS.offset(-1, 0, 2);
+        helper.setBlock(step, Blocks.COBBLESTONE);
+        try {
+            return ConstructionPlanner.plan(ConstructionTargets.fromTemplate(level, template, origin,
+                    new StructurePlaceSettings()), ConstructionTargets.view(level), Reach.DEFAULT);
+        } finally {
+            helper.setBlock(step, Blocks.AIR);
+        }
+    }
+
+    /** The position to stand of the plan of {@link #twoRoomsPlan} for the oak planks block above the rooms. */
+    private static Optional<BlockPos> twoRoomsStand(GameTestHelper helper, Plan plan) {
+        BuildPos block = BlockKinds.toBuildPos(helper.absolutePos(ROOMS.offset(4, 2, 2)));
+        return plan.steps().stream().filter(step -> step.type() == StepType.PLACE && step.pos().equals(block))
+                .findFirst().flatMap(Step::stand).map(BlockKinds::toBlockPos);
+    }
+
+    /**
+     * After a load in the middle of a build, the new plan of the site does not put a builder on the top of a wall that
+     * the builders built before the save (see {@link BuilderSite#plan}).
+     *
+     * <p>The template is a wall of 5 × 2 blocks on the ground and an oak planks block above the wall, at the side of
+     * it. A cobblestone step of the level, out of the template, at the end of the wall gives a way on the top of the
+     * wall. The builder on the ground does not reach the planks block. When the wall is in place and the planks block
+     * is not, the test saves the site, loads a copy of it and gets the plan of the copy. The planks block of this plan
+     * has a position to stand that is not on the wall.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_site_saved_plan", skyAccess = true)
+    public static void planAfterALoadKeepsTheBuildersOffTheWalls(GameTestHelper helper) {
+        List<Villager> builders = village(helper, ARENA, 1);
+        ServerLevel level = helper.getLevel();
+        BlockPos from = new BlockPos(14, 1, 16);
+        BlockPos wallTo = new BlockPos(18, 2, 16);
+        BlockPos block = new BlockPos(16, 4, 17);
+        BlockPos to = new BlockPos(18, 4, 17);
+        for (BlockPos pos : BlockPos.betweenClosed(from, wallTo)) {
+            helper.setBlock(pos, Blocks.STONE);
+        }
+        helper.setBlock(block, Blocks.OAK_PLANKS);
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "test/builder_saved_plan");
+        StructureTemplate template = level.getStructureManager().getOrCreate(id);
+        BlockPos origin = helper.absolutePos(from);
+        template.fillFromWorld(level, origin, to.subtract(from).offset(1, 1, 1), false, null);
+        for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
+            helper.setBlock(pos, Blocks.AIR);
+        }
+        BlockPos step = from.west();
+        helper.setBlock(step, Blocks.COBBLESTONE);
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE, helper.absolutePos(HEART),
+                null);
+        Set<BlockPos> wall = new HashSet<>();
+        BlockPos.betweenClosed(from, wallTo).forEach(pos -> wall.add(helper.absolutePos(pos)));
+        BuildPos planks = BlockKinds.toBuildPos(helper.absolutePos(block));
+        // The plan of the copy, once.
+        List<Plan> plans = new ArrayList<>();
+        helper.onEachTick(() -> {
+            if (!plans.isEmpty() || site.phase() != BuilderSite.Phase.BUILD
+                    || !wall.stream().allMatch(pos -> level.getBlockState(pos).is(Blocks.STONE))
+                    || !level.getBlockState(helper.absolutePos(block)).isAir()) {
+                return;
+            }
+            BuilderSite.load(site.save()).flatMap(copy -> copy.plan(level)).ifPresent(plans::add);
+        });
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    List<BlockPos> missing = missing(helper, block, block, Blocks.OAK_PLANKS);
+                    cleanUp(helper, builders, from, to);
+                    helper.setBlock(step, Blocks.AIR);
+                    helper.assertTrue(missing.isEmpty(), "The planks block must be in place: " + missing);
+                    helper.assertTrue(plans.size() == 1, "The test must get the plan of the copy");
+                    Plan plan = plans.get(0);
+                    helper.assertTrue(plan.warnings().isEmpty(), "The plan must have no warnings: " + plan.warnings());
+                    Optional<BlockPos> stand = plan.steps().stream()
+                            .filter(next -> next.type() == StepType.PLACE && next.pos().equals(planks)).findFirst()
+                            .flatMap(Step::stand).map(BlockKinds::toBlockPos);
+                    helper.assertTrue(stand.isPresent(), "The planks block must have a position to stand");
+                    helper.assertFalse(wall.contains(stand.get().below()), "After a load, the builder must not stand"
+                            + " on the top of the wall at " + stand.get().below());
+                })
+                .thenSucceed();
+    }
+
+    /**
      * The navigation of a builder goes around the scaffolding: the path to a position behind a row of columns does not
      * go through the columns. The path goes into the bottom of the column that the builder climbs. At the end, the
      * villager gets its own navigation back.
@@ -526,7 +916,8 @@ public final class BuilderSiteGameTests {
     /**
      * The builders build the cottage of the villages: the walls, the roof, the door and the windows, with scaffolding
      * for the high blocks. The blocks of the level are the blocks of the template at the end. No builder falls: a
-     * scaffolding block goes only when no builder is on its column.
+     * scaffolding block goes only when no builder is on its column. No builder stands on the top block of a wall: the
+     * test records the position of each builder at each tick (see {@link #recordWallSteps}).
      */
     @GameTest(template = "arena_huge", timeoutTicks = 24000, batch = "builder_site_cottage", skyAccess = true)
     public static void buildersBuildTheCottage(GameTestHelper helper) {
@@ -549,10 +940,15 @@ public final class BuilderSiteGameTests {
                 helper.absolutePos(HEART), null);
         List<String> hurts = new ArrayList<>();
         recordHurts(helper, site, builders, hurts);
+        List<String> onWalls = new ArrayList<>();
+        recordWallSteps(helper, site, builders, cottageWalls(helper, expected, box), onWalls);
+        long start = level.getGameTime();
         helper.startSequence()
                 .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
                         + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
                 .thenExecute(() -> {
+                    FolkholdWorld.LOGGER.debug("The builders build the cottage in {} ticks",
+                            level.getGameTime() - start);
                     daylight.set(cycle, level.getServer());
                     List<String> differences = differences(expected, ConstructionTargets.fromLevel(level,
                             new BlockPos(box.minX(), box.minY(), box.minZ()),
@@ -564,36 +960,107 @@ public final class BuilderSiteGameTests {
                     cleanUp(helper, builders, from, to);
                     helper.assertTrue(differences.isEmpty(), "Blocks different from the template: " + differences);
                     helper.assertTrue(leftovers.isEmpty(), "Fences or scaffolding after the end: " + leftovers);
-                    helper.assertTrue(alive, "The builders must stay alive");
+                    helper.assertTrue(alive, "The builders must stay alive, damage: " + hurts);
                     helper.assertTrue(healthy, "The builders must not fall: their health is " + health
                             + ", damage: " + hurts);
+                    helper.assertTrue(onWalls.isEmpty(), "The builders must not stand on the top of a wall: "
+                            + onWalls);
                 })
                 .thenSucceed();
     }
 
     /**
-     * Records each loss of health of the builders: the damage source, the position relative to the test, the block
-     * below, the fall distance of the tick before, and the work of the builder on the site. The failure message of the
-     * test shows these records.
+     * The positions of the blocks of the walls of the cottage: the sides of the body of the house (the template
+     * without the porch, at the north side), from the layer {@value #COTTAGE_WALL_BOTTOM} to the layer
+     * {@value #COTTAGE_WALL_TOP}. Each of these positions has a block in the template.
+     */
+    private static Set<BlockPos> cottageWalls(GameTestHelper helper, Target expected, BoundingBox box) {
+        Set<BlockPos> walls = new HashSet<>();
+        int north = box.minZ() + 1;
+        for (BlockPos pos : BlockPos.betweenClosed(box.minX(), box.minY() + COTTAGE_WALL_BOTTOM, north, box.maxX(),
+                box.minY() + COTTAGE_WALL_TOP, box.maxZ())) {
+            if (pos.getX() == box.minX() || pos.getX() == box.maxX() || pos.getZ() == north
+                    || pos.getZ() == box.maxZ()) {
+                BuildBlock block = expected.at(new BuildPos(pos.getX(), pos.getY(), pos.getZ()));
+                helper.assertTrue(block.kind() != BlockKind.AIR, "The wall of the cottage must have a block at " + pos);
+                walls.add(pos.immutable());
+            }
+        }
+        return walls;
+    }
+
+    /**
+     * Records each tick where a builder stands on the top block of a wall: the block that holds the builder (see
+     * {@link Entity#getOnPos}) is a block of a wall in the level, and the position above it has no collision. The
+     * failure message of the test shows the first {@value #MAX_WALL_RECORDS} records, and the number of the other
+     * records.
+     */
+    private static void recordWallSteps(GameTestHelper helper, BuilderSite site, List<Villager> builders,
+            Set<BlockPos> walls, List<String> records) {
+        int[] more = {0};
+        helper.onEachTick(() -> {
+            ServerLevel level = helper.getLevel();
+            for (Villager builder : builders) {
+                BlockPos on = builder.getOnPos();
+                BlockPos above = on.above();
+                boolean onWall = walls.contains(on) && !level.getBlockState(on).isAir()
+                        && level.getBlockState(above).getCollisionShape(level, above).isEmpty();
+                if (!onWall) {
+                    continue;
+                }
+                if (records.size() < MAX_WALL_RECORDS) {
+                    records.add(String.format(Locale.ROOT, "{builder %d, tick %d, position %s, %s}", builder.getId(),
+                            helper.getTick(), helper.relativeVec(builder.position()),
+                            site.describeBuilder(builder.getUUID())));
+                } else {
+                    more[0]++;
+                    String note = "{" + more[0] + " other ticks on a wall}";
+                    if (more[0] == 1) {
+                        records.add(note);
+                    } else {
+                        records.set(records.size() - 1, note);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Records each loss of health of the builders: the damage source and the type of the entity that caused it, the
+     * position relative to the test, the block below, the fall distance of the tick before, and the work of the
+     * builder on the site. The failure message of the test shows these records: the first
+     * {@value #MAX_HURT_RECORDS} records, and the number of the other losses of health.
      */
     private static void recordHurts(GameTestHelper helper, BuilderSite site, List<Villager> builders,
             List<String> hurts) {
         Map<Villager, Float> health = new HashMap<>();
         Map<Villager, Float> falls = new HashMap<>();
+        int[] more = {0};
         helper.onEachTick(() -> {
             ServerLevel level = helper.getLevel();
             for (Villager builder : builders) {
                 float before = health.getOrDefault(builder, builder.getMaxHealth());
                 if (builder.getHealth() < before) {
-                    DamageSource source = builder.getLastDamageSource();
-                    BlockPos below = builder.blockPosition().below();
-                    hurts.add(String.format(Locale.ROOT,
-                            "{builder %d, health %.1f to %.1f, source %s, position %s, block below %s, fall %.2f, %s}",
-                            builder.getId(), before, builder.getHealth(),
-                            source == null ? "none" : source.getMsgId(),
-                            helper.relativeVec(builder.position()),
-                            BuiltInRegistries.BLOCK.getKey(level.getBlockState(below).getBlock()),
-                            falls.getOrDefault(builder, 0.0F), site.describeBuilder(builder.getUUID())));
+                    if (hurts.size() < MAX_HURT_RECORDS) {
+                        DamageSource source = builder.getLastDamageSource();
+                        Entity cause = source == null ? null : source.getEntity();
+                        BlockPos below = builder.blockPosition().below();
+                        hurts.add(String.format(Locale.ROOT, "{builder %d, health %.1f to %.1f, source %s%s, position"
+                                + " %s, block below %s, fall %.2f, %s}", builder.getId(), before, builder.getHealth(),
+                                source == null ? "none" : source.getMsgId(),
+                                cause == null ? "" : " by " + EntityType.getKey(cause.getType()),
+                                helper.relativeVec(builder.position()),
+                                BuiltInRegistries.BLOCK.getKey(level.getBlockState(below).getBlock()),
+                                falls.getOrDefault(builder, 0.0F), site.describeBuilder(builder.getUUID())));
+                    } else {
+                        more[0]++;
+                        String note = "{" + more[0] + " other losses of health}";
+                        if (more[0] == 1) {
+                            hurts.add(note);
+                        } else {
+                            hurts.set(hurts.size() - 1, note);
+                        }
+                    }
                 }
                 health.put(builder, builder.getHealth());
                 falls.put(builder, builder.fallDistance);

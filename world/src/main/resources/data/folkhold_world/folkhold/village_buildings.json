@@ -3,6 +3,7 @@
     {"kind": "storehouse", "min_level": 3},
     {"kind": "barracks", "min_level": 9},
     {"kind": "storehouse", "min_level": 9},
-    {"kind": "barracks", "min_level": 17}
+    {"kind": "barracks", "min_level": 17},
+    {"kind": "market", "min_level": 5}
   ]
 }
