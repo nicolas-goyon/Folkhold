@@ -20,6 +20,7 @@ import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageGrowth;
+import io.github.nicolasgoyon.folkhold.world.village.VillageLayout;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
 import io.github.nicolasgoyon.folkhold.world.village.VillageRepairs;
 import io.github.nicolasgoyon.folkhold.world.village.structure.FortifiedVillageStructure;
@@ -62,8 +63,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class VillageCenterGameTests {
     /** The first candidate chunk: far from the spawn and from the areas of the other tests. */
     private static final int FIRST_CHUNK = 15000;
-    /** The distance between 2 candidate chunks, in chunks. */
-    private static final int CANDIDATE_STEP = 12;
+    /**
+     * The distance between 2 candidate chunks, in chunks. A city of the start levels is about 15 chunks wide with its
+     * wall: the villages of 2 styles do not overlap.
+     */
+    private static final int CANDIDATE_STEP = 16;
     private static final int CANDIDATES = 8;
     /** The number of offered quests of the village. */
     private static final int OFFERS = 2;
@@ -77,22 +81,22 @@ public final class VillageCenterGameTests {
     private VillageCenterGameTests() {
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200, batch = "village_center_base")
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "village_center_base")
     public static void baseVillageKeepsItsCenter(GameTestHelper helper) {
         checkStyle(helper, "", 0);
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200, batch = "village_center_valeholm")
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "village_center_valeholm")
     public static void valeholmVillageKeepsItsCenter(GameTestHelper helper) {
         checkStyle(helper, "valeholm/", 1);
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200, batch = "village_center_sunreach")
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "village_center_sunreach")
     public static void sunreachVillageKeepsItsCenter(GameTestHelper helper) {
         checkStyle(helper, "sunreach/", 2);
     }
 
-    @GameTest(template = "empty", timeoutTicks = 200, batch = "village_center_maritime")
+    @GameTest(template = "empty", timeoutTicks = 400, batch = "village_center_maritime")
     public static void maritimeVillageKeepsItsCenter(GameTestHelper helper) {
         checkStyle(helper, "maritime/", 3);
     }
@@ -118,6 +122,9 @@ public final class VillageCenterGameTests {
         Settlement[] settlement = new Settlement[1];
         helper.startSequence()
                 .thenIdle(CHUNK_LOAD)
+                // The forced chunks of a large village are ready after some ticks: the first garrison waits for them.
+                .thenWaitUntil(() -> helper.assertTrue(VillageLayout.isAreaReady(level, heart.scanArea(level)),
+                        "The scan area of the village must be ready"))
                 .thenExecute(() -> {
                     heart.ensureSettlement();
                     settlement[0] = Settlements.of(server, heart).orElseThrow();
@@ -137,12 +144,12 @@ public final class VillageCenterGameTests {
                 .thenIdle(GARRISON_STEP)
                 .thenExecute(() -> heart.ensureGarrison(level.getGameTime()))
                 .thenIdle(BOARD_UPDATE)
+                // The papers of the board: else the checks of the test find nothing. The board of a large village can
+                // need more updates.
+                .thenWaitUntil(() -> helper.assertTrue(papers(level, heart) == OFFERS,
+                        "The quest board must show the offers: " + papers(level, heart)))
                 .thenExecute(() -> {
                     List<String> broken = new ArrayList<>();
-                    // The papers of the board and the builders: else the checks of the test find nothing.
-                    int papers = heart.getLayout().questBoards().stream().map(level::getBlockState)
-                            .filter(state -> state.hasProperty(QuestBoardBlock.PAPERS))
-                            .mapToInt(state -> state.getValue(QuestBoardBlock.PAPERS)).max().orElse(0);
                     int builders = VillageFolk.of(level, village.heart(), ModProfessions.BUILDER.get()).size();
                     try {
                         BuilderSites.of(level, village.heart()).forEach(site -> broken.addAll(log(level, folder,
@@ -161,12 +168,18 @@ public final class VillageCenterGameTests {
                         clear(server, offers);
                         setForced(level, village.box(), false);
                     }
-                    helper.assertTrue(papers == OFFERS, "The quest board must show the offers: " + papers);
                     helper.assertTrue(builders > 0, "The village " + folder + " must have builders");
                     helper.assertTrue(broken.isEmpty(), "The builders must keep the plaza of the village "
                             + folder + ": " + broken.stream().limit(10).toList());
                 })
                 .thenSucceed();
+    }
+
+    /** The largest number of papers of the quest boards of the scan of a heart. */
+    private static int papers(ServerLevel level, VillageHeartBlockEntity heart) {
+        return heart.getLayout().questBoards().stream().map(level::getBlockState)
+                .filter(state -> state.hasProperty(QuestBoardBlock.PAPERS))
+                .mapToInt(state -> state.getValue(QuestBoardBlock.PAPERS)).max().orElse(0);
     }
 
     /**
@@ -233,7 +246,7 @@ public final class VillageCenterGameTests {
         // The style with no variants: the biome and the culture of the GameTest world do not select another style.
         FortifiedVillageStructure style = new FortifiedVillageStructure(new Structure.StructureSettings(
                 structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
-                pool(pools, "village/" + folder + "plaza"), structure.size(), structure.maxDistanceFromCenter(),
+                pool(pools, "village/" + folder + "plaza"), structure.maxDistanceFromCenter(),
                 structure.wall(), pools.getHolderOrThrow(ResourceKey.create(Registries.TEMPLATE_POOL, homes)),
                 List.of());
         ChunkGenerator generator = level.getChunkSource().getGenerator();

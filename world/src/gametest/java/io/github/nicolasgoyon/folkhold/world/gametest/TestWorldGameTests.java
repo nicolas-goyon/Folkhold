@@ -50,7 +50,7 @@ public final class TestWorldGameTests {
     /** The village leaves this free space, in blocks, east of the origin: the spawn point is near the origin. */
     private static final int SPAWN_MARGIN = 32;
     /** The village starts at this distance from the origin, in blocks, or nearer: the player sees it. */
-    private static final int VIEW_DISTANCE = 128;
+    private static final int VIEW_DISTANCE = 160;
 
     private TestWorldGameTests() {
     }

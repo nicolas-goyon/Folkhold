@@ -101,7 +101,7 @@ public final class FirstJobsGameTests {
         // The style with no variants: the biome and the culture of the GameTest world do not select another style.
         FortifiedVillageStructure village = new FortifiedVillageStructure(new Structure.StructureSettings(
                 structure.biomes(), structure.spawnOverrides(), structure.step(), structure.terrainAdaptation()),
-                pool(pools, "village/" + folder + "plaza"), structure.size(), structure.maxDistanceFromCenter(),
+                pool(pools, "village/" + folder + "plaza"), structure.maxDistanceFromCenter(),
                 structure.wall(), pool(pools, "village/" + folder + "homes"), List.of());
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         for (int i = 0; i < CANDIDATES; i++) {

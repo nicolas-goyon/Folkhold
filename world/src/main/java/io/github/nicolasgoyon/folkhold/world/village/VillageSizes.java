@@ -43,7 +43,8 @@ public final class VillageSizes extends SimplePreparableReloadListener<VillageSi
     public static final ResourceLocation FILE =
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "folkhold/village_sizes.json");
 
-    private static VillageSizeTable current = VillageSizeTable.DEFAULT;
+    /** Volatile: the threads of the world generation read the table. */
+    private static volatile VillageSizeTable current = VillageSizeTable.DEFAULT;
 
     /** The current table. */
     public static VillageSizeTable get() {

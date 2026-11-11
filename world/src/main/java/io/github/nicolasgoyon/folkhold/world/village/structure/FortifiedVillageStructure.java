@@ -4,11 +4,21 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import io.github.nicolasgoyon.folkhold.core.sim.level.LevelTable;
+import io.github.nicolasgoyon.folkhold.core.sim.village.StreetStyle;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSite;
+import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.faction.CultureMap;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
+import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
+import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.VillageBeds;
 import io.github.nicolasgoyon.folkhold.world.village.VillagePlots;
 import io.github.nicolasgoyon.folkhold.world.village.VillageReference;
+import io.github.nicolasgoyon.folkhold.world.village.VillageSizes;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -23,6 +33,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -31,43 +42,44 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureType;
 import net.minecraft.world.level.levelgen.structure.TerrainAdjustment;
-import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;
-import net.minecraft.world.level.levelgen.structure.pools.DimensionPadding;
-import net.minecraft.world.level.levelgen.structure.pools.JigsawPlacement;
+import net.minecraft.world.level.levelgen.structure.pools.EmptyPoolElement;
+import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
-import net.minecraft.world.level.levelgen.structure.pools.alias.PoolAliasLookup;
 import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
 /**
- * The faction village: the pieces of the jigsaw pools, in a closed wall.
+ * The faction village: the streets and the buildings of the plan of its tier, in a closed wall.
  *
  * <ul>
- *   <li>The start piece goes on the terrain. Its origin is the north-west corner of the start chunk, and its
- *       rotation is random.</li>
+ *   <li>The start piece (the plaza) goes on the terrain. Its origin is the north-west corner of the start chunk, and
+ *       its rotation is random.</li>
  *   <li>The terrain around the middle of the start piece must accept a village (see {@link VillageSite}): the plaza
  *       is not on water, the water does not cover half of the place, and the slope is not one of the steepest. The
  *       discovery of the settlements uses the same check: a settlement has a village.</li>
- *   <li>The other pieces of the pools go on the connectors of the start piece, as in a vanilla jigsaw
- *       structure.</li>
- *   <li>Then the structure adds the wall around all the pieces and around the space of a new home on each free plot
- *       (see {@link VillageWall}, {@link VillagePlots#reserved}). The wall has towers, a gate on each axis of the start
- *       piece and the palisade. Paths go from the gates to the streets.</li>
+ *   <li>The start level of the village comes from the world seed and the start chunk (see
+ *       {@link Settlements#startLevel(long, ChunkPos)}). Its tier gives the size of the village (see
+ *       {@link VillageSizes}): the plot target and the maximum radius of the plan (see {@link VillagePlan}).</li>
+ *   <li>The street pieces and the buildings on the plots come from the plan (see {@link VillagePlanPieces}). The spare
+ *       plots stay free.</li>
+ *   <li>Then the structure adds the wall around all the pieces and around the space of each free plot (see
+ *       {@link VillageWall}). The wall has towers, a gate on each axis of the start piece and the palisade. Paths go
+ *       from the gates to the streets.</li>
  * </ul>
+ *
+ * <p>A saved village keeps its pieces: only a new village start uses this generation.
  *
  * <p>Type {@code folkhold_world:fortified_village}. The JSON object has the fields of all the structures, and these
  * fields:
  *
  * <ul>
  *   <li>{@code start_pool}: the pool of the start piece.</li>
- *   <li>{@code size}: the maximum number of connections from the start piece to a piece, as in a jigsaw
- *       structure.</li>
- *   <li>{@code max_distance_from_center}: the pieces of the pools stay in this distance from the middle of the start
- *       piece, in blocks.</li>
+ *   <li>{@code max_distance_from_center}: the largest radius of the plan, in blocks. The plan of a tier with a
+ *       larger radius uses this radius.</li>
  *   <li>{@code wall}: the settings of the wall (see {@link WallSettings}).</li>
  *   <li>{@code homes}: the pool of the homes that the builders of the village build on the free plots (see
- *       {@link VillagePlots}).</li>
+ *       {@link VillagePlots}). The pools of the streets and of the buildings of the plan are in its folder.</li>
  *   <li>{@code variants}: the biome variants of the village (see {@link Variant}). The biome at the middle of the start
  *       piece selects the first variant with this biome. In the other biomes, the village uses the start pool, the
  *       wall and the homes of the structure: the base variant. A site on the coast selects a maritime variant (see
@@ -84,8 +96,6 @@ public final class FortifiedVillageStructure extends Structure {
             .<FortifiedVillageStructure>mapCodec(instance -> instance.group(
                     settingsCodec(instance),
                     StructureTemplatePool.CODEC.fieldOf("start_pool").forGetter(FortifiedVillageStructure::startPool),
-                    Codec.intRange(0, JigsawStructure.MAX_DEPTH).fieldOf("size")
-                            .forGetter(FortifiedVillageStructure::size),
                     Codec.intRange(1, MAX_RANGE).fieldOf("max_distance_from_center")
                             .forGetter(FortifiedVillageStructure::maxDistanceFromCenter),
                     WallSettings.CODEC.fieldOf("wall").forGetter(FortifiedVillageStructure::wall),
@@ -132,7 +142,6 @@ public final class FortifiedVillageStructure extends Structure {
     }
 
     private final Holder<StructureTemplatePool> startPool;
-    private final int size;
     private final int maxDistanceFromCenter;
     private final WallSettings wall;
     private final Holder<StructureTemplatePool> homes;
@@ -140,12 +149,11 @@ public final class FortifiedVillageStructure extends Structure {
     /** The base variant: the start pool, the wall and the homes of the structure, in all the biomes. */
     private final Variant base;
 
-    public FortifiedVillageStructure(StructureSettings settings, Holder<StructureTemplatePool> startPool, int size,
+    public FortifiedVillageStructure(StructureSettings settings, Holder<StructureTemplatePool> startPool,
             int maxDistanceFromCenter, WallSettings wall, Holder<StructureTemplatePool> homes,
             List<Variant> variants) {
         super(settings);
         this.startPool = startPool;
-        this.size = size;
         this.maxDistanceFromCenter = maxDistanceFromCenter;
         this.wall = wall;
         this.homes = homes;
@@ -155,7 +163,7 @@ public final class FortifiedVillageStructure extends Structure {
 
     /**
      * The game places the pieces of a structure only in a range of 8 chunks from the start chunk. The wall is outside
-     * the pieces of the pools: it needs the margin, the line of the palisade and the outer row of the gates.
+     * the pieces of the plan: it needs the margin, the line of the palisade and the outer row of the gates.
      */
     private static DataResult<FortifiedVillageStructure> verifyRange(FortifiedVillageStructure structure) {
         int adaptation = structure.terrainAdaptation() == TerrainAdjustment.NONE ? 0 : ADAPTATION_RANGE;
@@ -170,18 +178,29 @@ public final class FortifiedVillageStructure extends Structure {
 
     @Override
     public Optional<GenerationStub> findGenerationPoint(GenerationContext context) {
-        ChunkPos chunk = context.chunkPos();
-        BlockPos start = new BlockPos(chunk.getMinBlockX(), 0, chunk.getMinBlockZ());
-        // The culture of the region, the biome at the middle of the start piece of the base variant and the site select
-        // the variant. The two placements start with the same random. Thus the start piece of a variant of the same
-        // pieces has the same rotation and the same middle (the start pieces have the same size), and the village has
-        // the same layout in these variants.
-        restartRandom(context);
-        Optional<GenerationStub> stub = place(context, base, start);
-        if (stub.isEmpty()) {
+        Optional<Start> start = start(context);
+        if (start.isEmpty()) {
             return Optional.empty();
         }
-        BlockPos middle = stub.get().position();
+        Start village = start.get();
+        return Optional.of(new GenerationStub(village.center(), builder -> layout(context, village,
+                sizeAt(context.seed(), context.chunkPos())).pieces().forEach(builder::addPiece)));
+    }
+
+    /**
+     * The start of a village at the start chunk of a context: the plaza, its variant and its site. Empty if the site
+     * does not accept a village.
+     */
+    private Optional<Start> start(GenerationContext context) {
+        // The culture of the region, the biome at the middle of the plaza of the base variant and the site select the
+        // variant. The two placements start with the same random. Thus the plaza of a variant has the same rotation and
+        // the same middle (the plazas have the same size), and the village has the same layout in these variants.
+        restartRandom(context);
+        Optional<Start> start = plaza(context, base, false, Optional.empty());
+        if (start.isEmpty()) {
+            return Optional.empty();
+        }
+        BlockPos middle = start.get().center();
         VillageSite.Result site = checkSite(context, middle);
         if (site != VillageSite.Result.ACCEPTED && site != VillageSite.Result.MARITIME) {
             return Optional.empty();
@@ -190,26 +209,194 @@ public final class FortifiedVillageStructure extends Structure {
         CultureMap cultures = new CultureMap(context.seed(), context.biomeSource(), context.randomState().sampler());
         Variant variant = variantAt(cultures.cultureAt(middle.getX(), middle.getZ()), biomeAt(context, middle),
                 maritime);
-        if (variant != base) {
-            restartRandom(context);
-            stub = place(context, variant, start);
+        if (variant == base) {
+            return start;
         }
-        if (stub.isEmpty()) {
-            return Optional.empty();
-        }
-        GenerationStub village = stub.get();
-        return Optional.of(new GenerationStub(village.position(),
-                builder -> generate(context, village, variant, maritime, builder)));
+        restartRandom(context);
+        return plaza(context, variant, maritime, Optional.empty());
     }
 
     /**
-     * The start piece of a variant at the start position, as a stub. The position of the stub is the middle of the
-     * start piece, on the surface of the terrain. The other pieces of the pools come with the generation.
+     * The plaza of a variant at the start chunk, from the random of the context: the random rotation, then the random
+     * element of the start pool. The plaza goes on the surface of the terrain at its middle. A given rotation takes the
+     * place of the random rotation: the random gives the same element of the start pool.
      */
-    private Optional<GenerationStub> place(GenerationContext context, Variant variant, BlockPos start) {
-        return JigsawPlacement.addPieces(context, variant.startPool(), Optional.empty(), size, start, false,
-                Optional.of(Heightmap.Types.WORLD_SURFACE_WG), maxDistanceFromCenter, PoolAliasLookup.EMPTY,
-                DimensionPadding.ZERO, LiquidSettings.APPLY_WATERLOGGING);
+    private static Optional<Start> plaza(GenerationContext context, Variant variant, boolean maritime,
+            Optional<Rotation> turn) {
+        StructureTemplateManager templates = context.structureTemplateManager();
+        ChunkPos chunk = context.chunkPos();
+        Rotation rotation = turn.orElse(Rotation.getRandom(context.random()));
+        StructurePoolElement element = variant.startPool().value().getRandomTemplate(context.random());
+        if (element == EmptyPoolElement.INSTANCE) {
+            return Optional.empty();
+        }
+        BlockPos origin = new BlockPos(chunk.getMinBlockX(), 0, chunk.getMinBlockZ());
+        PoolElementStructurePiece plaza = new PoolElementStructurePiece(templates, element, origin,
+                element.getGroundLevelDelta(), rotation, element.getBoundingBox(templates, origin, rotation),
+                LiquidSettings.APPLY_WATERLOGGING);
+        BoundingBox box = plaza.getBoundingBox();
+        int x = (box.minX() + box.maxX()) / 2;
+        int z = (box.minZ() + box.maxZ()) / 2;
+        int ground = context.chunkGenerator().getFirstFreeHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG,
+                context.heightAccessor(), context.randomState());
+        plaza.move(0, ground - (box.minY() + plaza.getGroundLevelDelta()), 0);
+        return Optional.of(new Start(plaza, new BlockPos(x, ground, z), variant, maritime));
+    }
+
+    /**
+     * The start of a village.
+     *
+     * @param plaza    the start piece
+     * @param center   the middle of the plaza, on the surface of the terrain
+     * @param variant  the variant
+     * @param maritime true for a maritime site
+     */
+    private record Start(PoolElementStructurePiece plaza, BlockPos center, Variant variant, boolean maritime) {
+    }
+
+    /**
+     * The layout of a village: all its pieces, without the placement of blocks.
+     *
+     * @param size     the size of the tier of the village
+     * @param style    the style of the street pieces
+     * @param plan     the plan of the streets and of the plots
+     * @param center   the middle of the plaza
+     * @param village  the plaza, the street pieces and the buildings
+     * @param reserved the spaces of the free plots: the spare plots, and the wide plots with no home of the pools
+     * @param wall     the pieces of the wall
+     * @param built    the number of plots with a building
+     * @param free     the number of free plots
+     * @param problems the pieces and the plots of the plan with no element of their pool: empty for valid pools
+     */
+    public record Layout(VillageSize size, StreetStyle style, VillagePlan plan, BlockPos center,
+            List<PoolElementStructurePiece> village, List<BoundingBox> reserved, List<StructurePiece> wall, int built,
+            int free, List<String> problems) {
+        public Layout {
+            village = List.copyOf(village);
+            reserved = List.copyOf(reserved);
+            wall = List.copyOf(wall);
+            problems = List.copyOf(problems);
+        }
+
+        /** All the pieces of the village: the plaza first, then the streets, the buildings and the wall. */
+        public List<StructurePiece> pieces() {
+            List<StructurePiece> pieces = new ArrayList<>(village);
+            pieces.addAll(wall);
+            return pieces;
+        }
+    }
+
+    /**
+     * The layout of the village at the start chunk of a context, as the generation makes it.
+     *
+     * @param context the context of the generation
+     * @return the layout, or empty if the site does not accept a village
+     */
+    public Optional<Layout> layout(GenerationContext context) {
+        return start(context).map(start -> layout(context, start, sizeAt(context.seed(), context.chunkPos())));
+    }
+
+    /**
+     * The layout of a village of a variant and of a size at the start chunk of a context, with no check of the site.
+     * The tests and the commands use this method to make a village of a tier.
+     *
+     * @param context  the context of the generation
+     * @param variant  the variant
+     * @param maritime true for a maritime site: the palisade stands on the land side only
+     * @param size     the size of the tier
+     * @return the layout, or empty if the start pool of the variant gives no plaza
+     */
+    public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, VillageSize size) {
+        return layout(context, variant, maritime, size, Optional.empty());
+    }
+
+    /**
+     * As {@link #layout(GenerationContext, Variant, boolean, VillageSize)}, with a given rotation of the plaza in place
+     * of the random rotation.
+     *
+     * @param context  the context of the generation
+     * @param variant  the variant
+     * @param maritime true for a maritime site
+     * @param size     the size of the tier
+     * @param rotation the rotation of the plaza, or empty for the random rotation
+     * @return the layout, or empty if the start pool of the variant gives no plaza
+     */
+    public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, VillageSize size,
+            Optional<Rotation> rotation) {
+        restartRandom(context);
+        return plaza(context, variant, maritime, rotation).map(start -> layout(context, start, size));
+    }
+
+    /**
+     * The size of the village at a start chunk: the size of the tier of its start level.
+     *
+     * @param worldSeed the seed of the world
+     * @param chunk     the start chunk
+     * @return the size
+     */
+    public static VillageSize sizeAt(long worldSeed, ChunkPos chunk) {
+        return VillageSizes.forLevel(Settlements.startLevel(worldSeed, chunk));
+    }
+
+    /**
+     * The pieces of the plan, then the pieces of the wall around them. The wall also keeps the space of each free plot.
+     * A maritime village has the palisade on its land side only (see {@link VillageWall}).
+     */
+    private Layout layout(GenerationContext context, Start start, VillageSize size) {
+        StreetStyle style = styleOf(start.variant());
+        int radius = Math.min(size.maxRadius(), maxDistanceFromCenter);
+        VillageSize limited = new VillageSize(size.tier(), size.plots(), size.bedsPerPlot(), size.spareShare(), radius,
+                size.rings(), size.wall(), size.minTerritoryRadius());
+        int plazaSize = start.plaza().getBoundingBox().getXSpan();
+        long seed = VillagePlanPieces.seed(context.seed(), context.chunkPos());
+        VillagePlan plan = VillagePlan.plan(limited, plotTarget(size), style, plazaSize,
+                VillagePlan.Start.around(plazaSize), FortifiedVillageStructure::goodTerrain, seed);
+        VillagePlanPieces.Result result = VillagePlanPieces.place(context, start.plaza(), start.center(),
+                start.variant().homes(), style, plan, RandomSource.create(seed));
+        List<StructurePiece> village = new ArrayList<>(result.pieces());
+        List<StructurePiece> wall = VillageWall.add(context, village, result.reserved(), start.center(),
+                start.variant().wall(), start.maritime());
+        if (!result.problems().isEmpty() || plan.missingPlots() > 0 || plan.missingHomes() > 0) {
+            FolkholdWorld.LOGGER.warn("The village of the tier {} in the start chunk {} has {} missing plots, {} missing"
+                    + " homes and these problems: {}", size.tier(), context.chunkPos(), plan.missingPlots(),
+                    plan.missingHomes(), result.problems());
+        }
+        return new Layout(size, style, plan, start.center(), result.pieces(), result.reserved(), wall,
+                result.built(), result.free(), result.problems());
+    }
+
+    /**
+     * The terrain test of the plots of the plan: each plot has good terrain. A building on bad terrain stands on the
+     * foundation of its template.
+     */
+    @SuppressWarnings("unused")
+    private static boolean goodTerrain(VillagePlan.Box area) {
+        return true;
+    }
+
+    /**
+     * The plot target of a size: the plots of the size, or the beds rule with the maximum population of the top level
+     * of the tier and the places of the hall (see {@link VillageSize#plots(int, int)}).
+     */
+    private static int plotTarget(VillageSize size) {
+        LevelTable levels = LevelTables.get();
+        int population = levels.tiers().stream().filter(tier -> tier.id().equals(size.tier())).findFirst()
+                .map(tier -> levels.traits(tier.maxLevel()).maxPopulation()).orElse(0);
+        return size.plots(population, VillageBeds.staff());
+    }
+
+    /**
+     * The style of the street pieces of a variant, from the folder of the pool of its homes: the style with the name of
+     * a folder of the path (for example {@code village/sunreach/desert/homes}), else the style of all the cultures.
+     *
+     * @param variant the variant
+     * @return the style
+     */
+    public static StreetStyle styleOf(Variant variant) {
+        List<String> folders = variant.homes().unwrapKey().map(key -> List.of(key.location().getPath().split("/")))
+                .orElse(List.of());
+        return StreetStyle.ALL.stream().filter(style -> folders.contains(style.name())).findFirst()
+                .orElse(StreetStyle.BASE);
     }
 
     /** Sets the random of the context to its start value: the random of the structure at the chunk of the context. */
@@ -326,23 +513,9 @@ public final class FortifiedVillageStructure extends Structure {
     }
 
     /**
-     * Adds the pieces of the pools, then the pieces of the wall around them. The wall also keeps the space of a new
-     * home on each free plot (see {@link #reservedSpaces}). A maritime village has the palisade on its land side
-     * only (see {@link VillageWall}).
-     */
-    private void generate(GenerationContext context, GenerationStub village, Variant variant, boolean maritime,
-            StructurePiecesBuilder builder) {
-        List<StructurePiece> pieces = village.getPiecesBuilder().build().pieces();
-        pieces.forEach(builder::addPiece);
-        StructureTemplateManager templates = context.structureTemplateManager();
-        List<BoundingBox> freePlots = reservedSpaces(context.registryAccess(), templates, variant.homes(), pieces);
-        VillageWall.add(context, pieces, freePlots, village.position(), variant.wall(), maritime)
-                .forEach(builder::addPiece);
-    }
-
-    /**
-     * The spaces that the wall of a village keeps for its growth: the space of a new home on each free plot of the
-     * pieces. The space holds each piece of the pool of the homes of the variant and of its pool of house-workshops
+     * The spaces of a new home on each free plot connector of some pieces: the generation does not use this method (it
+     * keeps the space of the free plots of the plan, see {@link Layout#reserved()}). The tests use it for a village of
+     * hand-placed pieces. The space holds each piece of the pool of the homes of the variant and of its pool of house-workshops
      * (see {@link VillagePlots#reserved} and {@link VillagePlots#homePools}).
      *
      * @param registries the registries of the server
@@ -366,12 +539,7 @@ public final class FortifiedVillageStructure extends Structure {
         return startPool;
     }
 
-    /** The maximum number of connections from the start piece to a piece. */
-    public int size() {
-        return size;
-    }
-
-    /** The maximum distance of the pieces of the pools from the middle of the start piece, in blocks. */
+    /** The largest radius of the plan of a village, in blocks. */
     public int maxDistanceFromCenter() {
         return maxDistanceFromCenter;
     }
