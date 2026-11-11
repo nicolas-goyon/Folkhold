@@ -219,11 +219,10 @@ public final class RaidBalanceGameTests {
     /**
      * Exit criterion of version 1: a town (level 9) holds against a raid of level 3. Cell "raid level 3, town" of the
      * targets. Measured with the culture {@link #CULTURE}: holds in 48 of 48 trials (2 server runs). The 95 % interval
-     * of the hold rate is 0.93 to 1, and at 0.93 a wrong majority occurs in about 0.4 % of the runs. The test stays
-     * optional until a decision of the owner.
+     * of the hold rate is 0.93 to 1, and at 0.93 a wrong majority occurs in about 0.4 % of the runs. The test is
+     * required.
      */
-    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town",
-            required = false)
+    @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town")
     public static void townHoldsAgainstARaidOfLevel3(GameTestHelper helper) {
         majority(helper, 3, 9, Outcome.HOLDS, "A town must hold against a raid of level 3");
     }
