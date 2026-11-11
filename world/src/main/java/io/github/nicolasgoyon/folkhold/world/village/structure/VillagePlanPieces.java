@@ -47,8 +47,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  *   <li>A plot gets a building of the pool of its role: {@code bank}, {@code jobs_food}, {@code jobs_start} or
  *       {@code houses} for a home (with the fallback pools). The building must fit the area of the plot in the plan.
  *       A home plot takes a home that fits the home of the style. A wide plot takes a home that fits the wide home and
- *       not the home of the style. A spare plot, and a wide plot with no such home, stays free: the wall keeps its
- *       space.</li>
+ *       not the home of the style. A spare plot and the wide plot of the market ({@link #MARKET}) stay free: the wall
+ *       keeps their space. Another plot with no building is a problem of the result.</li>
  *   <li>The junctions of the jigsaw connect the pieces: a plot with a building has a junction in front of its connector
  *       (see {@link VillagePlots#of}).</li>
  * </ul>
@@ -58,6 +58,8 @@ final class VillagePlanPieces {
     private static final BlockPos STREET_START = new BlockPos(StreetStyle.WIDTH / 2, 0, 0);
     /** The free plots keep their space from the connector of the plot to this number of blocks above it. */
     private static final int SPACE_HEIGHT = 8;
+    /** The wide home of the plot of the market: the pool {@code houses} has no market, and the plot stays free. */
+    static final String MARKET = "market";
 
     private VillagePlanPieces() {
     }
@@ -225,7 +227,7 @@ final class VillagePlanPieces {
                 }
                 pool = Optional.of(pool.get().getFallback().value());
             }
-            if (!plot.spare() && !plot.wide()) {
+            if (!plot.spare() && !(plot.wide() && plot.homes().get(1).name().equals(MARKET))) {
                 problems.add("no building of " + name + " for the plot " + connector.connector());
             }
             List<BoundingBox> space = new ArrayList<>(List.of(area));

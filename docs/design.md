@@ -106,7 +106,7 @@ When a new world starts, the mod creates 5 to 7 factions (`FactionGenerator.Sett
 - 1 neutral faction.
 - The other factions are hostile.
 
-The villages come from the vanilla structure placement (random spread, spacing 40 chunks, separation 16). A village does not start when a possible vanilla village start is 8 chunks or nearer on the two axes (exclusion zone), so the two villages do not overlap. A village belongs to the faction with the nearest territory center, so the number of villages of a faction depends on the world.
+The villages come from the vanilla structure placement (random spread, spacing 40 chunks, separation 16). A village does not start when a possible vanilla village start is 12 chunks or nearer on the two axes (exclusion zone), so the two villages do not overlap: a Sunreach or Valeholm city with its wall goes about 94 blocks from its middle, and a vanilla village about 80 blocks. A village belongs to the faction with the nearest territory center, so the number of villages of a faction depends on the world.
 
 ### Glossary
 

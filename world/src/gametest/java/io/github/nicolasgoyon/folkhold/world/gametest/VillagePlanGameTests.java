@@ -21,6 +21,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
@@ -46,6 +47,9 @@ public final class VillagePlanGameTests {
     private static final int CHUNK_RANGE = 8;
     /** The name of the template of a gate. */
     private static final String GATE = "/gate";
+    /** The rotations of the plaza, one for each tier in turn. */
+    private static final List<Rotation> ROTATIONS = List.of(Rotation.NONE, Rotation.CLOCKWISE_90,
+            Rotation.CLOCKWISE_180, Rotation.COUNTERCLOCKWISE_90);
 
     private VillagePlanGameTests() {
     }
@@ -89,7 +93,8 @@ public final class VillagePlanGameTests {
      *
      * <ul>
      *   <li>the plan has all its plots and homes, and each piece and plot of the plan has an element of its pool;</li>
-     *   <li>each plot of the plan has a building or is free, and each free plot keeps its space;</li>
+     *   <li>each plot of the plan has a building or is free, the free plots are the spare plots and the plot of the
+ *       market, and each free plot keeps its space;</li>
      *   <li>the pieces of the plan stay in the maximum distance from the middle, and all the pieces stay in the range of
      *       chunks of the game;</li>
      *   <li>the wall has 4 gates and 4 arms;</li>
@@ -116,10 +121,12 @@ public final class VillagePlanGameTests {
                     generator.getBiomeSource(), level.getChunkSource().randomState(), level.getStructureManager(),
                     level.getSeed(), chunk, level, biome -> true);
             long time = System.nanoTime();
-            FortifiedVillageStructure.Layout layout = structure.layout(context, variant, variant.maritime(), size)
-                    .orElseThrow();
+            // Each rotation of the plaza: 5 tiers turn the plaza 4 times at least.
+            Rotation rotation = ROTATIONS.get(i % ROTATIONS.size());
+            FortifiedVillageStructure.Layout layout = structure.layout(context, variant, variant.maritime(), size,
+                    Optional.of(rotation)).orElseThrow();
             time = System.nanoTime() - time;
-            String name = size.tier() + " " + layout.style().name();
+            String name = size.tier() + " " + layout.style().name() + " " + rotation;
             check(level, structure, chunk, layout, name, problems);
             VillagePlan plan = layout.plan();
             FolkholdWorld.LOGGER.info("Village plan {}: {} street pieces, {} plots, {} buildings, {} free plots, "
@@ -143,7 +150,7 @@ public final class VillagePlanGameTests {
                 .filter(piece -> piece.getElement().getProjection() == StructureTemplatePool.Projection.RIGID)
                 .count();
         if (layout.built() + layout.free() != plan.plots().size() || buildings != layout.built()
-                || layout.reserved().size() != layout.free()) {
+                || layout.reserved().size() != layout.free() || layout.free() != expectedFree(plan)) {
             problems.add(name + ": " + layout.built() + " buildings (" + buildings + " pieces) and " + layout.free()
                     + " free plots (" + layout.reserved().size() + " spaces) for " + plan.plots().size() + " plots");
         }
@@ -189,6 +196,12 @@ public final class VillagePlanGameTests {
             solid.stream().filter(box -> overlaps(box, space)).findFirst().ifPresent(box -> problems.add(name
                     + ": the space " + space + " of a free plot has the piece " + box));
         }
+    }
+
+    /** The free plots of a plan: the spare plots and the wide plot of the market. */
+    private static long expectedFree(VillagePlan plan) {
+        return plan.plots().stream().filter(plot -> plot.spare()
+                || (plot.wide() && plot.homes().get(1).name().equals("market"))).count();
     }
 
     /** True if 2 boxes overlap on the horizontal plane. */

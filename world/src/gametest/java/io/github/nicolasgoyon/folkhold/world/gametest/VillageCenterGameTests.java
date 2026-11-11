@@ -63,8 +63,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class VillageCenterGameTests {
     /** The first candidate chunk: far from the spawn and from the areas of the other tests. */
     private static final int FIRST_CHUNK = 15000;
-    /** The distance between 2 candidate chunks, in chunks. */
-    private static final int CANDIDATE_STEP = 12;
+    /**
+     * The distance between 2 candidate chunks, in chunks. A city of the start levels is about 15 chunks wide with its
+     * wall: the villages of 2 styles do not overlap.
+     */
+    private static final int CANDIDATE_STEP = 16;
     private static final int CANDIDATES = 8;
     /** The number of offered quests of the village. */
     private static final int OFFERS = 2;
@@ -141,12 +144,12 @@ public final class VillageCenterGameTests {
                 .thenIdle(GARRISON_STEP)
                 .thenExecute(() -> heart.ensureGarrison(level.getGameTime()))
                 .thenIdle(BOARD_UPDATE)
+                // The papers of the board: else the checks of the test find nothing. The board of a large village can
+                // need more updates.
+                .thenWaitUntil(() -> helper.assertTrue(papers(level, heart) == OFFERS,
+                        "The quest board must show the offers: " + papers(level, heart)))
                 .thenExecute(() -> {
                     List<String> broken = new ArrayList<>();
-                    // The papers of the board and the builders: else the checks of the test find nothing.
-                    int papers = heart.getLayout().questBoards().stream().map(level::getBlockState)
-                            .filter(state -> state.hasProperty(QuestBoardBlock.PAPERS))
-                            .mapToInt(state -> state.getValue(QuestBoardBlock.PAPERS)).max().orElse(0);
                     int builders = VillageFolk.of(level, village.heart(), ModProfessions.BUILDER.get()).size();
                     try {
                         BuilderSites.of(level, village.heart()).forEach(site -> broken.addAll(log(level, folder,
@@ -165,12 +168,18 @@ public final class VillageCenterGameTests {
                         clear(server, offers);
                         setForced(level, village.box(), false);
                     }
-                    helper.assertTrue(papers == OFFERS, "The quest board must show the offers: " + papers);
                     helper.assertTrue(builders > 0, "The village " + folder + " must have builders");
                     helper.assertTrue(broken.isEmpty(), "The builders must keep the plaza of the village "
                             + folder + ": " + broken.stream().limit(10).toList());
                 })
                 .thenSucceed();
+    }
+
+    /** The largest number of papers of the quest boards of the scan of a heart. */
+    private static int papers(ServerLevel level, VillageHeartBlockEntity heart) {
+        return heart.getLayout().questBoards().stream().map(level::getBlockState)
+                .filter(state -> state.hasProperty(QuestBoardBlock.PAPERS))
+                .mapToInt(state -> state.getValue(QuestBoardBlock.PAPERS)).max().orElse(0);
     }
 
     /**

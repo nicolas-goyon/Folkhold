@@ -359,7 +359,7 @@ public final class VillageGrowthGameTests {
      * village. The village has the Sunreach plaza and a street to the east of it. The plot to the east of the street is
      * free, and its space is the east end of the village. The north-east corner tower of the wall and its stair go
      * along the east side, in front of this plot. The wall comes from {@link VillageWall#add} with the spaces of
-     * {@link FortifiedVillageStructure#reservedSpaces}, as in the generation. The line of the palisade is 5 blocks (the margin of 4 blocks
+     * {@link FortifiedVillageStructure#reservedSpaces}: the space of a new home on each free plot connector. The line of the palisade is 5 blocks (the margin of 4 blocks
      * and 1 block) from the east end of the spaces, and the tower goes 4 blocks inside the line: 1 free block stays
      * between the tower and the space of the plot. Then the growth (see {@link #grow}) builds a Sunreach
      * house-workshop on this plot: the tower and its stair are not in its space. A space that is 2 blocks less deep

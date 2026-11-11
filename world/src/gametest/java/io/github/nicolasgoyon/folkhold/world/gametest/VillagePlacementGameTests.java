@@ -29,7 +29,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class VillagePlacementGameTests {
     /** The chunk count of the exclusion zone in {@code worldgen/structure_set/villages.json}. */
-    private static final int EXCLUSION_CHUNKS = 8;
+    private static final int EXCLUSION_CHUNKS = 12;
     /** The test checks the placement regions in a square of this size, in regions. */
     private static final int REGIONS = 24;
     private static final long[] SEEDS = {0L, 12345L, -4172144997902289642L, 2026101701L};
@@ -39,7 +39,8 @@ public final class VillagePlacementGameTests {
 
     /**
      * For 4 seeds, a faction village starts in its candidate chunk only when no possible vanilla village start is in
-     * the exclusion zone. The exclusion zone removes a part of the candidates only.
+     * the exclusion zone. The exclusion zone removes a part of the candidates only: about half of them with a zone of
+     * 12 chunks.
      */
     @GameTest(template = "empty", timeoutTicks = 20, batch = "village_placement_exclusion")
     public static void factionVillagesStayAwayFromVanillaVillages(GameTestHelper helper) {
@@ -67,7 +68,7 @@ public final class VillagePlacementGameTests {
             }
         }
         int share = 100 * removed / (starts + removed);
-        helper.assertTrue(share >= 10 && share <= 40,
+        helper.assertTrue(share >= 10 && share <= 60,
                 "The exclusion zone must remove a part of the candidates only: " + removed + " of "
                         + (starts + removed));
         helper.succeed();

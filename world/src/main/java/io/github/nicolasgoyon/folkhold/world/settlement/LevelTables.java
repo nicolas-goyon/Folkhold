@@ -48,7 +48,8 @@ public final class LevelTables extends SimplePreparableReloadListener<LevelTable
     public static final ResourceLocation FILE =
             ResourceLocation.fromNamespaceAndPath(FolkholdWorld.MOD_ID, "folkhold/levels.json");
 
-    private static LevelTable current = LevelTable.DEFAULT;
+    /** Volatile: the threads of the world generation read the table. */
+    private static volatile LevelTable current = LevelTable.DEFAULT;
 
     /** The current level table. */
     public static LevelTable get() {

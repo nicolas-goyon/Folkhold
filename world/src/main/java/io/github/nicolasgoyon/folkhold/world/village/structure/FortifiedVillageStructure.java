@@ -9,6 +9,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.StreetStyle;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSite;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillageSize;
+import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.faction.CultureMap;
 import io.github.nicolasgoyon.folkhold.world.registry.ModStructures;
 import io.github.nicolasgoyon.folkhold.world.settlement.LevelTables;
@@ -195,7 +196,7 @@ public final class FortifiedVillageStructure extends Structure {
         // variant. The two placements start with the same random. Thus the plaza of a variant has the same rotation and
         // the same middle (the plazas have the same size), and the village has the same layout in these variants.
         restartRandom(context);
-        Optional<Start> start = plaza(context, base, false);
+        Optional<Start> start = plaza(context, base, false, Optional.empty());
         if (start.isEmpty()) {
             return Optional.empty();
         }
@@ -212,17 +213,19 @@ public final class FortifiedVillageStructure extends Structure {
             return start;
         }
         restartRandom(context);
-        return plaza(context, variant, maritime);
+        return plaza(context, variant, maritime, Optional.empty());
     }
 
     /**
      * The plaza of a variant at the start chunk, from the random of the context: the random rotation, then the random
-     * element of the start pool. The plaza goes on the surface of the terrain at its middle.
+     * element of the start pool. The plaza goes on the surface of the terrain at its middle. A given rotation takes the
+     * place of the random rotation: the random gives the same element of the start pool.
      */
-    private static Optional<Start> plaza(GenerationContext context, Variant variant, boolean maritime) {
+    private static Optional<Start> plaza(GenerationContext context, Variant variant, boolean maritime,
+            Optional<Rotation> turn) {
         StructureTemplateManager templates = context.structureTemplateManager();
         ChunkPos chunk = context.chunkPos();
-        Rotation rotation = Rotation.getRandom(context.random());
+        Rotation rotation = turn.orElse(Rotation.getRandom(context.random()));
         StructurePoolElement element = variant.startPool().value().getRandomTemplate(context.random());
         if (element == EmptyPoolElement.INSTANCE) {
             return Optional.empty();
@@ -268,6 +271,13 @@ public final class FortifiedVillageStructure extends Structure {
     public record Layout(VillageSize size, StreetStyle style, VillagePlan plan, BlockPos center,
             List<PoolElementStructurePiece> village, List<BoundingBox> reserved, List<StructurePiece> wall, int built,
             int free, List<String> problems) {
+        public Layout {
+            village = List.copyOf(village);
+            reserved = List.copyOf(reserved);
+            wall = List.copyOf(wall);
+            problems = List.copyOf(problems);
+        }
+
         /** All the pieces of the village: the plaza first, then the streets, the buildings and the wall. */
         public List<StructurePiece> pieces() {
             List<StructurePiece> pieces = new ArrayList<>(village);
@@ -297,8 +307,24 @@ public final class FortifiedVillageStructure extends Structure {
      * @return the layout, or empty if the start pool of the variant gives no plaza
      */
     public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, VillageSize size) {
+        return layout(context, variant, maritime, size, Optional.empty());
+    }
+
+    /**
+     * As {@link #layout(GenerationContext, Variant, boolean, VillageSize)}, with a given rotation of the plaza in place
+     * of the random rotation.
+     *
+     * @param context  the context of the generation
+     * @param variant  the variant
+     * @param maritime true for a maritime site
+     * @param size     the size of the tier
+     * @param rotation the rotation of the plaza, or empty for the random rotation
+     * @return the layout, or empty if the start pool of the variant gives no plaza
+     */
+    public Optional<Layout> layout(GenerationContext context, Variant variant, boolean maritime, VillageSize size,
+            Optional<Rotation> rotation) {
         restartRandom(context);
-        return plaza(context, variant, maritime).map(start -> layout(context, start, size));
+        return plaza(context, variant, maritime, rotation).map(start -> layout(context, start, size));
     }
 
     /**
@@ -330,6 +356,11 @@ public final class FortifiedVillageStructure extends Structure {
         List<StructurePiece> village = new ArrayList<>(result.pieces());
         List<StructurePiece> wall = VillageWall.add(context, village, result.reserved(), start.center(),
                 start.variant().wall(), start.maritime());
+        if (!result.problems().isEmpty() || plan.missingPlots() > 0 || plan.missingHomes() > 0) {
+            FolkholdWorld.LOGGER.warn("The village of the tier {} in the start chunk {} has {} missing plots, {} missing"
+                    + " homes and these problems: {}", size.tier(), context.chunkPos(), plan.missingPlots(),
+                    plan.missingHomes(), result.problems());
+        }
         return new Layout(size, style, plan, start.center(), result.pieces(), result.reserved(), wall,
                 result.built(), result.free(), result.problems());
     }
@@ -482,8 +513,9 @@ public final class FortifiedVillageStructure extends Structure {
     }
 
     /**
-     * The spaces that the wall of a village keeps for its growth: the space of a new home on each free plot of the
-     * pieces. The space holds each piece of the pool of the homes of the variant and of its pool of house-workshops
+     * The spaces of a new home on each free plot connector of some pieces: the generation does not use this method (it
+     * keeps the space of the free plots of the plan, see {@link Layout#reserved()}). The tests use it for a village of
+     * hand-placed pieces. The space holds each piece of the pool of the homes of the variant and of its pool of house-workshops
      * (see {@link VillagePlots#reserved} and {@link VillagePlots#homePools}).
      *
      * @param registries the registries of the server
