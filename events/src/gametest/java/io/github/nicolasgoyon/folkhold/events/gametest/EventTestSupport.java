@@ -128,6 +128,18 @@ final class EventTestSupport {
         if (!changed.add(setting)) {
             return;
         }
+        atTestEnd(helper, () -> {
+            restore.run();
+            CHANGED_SETTINGS.remove(helper.testInfo);
+        });
+    }
+
+    /**
+     * Runs the action when the test ends: when it passes, when it fails and when it times out. Use it to remove the
+     * entities, to stop the events and to set the settings of a test back, so that a failure does not change the next
+     * tests.
+     */
+    static void atTestEnd(GameTestHelper helper, Runnable action) {
         helper.testInfo.addListener(new GameTestListener() {
             @Override
             public void testStructureLoaded(GameTestInfo info) {
@@ -135,21 +147,16 @@ final class EventTestSupport {
 
             @Override
             public void testPassed(GameTestInfo info, GameTestRunner runner) {
-                restoreSetting();
+                action.run();
             }
 
             @Override
             public void testFailed(GameTestInfo info, GameTestRunner runner) {
-                restoreSetting();
+                action.run();
             }
 
             @Override
             public void testAddedForRerun(GameTestInfo info, GameTestInfo rerun, GameTestRunner runner) {
-            }
-
-            private void restoreSetting() {
-                restore.run();
-                CHANGED_SETTINGS.remove(helper.testInfo);
             }
         });
     }

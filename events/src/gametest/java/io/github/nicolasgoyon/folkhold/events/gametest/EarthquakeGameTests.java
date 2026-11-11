@@ -55,6 +55,18 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class EarthquakeGameTests {
     private static final long SEED = 130L;
     private static final int LANDING_TICKS = EventTestSupport.LANDING_TICKS;
+    /**
+     * The limit of each flee step of {@link #animalsRunAway}, in orders to run away. On a flat floor, approximately 2
+     * orders of 3 give no target, so the probability that all the orders give no target is below 10^-7.
+     */
+    private static final int FLEE_ORDERS = 40;
+    /** The cow of {@link #animalsRunAway} goes this distance farther from the epicenter, in blocks. */
+    private static final int FLEE_DISTANCE = 3;
+    /**
+     * The tick limit of {@link #animalsRunAway}: the wait for the floor, the two flee steps of {@link #FLEE_ORDERS}
+     * orders each, and a margin.
+     */
+    private static final int FLEE_TIMEOUT_TICKS = (2 * FLEE_ORDERS + 2) * 20 + 100;
 
     private EarthquakeGameTests() {
     }
@@ -371,31 +383,93 @@ public final class EarthquakeGameTests {
     }
 
     /**
-     * The animals near an earthquake run away from its epicenter during the announce. An animal runs only to a target
-     * in an entity-ticking chunk. The GameTest server keeps the chunks of the test area at this status, and not all the
-     * chunks around them. Thus the cow is at the center of the large template, on a stone floor: each target, at 16
-     * blocks or less from the cow, is in the test area.
+     * The animals near an earthquake run away from its epicenter during the announce: the navigation target of a cow
+     * goes away from the epicenter, and then the cow is farther from the epicenter.
+     *
+     * <p>An animal runs only to a target in an entity-ticking chunk. The GameTest server keeps the chunks of the test
+     * area at this status, and not all the chunks around them. Thus the cow is at the center of the large template, on
+     * a stone floor: each target, at 16 blocks or less from the cow, is in the test area.
+     *
+     * <p>The cow has no free will: it has no goals, but it keeps its AI, so its navigation follows the orders of the
+     * earthquake. Only the earthquake can move it, and its random stroll cannot meet the checks.
+     *
+     * <p>The test waits for states, and not for a number of ticks:
+     * <ol>
+     *   <li>The cow stands on the floor. A ground navigation makes no path for a mob in the air.</li>
+     *   <li>The cow has a navigation target farther from the epicenter than the cow at the start, then the cow is
+     *       {@value #FLEE_DISTANCE} blocks farther from the epicenter than at the start. The earthquake gives an order
+     *       to run away each 20 ticks. The target of an order comes from the random source of the cow, with no seed,
+     *       and on a flat floor approximately 2 orders of 3 find no target. Thus the limit of each step is
+     *       {@value #FLEE_ORDERS} orders. A step also stops when the earthquake ends before this limit.</li>
+     * </ol>
      */
-    @GameTest(template = "quake_arena", timeoutTicks = 200, batch = "earthquake_flee")
+    @GameTest(template = "quake_arena", timeoutTicks = FLEE_TIMEOUT_TICKS, batch = "earthquake_flee")
     public static void animalsRunAway(GameTestHelper helper) {
         prepare(helper, 40, 32);
-        Cow cow = helper.spawn(EntityType.COW, new BlockPos(20, 1, 16));
         BlockPos center = helper.absolutePos(new BlockPos(18, 1, 16));
         Vec3 epicenter = Vec3.atBottomCenterOf(center);
-        double start = cow.position().distanceTo(epicenter);
-        Earthquakes.start(helper.getLevel(), center, new EarthquakeSettings(4, 0.1, 400, 20, 8), SEED);
+        Cow cow = helper.spawnWithNoFreeWill(EntityType.COW, new BlockPos(20, 1, 16));
+        Earthquake[] earthquake = new Earthquake[1];
+        double[] startDistance = new double[1];
+        boolean[] hasTarget = {false};
+        // The number of orders before the flee target.
+        int[] targetOrders = new int[1];
+        EventTestSupport.atTestEnd(helper, () -> {
+            if (earthquake[0] != null) {
+                earthquake[0].stop();
+            }
+            cow.discard();
+        });
 
         helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(cow.onGround(), "The cow must stand on the floor"))
+                .thenExecute(() -> {
+                    startDistance[0] = cow.position().distanceTo(epicenter);
+                    // The announce is longer than the two flee steps: the earthquake does not shake during the test.
+                    earthquake[0] = start(helper, new BlockPos(18, 1, 16),
+                            new EarthquakeSettings(4, 0.1, (2 * FLEE_ORDERS + 1) * 20, 20, 8));
+                })
                 .thenWaitUntil(() -> {
                     BlockPos target = cow.getNavigation().getTargetPos();
-                    helper.assertTrue(target != null && Vec3.atBottomCenterOf(target).distanceTo(epicenter) > start,
-                            "The cow must walk away from the epicenter");
+                    if (target != null && Vec3.atBottomCenterOf(target).distanceTo(epicenter) > startDistance[0]) {
+                        hasTarget[0] = true;
+                        targetOrders[0] = fleeOrders(earthquake[0]);
+                    }
+                    helper.assertTrue(hasTarget[0] || fleeOrders(earthquake[0]) >= FLEE_ORDERS
+                            || earthquake[0].isDone(), "Waiting for a target away from the epicenter");
                 })
-                .thenExecute(() -> {
-                    Earthquakes.stop(helper.getLevel());
-                    cow.discard();
-                })
+                .thenExecute(() -> helper.assertTrue(hasTarget[0], "The cow must walk away from the epicenter after "
+                        + fleeOrders(earthquake[0]) + " orders: " + fleeState(cow, earthquake[0], epicenter,
+                                startDistance[0])))
+                .thenWaitUntil(() -> helper.assertTrue(isAway(cow, epicenter, startDistance[0])
+                        || fleeOrders(earthquake[0]) >= 2 * FLEE_ORDERS || earthquake[0].isDone(),
+                        "Waiting for the cow to run away"))
+                .thenExecute(() -> helper.assertTrue(isAway(cow, epicenter, startDistance[0]), "The cow must run "
+                        + FLEE_DISTANCE + " blocks away from the epicenter after " + fleeOrders(earthquake[0])
+                        + " orders: " + fleeState(cow, earthquake[0], epicenter, startDistance[0])))
+                .thenExecute(() -> FolkholdEvents.LOGGER.info("Earthquake flee test: the cow has a flee target after {} "
+                        + "orders and is away after {} orders", targetOrders[0], fleeOrders(earthquake[0])))
                 .thenSucceed();
+    }
+
+    /** True if the cow is {@link #FLEE_DISTANCE} blocks farther from the epicenter than at the start, or more. */
+    private static boolean isAway(Cow cow, Vec3 epicenter, double startDistance) {
+        return cow.position().distanceTo(epicenter) >= startDistance + FLEE_DISTANCE;
+    }
+
+    /** The number of orders to run away that an earthquake gave: one at the first tick, then one each 20 ticks. */
+    private static int fleeOrders(Earthquake earthquake) {
+        return (earthquake.elapsedTicks() + 19) / 20;
+    }
+
+    /** The state of the cow and of the earthquake for a failure message of {@link #animalsRunAway}. */
+    private static String fleeState(Cow cow, Earthquake earthquake, Vec3 epicenter, double startDistance) {
+        BlockPos target = cow.getNavigation().getTargetPos();
+        String targetDistance = target == null ? "none"
+                : String.format(Locale.ROOT, "%.2f", Vec3.atBottomCenterOf(target).distanceTo(epicenter));
+        return String.format(Locale.ROOT, "distance at the start %.2f, distance now %.2f, target %s (distance %s), "
+                + "on the ground %b, earthquake phase %s", startDistance, cow.position().distanceTo(epicenter),
+                target, targetDistance, cow.onGround(), earthquake.phase());
     }
 
     /** The command of the operators starts an earthquake at a position and stops it. */
