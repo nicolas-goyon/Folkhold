@@ -33,7 +33,8 @@ import net.minecraft.world.level.material.Fluids;
  * <p>The other reads read one column from a noise object of one cell, as {@link ChunkGenerator#getBaseColumn} does.
  * {@link #point} reads one column also for a grid column: the check of a site reads few columns, far apart. A generator
  * that is not a {@link NoiseBasedChunkGenerator} (for example the flat world) gives each column from
- * {@link ChunkGenerator#getBaseColumn}. The columns are the same in all modes.
+ * {@link ChunkGenerator#getBaseColumn}. The columns are the same in all modes when the lowest Y of the noise is a
+ * multiple of the cell height (all the vanilla noise settings).
  */
 public final class TerrainCache {
     /** The distance between 2 grid columns, in blocks. */

@@ -11,6 +11,8 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelHeightAccessor;
+import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.biome.FixedBiomeSource;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -98,8 +100,40 @@ class TerrainCacheTest {
         assertEquals(0, direct.chunks());
     }
 
-    /** Checks a column against the heights and the base column of the generator. */
+    @Test
+    void cellsOf8BlocksGiveTheColumnsOfTheGenerator() {
+        HolderLookup.Provider registries = VanillaRegistries.createLookup();
+        Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.END);
+        NoiseBasedChunkGenerator end = new NoiseBasedChunkGenerator(
+                new FixedBiomeSource(registries.lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.THE_END)), settings);
+        RandomState endRandom = RandomState.create(settings.value(), registries.lookupOrThrow(Registries.NOISE), 783L);
+        assertEquals(8, settings.value().noiseSettings().getCellWidth());
+        TerrainCache cache = TerrainCache.of(end, endRandom, HEIGHT);
+        int land = 0;
+        for (ChunkPos chunk : List.of(new ChunkPos(0, 0), new ChunkPos(-3, 2))) {
+            for (int dx = 0; dx < 16; dx += TerrainCache.GRID) {
+                for (int dz = 0; dz < 16; dz += TerrainCache.GRID) {
+                    int x = chunk.getMinBlockX() + dx;
+                    int z = chunk.getMinBlockZ() + dz;
+                    PlotTerrain.Column column = cache.column(x, z);
+                    assertSameColumn(end, endRandom, x, z, column);
+                    land += column.surface() > HEIGHT.getMinBuildHeight() ? 1 : 0;
+                }
+            }
+        }
+        assertEquals(2, cache.chunks());
+        assertTrue(land > 0, "No grid column on land");
+    }
+
+    /** Checks a column against the heights and the base column of the generator of the Overworld. */
     private static void assertSameColumn(int x, int z, PlotTerrain.Column column) {
+        assertSameColumn(generator, random, x, z, column);
+    }
+
+    /** Checks a column against the heights and the base column of a generator. */
+    private static void assertSameColumn(NoiseBasedChunkGenerator generator, RandomState random, int x, int z,
+            PlotTerrain.Column column) {
         PlotTerrain.Column expected = TerrainColumns.column(generator.getBaseColumn(x, z, HEIGHT, random),
                 HEIGHT.getMinBuildHeight(), HEIGHT.getMaxBuildHeight());
         assertEquals(expected, column, "Column at " + x + ", " + z);
