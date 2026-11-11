@@ -241,6 +241,8 @@ public final class BuilderSite {
     private final Set<BlockPos> fences = new LinkedHashSet<>();
     /** The scaffolding blocks that the site put in the level. */
     private final Set<BlockPos> scaffolding = new LinkedHashSet<>();
+    /** The index of the placement step of each position of the steps, with the other part of a block of two parts. */
+    private Map<BlockPos, Integer> placements = Map.of();
 
     @Nullable
     private BoundingBox box;
@@ -945,6 +947,16 @@ public final class BuilderSite {
         steps = List.copyOf(list);
         run = newRun;
         schedule = new SiteSchedule<>(steps.size(), ordered);
+        Map<BlockPos, Integer> found = new HashMap<>();
+        for (int i = 0; i < steps.size(); i++) {
+            Step step = steps.get(i);
+            if (step.type() == StepType.PLACE) {
+                found.put(BlockKinds.toBlockPos(step.pos()), i);
+                int index = i;
+                step.partner().ifPresent(partner -> found.put(BlockKinds.toBlockPos(partner), index));
+            }
+        }
+        placements = Map.copyOf(found);
     }
 
     /**
@@ -966,6 +978,7 @@ public final class BuilderSite {
         steps = null;
         run = null;
         schedule = null;
+        placements = Map.of();
         ways = null;
         dirty = true;
         return true;
@@ -1421,11 +1434,18 @@ public final class BuilderSite {
     /**
      * The items of the economy that the village keeps from the block of a step, before the step applies (see
      * {@link BuilderMaterials#removedItems}). Only a removal step gives items. The fences and the scaffolding of the
-     * site give nothing. A village with no economy and a repair with free materials keep nothing.
+     * site give nothing. A village with no economy and a repair with free materials keep nothing. A removal also gives
+     * nothing when the block that the plan places at this position uses no materials, for example a flower pot with a
+     * plant (its block has no item): else a block that a player changes again and again (an empty flower pot) gives
+     * items from nothing at each repair.
      */
     private Map<String, Double> removedItems(ServerLevel level, Step step, BlockPos pos) {
         if (step.type() != StepType.REMOVE || settlement == null || fences.contains(pos) || scaffolding.contains(pos)
                 || (isRepair() && WorldConfig.CONSTRUCTION_FREE_REPAIRS.get())) {
+            return Map.of();
+        }
+        Integer placement = placements.get(pos);
+        if (placement != null && materialOf(level, placement).kind() == BuilderMaterials.Kind.FREE) {
             return Map.of();
         }
         Block block = level.getBlockState(pos).getBlock();

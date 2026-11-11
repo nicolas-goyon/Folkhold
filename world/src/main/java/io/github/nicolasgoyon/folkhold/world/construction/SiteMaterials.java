@@ -184,7 +184,8 @@ final class SiteMaterials {
      * Keeps the items of the economy from a block that the builders remove (see
      * {@link BuilderMaterials#removedItems}). The parts of items stay in the site for the next blocks. The whole items
      * go into the stock of the village at once, up to its stock capacity. The items above the capacity stay in the
-     * site, and go back to the stock at the end of the site.
+     * site. At the end of the site, they go back to the stock up to the capacity, and the rest is lost (see
+     * {@link #giveBack}).
      *
      * @param items      the quantity of each item, by item id
      * @param settlement the village, or null: a village with no economy keeps nothing

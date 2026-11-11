@@ -74,6 +74,8 @@ public final class BuilderMaterials {
     @Nullable
     private static ItemCatalog costsCatalog;
     private static final Map<Item, Material> MATERIALS = new HashMap<>();
+    /** The costs of the drops of the removed blocks, by item: empty for an item with no cost. */
+    private static final Map<Item, Optional<Map<String, Double>>> DROP_COSTS = new HashMap<>();
     /** The prices of the settings for the materials in {@link #MATERIALS}: the valuable price and the rare price. */
     private static double materialsValuable = Double.NaN;
     private static double materialsRare = Double.NaN;
@@ -114,6 +116,7 @@ public final class BuilderMaterials {
         costsRecipes = null;
         costsCatalog = null;
         MATERIALS.clear();
+            DROP_COSTS.clear();
     }
 
     /** True if the builders use no materials: the setting, or no economy. */
@@ -164,11 +167,15 @@ public final class BuilderMaterials {
      *       The method empties a container first: its items do not come with the drops.</li>
      *   <li>Each drop gives its cost in items of the economy (see {@link MaterialCosts}): an item of the economy
      *       gives itself, and 1 oak stairs gives 1.5 oak planks. Thus a block that the builders remove and place
-     *       again gives no gain: the removal gives the cost of the placement.</li>
+     *       again usually gives no gain: the removal gives the cost of the placement. A block with a count in its
+     *       state (a double slab, candles, sea pickles) drops more items than the placement of its item costs. It can
+     *       give a small gain, one time for each site.</li>
      *   <li>A drop with no cost is lost, for example calcite or a block of another mod with no recipe: the stock
      *       counts only the items of the economy.</li>
      *   <li>Scaffolding and the blocks of the tag {@link #FREE} give nothing: they use no materials.</li>
      *   <li>When the builders use no materials ({@link #areFree}), the removed blocks give nothing.</li>
+     *   <li>The costs of the drops are kept for each item until the next change of the recipes or of the
+     *       economy.</li>
      * </ul>
      *
      * @param level     the level
@@ -189,8 +196,9 @@ public final class BuilderMaterials {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             Clearable.tryClear(blockEntity);
             for (ItemStack drop : Block.getDrops(state, level, pos, blockEntity)) {
-                current.cost(ItemIds.id(drop.getItem())).ifPresent(cost -> cost.forEach((item, quantity) ->
-                        items.merge(item, quantity * drop.getCount(), Double::sum)));
+                DROP_COSTS.computeIfAbsent(drop.getItem(), key -> current.cost(ItemIds.id(key)))
+                        .ifPresent(cost -> cost.forEach((item, quantity) ->
+                                items.merge(item, quantity * drop.getCount(), Double::sum)));
             }
         }
         return items;
@@ -212,6 +220,7 @@ public final class BuilderMaterials {
             costsRecipes = recipes;
             costsCatalog = catalog;
             MATERIALS.clear();
+            DROP_COSTS.clear();
         }
         return current;
     }

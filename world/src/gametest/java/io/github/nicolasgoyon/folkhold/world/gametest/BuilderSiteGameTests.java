@@ -1182,14 +1182,15 @@ public final class BuilderSiteGameTests {
 
     /**
      * The builders remove the blocks on the ground of a wall, and the village keeps them in its stock as items of the
-     * economy, with the vanilla drops: stone gives cobblestone, a grass block gives dirt, a log gives its log.
+     * economy, with the vanilla drops: stone gives cobblestone, a grass block gives dirt, a log gives its log. Oak
+     * stairs give 1.5 oak planks: 1 plank goes into the stock at once, and the half plank serves the next block.
      */
     @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_removed", skyAccess = true)
     public static void buildersKeepTheBlocksThatTheyRemove(GameTestHelper helper) {
         EconomyVillage village = economyVillage(helper);
         ServerLevel level = helper.getLevel();
         BlockPos from = new BlockPos(14, 1, 16);
-        BlockPos to = new BlockPos(17, 2, 16);
+        BlockPos to = new BlockPos(18, 2, 16);
         // The template: a row of planks, with air above it.
         for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
             helper.setBlock(pos, pos.getY() == from.getY() ? Blocks.OAK_PLANKS : Blocks.AIR);
@@ -1201,12 +1202,13 @@ public final class BuilderSiteGameTests {
             helper.setBlock(pos, Blocks.AIR);
         }
         // The obstacles: blocks where the template has air.
-        List<Block> obstacles = List.of(Blocks.STONE, Blocks.STONE, Blocks.GRASS_BLOCK, Blocks.OAK_LOG);
+        List<Block> obstacles = List.of(Blocks.STONE, Blocks.STONE, Blocks.GRASS_BLOCK, Blocks.OAK_LOG,
+                Blocks.OAK_STAIRS);
         for (int i = 0; i < obstacles.size(); i++) {
             helper.setBlock(new BlockPos(from.getX() + i, to.getY(), from.getZ()), obstacles.get(i));
         }
         BlockPos origin = helper.absolutePos(from);
-        village.stock().set(PLANKS, WALL_BLOCKS / 2);
+        village.stock().set(PLANKS, obstacles.size());
 
         BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
                 helper.absolutePos(HEART), null);
@@ -1226,10 +1228,39 @@ public final class BuilderSiteGameTests {
                     cleanUp(helper, village.builders(), from, to);
                     helper.assertTrue(missing.isEmpty(), "Blocks of the wall not in place: " + missing);
                     helper.assertTrue(left.isEmpty(), "The builders must remove the obstacles: " + left);
+                    // 5 planks + 1 plank from the stairs, less 5 planks for the row. The last half plank is lost.
                     Map<String, Integer> expected = Map.of("minecraft:cobblestone", 2, "minecraft:dirt", 1,
-                            "minecraft:oak_log", 1);
+                            "minecraft:oak_log", 1, PLANKS, 1);
                     helper.assertTrue(stock.equals(expected), "The stock must keep the removed blocks: " + stock
                             + " instead of " + expected);
+                })
+                .thenSucceed();
+    }
+
+    /**
+     * The plan replaces an empty flower pot with a flower pot with a plant. The pot with a plant uses no materials
+     * (its block has no item), thus the removal of the empty pot gives nothing: the stock stays empty.
+     */
+    @GameTest(template = "arena_large", timeoutTicks = 2400, batch = "builder_materials_free_target", skyAccess = true)
+    public static void removalForAFreeBlockGivesNothing(GameTestHelper helper) {
+        EconomyVillage village = economyVillage(helper);
+        ServerLevel level = helper.getLevel();
+        BlockPos pot = new BlockPos(16, 1, 16);
+        ResourceLocation id = template(helper, "builder_potted_poppy", pot, pot, Blocks.POTTED_POPPY);
+        helper.setBlock(pot, Blocks.FLOWER_POT);
+        BlockPos origin = helper.absolutePos(pot);
+
+        BuilderSite site = BuilderSites.start(level, id, origin, Rotation.NONE, Mirror.NONE,
+                helper.absolutePos(HEART), null);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(ended(helper, origin), "The site must end: " + site.phase()
+                        + " " + site.status() + " " + site.appliedSteps() + "/" + site.totalSteps()))
+                .thenExecute(() -> {
+                    BlockState placed = helper.getBlockState(pot);
+                    Map<String, Integer> stock = Map.copyOf(village.stock().asMap());
+                    cleanUp(helper, village.builders(), pot, pot);
+                    helper.assertTrue(placed.is(Blocks.POTTED_POPPY), "The pot must have its plant: " + placed);
+                    helper.assertTrue(stock.isEmpty(), "The removal for a free block must give nothing: " + stock);
                 })
                 .thenSucceed();
     }
