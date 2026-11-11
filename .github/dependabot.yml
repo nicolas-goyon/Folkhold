@@ -18,6 +18,8 @@ updates:
     ignore:
       # NeoForge must stay on 21.1.x (Minecraft 1.21.1). Update it by hand in gradle.properties.
       - dependency-name: net.neoforged:neoforge
+      # The core tests use the gson of Minecraft 1.21.1 (2.10.1). Update it by hand with Minecraft.
+      - dependency-name: com.google.code.gson:gson
 
   - package-ecosystem: docker
     directory: /.devcontainer
