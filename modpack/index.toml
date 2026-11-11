@@ -5,6 +5,11 @@ file = "config/defaultoptions/keybindings.txt"
 hash = "e23909caa8a87b64161fb810ba5c40b03ffbf7f73b81c1c02c5b0595700dd6a6"
 
 [[files]]
+file = "mods/apollib.pw.toml"
+hash = "cf030bc64b6c104c4b41ebc39acb405827fb9f12f770a74fe311751ce70c089c"
+metafile = true
+
+[[files]]
 file = "mods/balm.pw.toml"
 hash = "4322901ed0553e0c2ead4d365a33bbc9e2d740c4b721f90c8023ed49c42e9387"
 metafile = true

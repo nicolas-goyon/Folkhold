@@ -47,7 +47,7 @@ The pinned versions are in `modpack/mods/*.pw.toml`.
 | Aging | Immersive Weathering: Renewed | `immersive-weather-renewed` | 1.0.4 | Beta, unofficial port; requires Moonlight Lib |
 | Navigation | Small Ships | `small-ships` | 2.0.0-b2.1 | Beta |
 | Navigation | Cartofold | `cartofold` | 0.33.12 | Required by `folkhold_world`. Minimap (the key Y shows or hides it), map of the explored world (key M), survey maps. The jar of its GitHub Release |
-| Terrain | Tectonic | `tectonic` | 3.0.28 | Large continents, deep oceans, mountain ranges; requires Lithostitched |
+| Terrain | Tectonic | `tectonic` | 3.0.28 | Large continents, deep oceans, mountain ranges; requires Lithostitched and ApolLib |
 | Light | LambDynamicLights | `lambdynamiclights` | 4.8.11 | Client only |
 | Library | GeckoLib | `geckolib` | 4.9.3 | Required by `folkhold_world` |
 | Comfort | JEI, Jade | `jei`, `jade` | 19.57.0.451, 15.10.6 | For development |
