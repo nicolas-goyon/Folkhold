@@ -19,8 +19,8 @@ import java.util.Set;
  */
 public final class VillageSizeTable {
     public static final VillageSizeTable DEFAULT = new VillageSizeTable(List.of(
-            new VillageSize("hamlet", 14, 0, 0.15, 48, 0, Wall.PALISADE, 9),
-            new VillageSize("village", 28, 0, 0.15, 64, 0, Wall.PALISADE, 13),
+            new VillageSize("hamlet", 14, 0, 0.15, 64, 0, Wall.PALISADE, 9),
+            new VillageSize("village", 28, 0, 0.15, 80, 0, Wall.PALISADE, 13),
             new VillageSize("town", 42, 0, 0.15, 96, 1, Wall.PALISADE, 20),
             new VillageSize("city", 53, 0, 0.15, 128, 2, Wall.PALISADE, 27),
             new VillageSize("capital", 66, 0, 0.15, 160, 3, Wall.PALISADE, 30)));

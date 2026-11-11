@@ -37,10 +37,7 @@ class VillagePlanTest {
         return VillagePlan.plan(size, size.plots(0, 0), style, PLAZA, STARTS, terrain, seed);
     }
 
-    /**
-     * Each tier and style: the plot target (or a shortfall that a radius 16 blocks larger removes), the spare share, no
-     * overlap, inside the radius, the 4 axis streets.
-     */
+    /** Each tier and style: the plot target, the spare share, no overlap, inside the radius, the 4 axis streets. */
     @Test
     void eachTierAndStyleGetsItsPlots() {
         List<Predicate<Box>> terrains = List.of(VillagePlanTest::good, VillagePlanTest::someBad);
@@ -54,13 +51,8 @@ class VillagePlanTest {
                         assertTrue(plan.radius() <= size.maxRadius(), name);
                         assertEquals(size.plots(0, 0), plan.plots().size() + plan.missingPlots(), name);
                         assertTrue(plan.plots().stream().allMatch(plot -> plot.good() || plot.spare()), name);
-                        if (plan.missingPlots() + plan.missingHomes() > 0) {
-                            // The radius is too small: a larger radius gives the target.
-                            assertTrue(style != StreetStyle.BASE && style != StreetStyle.MARITIME, name);
-                            VillagePlan larger = plan(larger(size, 16), style, terrain, seed);
-                            assertEquals(0, larger.missingPlots() + larger.missingHomes(), name);
-                            continue;
-                        }
+                        assertEquals(0, plan.missingPlots(), name);
+                        assertEquals(0, plan.missingHomes(), name);
                         long spare = plan.plots().stream().filter(Plot::spare).count();
                         double share = (double) spare / (plan.plots().size() - spare);
                         assertTrue(share >= VillageSize.MIN_SPARE && share <= VillageSize.MAX_SPARE, name);
@@ -69,12 +61,6 @@ class VillagePlanTest {
                 }
             }
         }
-    }
-
-    private static VillageSize larger(VillageSize size, int blocks) {
-        int radius = size.maxRadius() + blocks;
-        return new VillageSize(size.tier(), size.plots(), 0, size.spareShare(), radius, size.rings(), size.wall(),
-                Math.ceilDiv(radius, 16));
     }
 
     private static void checkLayout(VillagePlan plan, StreetStyle style, String name) {
@@ -125,15 +111,12 @@ class VillagePlanTest {
         };
     }
 
-    /** Each tier and style with no shortfall marks plots for its wide homes. */
+    /** Each tier and style marks plots for its wide homes. */
     @Test
     void wideHomesGetTheirPlots() {
         for (VillageSize size : VillageSizeTable.DEFAULT.sizes()) {
             for (StreetStyle style : StreetStyle.ALL) {
                 VillagePlan plan = plan(size, style, VillagePlanTest::good, 1);
-                if (plan.missingPlots() > 0) {
-                    plan = plan(larger(size, 16), style, VillagePlanTest::good, 1);
-                }
                 assertTrue(plan.missingWide().isEmpty(), size.tier() + " " + style.name() + " " + plan.missingWide());
                 int wide = style.wide().stream().mapToInt(Home::count).sum();
                 assertEquals(wide, plan.plots().stream().filter(Plot::wide).count());

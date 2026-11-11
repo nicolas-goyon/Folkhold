@@ -16,7 +16,8 @@ import java.util.List;
  * @param crossPlots    the z of the plots of the piece {@code street_cross}, on each side
  * @param side          the length of the piece {@code street_side} (no plot)
  * @param home          the home that fits each plot: the box around the homes and the house-workshops of the style
- * @param wide          the wide homes: each one needs a plot that the plan marks for it
+ * @param wide          the wide homes: each one needs a plot that the plan marks for it. The counts are start values:
+ *                      the tuning of the village sizes (#788) sets them
  * @param endOverflow   the number of blocks that a wide home can go past the end of its piece when a piece with plots
  *                      comes after it
  */
