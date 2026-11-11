@@ -68,8 +68,11 @@ public final class Settlements {
         return create(server, id, startChunk, pos, startLevel(server.overworld().getSeed(), startChunk));
     }
 
-    /** As {@link #create(MinecraftServer, UUID, ChunkPos, BlockPos)}, with a given start level. */
-    private static Settlement create(MinecraftServer server, UUID id, ChunkPos startChunk, BlockPos pos,
+    /**
+     * As {@link #create(MinecraftServer, UUID, ChunkPos, BlockPos)}, with a given start level. The command
+     * {@code /folkhold village generate} uses it for a village of a chosen tier.
+     */
+    public static Settlement create(MinecraftServer server, UUID id, ChunkPos startChunk, BlockPos pos,
             int startLevel) {
         FactionSpec faction = FactionData.get(server).ownerAt(pos);
         Settlement settlement = new Settlement(id.toString(), startChunk.x, startChunk.z, faction.id(),
