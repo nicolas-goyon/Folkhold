@@ -470,9 +470,10 @@ public final class RaidBalanceGameTests {
      * factions or more. Thus the first faction of each culture is always the same: {@code faction_1} for Ashmark. The
      * units take the faction of the heart, and the culture of the faction selects their equipment.
      *
-     * <p>The economy of the settlement starts with the faction of its region, before this change. The method starts
-     * it again when the economy is active ({@link Economies#initialize}, with no jobs and an empty stock first), thus the population, the jobs and
-     * the stock follow the culture and the level of the trial.
+     * <p>The economy of the settlement starts with the faction of its region, before {@code joinFaction} changes the
+     * faction. When the economy is active, the method starts the economy again ({@link Economies#initialize}, with no
+     * jobs and an empty stock first), thus the population, the jobs and the stock follow the culture and the level of
+     * the trial.
      *
      * @param helper  the helper of the test
      * @param heart   the heart of the trial
