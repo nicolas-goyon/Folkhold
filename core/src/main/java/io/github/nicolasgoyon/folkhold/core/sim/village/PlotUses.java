@@ -153,16 +153,21 @@ public final class PlotUses {
     }
 
     /**
-     * True if the next home must have beds: with a home with no bed on the plot, the home plots that stay cannot give
-     * the beds that the village needs.
+     * The fewest beds of the next home: with fewer beds, the home plots that stay cannot give the beds that the village
+     * needs. The result is 0 (any home) when the pool has no home with beds, and {@code mostBeds} at most: when the
+     * home plots cannot give the beds, the next home has the most beds.
      *
      * @param need       the home beds that the village needs and does not have
      * @param homesLeft  the home plots with no piece, the next plot included
      * @param mostBeds   the largest number of beds of a home of the pool
-     * @return true if the next home must have beds
+     * @return the fewest beds of the next home, from 0 to {@code mostBeds}
      */
-    public static boolean needsBeds(int need, int homesLeft, int mostBeds) {
-        return need > 0 && need > (long) (homesLeft - 1) * mostBeds;
+    public static int leastBeds(int need, int homesLeft, int mostBeds) {
+        if (need <= 0 || mostBeds <= 0) {
+            return 0;
+        }
+        long rest = (long) Math.max(0, homesLeft - 1) * mostBeds;
+        return (int) Math.max(0, Math.min(mostBeds, need - rest));
     }
 
     /** True if a plot holds a building: a wide plot of its wide home, or a plot that is not wide for the home. */

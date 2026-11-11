@@ -10,6 +10,7 @@ import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Plot;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.PlotRole;
 import io.github.nicolasgoyon.folkhold.core.sim.village.VillagePlan.Start;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -90,8 +91,8 @@ class PlotUsesTest {
                         }
                     }
                     assertEquals(free, uses.stream().filter(use -> use.type() == PlotUses.Type.FREE).count(), name);
-                    assertEquals(buildings.size(), uses.stream().filter(use -> use.type() == PlotUses.Type.BUILDING).count(),
-                            name);
+                    assertEquals(buildings.size(),
+                            uses.stream().filter(use -> use.type() == PlotUses.Type.BUILDING).count(), name);
                     assertEquals(result, PlotUses.assign(plan, buildings, posts), name);
                 }
             }
@@ -109,7 +110,7 @@ class PlotUsesTest {
     }
 
     /**
-     * A village that puts a home with no bed on each plot where {@link PlotUses#needsBeds} allows it still gets the
+     * A village that puts a home with no bed on each plot where {@link PlotUses#leastBeds} allows it still gets the
      * beds that it needs: the bed homes are the fewest homes that give the beds.
      */
     @Test
@@ -119,7 +120,7 @@ class PlotUsesTest {
                 int beds = 0;
                 int bedHomes = 0;
                 for (int left = plots; left > 0; left--) {
-                    if (PlotUses.needsBeds(need - beds, left, 3)) {
+                    if (PlotUses.leastBeds(need - beds, left, 3) > 0) {
                         beds += 3;
                         bedHomes++;
                     }
@@ -128,7 +129,40 @@ class PlotUsesTest {
                 assertEquals((need + 2) / 3, bedHomes, plots + " plots, " + need + " beds");
             }
         }
-        assertTrue(!PlotUses.needsBeds(0, 1, 3) && PlotUses.needsBeds(1, 1, 3) && !PlotUses.needsBeds(3, 2, 3));
+        assertEquals(0, PlotUses.leastBeds(0, 1, 3));
+        assertEquals(1, PlotUses.leastBeds(1, 1, 3));
+        assertEquals(0, PlotUses.leastBeds(3, 2, 3));
+    }
+
+    /**
+     * A pool with homes of 0, 2 and 3 beds: a village that takes the home with the fewest beds that {@link
+     * PlotUses#leastBeds} allows still gets the beds that it needs. A home of 2 beds comes only when the home plots
+     * that stay give the last bed.
+     */
+    @Test
+    void smallBedHomesKeepTheBedsThatTheVillageNeeds() {
+        int[] pool = {0, 2, 3};
+        for (int plots = 0; plots <= 30; plots++) {
+            for (int need = 0; need <= plots * 3; need++) {
+                int beds = 0;
+                for (int left = plots; left > 0; left--) {
+                    int least = PlotUses.leastBeds(need - beds, left, 3);
+                    beds += Arrays.stream(pool).filter(home -> home >= least).min().orElseThrow();
+                }
+                assertTrue(beds >= need, plots + " plots, " + need + " beds");
+            }
+        }
+        assertEquals(2, PlotUses.leastBeds(5, 2, 3));
+        assertEquals(3, PlotUses.leastBeds(6, 2, 3));
+        assertEquals(3, PlotUses.leastBeds(9, 2, 3));
+    }
+
+    /** A pool with no home with beds gives a home on each home plot: the next home can have no bed. */
+    @Test
+    void poolWithNoBedsGivesHomes() {
+        for (int left = 0; left <= 10; left++) {
+            assertEquals(0, PlotUses.leastBeds(30, left, 0));
+        }
     }
 
     /** With too few plots, the posts take the free plots and the result gives the missing buildings. */
