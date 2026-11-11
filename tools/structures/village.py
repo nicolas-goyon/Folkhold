@@ -151,8 +151,9 @@ PARTIAL = {
     "minecraft:farmland": (box(0, 0, 0, 16, 15, 16),),
     "minecraft:dirt_path": (box(0, 0, 0, 16, 15, 16),),
     "minecraft:cake": (box(1, 0, 1, 15, 8, 15),),
+    "minecraft:lectern": (box(0, 0, 0, 16, 2, 16), box(4, 2, 4, 12, 14, 12)),
     "minecraft:candle_cake": (box(1, 0, 1, 15, 8, 15),),
-    "minecraft:cauldron": (), "minecraft:water_cauldron": (), "minecraft:grindstone": (), "minecraft:lectern": (),
+    "minecraft:cauldron": (), "minecraft:water_cauldron": (), "minecraft:grindstone": (),
     "minecraft:bell": (), "minecraft:chain": (), "minecraft:lightning_rod": (), "minecraft:cocoa": (),
     "folkhold_blocks:brazier": (box(1, 0, 1, 15, 24, 15),),
     "folkhold_blocks:quest_board": (),
@@ -189,8 +190,9 @@ def cross(post, arm, props, height):
 
 
 def collision(name, props):
-    """The collision shape of a block state, as boxes (see box): the shape that the game uses for the faces of the
-    block (BlockBehaviour.getBlockSupportShape). A block that the rules do not know is a full block."""
+    """The collision shape of a block state, as boxes (see box), as in the game (getCollisionShape). For the blocks of
+    the templates, it also gives the full faces (isFaceSturdy) and the bottom face under which a wall side is tall
+    (WallBlock). A block that the rules do not know is a full block."""
     if is_wall(name):
         return cross(4, 3, props, 24)
     if is_fence(name):
@@ -266,7 +268,16 @@ def is_exception(name):
 WALL_TESTS = {None: (7, 7, 9, 9), "north": (7, 0, 9, 9), "south": (7, 7, 9, 16), "west": (0, 7, 9, 9),
               "east": (7, 7, 16, 9)}
 # The blocks over a wall that raise its post (the block tag minecraft:wall_post_override).
-WALL_POST_OVERRIDE = ("torch", "_sign", "_banner", "pressure_plate", "tripwire")
+WALL_POST_OVERRIDE = ("minecraft:torch", "minecraft:soul_torch", "minecraft:redstone_torch", "minecraft:tripwire")
+
+
+def raises_post(name):
+    """True for a block of the tag minecraft:wall_post_override: the standing torches, the tripwire, the standing and
+    wall signs (not the hanging signs), the banners and the pressure plates."""
+    if not name.startswith("minecraft:"):
+        return False
+    return (name in WALL_POST_OVERRIDE or name.endswith("_banner") or name.endswith("_pressure_plate")
+            or name.endswith("_sign") and not name.endswith("_hanging_sign"))
 
 
 def covers(above, side=None):
@@ -322,7 +333,7 @@ def wall_state(t, x, y, z, name):
     elif props["north"] == props["south"] == "tall" or props["east"] == props["west"] == "tall":
         up = False
     else:
-        up = above[0].startswith("minecraft:") and above[0].endswith(WALL_POST_OVERRIDE) or covers(above)
+        up = raises_post(above[0]) or covers(above)
     props["up"] = "true" if up else "false"
     return props
 
@@ -1618,9 +1629,11 @@ def fishing_hut():
     t.set(6, 1, 7, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(7, 1, 5, "minecraft:barrel", {"facing": "up", "open": "false"})
     t.set(7, 1, 2, "minecraft:water_cauldron", {"level": "3"})
-    # The nets: cobwebs on the back wall, over the 2 beds and the free floor block between them.
-    for x in (1, 2, 3):
-        t.set(x, 3, 7, "minecraft:cobweb")
+    # The nets: cobwebs high on the walls, over the free floor: on the back wall between the 2 beds and east of the
+    # lantern, and on the west wall in front of the beds. A player on the floor walks under them. No net is over a bed
+    # or another block that a player stands on.
+    for x, z in ((2, 7), (5, 7), (1, 4)):
+        t.set(x, 3, z, "minecraft:cobweb")
     lantern(t, 4, 1, 7)
     lantern(t, 1, 1, 2)
     stone_base(t)
