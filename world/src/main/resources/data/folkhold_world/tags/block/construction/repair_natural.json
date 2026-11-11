@@ -1,15 +1,11 @@
 {
   "values": [
+    "#folkhold_world:construction/repair_wild_plants",
     "#minecraft:logs",
     "#minecraft:leaves",
     "#minecraft:saplings",
     "#minecraft:flowers",
     "#minecraft:fire",
-    "minecraft:short_grass",
-    "minecraft:tall_grass",
-    "minecraft:fern",
-    "minecraft:large_fern",
-    "minecraft:dead_bush",
     "minecraft:brown_mushroom",
     "minecraft:red_mushroom",
     "minecraft:vine",
@@ -33,6 +29,54 @@
     "minecraft:kelp_plant",
     "minecraft:cobweb",
     "minecraft:snow",
-    "minecraft:powder_snow"
+    "minecraft:powder_snow",
+    {
+      "id": "#immersive_weathering:leaf_piles",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:azalea_flower_pile",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:weeds",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:frost",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:icicle",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:soot",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:sand_layer_block",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:red_sand_layer_block",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:ivy",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:moss",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:hanging_roots_wall",
+      "required": false
+    },
+    {
+      "id": "immersive_weathering:dune_grass",
+      "required": false
+    }
   ]
 }

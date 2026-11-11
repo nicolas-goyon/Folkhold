@@ -1,5 +1,6 @@
 package io.github.nicolasgoyon.folkhold.world.gametest;
 
+import com.google.gson.JsonParser;
 import io.github.nicolasgoyon.folkhold.blocks.block.BrazierBlock;
 import io.github.nicolasgoyon.folkhold.blocks.block.QuestBoardBlock;
 import io.github.nicolasgoyon.folkhold.blocks.registry.ModBlocks;
@@ -24,6 +25,7 @@ import io.github.nicolasgoyon.folkhold.world.construction.ConstructionTargets;
 import io.github.nicolasgoyon.folkhold.world.quest.QuestData;
 import io.github.nicolasgoyon.folkhold.world.registry.ModProfessions;
 import io.github.nicolasgoyon.folkhold.world.settlement.Settlements;
+import io.github.nicolasgoyon.folkhold.world.village.RepairEquivalents;
 import io.github.nicolasgoyon.folkhold.world.village.RepairRules;
 import io.github.nicolasgoyon.folkhold.world.village.VillageFolk;
 import io.github.nicolasgoyon.folkhold.world.village.VillageHearts;
@@ -65,6 +67,7 @@ import net.minecraft.world.level.block.LecternBlock;
 import net.minecraft.world.level.block.PoweredRailBlock;
 import net.minecraft.world.level.block.RailBlock;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.StemBlock;
 import net.minecraft.world.level.block.WallBannerBlock;
@@ -72,6 +75,7 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.LecternBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.RailShape;
+import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.neoforged.neoforge.common.NeoForge;
@@ -189,6 +193,113 @@ public final class VillageRepairGameTests {
                 "a chipped anvil");
         assertDamaged(helper, true, Blocks.POTTED_POPPY.defaultBlockState(), Blocks.FLOWER_POT.defaultBlockState(),
                 "a flower pot with a plant");
+        helper.succeed();
+    }
+
+    /**
+     * The groups of the data file {@link RepairEquivalents}: a block of a group can take the place of a template block
+     * of the same group. A block of another group is damaged. The properties that the two blocks share must have the
+     * same values.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_rules")
+    public static void repairRulesAcceptTheBlocksOfAGroup(GameTestHelper helper) {
+        assertDamaged(helper, false, Blocks.MOSSY_COBBLESTONE.defaultBlockState(),
+                Blocks.COBBLESTONE.defaultBlockState(), "mossy cobblestone for cobblestone");
+        assertDamaged(helper, false, Blocks.CRACKED_STONE_BRICKS.defaultBlockState(),
+                Blocks.STONE_BRICKS.defaultBlockState(), "cracked stone bricks for stone bricks");
+        assertDamaged(helper, false, Blocks.STONE_BRICKS.defaultBlockState(),
+                Blocks.MOSSY_STONE_BRICKS.defaultBlockState(), "stone bricks for mossy stone bricks");
+        assertDamaged(helper, false, Blocks.ICE.defaultBlockState(), Blocks.WATER.defaultBlockState(), "ice for water");
+        assertDamaged(helper, false, Blocks.COARSE_DIRT.defaultBlockState(), Blocks.GRASS_BLOCK.defaultBlockState(),
+                "coarse dirt for grass");
+        BlockState stairs = Blocks.COBBLESTONE_STAIRS.defaultBlockState().setValue(StairBlock.FACING, Direction.EAST);
+        assertDamaged(helper, false, Blocks.MOSSY_COBBLESTONE_STAIRS.defaultBlockState()
+                .setValue(StairBlock.FACING, Direction.EAST), stairs, "mossy cobblestone stairs with the same facing");
+        assertDamaged(helper, true, Blocks.MOSSY_COBBLESTONE_STAIRS.defaultBlockState()
+                .setValue(StairBlock.FACING, Direction.WEST), stairs, "mossy cobblestone stairs with another facing");
+        assertDamaged(helper, true, Blocks.MOSSY_COBBLESTONE_SLAB.defaultBlockState().setValue(SlabBlock.TYPE,
+                SlabType.TOP), Blocks.COBBLESTONE_SLAB.defaultBlockState().setValue(SlabBlock.TYPE, SlabType.BOTTOM),
+                "a top slab for a bottom slab");
+        assertDamaged(helper, true, Blocks.STONE_BRICKS.defaultBlockState(), Blocks.COBBLESTONE.defaultBlockState(),
+                "stone bricks for cobblestone");
+        assertDamaged(helper, true, Blocks.MOSSY_COBBLESTONE.defaultBlockState(),
+                Blocks.COBBLESTONE_SLAB.defaultBlockState(), "mossy cobblestone for a cobblestone slab");
+        assertDamaged(helper, true, Blocks.SAND.defaultBlockState(), Blocks.GRASS_BLOCK.defaultBlockState(),
+                "sand for grass");
+        helper.succeed();
+    }
+
+    /**
+     * A group can name the blocks and the tags of a mod that is not loaded: the file skips them with no error, and
+     * the other blocks of the group stay equivalent. The shipped file names only known blocks of Minecraft and of
+     * Folkhold.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_rules")
+    public static void repairEquivalentsSkipTheBlocksOfMissingMods(GameTestHelper helper) {
+        RepairEquivalents.Groups groups = RepairEquivalents.parse(JsonParser.parseString("""
+                {"groups": [{"name": "test", "blocks": ["minecraft:stone", "no_such_mod:mossy_stone",
+                                                          "#no_such_mod:stones", "minecraft:andesite"]},
+                            {"name": "empty", "blocks": ["no_such_mod:block"]}],
+                 "ignored_properties": ["facing"]}
+                """).getAsJsonObject());
+        helper.assertTrue(groups.groups().size() == 2, "The file must keep the 2 groups: " + groups);
+        helper.assertTrue(groups.skipped().equals(List.of(ResourceLocation.parse("no_such_mod:mossy_stone"),
+                ResourceLocation.parse("no_such_mod:block"))), "The file must skip the unknown blocks: "
+                + groups.skipped());
+        helper.assertTrue(groups.areEquivalent(Blocks.ANDESITE.defaultBlockState(), Blocks.STONE.defaultBlockState()),
+                "Andesite and stone must stay in one group");
+        helper.assertFalse(groups.areEquivalent(Blocks.DIORITE.defaultBlockState(), Blocks.STONE.defaultBlockState()),
+                "Diorite is in no group");
+        BlockState stairs = Blocks.COBBLESTONE_STAIRS.defaultBlockState().setValue(StairBlock.FACING, Direction.EAST);
+        BlockState turned = stairs.setValue(StairBlock.FACING, Direction.WEST);
+        helper.assertFalse(RepairRules.isDamaged(turned, stairs, groups),
+                "A property that the file ignores must not give damage: " + groups.ignoredProperties());
+        helper.assertTrue(RepairRules.isDamaged(turned, stairs, RepairEquivalents.Groups.EMPTY),
+                "With no ignored property, stairs with another facing are damaged");
+        helper.assertTrue(RepairEquivalents.get().ignoredProperties().contains("weathering"),
+                "The shipped file must ignore the property weathering of Immersive Weathering");
+        List<ResourceLocation> known = RepairEquivalents.get().skipped().stream()
+                .filter(id -> id.getNamespace().equals(ResourceLocation.DEFAULT_NAMESPACE)
+                        || id.getNamespace().startsWith("folkhold"))
+                .toList();
+        helper.assertTrue(known.isEmpty(), "The shipped file must name only known blocks of Minecraft: " + known);
+        helper.succeed();
+    }
+
+    /**
+     * A missing wild plant of a template (grass, fern, flower) is not damage: the weather, the animals, the players and
+     * other mods remove them. A missing log of a building stays damage.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_rules")
+    public static void repairRulesAcceptAMissingWildPlant(GameTestHelper helper) {
+        BlockState air = Blocks.AIR.defaultBlockState();
+        assertDamaged(helper, false, air, Blocks.SHORT_GRASS.defaultBlockState(), "no short grass");
+        assertDamaged(helper, false, air, Blocks.TALL_GRASS.defaultBlockState(), "no tall grass");
+        assertDamaged(helper, false, air, Blocks.FERN.defaultBlockState(), "no fern");
+        assertDamaged(helper, false, air, Blocks.POPPY.defaultBlockState(), "no poppy");
+        assertDamaged(helper, false, Blocks.SNOW.defaultBlockState(), Blocks.DANDELION.defaultBlockState(),
+                "snow in the place of a dandelion");
+        assertDamaged(helper, true, Blocks.COBBLESTONE.defaultBlockState(), Blocks.SHORT_GRASS.defaultBlockState(),
+                "cobblestone in the place of short grass");
+        assertDamaged(helper, true, air, Blocks.OAK_LOG.defaultBlockState(), "no oak log");
+        assertDamaged(helper, true, air, Blocks.WHEAT.defaultBlockState(), "no wheat");
+        helper.succeed();
+    }
+
+    /**
+     * The repairs read the file of the server resources again: the new groups replace the current groups.
+     */
+    @GameTest(template = "arena", timeoutTicks = 20, batch = "village_repair_rules")
+    public static void repairEquivalentsReload(GameTestHelper helper) {
+        RepairEquivalents.Groups before = RepairEquivalents.get();
+        RepairEquivalents.Groups after = RepairEquivalents.reload(helper.getLevel().getServer().getResourceManager());
+        helper.assertTrue(after != before && RepairEquivalents.get() == after,
+                "The reload must replace the current groups");
+        helper.assertTrue(after.groups().size() == before.groups().size() && !after.groups().isEmpty(),
+                "The reload must read the groups of the file: " + after.groups().size() + " for "
+                + before.groups().size());
+        helper.assertTrue(after.areEquivalent(Blocks.WATER_CAULDRON.defaultBlockState(),
+                Blocks.CAULDRON.defaultBlockState()), "The reloaded file must keep the cauldron group");
         helper.succeed();
     }
 
