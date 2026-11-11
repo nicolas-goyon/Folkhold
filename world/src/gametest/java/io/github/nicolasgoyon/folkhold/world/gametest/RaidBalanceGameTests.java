@@ -7,6 +7,8 @@ import io.github.nicolasgoyon.folkhold.core.sim.settlement.Settlement;
 import io.github.nicolasgoyon.folkhold.core.sim.village.PalisadeHeights;
 import io.github.nicolasgoyon.folkhold.world.FolkholdWorld;
 import io.github.nicolasgoyon.folkhold.world.block.VillageHeartBlockEntity;
+import io.github.nicolasgoyon.folkhold.world.economy.Economies;
+import io.github.nicolasgoyon.folkhold.world.economy.EconomyData;
 import io.github.nicolasgoyon.folkhold.world.entity.FactionUnit;
 import io.github.nicolasgoyon.folkhold.world.entity.ai.MonsterTargeting;
 import io.github.nicolasgoyon.folkhold.world.faction.Cultures;
@@ -76,8 +78,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  *   <li>Culture: the settlement of the trial belongs to the first faction of one culture ({@link #CULTURE} for the exit
  *       tests, {@link #CULTURE_VARIABLE} for the matrix). The culture of a faction selects the equipment of its units
  *       ({@code GarrisonEquipment}), and the culture of a new settlement comes from the region of its position. The
- *       GameTest server puts the tests at a random position: with no fixed culture, all the trials of one server run
- *       get the equipment of one random culture.</li>
+ *       GameTest server puts the tests at a random position. Without this fixed faction, all the trials of one server
+ *       run get the equipment of one random culture. The economy of the settlement (population, jobs, stock) starts
+ *       again with the faction and the level of the trial.</li>
  *   <li>Time: the trial starts at noon of the first day ({@link TestSupport#sweep}), thus at the same moon phase.</li>
  *   <li>Difficulty: the GameTest world has the difficulty Normal.</li>
  * </ul>
@@ -132,13 +135,14 @@ public final class RaidBalanceGameTests {
      */
     static final String CELLS_VARIABLE = "FOLKHOLD_RAID_CELLS";
     /**
-     * The culture of the settlements of the trials: Ashmark. Its equipment sets are the sets with no culture, with
-     * crossbows for the archers.
+     * The culture of the settlements of the trials: Ashmark. Its equipment sets are the sets with no culture, except
+     * the archers (crossbows).
      */
     static final String CULTURE = Cultures.ASHMARK.id();
     /**
-     * The environment variable that selects the culture of the matrix trials, for example {@code sunreach}. With no
-     * value, the matrix uses {@link #CULTURE}. The exit tests always use {@link #CULTURE}.
+     * The environment variable that selects the culture of the matrix trials, for example {@code sunreach} (the case
+     * of the value does not change the culture). With no value, the matrix uses {@link #CULTURE}. The exit tests
+     * always use {@link #CULTURE}.
      */
     static final String CULTURE_VARIABLE = "FOLKHOLD_RAID_CULTURE";
     static final int[] MATRIX_RAIDS = {1, 3, 4, 5};
@@ -191,8 +195,9 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a hamlet (level 1) falls to a raid of level 1. Cell "raid level 1, hamlet" of the
-     * targets. Measured: falls in 40 of 40 trials (the total of all the measures). The 95 % interval of the fall rate
-     * starts at about 0.91, and at this rate a wrong majority occurs in about 0.6 % of the runs. The test is required.
+     * targets. Measured with the culture {@link #CULTURE}: falls in 48 of 48 trials (2 server runs). The 95 % interval
+     * of the fall rate starts at about 0.93, and at this rate a wrong majority occurs in about 0.4 % of the runs. The
+     * test is required.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_hamlet")
     public static void smallVillageFalls(GameTestHelper helper) {
@@ -201,8 +206,9 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a village (level 5) holds against a raid of level 1. Cell "raid level 1, village" of
-     * the targets. Measured: holds in 14 of 16 trials, thus a wrong majority in about 1.6 % of the runs. The test is
-     * optional until a wrong majority is below 1 % at the low end of the 95 % interval of the hold rate.
+     * the targets. Measured with the culture {@link #CULTURE}: holds in 22 of 24 trials (1 stall), thus a wrong
+     * majority in about 0.5 % of the runs at this rate and in about 11 % at the low end of the 95 % interval (0.74).
+     * The test is optional until a wrong majority is below 1 % at the low end of the 95 % interval of the hold rate.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_village",
             required = false)
@@ -212,9 +218,9 @@ public final class RaidBalanceGameTests {
 
     /**
      * Exit criterion of version 1: a town (level 9) holds against a raid of level 3. Cell "raid level 3, town" of the
-     * targets. Measured: holds in 33 of 33 trials. The 95 % interval of the hold rate is 0.89 to 1, and at 0.89 a
-     * wrong majority occurs in about 1.0 % of the runs. The test is optional until a wrong majority is below 1 % at
-     * the low end of this interval.
+     * targets. Measured with the culture {@link #CULTURE}: holds in 48 of 48 trials (2 server runs). The 95 % interval
+     * of the hold rate is 0.93 to 1, and at 0.93 a wrong majority occurs in about 0.4 % of the runs. The test stays
+     * optional until a decision of the owner.
      */
     @GameTest(template = "arena_huge", timeoutTicks = TestSupport.WORKER_TICKS, batch = "raid_balance_town",
             required = false)
@@ -312,9 +318,9 @@ public final class RaidBalanceGameTests {
         }
     }
 
-    /** The culture of the matrix trials: the value of the variable, else {@link #CULTURE}. */
+    /** The culture of the matrix trials: the value of the variable in lower case, else {@link #CULTURE}. */
     static String culture(String value) {
-        return value == null || value.isBlank() ? CULTURE : value.trim();
+        return value == null || value.isBlank() ? CULTURE : value.trim().toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -460,8 +466,14 @@ public final class RaidBalanceGameTests {
 
     /**
      * Puts the settlement of the heart in the first faction of a culture, before the heart creates its garrison. The
-     * GameTest world has a fixed seed, thus the same factions in each run. The units take the faction of the heart,
-     * and the culture of the faction selects their equipment.
+     * faction generator gives the cultures in turn ({@code FactionGenerator}: the faction {@code i} gets the culture
+     * {@code i % Cultures.ALL.size()}, with {@code Cultures.ALL} = Valeholm, Ashmark, Sunreach), and a world has 5
+     * factions or more. Thus the first faction of each culture is always the same: {@code faction_1} for Ashmark. The
+     * units take the faction of the heart, and the culture of the faction selects their equipment.
+     *
+     * <p>The economy of the settlement starts with the faction of its region, before this change. The method starts
+     * it again when the economy is active ({@link Economies#initialize}, with no jobs and an empty stock first), thus the population, the jobs and
+     * the stock follow the culture and the level of the trial.
      *
      * @param helper  the helper of the test
      * @param heart   the heart of the trial
@@ -476,6 +488,11 @@ public final class RaidBalanceGameTests {
         Settlement settlement = Settlements.of(server, heart).orElseThrow();
         settlement.setFactionId(faction.id());
         heart.adoptSettlement(UUID.fromString(settlement.id()), faction.id(), settlement.name());
+        if (EconomyData.isActive()) {
+            settlement.economy().setJobs(List.of());
+            TestSupport.emptyStock(settlement);
+            Economies.initialize(server, settlement);
+        }
         SettlementData.get(server).setDirty();
     }
 
